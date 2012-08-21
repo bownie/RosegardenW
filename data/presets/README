@@ -1,0 +1,16 @@
+This directory contains the source for the instrument definition presets.
+
+I am maintaining it in plain text "conf file" format for ease of editing.  If
+you make changes to presets-editable.conf, you must generate a new presets.xml
+by running
+
+  ./regenerate-presets
+
+After generating the file, go to the main rosegarden/ directory and run
+
+  make ts
+
+in order to update the translations with your changes.  They will appear in the
+.ts files for the respective languages, and will appear in the GUI in context.
+This method replaces the old presets-editable.XX.conf method and the old
+presets-XX.xml files.

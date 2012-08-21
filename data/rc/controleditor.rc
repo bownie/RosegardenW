@@ -1,0 +1,27 @@
+<!DOCTYPE kpartgui SYSTEM "kpartgui.dtd">
+
+<kpartgui name="ControlEditor" version="1230">
+
+<MenuBar>
+  <Menu name="file" append="new_merge">
+    <text>&amp;File</text>
+    <Action name="file_save" text="&amp;Save" icon="filesave" shortcut="Ctrl+S" />
+    <Action name="file_close" text="&amp;Close" icon="fileclose" shortcut="Ctrl+W" />
+  </Menu>
+
+  <Menu name="edit" append="new_merge">
+    <text>&amp;Edit</text>
+    <!-- JAS 'Undo' and 'Redo' use dynamic text.  Put default text for new project in. -->
+    <Action name="edit_undo" text="&amp;Nothing to undo" icon="undo" shortcut="Ctrl+Z" />
+    <Action name="edit_redo" text="N&amp;othing to redo" icon="redo" shortcut="Ctrl+Shift+Z" />
+  </Menu>
+
+  <Menu name="help" append="about_merge">
+    <text>&amp;Help</text>
+    <Action name="control_help" text="&amp;Help" icon="wiki" shortcut="F1" />
+  <Separator/>
+    <Action name="help_about_app" text="&amp;About Rosegarden" icon="rg-rwb-rose3-16x16" />
+  </Menu>
+</MenuBar>
+
+</kpartgui>

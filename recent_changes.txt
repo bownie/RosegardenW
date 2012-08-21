@@ -1,0 +1,18 @@
+AudioFileManager.cpp - fixed the audio output path for recording - also all relative paths are fixed for ~ to APPDATA directory
+LilyPondProcessor.h/cpp - fixed Lilypond paths
+
+
+- Rosegarden installs to Program Files\Xyglo\Rosegarden along with examples and all supporting files
+
+- When Rosegarden runs it creates an audio folder under AppData profile (Roaming) called 'rosegarden'.
+
+- Under the HOMEPATH directory a .local/share/rosegarden folder is created also
+
+- Under HKEY_USERS\S-1-5-21-839522115-764733703-725345543-21062\Software\rosegardenmusic
+  you get the configuration information held.
+
+- Temporary directory for example:  C:\Users\bownr\AppData\Local\Temp
+
+
+
+cmd.exe /c convert-ly -e C:/Users/bownie/AppData/Local/Temp/rosegarden_tmp_gq1116.ly

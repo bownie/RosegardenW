@@ -1,0 +1,52 @@
+<!DOCTYPE kpartgui SYSTEM "kpartgui.dtd">
+
+<kpartgui name="MarkerEditor" version="1230">
+
+<MenuBar>
+
+  <Menu name="file">
+    <text>&amp;File</text>
+    <Action name="file_close" text="&amp;Close" icon="fileclose" shortcut="Ctrl+W" />
+  </Menu>
+
+  <Menu name="edit" append="new_merge">
+    <text>&amp;Edit</text>
+    <!-- JAS 'Undo' and 'Redo' use dynamic text.  Put default text for new project in. -->
+    <Action name="edit_undo" text="&amp;Nothing to undo" icon="undo" shortcut="Ctrl+Z" />
+    <Action name="edit_redo" text="N&amp;othing to redo" icon="redo" shortcut="Ctrl+Shift+Z" />
+  </Menu>
+
+  <Menu name="view">
+    <text>&amp;View</text>
+    <Action name="time_musical" text="&amp;Musical Times" icon="time-musical"  />
+    <Action name="time_real" text="&amp;Real Times" icon="time-real" />
+    <Action name="time_raw" text="Ra&amp;w Times" icon="time-raw" />
+  </Menu>
+
+  <Menu name="help" append="about_merge">
+    <text>&amp;Help</text>
+    <Action name="marker_help" text="&amp;Help" icon="wiki" shortcut="F1" />
+  <Separator/>
+    <Action name="help_about_app" text="&amp;About Rosegarden" icon="rg-rwb-rose3-16x16" />
+  </Menu>
+</MenuBar>
+
+<ToolBar name="mainToolBar">
+   <Action name="file_close"/>
+</ToolBar>
+
+<ToolBar name="Time Toolbar">
+  <text>Time Toolbar</text>
+  <Action name="time_musical"/>
+  <Action name="time_real"/>
+  <Action name="time_raw"/>
+</ToolBar>
+
+<State name="on_control_item">
+     <enable>
+        <Action name="edit_insert"/>
+        <Action name="edit_delete"/>
+     </enable>
+</State>
+
+</kpartgui>

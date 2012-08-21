@@ -1,0 +1,68 @@
+<!DOCTYPE kpartgui SYSTEM "kpartgui.dtd">
+
+<kpartgui name="Rosegarden::TempoView" version="1500">
+
+<MenuBar>
+
+  <Menu name="file">
+    <text>&amp;File</text>
+    <Action name="file_save" text="&amp;Save" icon="filesave" shortcut="Ctrl+S" />
+  <Separator/>
+    <Action name="file_close" text="&amp;Close" icon="fileclose" shortcut="Ctrl+W" />
+  </Menu>
+
+  <Menu name="edit" append="new_merge">
+    <text>&amp;Edit</text>
+    <!-- JAS 'Undo' and 'Redo' use dynamic text.  Put default text for new project in. -->
+    <Action name="edit_undo" text="&amp;Nothing to undo" icon="undo" shortcut="Ctrl+Z" />
+    <Action name="edit_redo" text="N&amp;othing to redo" icon="redo" shortcut="Ctrl+Shift+Z" />
+  <Separator/>
+    <Action name="insert_tempo" text="Add Te&amp;mpo Change..." icon="event-insert-tempo" shortcut="I" />
+    <Action name="insert_timesig" text="Add Time Si&amp;gnature Change..." icon="event-insert-timesig" shortcut="G" />
+    <!-- JAS added Ctrl+D shortcut to "delete" for uniformity -->
+    <Action name="delete" text="&amp;Delete" icon="event-delete" shortcut="Delete, Ctrl+D" />
+    <Action name="edit" text="&amp;Edit Item" icon="event-edit" shortcut="E" />
+  <Separator/>
+    <!-- JAS added shortcut for "select_all" for uniformity. -->
+    <Action name="select_all" text="Select &amp;All" shortcut="Ctrl+A" />
+    <Action name="clear_selection" text="&amp;Clear Selection" shortcut="Escape" />
+  <Separator/>
+    <Action name="configure" text="&amp;Preferences" icon="configure" />
+  </Menu>
+
+  <Menu name="view">
+    <text>&amp;View</text>
+    <Action name="time_musical" text="&amp;Musical Times" icon="time-musical"  />
+    <Action name="time_real" text="&amp;Real Times" icon="time-real" />
+    <Action name="time_raw" text="Ra&amp;w Times" icon="time-raw" />
+  <Separator/>
+    <Action name="options_show_toolbar" text="Show &amp;Toolbar" checked="true" append="show_merge" />
+    <!-- JAS 'options_show_statusbar' determined by state -->
+    <Action name="options_show_statusbar" text="Hide St&amp;atusbar" append="show_merge" />
+  </Menu>
+
+  <Menu name="help" append="about_merge">
+    <text>&amp;Help</text>
+    <Action name="tempo_help" text="&amp;Help" icon="wiki" shortcut="F1" />
+  <Separator/>
+    <Action name="help_about_app" text="&amp;About Rosegarden" icon="rg-rwb-rose3-16x16" />
+  </Menu>
+
+</MenuBar>
+
+<ToolBar name="Actions Toolbar">
+  <text>Actions Toolbar</text>
+  <Action name="insert_tempo"/>
+  <Action name="insert_timesig"/>
+  <Action name="delete"/>
+  <Action name="edit"/>
+</ToolBar>
+
+<ToolBar name="Time Toolbar">
+  <text>Time Toolbar</text>
+  <Action name="time_musical"/>
+  <Action name="time_real"/>
+  <Action name="time_raw"/>
+</ToolBar>
+
+</kpartgui>

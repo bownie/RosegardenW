@@ -1,0 +1,65 @@
+Install only:
+
+- install qt-sdk-win-opensource-2010.05.exe (default path)
+- zlib (default path - developer package)
+- pthreads-w32-2-8-0-release.exe
+- (ladspa)
+
+
+
+Build steps:
+
+- create new project (leave build directory outside of the project path for sources)
+- copy in source sub directories
+- copy in project file (premodified)
+- copy .qm files to data/local directory
+- run qmake
+- build
+- fix probs below
+- ensure link path is correct according to qmake file
+- modify path for DLLs
+- convert and install fonts with fontforge
+
+
+
+Code mods:
+
+- do moc include substitutions to all .cpp files (thing.moc -> moc_thing.cpp)
+- rename all UI files i.e. DeviceManagerDialogUi.h -> ui_DeviceManagerDialogUi.h
+- RingBuffer.h - comment out mman stuff
+- LilypondExporter fix for VERSION as QString
+- TranzportClient comment out bzero etc 
+- RosegardenMainWindow.cpp comment out ll stuff
+- main.cpp - comment out some process stuff
+- Resampler.cpp - comment out
+- LADSPAPluginInstance.cpp - comment ALL out
+- LADSPAPluginFactory.cpp - lots of commenting out
+- DSSIPluginInstance.h/cpp - lots of commenting out
+- DSSIPluginFactory.h/cpp - lots of commenting out
+- AudioTimeStretcher.h/cpp - lots of commenting out
+- AudioProcess.h/cpp - AudioThread, AudioBussMixer
+- AudioFileTimeStretcher.cpp/h
+- TempDirectory.cpp - commented out some potentially breakingable stuff (!!!)
+
+- OSCMessage
+- AudioPluginOSCGUIManager
+- AudioPluginOSCGui.cpp
+
+
+
+
+
+- AlsaDriver NO?  Why?
+
+
+Other stuff:
+
+- Fontforge fontforge-mingw_2010_05_18.zip
+
+Created fonts with this:
+
+GNU-LilyPond-parmesan-20.ttf
+GNU-LilyPond-feta-design20.ttf
+GNU-LilyPond-feta-nummer-10.ttf
+
+These need to be installed!
