@@ -27,7 +27,8 @@ MidiThread::MidiThread(std::string name, // for diagnostics
                        SoundDriver *driver,
                        unsigned int sampleRate):
                         AudioThread(name, driver, sampleRate),
-                        m_fetchBufferSize(256)
+                        m_fetchBufferSize(256),
+                        m_currentRtOutPort(0)
 {
     // Initialise the RingBuffers
     //
@@ -109,7 +110,7 @@ void MidiThread::initialiseMidiIn(unsigned int port)
 {
     // Create the MIDI in port
     //
-    RtMidiIn *midiIn = ((PortableSoundDriver*)(m_driver))->getRtMidiIn();
+    RtMidiIn *midiIn = ((PortableSoundDriver*)(m_driver))->getRtMidiIn(port);
 
     try
     {
@@ -233,7 +234,7 @@ void MidiThread::midiInCallback(double deltatime, std::vector< unsigned char > *
 
     for ( unsigned int i=0; i<nBytes; i++ )
     {
-      msg = QString("Byte %1 = %2").arg(i).arg((int)message->at(i));
+      msg = QString("GOT MIDI IN Byte %1 = %2").arg(i).arg((int)message->at(i));
       std::cout << msg.toStdString() << std::endl;
 
 
@@ -241,7 +242,7 @@ void MidiThread::midiInCallback(double deltatime, std::vector< unsigned char > *
 
     if ( nBytes > 0 )
     {
-      msg = QString("stamp = %1").arg(deltatime);
+      msg = QString("GOT MIDI IN stamp = %1").arg(deltatime);
       std::cout << msg.toStdString() << std::endl;
     }
 }
@@ -269,12 +270,23 @@ void MidiThread::processNotesOff(bool everything)
             //
             try
             {
+                // Get the RtMidi port
+                //
+                int rtPort = ((PortableSoundDriver*)(m_driver))->
+                             getOutputPortForMappedInstrument((*it)->getInstrument());
+                if (rtPort < 0)
+                {
+                    QString outMsg = QString("MidiThread::bufferMidiOut - no RtMidi port found");
+                    logMsg(outMsg.toStdString());
+                    continue;
+                }
+
                 instrument = ((PortableSoundDriver*)(m_driver))->getMappedInstrument((*it)->getInstrument());
 
                 std::vector<unsigned char> message;
                 message.push_back(MIDI_NOTE_OFF /* + instrument->getChannel() */);
                 message.push_back((*it)->getPitch());
-                ((PortableSoundDriver*)(m_driver))->getRtMidiOut()->sendMessage(&message);
+                ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->sendMessage(&message);
 
                 QString msg = QString("processNotesOff:MidiNoteOff note = %1").arg((int)(*it)->getPitch());
 
@@ -350,7 +362,9 @@ void MidiThread::bufferMidiOut()
         if (isControllerOut) {
             channel = (*i)->getRecordedChannel();
         } else if (instrument != 0) {
-            channel = 0; //instrument->getChannel();
+            channel = (*i)->getRecordedChannel();
+            //instrument->getChannel();
+            //channel = 0;
         } else {
             channel = 0;
         }
@@ -362,14 +376,22 @@ void MidiThread::bufferMidiOut()
                      getOutputPortForMappedInstrument((*i)->getInstrument());
         if (rtPort < 0)
         {
-            outMsg = QString("MidiThread::bufferMidiOut - no RtMidi port found - %1").arg(rtPort);
+            outMsg = QString("MidiThread::bufferMidiOut - no RtMidi port found");
             logMsg(outMsg.toStdString());
             continue;
         }
 
-        // Want to set the output port here
+        // Check to see if the port exists
         //
-        ((PortableSoundDriver*)(m_driver))->getRtMidiOut()->openPort(rtPort);
+        ((PortableSoundDriver*)(m_driver))->checkRtMidiOut(rtPort);
+
+
+        outMsg = QString("MidiThread::bufferMidiOut - RtMidi port USING - %1 - %2").arg(rtPort).arg(QString(((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->getPortName(rtPort).c_str()));
+        logMsg(outMsg.toStdString());
+
+        // Set the output port here
+        //
+        ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->openPort(rtPort);
 
         if (getTimeOfDay() >= outputTime)
         {
@@ -382,11 +404,11 @@ void MidiThread::bufferMidiOut()
                 case MappedEvent::MidiNoteOneShot:
                     {
                         std::vector<unsigned char> message;
-                        message.push_back(MIDI_NOTE_ON /* + instrument->getChannel() */ );
+                        message.push_back(MIDI_NOTE_ON + channel);
                         message.push_back((*i)->getPitch());
                         message.push_back((*i)->getVelocity());
 
-                        ((PortableSoundDriver*)(m_driver))->getRtMidiOut()->sendMessage(&message);
+                        ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->sendMessage(&message);
 
                         QString msg = QString("MidiNoteOneShot note = %1, vely = %2").arg((int)(*i)->getPitch())
                                       .arg((int)(*i)->getVelocity());
@@ -417,11 +439,11 @@ void MidiThread::bufferMidiOut()
                 //
                 if ((*i)->getVelocity() > 0) {
                     std::vector<unsigned char> message;
-                    message.push_back(MIDI_NOTE_ON /* + instrument->getChannel() */);
+                    message.push_back(MIDI_NOTE_ON + channel);
                     message.push_back((*i)->getPitch());
                     message.push_back((*i)->getVelocity());
 
-                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut()->sendMessage(&message);
+                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->sendMessage(&message);
 
                     QString msg = QString("MidiNote note = %1, vely = %2").arg((int)(*i)->getPitch())
                                   .arg((int)(*i)->getVelocity());
@@ -429,11 +451,11 @@ void MidiThread::bufferMidiOut()
 
                 } else {
                     std::vector<unsigned char> message;
-                    message.push_back(MIDI_NOTE_OFF /* + instrument->getChannel() */);
+                    message.push_back(MIDI_NOTE_OFF + channel);
                     message.push_back((*i)->getPitch());
                     message.push_back((*i)->getVelocity());
 
-                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut()->sendMessage(&message);
+                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->sendMessage(&message);
 
                     QString msg = QString("MidiNoteOff note = %1, vely = %2").arg((int)(*i)->getPitch())
                                   .arg((int)(*i)->getVelocity());
@@ -445,9 +467,9 @@ void MidiThread::bufferMidiOut()
             case MappedEvent::MidiProgramChange:
                 {
                     std::vector<unsigned char> message;
-                    message.push_back(MIDI_PROG_CHANGE /* + instrument->getChannel() */);
+                    message.push_back(MIDI_PROG_CHANGE + channel);
                     message.push_back((*i)->getData1());
-                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut()->sendMessage(&message);
+                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->sendMessage(&message);
 
                     QString msg = QString("MidiProgramChange PC = %1")
                                   .arg((int)(*i)->getData1());
@@ -459,10 +481,10 @@ void MidiThread::bufferMidiOut()
             case MappedEvent::MidiKeyPressure: // Also called MIDI_POLY_AFTERTOUCH
                 {
                     std::vector<unsigned char> message;
-                    message.push_back(MIDI_POLY_AFTERTOUCH /* + instrument->getChannel() */);
+                    message.push_back(MIDI_POLY_AFTERTOUCH + channel);
                     message.push_back((*i)->getData1());
                     message.push_back((*i)->getData2());
-                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut()->sendMessage(&message);
+                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->sendMessage(&message);
 
                     QString msg = QString("MidiKeyPressure Data1 = %1, Data2 = %2")
                                   .arg((int)(*i)->getData1()).arg((int)(*i)->getData2());
@@ -474,9 +496,9 @@ void MidiThread::bufferMidiOut()
             case MappedEvent::MidiChannelPressure: // Also called MIDI_CHNL_AFTERTOUCH
                 {
                     std::vector<unsigned char> message;
-                    message.push_back(MIDI_CHNL_AFTERTOUCH /* + instrument->getChannel() */);
+                    message.push_back(MIDI_CHNL_AFTERTOUCH + channel);
                     message.push_back((*i)->getData1());
-                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut()->sendMessage(&message);
+                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->sendMessage(&message);
 
                     QString msg = QString("MidiChannelPressure Data1 = %1")
                                   .arg((int)(*i)->getData1());
@@ -495,10 +517,10 @@ void MidiThread::bufferMidiOut()
                 // if (value & 0x4000)
                 //    value -= 0x8000;
                 std::vector<unsigned char> message;
-                message.push_back(MIDI_PITCH_BEND /* + instrument->getChannel() */);
+                message.push_back(MIDI_PITCH_BEND + channel);
                 message.push_back(d1);
                 message.push_back(d2);
-                ((PortableSoundDriver*)(m_driver))->getRtMidiOut()->sendMessage(&message);
+                ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->sendMessage(&message);
 
                 QString msg = QString("MidiPitchBend d1 = %1, d2 = %2")
                               .arg(d1).arg(d2);
@@ -548,10 +570,10 @@ void MidiThread::bufferMidiOut()
             case MappedEvent::MidiController:
                 {
                     std::vector<unsigned char> message;
-                    message.push_back(MIDI_CTRL_CHANGE /* + instrument->getChannel() */);
+                    message.push_back(MIDI_CTRL_CHANGE + channel);
                     message.push_back((*i)->getData1());
                     message.push_back((*i)->getData2());
-                    //((PortableSoundDriver*)(m_driver))->getRtMidiOut()->sendMessage(&message);
+                    ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->sendMessage(&message);
 
                     QString msg = QString("MidiController data1 = %1, data2 = %2").arg((int)(*i)->getData1())
                                   .arg((int)(*i)->getData2());

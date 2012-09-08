@@ -44,7 +44,11 @@ public:
 
     RealTime getTimeOfDay();
 
+    // Process note off events as we need to - if we want to force all notes off
+    // then pass true to the first argument.
+    //
     void processNotesOff(bool everything = false);
+
 
     // On jump - clear the out buffers
     //
@@ -82,6 +86,10 @@ protected:
     // MIDI Note-off handling - copy from SoundDriver
     //
     NoteOffQueue            m_noteOffQueue;
+
+    // Keep a track of the current RtMidi output port
+    //
+    unsigned int            m_currentRtOutPort;
 };
 
 

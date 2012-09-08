@@ -70,8 +70,8 @@ TRANSLATIONS =      data/locale/ca.ts \
                     data/locale/zh_CN.ts
 
 
-INCLUDEPATH += "D:/devel/zlib/include" \
-               "D:/devel/pthreads/Pre-built.2/include"
+INCLUDEPATH += "C:/devel/zlib/include" \
+               "C:/devel/pthreads/Pre-built.2/include"
 
 # For Performance Counters
 #C:\devel\RG\zlib
@@ -79,8 +79,8 @@ INCLUDEPATH += "D:/devel/zlib/include" \
 #INCLUDEPATH += "C:/Program Files/Microsoft Visual Studio 8/VC/PlatformSDK/Include" \
 #               "C:/Program Files/Microsoft Visual Studio 8/VC/Include"
 
-QMAKE_LIBDIR += "D:/devel/pthreads/Pre-built.2/lib" \
-                "D:/devel/zlib/lib"
+QMAKE_LIBDIR += "C:/devel/pthreads/Pre-built.2/lib" \
+                "C:/devel/zlib/lib"
 
 LIBS += -lpthread -lzlib -lwinmm
 

@@ -12,6 +12,30 @@
     COPYING included with this distribution for more information.
 */
 
+/*
+  RtMidi licence
+  --------------
+
+  RtMidi: realtime MIDI i/o C++ classes
+  Copyright (c) 2003-2012 Gary P. Scavone
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
+  files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
+  modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+  Software is furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+  Any person wishing to distribute modifications to the Software is asked to send the modifications to the original developer so
+  that they can be incorporated into the canonical version. This is, however, not a binding provision of this license.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+  IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+*/
+
 #include "PortableSoundDriver.h"
 #include "misc/Debug.h"
 #include <windows.h>
@@ -23,8 +47,8 @@ namespace Rosegarden
 
 PortableSoundDriver::PortableSoundDriver(MappedStudio *studio):
             SoundDriver(studio, std::string("[PortableSoundDriver]")),
-            m_midiIn(0),
-            m_midiOut(0),
+//            m_midiIn(0),
+  //          m_midiOut(0),
             m_bufferSize(256),
             m_loopStartTime(0, 0),
             m_loopEndTime(0, 0),
@@ -40,8 +64,20 @@ PortableSoundDriver::PortableSoundDriver(MappedStudio *studio):
 
 PortableSoundDriver::~PortableSoundDriver()
 {
-    if ( m_midiIn ) delete m_midiIn;
-    if ( m_midiOut ) delete m_midiOut;
+    //if ( m_midiIn ) delete m_midiIn;
+    //if ( m_midiOut ) delete m_midiOut;
+
+    for (unsigned int i = 0; i < m_midiInPorts.size(); i++)
+    {
+        m_midiInPorts[i]->closePort();
+        delete m_midiInPorts[i];
+    }
+
+    for(unsigned int i = 0; i < m_midiOutPorts.size(); i++)
+    {
+        m_midiOutPorts[i]->closePort();
+        delete m_midiOutPorts[i];
+    }
 
     if ( m_midiThread ) delete m_midiThread;
 }
@@ -52,11 +88,12 @@ PortableSoundDriver::initialise()
 {
     SEQUENCER_DEBUG << "PortableSoundDriver::initialise" << endl;
 
-    // RtMidiIn constructor
+
+    // Initialise at least one port in one directionm_midiInPorts
     //
     try
     {
-      m_midiIn = new RtMidiIn();
+        m_midiInPorts.push_back(new RtMidiIn());
     }
     catch (RtError &error)
     {
@@ -69,7 +106,7 @@ PortableSoundDriver::initialise()
     //
     try
     {
-      m_midiOut = new RtMidiOut();
+      m_midiOutPorts.push_back(new RtMidiOut());
     }
     catch ( RtError &error )
     {
@@ -136,6 +173,10 @@ void
 PortableSoundDriver::stopPlayback()
 {
     SEQUENCER_DEBUG << "PortableSoundDriver::stopPlayback";
+
+    // Force all notes off
+    //
+    allNotesOff();
 }
 
 // stop recording, continue playing
@@ -190,9 +231,13 @@ PortableSoundDriver::punchOut()
 int
 PortableSoundDriver::getOutputPortForMappedInstrument(InstrumentId id)
 {
+    //SEQUENCER_DEBUG << "NUMBER of output ports = " << m_outputPorts.size() << endl;
+
     MappedInstrument *instrument = getMappedInstrument(id);
     if (instrument) {
         DeviceId device = instrument->getDevice();
+
+        SEQUENCER_DEBUG << "DEVICE ID = " << device << endl;
 
         DeviceIntMap::iterator i = m_outputPorts.find(device);
 
@@ -202,6 +247,64 @@ PortableSoundDriver::getOutputPortForMappedInstrument(InstrumentId id)
     }
 
     return -1;
+}
+
+RtMidiIn*
+PortableSoundDriver::getRtMidiIn(unsigned int portNum)
+{
+    return m_midiInPorts[portNum];
+}
+
+
+RtMidiOut*
+PortableSoundDriver::getRtMidiOut(unsigned int portNum)
+{
+    return m_midiOutPorts[portNum];
+}
+
+// Assigns a new midi in port as required
+//
+void
+PortableSoundDriver::checkRtMidiIn(unsigned int portNum)
+{
+    while (portNum >= m_midiInPorts.size() )
+    {
+        // RtMidiIn constructor
+        //
+        try
+        {
+          RtMidiIn *addPort = new RtMidiIn();
+          m_midiInPorts.push_back(addPort);
+          SEQUENCER_DEBUG << "PortableSoundDriver::getRtMidiIn - adding port " << portNum;
+        }
+        catch (RtError &error)
+        {
+          // Handle the exception here
+          SEQUENCER_DEBUG << error.getMessage() << endl;
+        }
+    }
+}
+
+// Assigns a new midi out port if required
+//
+void
+PortableSoundDriver::checkRtMidiOut(unsigned int portNum)
+{
+    while (portNum >= m_midiOutPorts.size() )
+    {
+        // RtMidiIn constructor
+        //
+        try
+        {
+          RtMidiOut *addPort = new RtMidiOut();
+          m_midiOutPorts.push_back(addPort);
+        }
+        catch (RtError &error)
+        {
+          // Handle the exception here
+          SEQUENCER_DEBUG << error.getMessage() << endl;
+        }
+    }
 }
 
 void
@@ -221,6 +324,10 @@ void
 PortableSoundDriver::allNotesOff()
 {
     SEQUENCER_DEBUG << "PortableSoundDriver::allNotesOff";
+
+    // Ask the thread to process everything to off
+    //
+    m_midiThread->processNotesOff(true);
 }
 
 RealTime
@@ -236,9 +343,12 @@ PortableSoundDriver::getSequencerTime()
 // This is where we get incoming events from and generate a MappedEventList from
 // the MIDI captured in the MIDIThread.
 //
+// See AlsaDriver::getMappedEventList(MappedEventList &composition) for clues
+//
 bool
 PortableSoundDriver::getMappedEventList(MappedEventList &)
 {
+
 
     return true;
 }
@@ -450,15 +560,28 @@ PortableSoundDriver::checkForNewClients()
 {
     std::string portName;
 
-    // Check inputs.
-    unsigned int nPorts = m_midiIn->getPortCount();
+    // Always have at least one port available
+    //
+    if (m_midiInPorts.size() == 0)
+    {
+        m_midiInPorts.push_back(new RtMidiIn());
+    }
+
+    if (m_midiOutPorts.size() == 0)
+    {
+        m_midiOutPorts.push_back(new RtMidiOut());
+    }
+
+
+    // Check inputs -
+    unsigned int nPorts = m_midiInPorts[0]->getPortCount();
     SEQUENCER_DEBUG << "RtMidi: There are " << nPorts << " MIDI input sources available."  << endl;
 
-    for ( unsigned int i=0; i<nPorts; i++ )
+    for ( unsigned int i = 0; i < nPorts; i++ )
     {
       try
       {
-        portName = m_midiIn->getPortName(i);
+        portName = m_midiInPorts[0]->getPortName(i);
       }
 
       catch ( RtError &error )
@@ -473,7 +596,7 @@ PortableSoundDriver::checkForNewClients()
     //
     try
     {
-        nPorts = m_midiOut->getPortCount();
+        nPorts = m_midiOutPorts[0]->getPortCount();
     }
     catch ( RtError &error )
     {
@@ -483,11 +606,11 @@ PortableSoundDriver::checkForNewClients()
 
     SEQUENCER_DEBUG << "There are " << nPorts << " MIDI output ports available." << endl;
 
-    for ( unsigned int i=0; i<nPorts; i++ )
+    for ( unsigned int i = 0; i < nPorts; i++ )
     {
       try
       {
-        portName = m_midiOut->getPortName(i);
+        portName = m_midiOutPorts[0]->getPortName(i);
 
     //    device = new MappedDevice(0, Device::Midi, m_midiOut->getPortName(i), m_midiOut->getPortName(i));
       //  m_devices.push_back(device);
@@ -749,7 +872,7 @@ PortableSoundDriver::createMidiDevice(DeviceId deviceId,
         unsigned int nPorts = 0;
         try
         {
-            nPorts = m_midiOut->getPortCount();
+            nPorts = m_midiOutPorts[0]->getPortCount();
         }
         catch ( RtError &error )
         {
@@ -757,13 +880,13 @@ PortableSoundDriver::createMidiDevice(DeviceId deviceId,
             return false;
         }
 
-        if (m_outputPorts.size() < m_midiOut->getPortCount())
+        if (m_outputPorts.size() < m_midiOutPorts[0]->getPortCount())
         {
             rtMidiPort = m_outputPorts.size();
 
             try
             {
-                deviceName = m_midiOut->getPortName(rtMidiPort);
+                deviceName = m_midiOutPorts[0]->getPortName(rtMidiPort);
                 connectionName = deviceName;
             }
             catch (RtError &error)
@@ -904,11 +1027,11 @@ PortableSoundDriver::getConnections(Device::DeviceType type,
     switch (direction)
     {
         case MidiDevice::Play:
-            return m_midiOut->getPortCount();
+            return m_midiOutPorts[0]->getPortCount();
             break;
 
         case MidiDevice::Record:
-            return m_midiIn->getPortCount();
+            return m_midiInPorts[0]->getPortCount();
             break;
 
         default:
@@ -930,7 +1053,7 @@ PortableSoundDriver::getConnection(Device::DeviceType type,
     {
         try
         {
-            return QString(m_midiIn->getPortName(connectionNo).c_str());
+            return QString(m_midiInPorts[0]->getPortName(connectionNo).c_str());
         }
 
         catch ( RtError &error )
@@ -943,7 +1066,7 @@ PortableSoundDriver::getConnection(Device::DeviceType type,
     {
         try
         {
-            return QString(m_midiOut->getPortName(connectionNo).c_str());
+            return QString(m_midiOutPorts[0]->getPortName(connectionNo).c_str());
         }
         catch (RtError &error)
         {
@@ -962,14 +1085,14 @@ PortableSoundDriver::getConnection(DeviceId id)
 {
     SEQUENCER_DEBUG << "getConnection" << endl;
 
-    if (id < m_midiOut->getPortCount())
+    if (id < m_midiOutPorts[0]->getPortCount())
     {
-        return QString(m_midiOut->getPortName(id).c_str());
+        return QString(m_midiOutPorts[0]->getPortName(id).c_str());
     }
 
-    if ( id < (m_midiOut->getPortCount() + m_midiIn->getPortCount()))
+    if ( id < (m_midiOutPorts[0]->getPortCount() + m_midiInPorts[0]->getPortCount()))
     {
-        return QString(m_midiIn->getPortName(id - m_midiOut->getPortCount()).c_str());
+        return QString(m_midiInPorts[0]->getPortName(id - m_midiOutPorts[0]->getPortCount()).c_str());
     }
 
     return QString("<deviceId is out of scope>");
