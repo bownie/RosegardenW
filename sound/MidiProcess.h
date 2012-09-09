@@ -62,7 +62,22 @@ public:
     //
     static void midiInCallback(double deltatime, std::vector< unsigned char > *message, void *userData);
 
+    // Static method for accessing any recorded/captured MIDI notes
+    //
+    static MappedEventList getReturnComposition();
+
 protected:
+
+    // A thread-local MappedEventList which is populated and returned to
+    // the PortableSoundDriver on request.
+    //
+    static MappedEventList   *m_returnComposition;
+
+    // Static locks for the return mappedcomposition thing
+    //
+    static pthread_mutex_t   m_recLock;
+    //static pthread_cond_t    m_condition;
+
     virtual void threadRun();
     void processBuffers();
 
@@ -91,7 +106,6 @@ protected:
     //
     unsigned int            m_currentRtOutPort;
 };
-
 
 }
 

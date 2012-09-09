@@ -174,9 +174,10 @@ PortableSoundDriver::stopPlayback()
 {
     SEQUENCER_DEBUG << "PortableSoundDriver::stopPlayback";
 
-    // Force all notes off
+
+    // Clear any pending note ons and stop any playing notes
     //
-    allNotesOff();
+    m_midiThread->clearBuffersOut();
 }
 
 // stop recording, continue playing
@@ -346,11 +347,22 @@ PortableSoundDriver::getSequencerTime()
 // See AlsaDriver::getMappedEventList(MappedEventList &composition) for clues
 //
 bool
-PortableSoundDriver::getMappedEventList(MappedEventList &)
+PortableSoundDriver::getMappedEventList(MappedEventList &mel)
 {
+    MappedEventList me = MidiThread::getReturnComposition();
 
 
-    return true;
+    SEQUENCER_DEBUG << "ME LIST = " << me.size() << endl;
+
+    //for (MappedEventListIterator it = me.begin(); it != me.end(); it++)
+    //{
+      //mel.insert(new MappedEvent(*it));
+    //}
+
+    //SEQUENCER_DEBUG << "GETMAPPEDEVENTLIST GOT " << MidiThread::getReturnComposition().size() << " EVENTS" << endl;
+
+    SEQUENCER_DEBUG << "MEL SIZE = " << mel.size() << endl;
+    return (mel.size() > 0);
 }
 
 // Process all outbound events
