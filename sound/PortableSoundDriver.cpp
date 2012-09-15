@@ -352,16 +352,21 @@ PortableSoundDriver::getMappedEventList(MappedEventList &mel)
     MappedEventList me = MidiThread::getReturnComposition();
 
 
-    SEQUENCER_DEBUG << "ME LIST = " << me.size() << endl;
+    for (MappedEventListIterator it = me.begin(); it != me.end(); it++)
+    {
+      mel.insert(new MappedEvent(*it));
+      SEQUENCER_DEBUG << "PortableSoundDriver::getMappedEventList - Event Type = " << (*it)->getType() << endl;
+      SEQUENCER_DEBUG << "PortableSoundDriver::getMappedEventList - Pitch      = " << (*it)->getPitch() << endl;
+      SEQUENCER_DEBUG << "PortableSoundDriver::getMappedEventList - Event Vely = " << (*it)->getVelocity() << endl;
+      SEQUENCER_DEBUG << "PortableSoundDriver::getMappedEventList - Instrument = " << (*it)->getInstrument() << endl;
+      SEQUENCER_DEBUG << "PortableSoundDriver::getMappedEventList - Track Id   = " << (*it)->getTrackId() << endl;
 
-    //for (MappedEventListIterator it = me.begin(); it != me.end(); it++)
-    //{
-      //mel.insert(new MappedEvent(*it));
-    //}
+    }
 
     //SEQUENCER_DEBUG << "GETMAPPEDEVENTLIST GOT " << MidiThread::getReturnComposition().size() << " EVENTS" << endl;
+    //SEQUENCER_DEBUG << "MEL SIZE = " << mel.size() << endl;
 
-    SEQUENCER_DEBUG << "MEL SIZE = " << mel.size() << endl;
+
     return (mel.size() > 0);
 }
 
@@ -390,6 +395,10 @@ PortableSoundDriver::startClocks()
         // Send this event to the Midi thread ringbuffer
         //
         m_midiThread->getMidiOutBuffer()->write(syncEvent, 1);
+
+        // Reset this
+        //
+        MidiThread::setElapsedTime(0);
 
     }
     else

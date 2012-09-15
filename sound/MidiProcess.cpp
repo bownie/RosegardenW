@@ -27,10 +27,22 @@ namespace Rosegarden
 //
 MappedEventList *MidiThread::m_returnComposition = new MappedEventList();
 pthread_mutex_t MidiThread::m_recLock  = PTHREAD_MUTEX_INITIALIZER;
-//memcpy(&m_lock, &initialisingMutex, sizeof(pthread_mutex_t));
 
+//memcpy(&m_lock, &initialisingMutex, sizeof(pthread_mutex_t));
 //pthread_cond_t initialisingCondition = PTHREAD_COND_INITIALIZER;
 //memcpy(&m_condition, &initialisingCondition, sizeof(pthread_cond_t));
+
+// Note on map
+//
+std::map<unsigned int, std::multimap<unsigned int, MappedEvent*> > MidiThread::m_noteOnMap;
+
+// Elapsed time counter
+//
+double MidiThread::m_elapsedTime = 0;
+
+// Elapsed time
+//
+//MidiThread::m_elapsedTime = 0;
 
 MidiThread::MidiThread(std::string name, // for diagnostics
                        SoundDriver *driver,
@@ -230,42 +242,55 @@ void MidiThread::clearBuffersOut()
     releaseLock();
 }
 
+// Returns the captured MID events to the PortableSoundDriver
+//
 MappedEventList
 MidiThread::getReturnComposition()
 {
+    // clear the local composition
+    //
+    MidiThread::m_returnComposition->clear();
+
     // Might need to get another mutex here
     //
-    MappedEventList mE;
+    //MappedEventList mE;
 
     pthread_mutex_lock(&MidiThread::m_recLock);
 
     for (MappedEventListIterator it = MidiThread::m_returnComposition->begin(); it != MidiThread::m_returnComposition->end(); it++)
     {
-        mE.insert(new MappedEvent(*it));
+        MidiThread::m_returnComposition->insert(new MappedEvent(*it));
     }
-
-    // clear the local composition
-    //
-    MidiThread::m_returnComposition->clear();
 
     pthread_mutex_unlock(&MidiThread::m_recLock);
 
-    QString thing = QString("GetReturnComposition size = %1").arg(mE.size());
+    //QString thing = QString("GetReturnComposition size = %1").arg(mE.size());
 
-    SEQUENCER_DEBUG << thing.toStdString() << endl;
+    if (MidiThread::m_returnComposition->size() > 0)
+    {
+        SEQUENCER_DEBUG << "MidiThread::getReturnComposition() -  returning composition size " << MidiThread::m_returnComposition->size() << endl;
+    }
 
     // return our local copy
     //
-    return mE;
+    return (*MidiThread::m_returnComposition);
 }
 
 // The RTMidi in callback - we use this to identify and push events to the m_returnComposition
 // which can then be queried and copied back into the driver on request.
 //
+// Unlike the AlsaDriver (on which this was originally based) the midiInCallback works on a per
+// event basis - so there's no looping required yet for multiple events - this may well change
+// once things get sticky with controllers and sysexes.
+//
 void
-MidiThread::midiInCallback(double deltatime, std::vector< unsigned char > *message, void *userData)
+MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *message, void *userData)
 {
-    std::cout << "MidiThread::midiInCallback - called" << std::endl;
+    //SEQUENCER_DEBUG << "MidiThread::midiInCallback - called" << endl;
+
+    // Always add on the delta time
+    //
+    MidiThread::m_elapsedTime += deltaTime;
 
     unsigned int nBytes = message->size();
 
@@ -277,27 +302,74 @@ MidiThread::midiInCallback(double deltatime, std::vector< unsigned char > *messa
 
     QString msg;
 
+    // Some temporary logging
+    //
     for ( unsigned int i=0; i < nBytes; i++ )
     {
-      msg = QString("GOT MIDI IN Byte %1 = %2").arg(i).arg((int)message->at(i));
-      std::cout << msg.toStdString() << std::endl;
+      msg = QString("MidiThread::midiInCallback - got MIDI IN Byte %1 = %2").arg(i).arg((int)message->at(i));
+      //std::cout << msg.toStdString() << std::endl;
     }
 
     if ( nBytes > 0 )
     {
-      msg = QString("GOT MIDI IN stamp = %1").arg(deltatime);
-      std::cout << msg.toStdString() << std::endl;
+      msg = QString("MidiThread::midiInCallback - got MIDI in timestamp = %1").arg(deltaTime);
+      //std::cout << msg.toStdString() << std::endl;
     }
 
-    //m_returnComposition
+    // channel is lower byte
+    unsigned int channel = ((int)message->at(0)) & 0xF;
+
+    // Bear in mind we might have no note information (no second byte)
+    //
+    unsigned int chanNoteKey = 0;
+
+    if (message->size() > 1)
+    {
+        // Set up chanNoteKey
+        //
+        chanNoteKey = ( channel << 8 ) + (unsigned int) ((int)message->at(1));
+    }
+    bool fromController = false;
+
+    /* How do we determine controller?
+
+    if (event->dest.client == m_client &&
+        event->dest.port == m_controllerPort) {
+#ifdef DEBUG_ALSA
+        std::cerr << "Received an external controller event" << std::endl;
+#endif
+
+        fromController = true;
+    }*/
+
+
+    unsigned int deviceId = Device::NO_DEVICE;
+/*
+    if (fromController) {
+        deviceId = Device::CONTROL_DEVICE;
+    } else {
+        for (SoundDriver::MappedDeviceList::iterator i = m_devices.begin();
+             i != m_devices.end(); ++i) {
+            ClientPortPair pair(m_devicePortMap[(*i)->getId()]);
+            if (((*i)->getDirection() == MidiDevice::Record) &&
+                ( pair.first == event->source.client ) &&
+                ( pair.second == event->source.port )) {
+                deviceId = (*i)->getId();
+                break;
+            }
+        }
+    }
+*/
 
     // ----------------------------------------------------
+    // Time conversion - deltaTime is in seconds
     //
-    RealTime eventTime(0, 0);
+    int seconds = (int)MidiThread::m_elapsedTime;
+    int nanoSeconds = (MidiThread::m_elapsedTime - (double)seconds) * 1000000000;
+    RealTime eventTime(seconds, nanoSeconds);
 
-    // Get a lock for this method
+    // Get a lock to insert into the m_returnComposition
     //
-    //getLock();
     pthread_mutex_lock(&MidiThread::m_recLock);
 
     switch (message->at(0))
@@ -305,31 +377,73 @@ MidiThread::midiInCallback(double deltatime, std::vector< unsigned char > *messa
     case MIDI_NOTE_ON:
         if (message->at(2) > 0)
         {
-        MappedEvent *mE = new MappedEvent();
-        mE->setPitch(message->at(1));
-        mE->setVelocity(message->at(2));
-        mE->setEventTime(eventTime);
-        //mE->setRecordedChannel(channel);
-        //mE->setRecordedDevice(deviceId);
+            MappedEvent *mE = new MappedEvent();
+            mE->setPitch(message->at(1));
+            mE->setVelocity(message->at(2));
+            mE->setEventTime(eventTime);
+            mE->setRecordedChannel(0);
+            mE->setRecordedDevice(0);
 
-        // Negative duration - we need to hear the NOTE ON
-        // so we must insert it now with a negative duration
-        // and pick and mix against the following NOTE OFF
-        // when we create the recorded segment.
-        //
-        mE->setDuration(RealTime( -1, 0));
+            // Negative duration - we need to hear the NOTE ON
+            // so we must insert it now with a negative duration
+            // and pick and mix against the following NOTE OFF
+            // when we create the recorded segment.
+            //
+            mE->setDuration(RealTime( -1, 0));
 
-        // Create a copy of this when we insert the NOTE ON -
-        // keeping a copy alive on the m_noteOnMap.
-        //
-        // We shake out the two NOTE Ons after we've recorded
-        // them.
-        //
-        MidiThread::m_returnComposition->insert(mE);
-//        m_noteOnMap[deviceId].insert(std::pair<unsigned int, MappedEvent*>(chanNoteKey, mE));
+            // Create a copy of this when we insert the NOTE ON -
+            // keeping a copy alive on the m_noteOnMap.
+            //
+            // We shake out the two NOTE Ons after we've recorded
+            // them.
+            //
+            MidiThread::m_returnComposition->insert(new MappedEvent(*mE));
+            MidiThread::m_noteOnMap[deviceId].insert(std::pair<unsigned int, MappedEvent*>(chanNoteKey, mE));
+
+            SEQUENCER_DEBUG << "MidiThread::midiInCallback - added NOTE ON event with pitch " << mE->getPitch()
+                            << " and time " << mE->getEventTime() << " (elaspedTime = " << MidiThread::m_elapsedTime << ")" << endl;
         }
 
         break;
+
+    case MIDI_NOTE_OFF:
+    {
+
+        // Check the note on map for any note on events to close.
+        std::multimap<unsigned int, MappedEvent*>::iterator noteOnIt = MidiThread::m_noteOnMap[deviceId].find(chanNoteKey);
+
+        if (noteOnIt != MidiThread::m_noteOnMap[deviceId].end()) {
+
+            // Set duration correctly on the NOTE OFF
+            //
+            MappedEvent *mE = noteOnIt->second;
+            RealTime duration = eventTime - mE->getEventTime();
+
+#ifdef DEBUG_ALSA
+            std::cerr << "NOTE OFF: found NOTE ON at " << mE->getEventTime() << std::endl;
+#endif
+
+            if (duration <= RealTime::zeroTime) {
+                duration = RealTime::fromMilliseconds(1); // Fix zero duration record bug.
+                mE->setEventTime(eventTime);
+            }
+
+            // Velocity 0 - NOTE OFF.  Set duration correctly
+            // for recovery later.
+            //
+            mE->setVelocity(0);
+            mE->setDuration(duration);
+
+            // force shut off of note
+            MidiThread::m_returnComposition->insert(mE);
+
+            // reset the reference
+            //
+            MidiThread::m_noteOnMap[deviceId].erase(noteOnIt);
+
+        }
+    }
+    break;
 
     default:
         break;

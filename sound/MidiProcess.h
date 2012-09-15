@@ -66,6 +66,10 @@ public:
     //
     static MappedEventList getReturnComposition();
 
+    // Ability to set elapsed time to reset this at start of playback/recording
+    //
+    static void setElapsedTime(double elapsedTime) { m_elapsedTime = elapsedTime; }
+
 protected:
 
     // A thread-local MappedEventList which is populated and returned to
@@ -105,6 +109,15 @@ protected:
     // Keep a track of the current RtMidi output port
     //
     unsigned int            m_currentRtOutPort;
+
+    // Keep a track of note ons coming in while recording so we can get durations
+    //
+    static std::map<unsigned int, std::multimap<unsigned int, MappedEvent*> >  m_noteOnMap;
+
+    // Keep a track of elapsed time for events as we only get deltatimes from RtMidi
+    //
+    static double m_elapsedTime;
+
 };
 
 }

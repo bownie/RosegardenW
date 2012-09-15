@@ -425,6 +425,10 @@ public:
     //
     virtual void reportFailure(MappedEvent::FailureCode) { }
 
+    // Declare this public so that the MidiProcess/Thread can access it
+    //
+    typedef std::vector<MappedDevice*> MappedDeviceList;
+
 protected:
     // Helper functions to be implemented by subclasses
     //
@@ -455,7 +459,7 @@ protected:
     typedef std::vector<MappedInstrument*> MappedInstrumentList;
     MappedInstrumentList m_instruments;
 
-    typedef std::vector<MappedDevice*> MappedDeviceList;
+
     MappedDeviceList m_devices;
 
     DeviceId                                    m_midiRecordDevice;
