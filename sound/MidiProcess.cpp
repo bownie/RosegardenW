@@ -380,10 +380,14 @@ MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *messa
     //
     pthread_mutex_lock(&MidiThread::m_recLock);
 
-    switch (message->at(0))
+    switch (message->at(0) & 0xF0)
     {
     case MIDI_NOTE_ON:
-        if (message->at(2) > 0)
+    case MIDI_NOTE_OFF:
+        // Need to handle both here in case we have MIDI_NOTE_ONs with zero vely
+        // instead of NOTE_OFFS.
+        //
+        if (message->at(2) > 0 && ((message->at(0) & 0xF0) == MIDI_NOTE_ON))
         {
             MappedEvent *mE = new MappedEvent();
             mE->setPitch(message->at(1));
@@ -409,17 +413,17 @@ MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *messa
             MidiThread::m_returnComposition->insert(new MappedEvent(*mE));
             MidiThread::m_noteOnMap[deviceId].insert(std::pair<unsigned int, MappedEvent*>(chanNoteKey, mE));
 
-//#ifdef DEBUG_RTMIDI
+#ifdef DEBUG_RTMIDI
             SEQUENCER_DEBUG << "MidiThread::midiInCallback - added NOTE ON event with pitch " << mE->getPitch()
                             << " and time " << mE->getEventTime() << " (elaspedTime = " << MidiThread::m_elapsedTime << ")"
                             << " and chanNoteKey = " << chanNoteKey << endl;
-//#endif
+#endif
         }
-
-        break;
-
-    case MIDI_NOTE_OFF:
-    {
+        else
+        {
+#ifdef DEBUG_RTMIDI
+            SEQUENCER_DEBUG << "MidiThread::midiInCallback - got NOTE ON with zero velocity" << endl;
+#endif
 
         // Check the note on map for any note on events to close.
         std::multimap<unsigned int, MappedEvent*>::iterator noteOnIt = MidiThread::m_noteOnMap[deviceId].find(chanNoteKey);
@@ -432,9 +436,9 @@ MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *messa
             MappedEvent *mE = noteOnIt->second;
             RealTime duration = eventTime - mE->getEventTime();
 
-//#ifdef DEBUG_RTMIDI
+#ifdef DEBUG_RTMIDI
             SEQUENCER_DEBUG << "MidiThread::midiInCallback - NOTE OFF: found NOTE ON at " << mE->getEventTime() << endl;
-//#endif
+#endif
 
             if (duration <= RealTime::zeroTime) {
                 duration = RealTime::fromMilliseconds(1); // Fix zero duration record bug.
@@ -690,8 +694,10 @@ void MidiThread::processNotesOff(bool everything)
                 message.push_back((*it)->getPitch());
                 ((PortableSoundDriver*)(m_driver))->getRtMidiOut(rtPort)->sendMessage(&message);
 
+#ifdef DEBUG_RRTMIDI
                 QString msg = QString("processNotesOff:MidiNoteOff note = %1").arg((int)(*it)->getPitch());
                 logMsg(msg.toStdString());
+#endif
 
                 deleteQueue.insert(*it);
             }
@@ -713,6 +719,12 @@ void MidiThread::processNotesOff(bool everything)
 }
 
 
+
+// In MidiThread we don't actually Buffer any MIDI OUT - we just send it when the appointed
+// time has come and gone.  So we need to think carefully about buffer some time before
+// playback first starts so that we are up and running before the first events are sent -
+// otherwise they can arrive late.
+//
 void MidiThread::bufferMidiOut()
 {
     MappedInstrument *instrument;
@@ -754,7 +766,7 @@ void MidiThread::bufferMidiOut()
         // system starting time.  This will tell us how from the startTime (system time)
         // we have to output this event.  If our current time is after then
 
-        RealTime outputTime = (*i)->getEventTime() - m_driver->getStartPosition() +  m_startTime;
+        RealTime outputTime = (*i)->getEventTime() - m_driver->getStartPosition() +  m_startTime + RealTime(1, 0);
 
         instrument = ((PortableSoundDriver*)(m_driver))->getMappedInstrument((*i)->getInstrument());
 

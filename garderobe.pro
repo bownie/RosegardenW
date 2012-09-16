@@ -31,9 +31,17 @@ OTHER_FILES += \
     data/locale/cs.ts \
     data/locale/ca.ts
 
+#DEFINES += QT3_SUPPORT \
+#           'VERSION=\'12.04.00\'' \
+#           'CODENAME=\'Freedom\'' \
+#           BUILDKEY=0003 \
+#           LITTLE_ENDIAN \
+#           __WINDOWS_MM__ \
+#           _PORTABLE_SOUND_
+
 DEFINES += QT3_SUPPORT \
-           'VERSION=\'12.04.00\'' \
-           'CODENAME=\'Freedom\'' \
+           VERSION=\\\"12.04.99\\\" \
+           CODENAME=\\\"WinFreedom\\\" \
            BUILDKEY=0003 \
            LITTLE_ENDIAN \
            __WINDOWS_MM__ \

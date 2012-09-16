@@ -434,7 +434,9 @@ PortableSoundDriver::processEventsOut(const MappedEventList &mC,
                               const RealTime &sliceStart,
                               const RealTime &sliceEnd)
 {
+#ifdef DEBUG_RTMIDI
     SEQUENCER_DEBUG << "PortableSoundDriver::processEventsOut";
+#endif
 
     // You can do some audio crap here if you like
     //
@@ -712,6 +714,10 @@ PortableSoundDriver::scavengePlugins()
 {
 }
 
+
+// Keep playing MIDI notes out to the MIDI thread
+//
+//
 void
 PortableSoundDriver::processMidiOut(const MappedEventList &mC,
                                     const RealTime &sliceStart,
@@ -754,7 +760,9 @@ PortableSoundDriver::processMidiOut(const MappedEventList &mC,
         //rb->write(*it, 1);
     }
 
+#ifdef DEBUG_RTMIDI
     SEQUENCER_DEBUG << "PortableSoundDriver::processMidiOut - writing " << mC.size() << "events";
+#endif
 
     // Write out temporary buffer
     //

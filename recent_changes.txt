@@ -1,6 +1,18 @@
+Alpha 3
+=======
+
+- MIDI Playback devices are now assignable (create new Midi Device and assign tracks)
+- Most common MIDI playback events are now supported (no System Exclusives)
+- MIDI Record now works for most events (no System Exclusives)
+- RtMidi updated to latest version
+
+
+
+Alpha 2
+=======
+
 AudioFileManager.cpp - fixed the audio output path for recording - also all relative paths are fixed for ~ to APPDATA directory
 LilyPondProcessor.h/cpp - fixed Lilypond paths
-
 
 - Rosegarden installs to Program Files\Xyglo\Rosegarden along with examples and all supporting files
 
@@ -12,7 +24,5 @@ LilyPondProcessor.h/cpp - fixed Lilypond paths
   you get the configuration information held.
 
 - Temporary directory for example:  C:\Users\bownr\AppData\Local\Temp
-
-
 
 cmd.exe /c convert-ly -e C:/Users/bownie/AppData/Local/Temp/rosegarden_tmp_gq1116.ly

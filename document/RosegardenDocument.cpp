@@ -1238,11 +1238,12 @@ bool RosegardenDocument::saveDocumentActual(const QString& filename,
 //    outStream.setEncoding(QTextStream::UnicodeUTF8); qt3
     outStream.setCodec("UTF-8");
 
+    QString version = QString("%1").arg(VERSION);
     // output XML header
     //
     outStream << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
     << "<!DOCTYPE rosegarden-data>\n"
-    << "<rosegarden-data version=\"" << VERSION
+    << "<rosegarden-data version=\"" << version
     << "\" format-version-major=\"" << FILE_FORMAT_VERSION_MAJOR
     << "\" format-version-minor=\"" << FILE_FORMAT_VERSION_MINOR
     << "\" format-version-point=\"" << FILE_FORMAT_VERSION_POINT

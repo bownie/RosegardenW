@@ -1,30 +1,52 @@
-Rosegarden 11.11.42 Alpha 2 Release for Windows
-===============================================
+Rosegarden 12.04.99 "WinFreedom" Alpha 3 Release for Windows
+============================================================
 
-This is the second package of a Windows build of Rosegarden.  Improvments you'll see this time are:
+I'm pleased to finally announce the availability of the next Alpha release of Rosegarden for Windows.
 
-- Recent merge from main branch so most of the 11.11.42 features should be available.
-- Localised language support is working.
-- All support files from the regular rosegarden distrubtion as well as all necessary DLLs are now packaged.
-- Fonts are installed automatically.
-- If you also install Lilypond then Print Previewing/Printing is working.
-- Path problems should be fixed.
+This is a working release of Rosegarden for Windows - it's still called an Alpha release because it may
+well be buggy and audio file support or audio sequencing is still not supported in any way.  The code base has
+been merged with the latest Rosegarden trunk changes ("Freedom") as per 7th July 2012 but also:
 
-Notes:
+- MIDI Playback devices are now assignable (create new Midi Device and assign tracks)
+- Most common MIDI playback events are now supported (no System Exclusives)
+- MIDI Record now works for most events (no System Exclusives)
+- RtMidi updated to latest version (July 2012)
+- Merges from latest trunk release (please see 12.04.00 "Freedom" release notes)
 
-- Installation goes to the $PROGRAMFILE\Xyglo\Rosegarden directory.
-- rosegarden.exe executable rather than garderobe.exe as in previous version.
-- When Rosegarden runs it creates an audio folder under AppData profile (Roaming) called 'rosegarden'.
-- Under the HOMEPATH directory a .local/share/rosegarden folder is created also
-- Under registry key HKEY_USERS\YOUR_USER_ID\Software\rosegardenmusic you get the configuration information.
-- Temporary directory for example:  C:\Users\bownr\AppData\Local\Temp
+Rosegarden for Windows is a packaged installation for 32-bit Windows which will work on 32-bit or 64-bit
+Windows platforms and has been tested on Windows XP and Windows 7.  Rosegarden for Windows packages Lilypond
+printing and print-previewing out of the box.
 
+You can download Rosegarden for Windows from here (*):
 
-Limitations
+  https://bitbucket.org/bownie/rosegarden-for-windows/downloads
 
-- Lilypond export creates a few temporary files which cannot currently be removed by the software so these will build up.
-- No improvements or changes to MIDI code at this release.
+Rosegarden for Windows Alpha 2 has had over 5000 downloads in the last nine or so months but so far feedback
+has been limited - hopefully that can change a bit with this latest, more functional release.  It would be great
+to hear any feedback - good, bad or indifferent - just to work out if I should spend any more time adding features
+no matter how slowly!
 
-Cheers,
-Richard Bown
-December 2012
+Please give it a try and provide me or the rosegarden-devel mailing list with any feedback.  Thanks goes of course
+to all the core developers on the Rosegarden team who are pumping out the actual features and improvements and
+hopefully this version can continue to do them some justice.
+
+Regards,
+Richard Bown (@xyglo)
+September 2012
+
+(* - Sourceforge file upload didn't want to work for some reason but perhaps the files/links could also be updated there )
+
+Repository Notes
+================
+
+The Mercurial repository at BitBucket is now in the lead:
+
+  https://bitbucket.org/bownie/rosegarden-for-windows
+
+The old branch in SourceForge is now trailing and can be deleted if required:
+
+  http://rosegarden.svn.sourceforge.net/viewvc/rosegarden/branches/win32-mingw-rtmidi/
+
+There is also a page here with latest Rosegarden for Windows specific information:
+
+  http://www.xyglo.com/rosegarden-for-windows/

@@ -2,11 +2,19 @@
 ; Rosegarden NSIS Installer
 ;
 ; Richard Bown
-; July 2012
+; September 2012
 ;-------------------------------
 !include FontReg.nsh
 !include FontName.nsh
 !include WinMessages.nsh
+
+; Request application privileges for Windows Vista/7 etc
+;
+RequestExecutionLevel admin
+
+; We're using the modern UI
+;
+!include "MUI.nsh"
 
 ; The name of the installer
 Name "RG-win32-alpha-3"
@@ -28,13 +36,14 @@ InstallDir $PROGRAMFILES\${COMPANY}\${SOFTWARE}
 ;
 InstallDirRegKey HKLM "Software\${COMPANY}\${SOFTWARE}" "Install_Dir"
 
-; Request application privileges for Windows Vista
-RequestExecutionLevel admin
-
 ; Application icon
 ;
 Icon "data\pixmaps\icons\rg-rwb-rose3-128x128.ico"
 
+; MUI stuff
+;
+!insertmacro MUI_PAGE_LICENSE "COPYING.txt"
+!insertmacro MUI_LANGUAGE "English"
 
 ;--------------------------------
 
@@ -56,6 +65,11 @@ Section "Rosegarden"
 
     ; Set output path to the installation directory.
     SetOutPath $INSTDIR
+
+    File "COPYING.txt"
+    File "README.txt"
+    File "README-linux.txt"
+    File "AUTHORS.txt"
 
     ; The files we are building into the package
     ;
@@ -163,6 +177,11 @@ Section "Uninstall"
         ;
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rosegarden"
     DeleteRegKey HKLM "Software\${COMPANY}\${SOFTWARE}"
+
+    Delete "$INSTDIR\COPYING.txt"
+    Delete "$INSTDIR\README.txt"
+    Delete "$INSTDIR\README-linux.txt"
+    Delete "$INSTDIR\AUTHORS.txt"
 
     ; Remove files and uninstaller
     ;
