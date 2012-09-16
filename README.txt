@@ -60,7 +60,7 @@ There is also a page here with latest Rosegarden for Windows specific informatio
 Repository Notes
 ================
 
-The Mercurial repository at BitBucket is now in the lead:
+Rosegarden for Windows code is now in a mercurial repository at BitBucket:
 
   https://bitbucket.org/bownie/rosegarden-for-windows
 
