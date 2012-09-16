@@ -351,6 +351,15 @@ PortableSoundDriver::getMappedEventList(MappedEventList &mel)
 {
     MappedEventList me = MidiThread::getReturnComposition();
 
+    if (me.size())
+    {
+        SEQUENCER_DEBUG << "PortableSoundDriver::getMappedEventList - GOT MAPPED EVENT LIST OF SIZE " << me.size() << endl;
+    }
+    //else
+    //{
+//        SEQUENCER_DEBUG << "PortableSoundDriver::getMappedEventList - GOT MAPPED EVENT LIST OF ZERO SIZE " << endl;
+//    }
+
 
     for (MappedEventListIterator it = me.begin(); it != me.end(); it++)
     {

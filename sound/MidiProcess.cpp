@@ -242,38 +242,40 @@ void MidiThread::clearBuffersOut()
     releaseLock();
 }
 
-// Returns the captured MID events to the PortableSoundDriver
+// Returns the captured MID events to the PortableSoundDriver - we do this
+// by copying the static list into a local MappedEventList, clearing the
+// static list and returning the local one.  Might do this a better way.
 //
 MappedEventList
 MidiThread::getReturnComposition()
 {
-    // clear the local composition
-    //
-    MidiThread::m_returnComposition->clear();
-
     // Might need to get another mutex here
     //
-    //MappedEventList mE;
+    MappedEventList mE;
 
     pthread_mutex_lock(&MidiThread::m_recLock);
 
     for (MappedEventListIterator it = MidiThread::m_returnComposition->begin(); it != MidiThread::m_returnComposition->end(); it++)
     {
-        MidiThread::m_returnComposition->insert(new MappedEvent(*it));
+        mE.insert(new MappedEvent(*it));
     }
+
+    // clear the local composition
+    //
+    MidiThread::m_returnComposition->clear();
 
     pthread_mutex_unlock(&MidiThread::m_recLock);
 
     //QString thing = QString("GetReturnComposition size = %1").arg(mE.size());
 
-    if (MidiThread::m_returnComposition->size() > 0)
+    if (mE.size() > 0)
     {
-        SEQUENCER_DEBUG << "MidiThread::getReturnComposition() -  returning composition size " << MidiThread::m_returnComposition->size() << endl;
+        SEQUENCER_DEBUG << "MidiThread::getReturnComposition() -  returning composition size " << mE.size() << endl;
     }
 
     // return our local copy
     //
-    return (*MidiThread::m_returnComposition);
+    return mE;
 }
 
 // The RTMidi in callback - we use this to identify and push events to the m_returnComposition
@@ -283,10 +285,15 @@ MidiThread::getReturnComposition()
 // event basis - so there's no looping required yet for multiple events - this may well change
 // once things get sticky with controllers and sysexes.
 //
+// Partial implementation compared to AlsaDriver - some stuff missing notably including SysExs
+// and timing stuff for the moment.  Also some events might be incorrectly wired.
+//
 void
 MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *message, void *userData)
 {
-    //SEQUENCER_DEBUG << "MidiThread::midiInCallback - called" << endl;
+#ifdef DEBUG_RTMIDI
+    SEQUENCER_DEBUG << "MidiThread::midiInCallback - called" << endl;
+#endif
 
     // Always add on the delta time
     //
@@ -316,7 +323,8 @@ MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *messa
       //std::cout << msg.toStdString() << std::endl;
     }
 
-    // channel is lower byte
+    // Channel is the lower byte
+    //
     unsigned int channel = ((int)message->at(0)) & 0xF;
 
     // Bear in mind we might have no note information (no second byte)
@@ -383,6 +391,7 @@ MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *messa
             mE->setEventTime(eventTime);
             mE->setRecordedChannel(0);
             mE->setRecordedDevice(0);
+            mE->setType(MappedEvent::MidiNote);
 
             // Negative duration - we need to hear the NOTE ON
             // so we must insert it now with a negative duration
@@ -400,8 +409,11 @@ MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *messa
             MidiThread::m_returnComposition->insert(new MappedEvent(*mE));
             MidiThread::m_noteOnMap[deviceId].insert(std::pair<unsigned int, MappedEvent*>(chanNoteKey, mE));
 
+//#ifdef DEBUG_RTMIDI
             SEQUENCER_DEBUG << "MidiThread::midiInCallback - added NOTE ON event with pitch " << mE->getPitch()
-                            << " and time " << mE->getEventTime() << " (elaspedTime = " << MidiThread::m_elapsedTime << ")" << endl;
+                            << " and time " << mE->getEventTime() << " (elaspedTime = " << MidiThread::m_elapsedTime << ")"
+                            << " and chanNoteKey = " << chanNoteKey << endl;
+//#endif
         }
 
         break;
@@ -412,6 +424,7 @@ MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *messa
         // Check the note on map for any note on events to close.
         std::multimap<unsigned int, MappedEvent*>::iterator noteOnIt = MidiThread::m_noteOnMap[deviceId].find(chanNoteKey);
 
+        SEQUENCER_DEBUG << "MidiThread::midiInCallback - GOT NOTE OFF - looking for chanNoteKey = " << chanNoteKey << endl;
         if (noteOnIt != MidiThread::m_noteOnMap[deviceId].end()) {
 
             // Set duration correctly on the NOTE OFF
@@ -419,9 +432,9 @@ MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *messa
             MappedEvent *mE = noteOnIt->second;
             RealTime duration = eventTime - mE->getEventTime();
 
-#ifdef DEBUG_ALSA
-            std::cerr << "NOTE OFF: found NOTE ON at " << mE->getEventTime() << std::endl;
-#endif
+//#ifdef DEBUG_RTMIDI
+            SEQUENCER_DEBUG << "MidiThread::midiInCallback - NOTE OFF: found NOTE ON at " << mE->getEventTime() << endl;
+//#endif
 
             if (duration <= RealTime::zeroTime) {
                 duration = RealTime::fromMilliseconds(1); // Fix zero duration record bug.
@@ -440,496 +453,176 @@ MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *messa
             // reset the reference
             //
             MidiThread::m_noteOnMap[deviceId].erase(noteOnIt);
-
         }
     }
     break;
+
+    case MIDI_POLY_AFTERTOUCH:
+    {
+        if (fromController)
+            break;
+
+        // Fix for 632964 by Pedro Lopez-Cabanillas (20030523)
+        //
+        MappedEvent *mE = new MappedEvent();
+        mE->setType(MappedEvent::MidiKeyPressure);
+        mE->setEventTime(eventTime);
+        mE->setData1(message->at(1));
+        mE->setData2(message->at(2));
+        mE->setRecordedChannel(channel);
+        mE->setRecordedDevice(deviceId);
+        MidiThread::m_returnComposition->insert(mE);
+    }
+    break;
+
+    case MIDI_CTRL_CHANGE:
+    {
+        MappedEvent *mE = new MappedEvent();
+        mE->setType(MappedEvent::MidiController);
+        mE->setEventTime(eventTime);
+        mE->setData1(message->at(1));
+        mE->setData2(message->at(2));
+        mE->setRecordedChannel(channel);
+        mE->setRecordedDevice(deviceId);
+        MidiThread::m_returnComposition->insert(mE);
+    }
+    break;
+
+    case MIDI_PROG_CHANGE:
+    {
+        MappedEvent *mE = new MappedEvent();
+        mE->setType(MappedEvent::MidiProgramChange);
+        mE->setEventTime(eventTime);
+        mE->setData1(message->at(1));
+        mE->setRecordedChannel(channel);
+        mE->setRecordedDevice(deviceId);
+        MidiThread::m_returnComposition->insert(mE);
+    }
+    break;
+
+    case MIDI_PITCH_BEND:
+    {
+        if (fromController)
+            break;
+
+        // Fix for 711889 by Pedro Lopez-Cabanillas (20030523)
+        //
+        //int s = event->data.control.value + 8192;
+        //int d1 = (s >> 7) & 0x7f; // data1 = MSB
+        //int d2 = s & 0x7f; // data2 = LSB
+        int d1 = message->at(1);
+        int d2 = message->at(2);
+        MappedEvent *mE = new MappedEvent();
+        mE->setType(MappedEvent::MidiPitchBend);
+        mE->setEventTime(eventTime);
+        mE->setData1(d1);
+        mE->setData2(d2);
+        mE->setRecordedChannel(channel);
+        mE->setRecordedDevice(deviceId);
+        MidiThread::m_returnComposition->insert(mE);
+    }
+        break;
+
+    case MIDI_CHNL_AFTERTOUCH:
+    {
+        if (fromController)
+            break;
+
+        // Fixed by Pedro Lopez-Cabanillas (20030523)
+        //
+        int s = message->at(1) & 0x7f;
+        MappedEvent *mE = new MappedEvent();
+        mE->setType(MappedEvent::MidiChannelPressure);
+        mE->setEventTime(eventTime);
+        mE->setData1(s);
+        mE->setRecordedChannel(channel);
+        mE->setRecordedDevice(deviceId);
+        MidiThread::m_returnComposition->insert(mE);
+    }
+        break;
+
+    case MIDI_SYSTEM_EXCLUSIVE:
+
+        if (fromController)
+            break;
+
+#ifdef DEBUG_RTMIDI
+        SEQUENCER_DEBUG << "MidiThread::midiInCallback - SYSEX IN not implemented." << endl;
+#endif
+        break;
+
+
+    case MIDI_ACTIVE_SENSING:  // MIDI device is still there
+        break;
+
+    case MIDI_CUE_POINT: // might not be this message we want here
+
+        if (fromController)
+            break;
+        //if (getMTCStatus() == TRANSPORT_SLAVE) {
+            //handleMTCQFrame(event->data.control.value, eventTime);
+        //}
+        break;
+
+    case MIDI_TIMING_CLOCK:
+#ifdef DEBUG_RTMIDI
+        std::cerr << "MidiThread::midiInCallback - got realtime MIDI clock" << std::endl;
+#endif
+        break;
+
+    case MIDI_START:
+        /*
+        if ((getMIDISyncStatus() == TRANSPORT_SLAVE) && !isPlaying()) {
+            ExternalTransport *transport = getExternalTransportControl();
+            if (transport) {
+                transport->transportJump(ExternalTransport::TransportStopAtTime,
+                                         RealTime::zeroTime);
+                transport->transportChange(ExternalTransport::TransportStart);
+            }
+        }*/
+#ifdef DEBUG_RTMIDI
+        std::cerr << "MidiThread::midiInCallback - START" << std::endl;
+#endif
+        break;
+
+    case MIDI_CONTINUE:
+        /*
+        if ((getMIDISyncStatus() == TRANSPORT_SLAVE) && !isPlaying()) {
+            ExternalTransport *transport = getExternalTransportControl();
+            if (transport) {
+                transport->transportChange(ExternalTransport::TransportPlay);
+            }
+        }*/
+#ifdef DEBUG_RTMIDI
+        std::cerr << "MidiThread::midiInCallback - CONTINUE" << std::endl;
+#endif
+        break;
+
+    case MIDI_STOP:
+        /*
+        if ((getMIDISyncStatus() == TRANSPORT_SLAVE) && isPlaying()) {
+            ExternalTransport *transport = getExternalTransportControl();
+            if (transport) {
+                transport->transportChange(ExternalTransport::TransportStop);
+            }
+        }*/
+#ifdef DEBUG_RTMIDI
+        std::cerr << "MidiThread::midiInCallback - STOP" << std::endl;
+#endif
+        break;
+
+    case MIDI_SONG_POSITION_PTR:
+#ifdef DEBUG_RTMIDI
+        std::cerr << "MidiThread::midiInCallback - SONG POSITION" << std::endl;
+#endif
+
+        break;
 
     default:
         break;
     }
 
 
-    //    std::cerr << "AlsaDriver::getMappedEventList: looking for events" << std::endl;
-
-    //snd_seq_event_t *event;
-/*
-    while (snd_seq_event_input(m_midiHandle, &event) > 0) {
-        //        std::cerr << "AlsaDriver::getMappedEventList: found something" << std::endl;
-
-        unsigned int channel = (unsigned int)event->data.note.channel;
-        unsigned int chanNoteKey = ( channel << 8 ) +
-            (unsigned int) event->data.note.note;
-
-        bool fromController = false;
-
-        if (event->dest.client == m_client &&
-            event->dest.port == m_controllerPort) {
-#ifdef DEBUG_ALSA
-            std::cerr << "Received an external controller event" << std::endl;
-#endif
-
-            fromController = true;
-        }
-
-        unsigned int deviceId = Device::NO_DEVICE;
-
-        if (fromController) {
-            deviceId = Device::CONTROL_DEVICE;
-        } else {
-            for (MappedDeviceList::iterator i = m_devices.begin();
-                 i != m_devices.end(); ++i) {
-                ClientPortPair pair(m_devicePortMap[(*i)->getId()]);
-                if (((*i)->getDirection() == MidiDevice::Record) &&
-                    ( pair.first == event->source.client ) &&
-                    ( pair.second == event->source.port )) {
-                    deviceId = (*i)->getId();
-                    break;
-                }
-            }
-        }
-
-        eventTime.sec = event->time.time.tv_sec;
-        eventTime.nsec = event->time.time.tv_nsec;
-        eventTime = eventTime - m_alsaRecordStartTime + m_playStartPosition;
-
-#ifdef DEBUG_ALSA
-        if (!fromController) {
-            std::cerr << "Received normal event: type " << int(event->type) << ", chan " << channel << ", note " << int(event->data.note.note) << ", time " << eventTime << std::endl;
-        }
-#endif
-*/
-
-    /*
-    switch (message->at(0)) {
-        case MIDI_NOTE_ON:
-            //if (fromController)
-                //continue;
-            if (event->data.note.velocity > 0) {
-                MappedEvent *mE = new MappedEvent();
-                mE->setPitch(event->data.note.note);
-                mE->setVelocity(event->data.note.velocity);
-                mE->setEventTime(eventTime);
-                mE->setRecordedChannel(channel);
-                mE->setRecordedDevice(deviceId);
-
-                // Negative duration - we need to hear the NOTE ON
-                // so we must insert it now with a negative duration
-                // and pick and mix against the following NOTE OFF
-                // when we create the recorded segment.
-                //
-                mE->setDuration(RealTime( -1, 0));
-
-                // Create a copy of this when we insert the NOTE ON -
-                // keeping a copy alive on the m_noteOnMap.
-                //
-                // We shake out the two NOTE Ons after we've recorded
-                // them.
-                //
-                composition.insert(new MappedEvent(mE));
-                m_noteOnMap[deviceId].insert(std::pair<unsigned int, MappedEvent*>(chanNoteKey, mE));
-
-                break;
-            }
-
-        case SND_SEQ_EVENT_NOTEOFF: {
-            if (fromController)
-                continue;
-
-            // Check the note on map for any note on events to close.
-//            std::map<unsigned int, std::multimap<unsigned int, MappedEvent*> >::iterator noteOnMapIt = m_noteOnMap.find(deviceId);
-            std::multimap<unsigned int, MappedEvent*>::iterator noteOnIt = m_noteOnMap[deviceId].find(chanNoteKey);
-
-            if (noteOnIt != m_noteOnMap[deviceId].end()) {
-
-                // Set duration correctly on the NOTE OFF
-                //
-                MappedEvent *mE = noteOnIt->second;
-                RealTime duration = eventTime - mE->getEventTime();
-
-#ifdef DEBUG_ALSA
-                std::cerr << "NOTE OFF: found NOTE ON at " << mE->getEventTime() << std::endl;
-#endif
-
-                if (duration <= RealTime::zeroTime) {
-                    duration = RealTime::fromMilliseconds(1); // Fix zero duration record bug.
-                    mE->setEventTime(eventTime);
-                }
-
-                // Velocity 0 - NOTE OFF.  Set duration correctly
-                // for recovery later.
-                //
-                mE->setVelocity(0);
-                mE->setDuration(duration);
-
-                // force shut off of note
-                composition.insert(mE);
-
-                // reset the reference
-                //
-                m_noteOnMap[deviceId].erase(noteOnIt);
-
-            }
-        }
-            break;
-
-        case SND_SEQ_EVENT_KEYPRESS: {
-            if (fromController)
-                continue;
-
-            // Fix for 632964 by Pedro Lopez-Cabanillas (20030523)
-            //
-            MappedEvent *mE = new MappedEvent();
-            mE->setType(MappedEvent::MidiKeyPressure);
-            mE->setEventTime(eventTime);
-            mE->setData1(event->data.note.note);
-            mE->setData2(event->data.note.velocity);
-            mE->setRecordedChannel(channel);
-            mE->setRecordedDevice(deviceId);
-            composition.insert(mE);
-        }
-            break;
-
-        case SND_SEQ_EVENT_CONTROLLER: {
-            MappedEvent *mE = new MappedEvent();
-            mE->setType(MappedEvent::MidiController);
-            mE->setEventTime(eventTime);
-            mE->setData1(event->data.control.param);
-            mE->setData2(event->data.control.value);
-            mE->setRecordedChannel(channel);
-            mE->setRecordedDevice(deviceId);
-            composition.insert(mE);
-        }
-            break;
-
-        case SND_SEQ_EVENT_PGMCHANGE: {
-            MappedEvent *mE = new MappedEvent();
-            mE->setType(MappedEvent::MidiProgramChange);
-            mE->setEventTime(eventTime);
-            mE->setData1(event->data.control.value);
-            mE->setRecordedChannel(channel);
-            mE->setRecordedDevice(deviceId);
-            composition.insert(mE);
-
-        }
-            break;
-
-        case SND_SEQ_EVENT_PITCHBEND: {
-            if (fromController)
-                continue;
-
-            // Fix for 711889 by Pedro Lopez-Cabanillas (20030523)
-            //
-            int s = event->data.control.value + 8192;
-            int d1 = (s >> 7) & 0x7f; // data1 = MSB
-            int d2 = s & 0x7f; // data2 = LSB
-            MappedEvent *mE = new MappedEvent();
-            mE->setType(MappedEvent::MidiPitchBend);
-            mE->setEventTime(eventTime);
-            mE->setData1(d1);
-            mE->setData2(d2);
-            mE->setRecordedChannel(channel);
-            mE->setRecordedDevice(deviceId);
-            composition.insert(mE);
-        }
-            break;
-
-        case SND_SEQ_EVENT_CHANPRESS: {
-            if (fromController)
-                continue;
-
-            // Fixed by Pedro Lopez-Cabanillas (20030523)
-            //
-            int s = event->data.control.value & 0x7f;
-            MappedEvent *mE = new MappedEvent();
-            mE->setType(MappedEvent::MidiChannelPressure);
-            mE->setEventTime(eventTime);
-            mE->setData1(s);
-            mE->setRecordedChannel(channel);
-            mE->setRecordedDevice(deviceId);
-            composition.insert(mE);
-        }
-            break;
-
-        case SND_SEQ_EVENT_SYSEX:
-
-            if (fromController)
-                continue;
-
-            if (!testForMTCSysex(event) &&
-                !testForMMCSysex(event)) {
-
-                // Bundle up the data into a block on the MappedEvent
-                //
-                std::string data;
-                char *ptr = (char*)(event->data.ext.ptr);
-                for (unsigned int i = 0; i < event->data.ext.len; ++i)
-                    data += *(ptr++);
-
-#ifdef DEBUG_ALSA
-
-                if ((MidiByte)(data[1]) == MIDI_SYSEX_RT) {
-                    std::cerr << "REALTIME SYSEX" << endl;
-                    for (unsigned int ii = 0; ii < event->data.ext.len; ++ii) {
-                        printf("B %d = %02x\n", ii, ((char*)(event->data.ext.ptr))[ii]);
-                    }
-                } else {
-                    std::cerr << "NON-REALTIME SYSEX" << endl;
-                    for (unsigned int ii = 0; ii < event->data.ext.len; ++ii) {
-                        printf("B %d = %02x\n", ii, ((char*)(event->data.ext.ptr))[ii]);
-                    }
-                }
-#endif
-
-                // Thank you to Christoph Eckert for pointing out via
-                // Pedro Lopez-Cabanillas aseqmm code that we need to pool
-                // alsa system execlusive messages since they may be broken
-                // across several ALSA mesages.
-
-                // Unfortunately, pooling these messages get very complicated
-                // since it creates many corner cases during this realtime
-                // activity that may involve possible bad data transmissions.
-
-                bool beginNewMessage = false;
-                if (data.length() > 0) {
-                    // Check if at start of MIDI message
-                    if (MidiByte(data.at(0)) == MIDI_SYSTEM_EXCLUSIVE) {
-                        data.erase(0,1); // Skip (SYX). RG doesn't use it.
-                        beginNewMessage = true;
-                    }
-                }
-
-                std::string sysExcData;
-                MappedEvent *sysExcEvent = 0;
-
-                // Check to see if there are any pending System Exclusive Messages
-                if (!m_pendSysExcMap->empty()) {
-                    // Check our map to see if we have a pending operations for
-                    // the current deviceId.
-                    DeviceEventMap::iterator pendIt = m_pendSysExcMap->find(deviceId);
-
-                    if (pendIt != m_pendSysExcMap->end()) {
-                        sysExcEvent = pendIt->second.first;
-                        sysExcData = pendIt->second.second;
-
-                        // Be optimistic that we won't have to re-add this afterwards.
-                        // Also makes keeping track of this easier.
-                        m_pendSysExcMap->erase(pendIt);
-                    }
-                }
-
-                bool createNewEvent = false;
-                if (!sysExcEvent) {
-                    // Did not find a pending (unfinished) System Exclusive message.
-                    // Create a new event.
-                    createNewEvent = true;
-
-                    if (!beginNewMessage) {
-                        std::cerr << "AlsaDriver::getMappedEventList - "
-                                  << "New ALSA message arrived with incorrect MIDI System "
-                                  << "Exclusive start byte" << std::endl
-                                  << "This is probably a bad transmission" << std::endl;
-                    }
-                } else {
-                    // We found a pending (unfinished) System Exclusive message.
-
-                    // Check if at start of MIDI message
-                    if (!beginNewMessage) {
-                        // Prepend pooled events to the current message data
-
-                        if (sysExcData.size() > 0) {
-                            data.insert(0, sysExcData);
-                        }
-                    } else {
-                        // This is the start of a new message but have
-                        // pending (incomplete) messages already.
-                        createNewEvent = true;
-
-                        // Decide how to handle previous (incomplete) message
-                        if (sysExcData.size() > 0) {
-                            std::cerr << "AlsaDriver::getMappedEventList - "
-                                      << "Sending an incomplete ALSA message to the composition"
-                                      << std::endl  << "This is probably a bad transmission"
-                                      << std::endl;
-
-                            // Push previous (incomplete) message to composition
-                            DataBlockRepository::setDataBlockForEvent(sysExcEvent, sysExcData);
-                            composition.insert(sysExcEvent);
-                        } else {
-                            // Previous message has no meaningful data.
-                            std::cerr << "AlsaDriver::getMappedEventList - "
-                                      << "Discarding meaningless incomplete ALSA message"
-                                      << std::endl;
-
-                            delete sysExcEvent;
-                        }
-                    }
-                }
-
-                if (createNewEvent) {
-                    // Still need a current event to work with.  Create it.
-                    sysExcEvent = new MappedEvent();
-                    sysExcEvent->setType(MappedEvent::MidiSystemMessage);
-                    sysExcEvent->setData1(MIDI_SYSTEM_EXCLUSIVE);
-                    sysExcEvent->setRecordedDevice(deviceId);
-                    sysExcEvent->setEventTime(eventTime);
-                }
-
-                // We need to check to see if this event completes the
-                // System Exclusive event.
-
-                bool pushOnMap = false;
-                if (!data.empty()) {
-                    int lastChar = data.size() - 1;
-
-                    // Check to see if we are at the end of a message.
-                    if (MidiByte(data.at(lastChar)) == MIDI_END_OF_EXCLUSIVE) {
-                        // Remove (EOX). RG doesn't use it.
-                        data.erase(lastChar);
-
-                        // Push message to composition
-                        DataBlockRepository::setDataBlockForEvent(sysExcEvent, data);
-                        composition.insert(sysExcEvent);
-                    } else {
-
-                        pushOnMap = true;
-                    }
-                } else {
-                    // Data is empty.  Anyway we got here we need to put it back
-                    // in the pending map.  This will resolve itself elsewhere.
-                    // But if we are here, this is probably and error.
-
-                    std::cerr << "AlsaDriver::getMappedEventList - "
-                              << " ALSA message arrived with no useful System Exclusive"
-                              << "data bytes" << std::endl
-                              << "This is probably a bad transmission" << std::endl;
-
-                    pushOnMap = true;
-                }
-
-                if (pushOnMap) {
-                    // Put the unfinished event back in the pending map.
-                    m_pendSysExcMap->insert(std::make_pair(deviceId,
-                                                           std::make_pair(sysExcEvent, data)));
-
-                    if (beginNewMessage) {
-                        // Let user know about pooling on first recieved event.
-
-                        // Yes, standard output.
-                        // It is used elswhere in this file as well.
-                        std::cout << "AlsaDriver::getMappedEventList - "
-                                  << "Encountered long System Exclusive Message "
-                                  << "(pooling message until transmission complete)"
-                                  << std::endl;
-                    }
-                }
-            }
-            break;
-
-
-        case SND_SEQ_EVENT_SENSING:  // MIDI device is still there
-            break;
-
-        case SND_SEQ_EVENT_QFRAME:
-            if (fromController)
-                continue;
-            if (getMTCStatus() == TRANSPORT_SLAVE) {
-                handleMTCQFrame(event->data.control.value, eventTime);
-            }
-            break;
-
-        case SND_SEQ_EVENT_CLOCK:
-#ifdef DEBUG_ALSA
-            std::cerr << "AlsaDriver::getMappedEventList - "
-                      << "got realtime MIDI clock" << std::endl;
-#endif
-            break;
-
-        case SND_SEQ_EVENT_START:
-            if ((getMIDISyncStatus() == TRANSPORT_SLAVE) && !isPlaying()) {
-                ExternalTransport *transport = getExternalTransportControl();
-                if (transport) {
-                    transport->transportJump(ExternalTransport::TransportStopAtTime,
-                                             RealTime::zeroTime);
-                    transport->transportChange(ExternalTransport::TransportStart);
-                }
-            }
-#ifdef DEBUG_ALSA
-            std::cerr << "AlsaDriver::getMappedEventList - "
-                      << "START" << std::endl;
-#endif
-            break;
-
-        case SND_SEQ_EVENT_CONTINUE:
-            if ((getMIDISyncStatus() == TRANSPORT_SLAVE) && !isPlaying()) {
-                ExternalTransport *transport = getExternalTransportControl();
-                if (transport) {
-                    transport->transportChange(ExternalTransport::TransportPlay);
-                }
-            }
-#ifdef DEBUG_ALSA
-            std::cerr << "AlsaDriver::getMappedEventList - "
-                      << "CONTINUE" << std::endl;
-#endif
-            break;
-
-        case SND_SEQ_EVENT_STOP:
-            if ((getMIDISyncStatus() == TRANSPORT_SLAVE) && isPlaying()) {
-                ExternalTransport *transport = getExternalTransportControl();
-                if (transport) {
-                    transport->transportChange(ExternalTransport::TransportStop);
-                }
-            }
-#ifdef DEBUG_ALSA
-            std::cerr << "AlsaDriver::getMappedEventList - "
-                      << "STOP" << std::endl;
-#endif
-            break;
-
-        case SND_SEQ_EVENT_SONGPOS:
-#ifdef DEBUG_ALSA
-            std::cerr << "AlsaDriver::getMappedEventList - "
-                      << "SONG POSITION" << std::endl;
-#endif
-
-            break;
-
-            // these cases are handled by checkForNewClients
-            //
-        case SND_SEQ_EVENT_CLIENT_START:
-        case SND_SEQ_EVENT_CLIENT_EXIT:
-        case SND_SEQ_EVENT_CLIENT_CHANGE:
-        case SND_SEQ_EVENT_PORT_START:
-        case SND_SEQ_EVENT_PORT_EXIT:
-        case SND_SEQ_EVENT_PORT_CHANGE:
-        case SND_SEQ_EVENT_PORT_SUBSCRIBED:
-        case SND_SEQ_EVENT_PORT_UNSUBSCRIBED:
-            m_portCheckNeeded = true;
-#ifdef DEBUG_ALSA
-            std::cerr << "AlsaDriver::getMappedEventList - "
-                      << "got announce event ("
-                      << int(event->type) << ")" << std::endl;
-#endif
-
-            break;
-        case SND_SEQ_EVENT_TICK:
-        default:
-#ifdef DEBUG_ALSA
-            std::cerr << "AlsaDriver::getMappedEventList - "
-                      << "got unhandled MIDI event type from ALSA sequencer"
-                      << "(" << int(event->type) << ")" << std::endl;
-#endif
-
-            break;
-
-
-        }
-        */
-
-
-    // ------------------ end of midi in loop
-
-    //}
 /*
     if (getMTCStatus() == TRANSPORT_SLAVE && isPlaying()) {
 #ifdef MTC_DEBUG
@@ -951,9 +644,8 @@ MidiThread::midiInCallback(double deltaTime, std::vector< unsigned char > *messa
     }
     */
 
-    // Release lock
+    // Release lock on shared return structure
     //
-    //releaseLock();
     pthread_mutex_unlock(&MidiThread::m_recLock);
 }
 
