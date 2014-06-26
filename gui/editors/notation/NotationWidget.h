@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_NOTATION_WIDGET_H_
-#define _RG_NOTATION_WIDGET_H_
+#ifndef RG_NOTATION_WIDGET_H
+#define RG_NOTATION_WIDGET_H
 
 #include "StaffLayout.h"
 
@@ -67,10 +67,16 @@ public:
     NotationWidget();
     virtual ~NotationWidget();
 
+    // Delete and zero the pointer members if they are allocated.  For
+    // 2-stage deletion.
+    void clearAll(void);
+
     void setSegments(RosegardenDocument *document, 
                      std::vector<Segment *> segments);
 
     NotationScene *getScene() { return m_scene; }
+    ControlRulerWidget *getControlsWidget(void)
+        { return m_controlsWidget; }
 
     virtual EventSelection *getSelection() const;
     virtual void setSelection(EventSelection* s, bool preview);
@@ -137,6 +143,7 @@ signals:
 public slots:
     void slotSetTool(QString name);
     void slotSetSelectTool();
+    void slotSetSelectNoTiesTool();
     void slotSetEraseTool();
     void slotSetNoteRestInserter();
     void slotSetNoteInserter();
@@ -161,7 +168,7 @@ public slots:
     void slotTogglePitchbendRuler();
     void slotAddControlRuler(QAction*);
 
-    void slotUpdatePointerPosition();
+    void slotUpdatePointerPosition(bool moveView = false);
     
     void slotRegenerateHeaders();
 

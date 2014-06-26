@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[TempoDialog]"
 
 #include "TempoDialog.h"
 #include "misc/Debug.h"
@@ -213,7 +214,7 @@ TempoDialog::TempoDialog(QWidget *parent, RosegardenDocument *doc,
         connect(m_tempoChangeGlobal, SIGNAL(clicked()),
                 SLOT(slotActionChanged()));
 
-        m_tempoChangeHere->setChecked(true);
+        m_tempoChangeBefore->setChecked(true);
 
         // disable initially
         m_defaultBox->setEnabled(false);

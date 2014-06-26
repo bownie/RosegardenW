@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[SegmentSplitter]"
 
 #include "SegmentSplitter.h"
 
@@ -61,7 +62,7 @@ SegmentSplitter::handleMouseButtonPress(QMouseEvent *e)
 {
     // Remove cursor and replace with line on a SegmentItem
     // at where the cut will be made
-    CompositionItem item = m_canvas->getFirstItemAt(e->pos());
+    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
 
     if (item) {
         m_canvas->viewport()->setCursor(Qt::BlankCursor);
@@ -78,7 +79,7 @@ SegmentSplitter::handleMouseButtonRelease(QMouseEvent *e)
 {
     setBasicContextHelp();
 
-    CompositionItem item = m_canvas->getFirstItemAt(e->pos());
+    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
 
     if (item) {
         m_canvas->setSnapGrain(true);
@@ -104,7 +105,7 @@ SegmentSplitter::handleMouseButtonRelease(QMouseEvent *e)
 
     // Reinstate the cursor
     m_canvas->viewport()->setCursor(Qt::SplitHCursor);
-    m_canvas->slotHideSplitLine();
+    m_canvas->hideSplitLine();
 }
 
 int
@@ -112,7 +113,7 @@ SegmentSplitter::handleMouseMove(QMouseEvent *e)
 {
     setBasicContextHelp();
 
-    CompositionItem item = m_canvas->getFirstItemAt(e->pos());
+    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
 
     if (item) {
 //        m_canvas->viewport()->setCursor(Qt::blankCursor);
@@ -121,7 +122,7 @@ SegmentSplitter::handleMouseMove(QMouseEvent *e)
         return RosegardenScrollView::FollowHorizontal;
     } else {
         m_canvas->viewport()->setCursor(Qt::SplitHCursor);
-        m_canvas->slotHideSplitLine();
+        m_canvas->hideSplitLine();
         return RosegardenScrollView::NoFollow;
     }
 }
@@ -141,7 +142,7 @@ SegmentSplitter::drawSplitLine(QMouseEvent *e)
     //
     int y = m_canvas->grid().snapY(e->pos().y());
 
-    m_canvas->slotShowSplitLine(x, y);
+    m_canvas->showSplitLine(x, y);
 
     QRect updateRect(std::max(0, std::min(x, m_prevX) - 5), y,
                      std::max(m_prevX, x) + 5, m_prevY + m_canvas->grid().getYSnap());

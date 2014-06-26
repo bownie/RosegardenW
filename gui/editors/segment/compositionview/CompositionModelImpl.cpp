@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,14 +15,15 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[CompositionModelImpl]"
+
 #include "CompositionModelImpl.h"
 #include "SegmentOrderer.h"
 #include "AudioPreviewThread.h"
 #include "AudioPreviewUpdater.h"
 #include "AudioPreviewPainter.h"
 #include "CompositionItemHelper.h"
-#include "CompositionItemImpl.h"
-#include "CompositionModel.h"
+#include "CompositionItem.h"
 #include "CompositionRect.h"
 #include "CompositionColourCache.h"
 
@@ -57,6 +58,7 @@
 
 namespace Rosegarden
 {
+
 
 CompositionModelImpl::CompositionModelImpl(Composition& compo,
         Studio& studio,
@@ -122,69 +124,91 @@ CompositionModelImpl::~CompositionModelImpl()
 
 struct RectCompare {
     bool operator()(const QRect &r1, const QRect &r2) const {
-        return r1.x() < r2.x();
+        return r1.left() < r2.left();
     }
 };
 
-void CompositionModelImpl::makeNotationPreviewRects(RectRanges* npRects, QPoint basePoint,
-        const Segment* segment, const QRect& clipRect)
+void CompositionModelImpl::makeNotationPreviewRects(QPoint basePoint,
+        const Segment* segment, const QRect& clipRect, RectRanges* npRects)
 {
     Profiler profiler("CompositionModelImpl::makeNotationPreviewRects");
 
-    rectlist* cachedNPData = getNotationPreviewData(segment);
+    RectList* cachedNPData = getNotationPreviewData(segment);
 
     if (cachedNPData->empty())
         return ;
 
-    rectlist::iterator npEnd = cachedNPData->end();
+    RectList::iterator npEnd = cachedNPData->end();
 
-    rectlist::iterator npi = std::lower_bound(cachedNPData->begin(), npEnd, clipRect, RectCompare());
+    // Find the first preview rect that *starts within* the clipRect.
+    // Probably not the right thing to do as this means any event that starts
+    // prior to the clipRect but stretches through the clipRect will be
+    // dropped.  And this explains why long notes disappear from the segment
+    // previews.
+    // Note that RectList is a std::vector, so this call will take increasing
+    // amounts of time as the number of events to the left of the clipRect
+    // increases.  This is probably at least a small part of the "CPU usage
+    // increasing over time" issue.
+    // If cachedNPData is sorted by start time, we could at least do a binary
+    // search.
+    RectList::iterator npi = std::lower_bound(cachedNPData->begin(), npEnd, clipRect, RectCompare());
 
+    // If no preview rects were within the clipRect, bail.
     if (npi == npEnd)
         return ;
 
+    // ??? Go back one event if we aren't already at the beginning.  Why?
+    // Hilariously, this partially "fixes" the "missing event in preview"
+    // problem.  However, it only "fixes" the problem for a single event.
+    // Is that why this is here?
+    // When testing, to get around the fact that the segments are drawn on a
+    // segment layer in CompositionView, just disable then re-enable segment
+    // previews in the menu and the "missing event in preview" problem is easy
+    // to see.
     if (npi != cachedNPData->begin())
         --npi;
 
-    RectRange interval;
+    // Compute the interval within the Notation Preview for this segment.
 
+    RectRange interval;
     interval.range.first = npi;
 
+    // Compute the rightmost x coord (xLim)
     int segEndX = int(nearbyint(m_grid.getRulerScale()->getXForTime(segment->getEndMarkerTime())));
-    int xLim = std::min(clipRect.topRight().x(), segEndX);
+    int xLim = std::min(clipRect.right(), segEndX);
 
     //RG_DEBUG << "CompositionModelImpl::makeNotationPreviewRects : basePoint.x : "
     //         << basePoint.x();
 
-    // move iterator forward
-    //
-    while (npi != npEnd && npi->x() < xLim)
+    // Search sequentially for the last preview rect in the segment.
+    while (npi != npEnd  &&  npi->x() < xLim)
         ++npi;
 
     interval.range.second = npi;
     interval.basePoint.setX(0);
     interval.basePoint.setY(basePoint.y());
-    interval.color = computeSegmentPreviewColor(segment);
+    interval.color = segment->getPreviewColour();
 
+    // Add the interval to the caller's interval list.
     npRects->push_back(interval);
 }
 
-void CompositionModelImpl::makeNotationPreviewRectsMovingSegment(RectRanges* npRects, QPoint basePoint,
-        const Segment* segment, const QRect& currentSR)
+void CompositionModelImpl::makeNotationPreviewRectsMovingSegment(QPoint basePoint,
+        const Segment* segment, const QRect& currentSR, RectRanges* npRects)
 {
     CompositionRect unmovedSR = computeSegmentRect(*segment);
 
-    rectlist* cachedNPData = getNotationPreviewData(segment);
+    RectList* cachedNPData = getNotationPreviewData(segment);
 
     if (cachedNPData->empty())
         return ;
 
-    rectlist::iterator npEnd = cachedNPData->end(),
-                               npBegin = cachedNPData->begin();
+    RectList::iterator npBegin = cachedNPData->begin();
+    RectList::iterator npEnd = cachedNPData->end();
 
-    rectlist::iterator npi;
+    RectList::iterator npi;
 
-    if (getChangeType() == ChangeResizeFromStart)
+    if (m_changeType == ChangeResizeFromStart)
         npi = std::lower_bound(npBegin, npEnd, currentSR, RectCompare());
     else
         npi = std::lower_bound(npBegin, npEnd, unmovedSR, RectCompare());
@@ -192,33 +216,36 @@ void CompositionModelImpl::makeNotationPreviewRectsMovingSegment(RectRanges* npR
     if (npi == npEnd)
         return ;
 
-    if (npi != npBegin && getChangeType() != ChangeResizeFromStart) {
+    // ??? Bump iterator back one to try and pick up the previous event
+    //     rectangle which might be needed.
+    if (npi != npBegin  &&  m_changeType != ChangeResizeFromStart) {
         --npi;
     }
 
-    RectRange interval;
+    // Compute the interval within the Notation Preview for this segment.
 
+    RectRange interval;
     interval.range.first = npi;
 
-    int xLim = getChangeType() == ChangeMove ? unmovedSR.topRight().x() : currentSR.topRight().x();
+    // Compute the rightmost x coord (xLim)
+    int xLim = m_changeType == ChangeMove ? unmovedSR.right() : currentSR.right();
 
     //RG_DEBUG << "CompositionModelImpl::makeNotationPreviewRectsMovingSegment : basePoint.x : "
     //         << basePoint.x();
 
-    // move iterator forward
-    //
-    while (npi != npEnd && npi->x() < xLim)
+    // Search sequentially for the last preview rect in the segment.
+    while (npi != npEnd  &&  npi->x() < xLim)
         ++npi;
 
     interval.range.second = npi;
     interval.basePoint.setY(basePoint.y());
 
-    if (getChangeType() == ChangeMove)
+    if (m_changeType == ChangeMove)
         interval.basePoint.setX(basePoint.x() - unmovedSR.x());
     else
         interval.basePoint.setX(0);
 
-    interval.color = computeSegmentPreviewColor(segment);
+    interval.color = segment->getPreviewColour();
 
     npRects->push_back(interval);
 }
@@ -236,7 +263,7 @@ void CompositionModelImpl::makeAudioPreviewRects(AudioPreviewDrawData* apRects, 
 
     AudioPreviewDrawDataItem previewItem(previewImage, basePoint, segRect);
 
-    if (getChangeType() == ChangeResizeFromStart) {
+    if (m_changeType == ChangeResizeFromStart) {
         CompositionRect originalRect = computeSegmentRect(*segment);
         previewItem.resizeOffset = segRect.x() - originalRect.x();
     }
@@ -244,12 +271,14 @@ void CompositionModelImpl::makeAudioPreviewRects(AudioPreviewDrawData* apRects, 
     apRects->push_back(previewItem);
 }
 
-void CompositionModelImpl::computeRepeatMarks(CompositionItem& item)
+#if 0
+void CompositionModelImpl::computeRepeatMarks(CompositionItemPtr item)
 {
     Segment* s = CompositionItemHelper::getSegment(item);
-    CompositionRect& sr = dynamic_cast<CompositionItemImpl*>((_CompositionItem*)item)->getCompRect();
+    CompositionRect& sr = item->getCompRect();
     computeRepeatMarks(sr, s);
 }
+#endif
 
 void CompositionModelImpl::computeRepeatMarks(CompositionRect& sr, const Segment* s)
 {
@@ -299,6 +328,7 @@ void CompositionModelImpl::setAudioPreviewThread(AudioPreviewThread *thread)
 {
     //RG_DEBUG << "\nCompositionModelImpl::setAudioPreviewThread()";
 
+    // For each AudioPreviewUpdater
     while (!m_audioPreviewUpdaterMap.empty()) {
         // Cause any running previews to be cancelled
         delete m_audioPreviewUpdaterMap.begin()->second;
@@ -341,16 +371,17 @@ void CompositionModelImpl::clearPreviewCache()
             // This will create the audio preview updater.  The
             // preview won't be calculated and cached until the
             // updater completes and calls back.
-            updatePreviewCacheForAudioSegment((*i), 0);
+            updatePreviewCacheForAudioSegment((*i));
         }
     }
 }
 
-void CompositionModelImpl::updatePreviewCacheForNotationSegment(const Segment* segment, rectlist* npData)
+void CompositionModelImpl::createEventRects(const Segment *segment, RectList *npData)
 {
     npData->clear();
 
-    int segStartX = int(nearbyint(m_grid.getRulerScale()->getXForTime(segment->getStartTime())));
+    int segStartX = static_cast<int>(nearbyint(
+            m_grid.getRulerScale()->getXForTime(segment->getStartTime())));
 
     bool isPercussion = false;
     Track *track = m_composition.getTrackById(segment->getTrack());
@@ -360,6 +391,7 @@ void CompositionModelImpl::updatePreviewCacheForNotationSegment(const Segment* s
         if (instrument && instrument->isPercussion()) isPercussion = true;
     }
 
+    // For each event in the segment
     for (Segment::const_iterator i = segment->begin();
          i != segment->end(); ++i) {
 
@@ -375,12 +407,13 @@ void CompositionModelImpl::updatePreviewCacheForNotationSegment(const Segment* s
         // 	    eventEnd = segment->getEndMarkerTime();
         // 	}
 
-        int x = int(nearbyint(m_grid.getRulerScale()->getXForTime(eventStart)));
-        int width = int(nearbyint(m_grid.getRulerScale()->getWidthForDuration
-                                  (eventStart,
-                                   eventEnd - eventStart)));
+        int x = static_cast<int>(nearbyint(
+                m_grid.getRulerScale()->getXForTime(eventStart)));
+        int width = static_cast<int>(nearbyint(
+                m_grid.getRulerScale()->getWidthForDuration(
+                        eventStart, eventEnd - eventStart)));
 
-        //RG_DEBUG << "CompositionModelImpl::updatePreviewCacheForNotationSegment: x = " << x << ", width = " << width << " (time = " << eventStart << ", duration = " << eventEnd - eventStart << ")";
+        //RG_DEBUG << "CompositionModelImpl::createEventRects: x = " << x << ", width = " << width << " (time = " << eventStart << ", duration = " << eventEnd - eventStart << ")";
 
         if (x <= segStartX) {
             ++x;
@@ -389,8 +422,8 @@ void CompositionModelImpl::updatePreviewCacheForNotationSegment(const Segment* s
         if (width > 1) --width;
         if (width < 1) ++width;
 
-        double y0 = 0;
-        double y1 = m_grid.getYSnap();
+        const double y0 = 0;
+        const double y1 = m_grid.getYSnap();
         double y = y1 + ((y0 - y1) * (pitch - 16)) / 96;
 
         int height = 1;
@@ -403,28 +436,14 @@ void CompositionModelImpl::updatePreviewCacheForNotationSegment(const Segment* s
         if (y < y0) y = y0;
         if (y > y1 - height + 1) y = y1 - height + 1;
 
-        QRect r(x, (int)y, width, height);
+        // ??? static_cast<int>(nearbyint(y))?
+        QRect r(x, static_cast<int>(y), width, height);
 
         npData->push_back(r);
     }
 }
 
-QColor CompositionModelImpl::computeSegmentPreviewColor(const Segment* segment)
-{
-    // compute the preview color so it's as visible as possible over the segment's color
-    QColor segColor = GUIPalette::convertColour(m_composition.getSegmentColourMap().getColourByIndex(segment->getColourIndex()));
-
-    int intensity = qGray(segColor.rgb());
-    if (intensity > 127) {
-        segColor = Qt::black;
-    } else {
-        segColor = Qt::white;
-    }
-
-    return segColor;
-}
-
-void CompositionModelImpl::updatePreviewCacheForAudioSegment(const Segment* segment, AudioPreviewData* apData)
+void CompositionModelImpl::updatePreviewCacheForAudioSegment(const Segment* segment)
 {
     if (m_audioPreviewThread) {
         //RG_DEBUG << "CompositionModelImpl::updatePreviewCacheForAudioSegment() - new audio preview started";
@@ -432,9 +451,6 @@ void CompositionModelImpl::updatePreviewCacheForAudioSegment(const Segment* segm
         CompositionRect segRect = computeSegmentRect(*segment);
         segRect.setWidth(segRect.getBaseWidth()); // don't use repeating area
         segRect.moveTopLeft(QPoint(0, 0));
-
-        if (apData)
-            apData->setSegmentRect(segRect);
 
         if (m_audioPreviewUpdaterMap.find(segment) ==
                 m_audioPreviewUpdaterMap.end()) {
@@ -467,14 +483,14 @@ void CompositionModelImpl::slotAudioPreviewComplete(AudioPreviewUpdater* apu)
     QRect updateRect;
 
     if (apData) {
-        RG_DEBUG << "CompositionModelImpl::slotAudioPreviewComplete(" << apu << "): apData contains " << apData->getValues().size() << " values already";
+        RG_DEBUG << "CompositionModelImpl::slotAudioPreviewComplete(" << apu << "): apData contains " << apData->values.size() << " values already";
         unsigned int channels = 0;
         const std::vector<float> &values = apu->getComputedValues(channels);
         if (channels > 0) {
             RG_DEBUG << "CompositionModelImpl::slotAudioPreviewComplete: set "
                 << values.size() << " samples on " << channels << " channels";
-            apData->setChannels(channels);
-            apData->setValues(values);
+            apData->channels = channels;
+            apData->values = values;  // ??? COPY performance issue?
             updateRect = postProcessAudioPreview(apData, apu->getSegment());
         }
     }
@@ -536,6 +552,7 @@ PixmapArray CompositionModelImpl::getAudioPreviewPixmap(const Segment* s)
 void CompositionModelImpl::eventAdded(const Segment *s, Event *)
 {
     //RG_DEBUG << "CompositionModelImpl::eventAdded()";
+    Profiler profiler("CompositionModelImpl::eventAdded()");
     removePreviewCache(s);
     emit needContentUpdate(computeSegmentRect(*s));
 }
@@ -543,6 +560,14 @@ void CompositionModelImpl::eventAdded(const Segment *s, Event *)
 void CompositionModelImpl::eventRemoved(const Segment *s, Event *)
 {
     //RG_DEBUG << "CompositionModelImpl::eventRemoved";
+    Profiler profiler("CompositionModelImpl::eventRemoved()");
+    removePreviewCache(s);
+    emit needContentUpdate(computeSegmentRect(*s));
+}
+
+void CompositionModelImpl::AllEventsChanged(const Segment *s)
+{
+     Profiler profiler("CompositionModelImpl::AllEventsChanged()");
     removePreviewCache(s);
     emit needContentUpdate(computeSegmentRect(*s));
 }
@@ -556,6 +581,7 @@ void CompositionModelImpl::appearanceChanged(const Segment *s)
 
 void CompositionModelImpl::endMarkerTimeChanged(const Segment *s, bool shorten)
 {
+    Profiler profiler("CompositionModelImpl::endMarkerTimeChanged(Segment *, bool)");
     //RG_DEBUG << "CompositionModelImpl::endMarkerTimeChanged(" << shorten << ")";
     clearInCache(s, true);
     if (shorten) {
@@ -577,7 +603,7 @@ void CompositionModelImpl::makePreviewCache(const Segment *s)
 void CompositionModelImpl::removePreviewCache(const Segment *s)
 {
     if (s->getType() == Segment::Internal) {
-        rectlist *rl = m_notationPreviewDataCache[s];
+        RectList *rl = m_notationPreviewDataCache[s];
         delete rl;
         m_notationPreviewDataCache.erase(s);
     } else {
@@ -634,6 +660,7 @@ void CompositionModelImpl::segmentStartChanged(const Composition *, Segment *s, 
 
 void CompositionModelImpl::segmentEndMarkerChanged(const Composition *, Segment *s, bool)
 {
+    Profiler profiler("CompositionModelImpl::segmentEndMarkerChanged()");
 //    RG_DEBUG << "CompositionModelImpl::segmentEndMarkerChanged: segment " << s << " on track " << s->getTrack() << ": calling setTrackHeights";
     if (setTrackHeights(s)) {
 //        RG_DEBUG << "... changed, updating";
@@ -653,29 +680,29 @@ void CompositionModelImpl::endMarkerTimeChanged(const Composition *, bool)
     emit needSizeUpdate();
 }
 
-void CompositionModelImpl::setSelectionRect(const QRect& r)
+void CompositionModelImpl::setSelectionRect(const QRect &rect)
 {
-    m_selectionRect = r.normalized();
-//    if (m_selectionRect.y() < 0) m_selectionRect.setTop(0);
+    m_selectionRect = rect.normalized();
 
-    RG_DEBUG << "setSelectionRect: " << r << " -> " << m_selectionRect;
+    //RG_DEBUG << "setSelectionRect: " << r << " -> " << m_selectionRect;
 
     m_previousTmpSelectedSegments = m_tmpSelectedSegments;
     m_tmpSelectedSegments.clear();
 
     const segmentcontainer& segments = m_composition.getSegments();
-    segmentcontainer::const_iterator segEnd = segments.end();
+    segmentcontainer::iterator segEnd = segments.end();
 
     QRect updateRect = m_selectionRect;
 
-    for (segmentcontainer::const_iterator i = segments.begin();
+    // For each segment in the composition
+    for (segmentcontainer::iterator i = segments.begin();
          i != segEnd; ++i) {
         
-        const Segment* s = *i;
-        CompositionRect sr = computeSegmentRect(*s);
-        if (sr.intersects(m_selectionRect)) {
-            m_tmpSelectedSegments.insert(const_cast<Segment *>(s));
-            updateRect |= sr;
+        CompositionRect segmentRect = computeSegmentRect(**i);
+
+        if (segmentRect.intersects(m_selectionRect)) {
+            m_tmpSelectedSegments.insert(*i);
+            updateRect |= segmentRect;
         }
     }
 
@@ -689,26 +716,26 @@ void CompositionModelImpl::setSelectionRect(const QRect& r)
         emit needArtifactsUpdate();
     }
 
-
     m_previousSelectionUpdateRect = updateRect;
-
 }
 
 void CompositionModelImpl::finalizeSelectionRect()
 {
-    const segmentcontainer& segments = m_composition.getSegments();
+    const segmentcontainer &segments = m_composition.getSegments();
     segmentcontainer::const_iterator segEnd = segments.end();
 
+    // For each segment in the composition
     for (segmentcontainer::const_iterator i = segments.begin();
          i != segEnd; ++i) {
 
-        const Segment* s = *i;
-        CompositionRect sr = computeSegmentRect(*s);
-        if (sr.intersects(m_selectionRect)) {
-            setSelected(s);
+        CompositionRect segmentRect = computeSegmentRect(**i);
+
+        if (segmentRect.intersects(m_selectionRect)) {
+            setSelected(*i);
         }
     }
 
+    // Clear the selection rect state for the next time.
     m_previousSelectionUpdateRect = m_selectionRect = QRect();
     m_tmpSelectedSegments.clear();
 }
@@ -717,28 +744,29 @@ QRect CompositionModelImpl::getSelectionContentsRect()
 {
     QRect selectionRect;
 
-    SegmentSelection sel = getSelectedSegments();
-    for (SegmentSelection::iterator i = sel.begin();
-            i != sel.end(); ++i) {
+    // For each selected segment, accumulate the selection rect
+    for (SegmentSelection::iterator i = m_selectedSegments.begin();
+            i != m_selectedSegments.end(); ++i) {
 
-        Segment* s = *i;
-        CompositionRect sr = computeSegmentRect(*s);
+        CompositionRect sr = computeSegmentRect(**i);
         selectionRect |= sr;
     }
 
     return selectionRect;
 }
 
-void CompositionModelImpl::addRecordingItem(const CompositionItem& item)
+void CompositionModelImpl::addRecordingItem(CompositionItemPtr item)
 {
-    m_recordingSegments.insert(CompositionItemHelper::getSegment(item));
+    m_recordingSegments.insert(item->getSegment());
+
     emit needContentUpdate();
 
-    RG_DEBUG << "CompositionModelImpl::addRecordingItem: now have "
-             << m_recordingSegments.size() << " recording items";
+    //RG_DEBUG << "CompositionModelImpl::addRecordingItem: now have "
+    //         << m_recordingSegments.size() << " recording items";
 }
 
-void CompositionModelImpl::removeRecordingItem(const CompositionItem &item)
+#if 0
+void CompositionModelImpl::removeRecordingItem(CompositionItemPtr item)
 {
     Segment* s = CompositionItemHelper::getSegment(item);
 
@@ -750,25 +778,28 @@ void CompositionModelImpl::removeRecordingItem(const CompositionItem &item)
     RG_DEBUG << "CompositionModelImpl::removeRecordingItem: now have "
              << m_recordingSegments.size() << " recording items";
 }
+#endif
 
 void CompositionModelImpl::clearRecordingItems()
 {
-    for (recordingsegmentset::iterator i = m_recordingSegments.begin();
+    //RG_DEBUG << "CompositionModelImpl::clearRecordingItem";
+
+    // For each recording segment, remove it from the caches.
+    for (RecordingSegmentSet::iterator i = m_recordingSegments.begin();
             i != m_recordingSegments.end(); ++i)
         clearInCache(*i, true);
 
     m_recordingSegments.clear();
 
     emit needContentUpdate();
-    RG_DEBUG << "CompositionModelImpl::clearRecordingItem";
 }
 
 bool CompositionModelImpl::isMoving(const Segment* sm) const
 {
-    itemcontainer::const_iterator movEnd = m_changingItems.end();
+    ItemContainer::const_iterator movEnd = m_changingItems.end();
 
-    for (itemcontainer::const_iterator i = m_changingItems.begin(); i != movEnd; ++i) {
-        const CompositionItemImpl* ci = dynamic_cast<const CompositionItemImpl*>((_CompositionItem*)(*i));
+    for (ItemContainer::const_iterator i = m_changingItems.begin(); i != movEnd; ++i) {
+        const CompositionItem* ci = *i;
         const Segment* s = ci->getSegment();
         if (sm == s)
             return true;
@@ -782,11 +813,11 @@ bool CompositionModelImpl::isRecording(const Segment* s) const
     return m_recordingSegments.find(const_cast<Segment*>(s)) != m_recordingSegments.end();
 }
 
-CompositionModel::itemcontainer CompositionModelImpl::getItemsAt(const QPoint& point)
+CompositionModelImpl::ItemContainer CompositionModelImpl::getItemsAt(const QPoint& point)
 {
     //RG_DEBUG << "CompositionModelImpl::getItemsAt()";
 
-    itemcontainer res;
+    ItemContainer res;
 
     const segmentcontainer& segments = m_composition.getSegments();
 
@@ -798,7 +829,7 @@ CompositionModel::itemcontainer CompositionModelImpl::getItemsAt(const QPoint& p
         CompositionRect sr = computeSegmentRect(*s);
         if (sr.contains(point)) {
             //RG_DEBUG << "CompositionModelImpl::getItemsAt() adding " << sr << " for segment " << s;
-            CompositionItem item(new CompositionItemImpl(*const_cast<Segment *>(s),
+            CompositionItemPtr item(new CompositionItem(*const_cast<Segment *>(s),
                                                          sr));
             unsigned int z = computeZForSegment(s);
             //RG_DEBUG << "CompositionModelImpl::getItemsAt() z = " << z;
@@ -818,49 +849,60 @@ CompositionModel::itemcontainer CompositionModelImpl::getItemsAt(const QPoint& p
     return res;
 }
 
-void CompositionModelImpl::setPointerPos(int xPos)
+void CompositionModelImpl::pointerPosChanged(int x)
 {
-    //RG_DEBUG << "CompositionModelImpl::setPointerPos() begin";
-    m_pointerTimePos = grid().getRulerScale()->getTimeForX(xPos);
+    //RG_DEBUG << "CompositionModelImpl::pointerPosChanged() begin";
 
-    for (recordingsegmentset::iterator i = m_recordingSegments.begin();
+    // Update the end point for the recording segments.
+    m_pointerTimePos = m_grid.getRulerScale()->getTimeForX(x);
+
+    // For each recording segment
+    for (RecordingSegmentSet::iterator i = m_recordingSegments.begin();
             i != m_recordingSegments.end(); ++i) {
+        // Ask CompositionView to update.
         emit needContentUpdate(computeSegmentRect(**i));
     }
-    //RG_DEBUG << "CompositionModelImpl::setPointerPos() end";
+
+    //RG_DEBUG << "CompositionModelImpl::pointerPosChanged() end";
 }
 
-void CompositionModelImpl::setSelected(const CompositionItem& item, bool selected)
+void CompositionModelImpl::setSelected(CompositionItemPtr item, bool selected)
 {
-    const CompositionItemImpl* itemImpl = dynamic_cast<const CompositionItemImpl*>((_CompositionItem*)item);
-    if (itemImpl) {
-        Segment* segment = const_cast<Segment*>(itemImpl->getSegment());
-        setSelected(segment, selected);
+    if (item) {
+        // Delegate to the version that takes a segment
+        setSelected(item->getSegment(), selected);
     }
 }
 
-void CompositionModelImpl::setSelected(const itemcontainer& items)
+#if 0
+void CompositionModelImpl::setSelected(const ItemContainer &items)
 {
-    for (itemcontainer::const_iterator i = items.begin(); i != items.end(); ++i) {
+    // For each CompositionItem
+    for (ItemContainer::const_iterator i = items.begin(); i != items.end(); ++i) {
         setSelected(*i);
     }
 }
+#endif
 
-void CompositionModelImpl::setSelected(const Segment* segment, bool selected)
+void CompositionModelImpl::setSelected(Segment *segment, bool selected)
 {
-    if( ! segment ){
-        RG_DEBUG << "WARNING : CompositionModelImpl::setSelected - segment is NULL ";
+    if (!segment) {
+        RG_DEBUG << "WARNING : CompositionModelImpl::setSelected() - segment is NULL";
         return;
     }
-    RG_DEBUG << "CompositionModelImpl::setSelected " << segment << " - " << selected;
+
+    //RG_DEBUG << "CompositionModelImpl::setSelected " << segment << " - " << selected;
+
+    // Update m_selectedSegments
     if (selected) {
         if (!isSelected(segment))
-            m_selectedSegments.insert(const_cast<Segment*>(segment));
+            m_selectedSegments.insert(segment);
     } else {
-        SegmentSelection::iterator i = m_selectedSegments.find(const_cast<Segment*>(segment));
+        SegmentSelection::iterator i = m_selectedSegments.find(segment);
         if (i != m_selectedSegments.end())
             m_selectedSegments.erase(i);
     }
+
     emit needContentUpdate();
 }
 
@@ -878,98 +920,108 @@ void CompositionModelImpl::signalContentChange()
 
 void CompositionModelImpl::clearSelected()
 {
-    RG_DEBUG << "CompositionModelImpl::clearSelected";
+    //RG_DEBUG << "CompositionModelImpl::clearSelected";
+
     m_selectedSegments.clear();
     emit needContentUpdate();
 }
 
-bool CompositionModelImpl::isSelected(const CompositionItem& ci) const
+bool CompositionModelImpl::isSelected(CompositionItemPtr item) const
 {
-    const CompositionItemImpl* itemImpl = dynamic_cast<const CompositionItemImpl*>((_CompositionItem*)ci);
-    return itemImpl ? isSelected(itemImpl->getSegment()) : 0;
+    return item ? isSelected(item->getSegment()) : false;
 }
 
-bool CompositionModelImpl::isSelected(const Segment* s) const
+bool CompositionModelImpl::isSelected(const Segment *s) const
 {
-    return m_selectedSegments.find(const_cast<Segment*>(s)) != m_selectedSegments.end();
+    return m_selectedSegments.find(const_cast<Segment *>(s)) != m_selectedSegments.end();
 }
 
-bool CompositionModelImpl::isTmpSelected(const Segment* s) const
+bool CompositionModelImpl::isTmpSelected(const Segment *s) const
 {
-    return m_tmpSelectedSegments.find(const_cast<Segment*>(s)) != m_tmpSelectedSegments.end();
+    return m_tmpSelectedSegments.find(const_cast<Segment *>(s)) != m_tmpSelectedSegments.end();
 }
 
-bool CompositionModelImpl::wasTmpSelected(const Segment* s) const
+bool CompositionModelImpl::wasTmpSelected(const Segment *s) const
 {
-    return m_previousTmpSelectedSegments.find(const_cast<Segment*>(s)) != m_previousTmpSelectedSegments.end();
+    return m_previousTmpSelectedSegments.find(const_cast<Segment *>(s)) != m_previousTmpSelectedSegments.end();
 }
 
-void CompositionModelImpl::startChange(const CompositionItem& item, CompositionModel::ChangeType change)
+void CompositionModelImpl::startChange(CompositionItemPtr item, ChangeType change)
 {
     m_changeType = change;
 
-    itemcontainer::iterator i = m_changingItems.find(item);
+    // If we already know this segment is changing
+    if (m_changingItems.find(item) != m_changingItems.end()) {
+        //RG_DEBUG << "CompositionModelImpl::startChange : item already in";
 
-    // if an "identical" composition item has already been inserted, drop this one
-    if (i != m_changingItems.end()) {
-        RG_DEBUG << "CompositionModelImpl::startChange : item already in";
+        // Put this one on the garbage collection list for later cleanup
+        // by endChange().
         m_itemGC.push_back(item);
     } else {
+        // Save the original rectangle for this segment
         item->saveRect();
+
         m_changingItems.insert(item);
     }
 }
 
-void CompositionModelImpl::startChangeSelection(CompositionModel::ChangeType change)
+void CompositionModelImpl::startChangeSelection(ChangeType change)
 {
-    SegmentSelection::iterator i = m_selectedSegments.begin();
-    for (; i != m_selectedSegments.end(); ++i) {
-        Segment* s = *i;
-        CompositionRect sr = computeSegmentRect(*s);
-        startChange(CompositionItem(new CompositionItemImpl(*s, sr)), change);
+    // For each selected segment
+    for (SegmentSelection::iterator i = m_selectedSegments.begin();
+            i != m_selectedSegments.end(); ++i) {
+        CompositionItemPtr item =
+                new CompositionItem(**i, computeSegmentRect(**i));
+        startChange(item, change);
     }
-
 }
 
 void CompositionModelImpl::endChange()
 {
-    for (itemcontainer::const_iterator i = m_changingItems.begin(); i != m_changingItems.end(); ++i) {
+    //RG_DEBUG << "CompositionModelImpl::endChange";
+
+    // For each segment that was changing
+    for (ItemContainer::const_iterator i = m_changingItems.begin();
+            i != m_changingItems.end(); ++i) {
         delete *i;
     }
 
     m_changingItems.clear();
 
-    for (itemgc::iterator i = m_itemGC.begin(); i != m_itemGC.end(); ++i) {
+    // For each segment in the garbage collection list
+    for (ItemGC::iterator i = m_itemGC.begin();
+            i != m_itemGC.end(); ++i) {
         delete *i;
     }
+
     m_itemGC.clear();
-    RG_DEBUG << "CompositionModelImpl::endChange";
+
     emit needContentUpdate();
 }
 
-void CompositionModelImpl::setLength(int width)
+void CompositionModelImpl::setCompositionLength(int width)
 {
-    timeT endMarker = m_grid.snapX(width);
-    m_composition.setEndMarker(endMarker);
+    m_composition.setEndMarker(m_grid.snapX(width));
 }
 
-int CompositionModelImpl::getLength()
+int CompositionModelImpl::getCompositionLength()
 {
     timeT endMarker = m_composition.getEndMarker();
-    int w = int(nearbyint(m_grid.getRulerScale()->getWidthForDuration(0, endMarker)));
-    return w;
+    return static_cast<int>(nearbyint(
+            m_grid.getRulerScale()->getWidthForDuration(0, endMarker)));
 }
 
-unsigned int CompositionModelImpl::getHeight()
+unsigned int CompositionModelImpl::getCompositionHeight()
 {
-    return (unsigned int)m_grid.getYBinCoordinate(getNbRows());
+    return static_cast<unsigned int>(
+            m_grid.getYBinCoordinate(m_composition.getNbTracks()));
 }
 
-timeT CompositionModelImpl::getRepeatTimeAt(const QPoint& p, const CompositionItem& cItem)
+timeT CompositionModelImpl::getRepeatTimeAt(const QPoint& p, CompositionItemPtr cItem)
 {
     //     timeT timeAtClick = m_grid.getRulerScale()->getTimeForX(p.x());
 
-    CompositionItemImpl* itemImpl = dynamic_cast<CompositionItemImpl*>((_CompositionItem*)cItem);
+    CompositionItem* itemImpl = cItem;
 
     const Segment* s = itemImpl->getSegment();
 
@@ -1163,51 +1215,48 @@ const CompositionRect& CompositionModelImpl::getFromCache(const Rosegarden::Segm
     return m_segmentRectMap[s];
 }
 
-unsigned int CompositionModelImpl::getNbRows()
+const CompositionModelImpl::RectContainer &
+CompositionModelImpl::getSegmentRects(
+        const QRect &clipRect,
+        RectRanges *notationPreview,
+        AudioPreviewDrawData *audioPreview)
 {
-    return m_composition.getNbTracks();
-}
+    Profiler profiler("CompositionModelImpl::getSegmentRects()");
 
-const CompositionModel::rectcontainer& CompositionModelImpl::getRectanglesIn(const QRect& rect,
-        RectRanges* npData,
-        AudioPreviewDrawData* apData)
-{
-    Profiler profiler("CompositionModelImpl::getRectanglesIn");
+    // Clear the container we'll be returning.
+    m_segmentRects.clear();
 
-    m_res.clear();
-
-    //RG_DEBUG << "CompositionModelImpl::getRectanglesIn: ruler scale is "
+    //RG_DEBUG << "CompositionModelImpl::getSegmentRects(): ruler scale is "
     //         << (dynamic_cast<SimpleRulerScale *>(m_grid.getRulerScale()))->getUnitsPerPixel();
 
-    const segmentcontainer& segments = m_composition.getSegments();
-    segmentcontainer::const_iterator segEnd = segments.end();
+    const segmentcontainer &segments = m_composition.getSegments();
+    segmentcontainer::const_iterator segmentsEnd = segments.end();
 
+    // For each segment in the composition
     for (segmentcontainer::const_iterator i = segments.begin();
-         i != segEnd; ++i) {
+         i != segmentsEnd; ++i) {
 
-        //RG_DEBUG << "CompositionModelImpl::getRectanglesIn: Composition contains segment " << *i << " (" << (*i)->getStartTime() << "->" << (*i)->getEndTime() << ")";
+        //RG_DEBUG << "CompositionModelImpl::getSegmentRects(): Composition contains segment " << *i << " (" << (*i)->getStartTime() << "->" << (*i)->getEndTime() << ")";
         
-        const Segment* s = *i;
+        const Segment *s = *i;
 
+        // Moving segments are handled in the next for loop.
         if (isMoving(s))
             continue;
 
-        CompositionRect sr = computeSegmentRect(*s);
-        //RG_DEBUG << "CompositionModelImpl::getRectanglesIn: seg rect = " << sr;
+        CompositionRect segmentRect = computeSegmentRect(*s);
+        //RG_DEBUG << "CompositionModelImpl::getSegmentRects(): seg rect = " << sr;
 
-        if (sr.intersects(rect)) {
-            bool tmpSelected = isTmpSelected(s),
-                 pTmpSelected = wasTmpSelected(s);
-
-//            RG_DEBUG << "CompositionModelImpl::getRectanglesIn: segment " << s 
+        if (segmentRect.intersects(clipRect)) {
+//            RG_DEBUG << "CompositionModelImpl::getSegmentRects(): segment " << s
 //                     << " selected : " << isSelected(s) << " - tmpSelected : " << isTmpSelected(s);
                        
-            if (isSelected(s) || isTmpSelected(s) || sr.intersects(m_selectionRect)) {
-                sr.setSelected(true);
+            if (isSelected(s) || isTmpSelected(s) || segmentRect.intersects(m_selectionRect)) {
+                segmentRect.setSelected(true);
             }
 
-            if (pTmpSelected != tmpSelected)
-                sr.setNeedsFullUpdate(true);
+            if (wasTmpSelected(s) != isTmpSelected(s))
+                segmentRect.setNeedsFullUpdate(true);
 
             bool isAudio = (s && s->getType() == Segment::Audio);
 
@@ -1216,64 +1265,64 @@ const CompositionModel::rectcontainer& CompositionModelImpl::getRectanglesIn(con
                                     getSegmentColourMap().getColourByIndex(s->getColourIndex()));
                 Qt::BrushStyle brushPattern =
                     s->isTrulyLinked() ? Qt::Dense2Pattern : Qt::SolidPattern;
-                sr.setBrush(QBrush(brushColor, brushPattern));
-                sr.setPen(CompositionColourCache::getInstance()->SegmentBorder);
+                segmentRect.setBrush(QBrush(brushColor, brushPattern));
+                segmentRect.setPen(CompositionColourCache::getInstance()->SegmentBorder);
             } else {
                 // border is the same for both audio and MIDI
-                sr.setPen(CompositionColourCache::getInstance()->RecordingSegmentBorder);
+                segmentRect.setPen(CompositionColourCache::getInstance()->RecordingSegmentBorder);
                 // audio color
                 if (isAudio) {
-                    sr.setBrush(CompositionColourCache::getInstance()->RecordingAudioSegmentBlock);
+                    segmentRect.setBrush(CompositionColourCache::getInstance()->RecordingAudioSegmentBlock);
                     // MIDI/default color
                 } else {
-                    sr.setBrush(CompositionColourCache::getInstance()->RecordingInternalSegmentBlock);
+                    segmentRect.setBrush(CompositionColourCache::getInstance()->RecordingInternalSegmentBlock);
                 }
             }
 
             // Notation preview data
-            if (npData && s->getType() == Segment::Internal) {
-                makeNotationPreviewRects(npData, QPoint(0, sr.y()), s, rect);
+            if (notationPreview  &&  s->getType() == Segment::Internal) {
+                makeNotationPreviewRects(QPoint(0, segmentRect.y()), s, clipRect, notationPreview);
                 // Audio preview data
-            } else if (apData && s->getType() == Segment::Audio) {
-                makeAudioPreviewRects(apData, s, sr, rect);
+            } else if (audioPreview  &&  s->getType() == Segment::Audio) {
+                makeAudioPreviewRects(audioPreview, s, segmentRect, clipRect);
             }
 
-            m_res.push_back(sr);
+            m_segmentRects.push_back(segmentRect);
         } else {
-            //RG_DEBUG << "CompositionModelImpl::getRectanglesIn: - segment out of rect";
+            //RG_DEBUG << "CompositionModelImpl::getSegmentRects(): - segment out of rect";
         }
 
     }
 
-    // changing items
+    // changing items (moving segments)
 
-    itemcontainer::iterator movEnd = m_changingItems.end();
-    for (itemcontainer::iterator i = m_changingItems.begin(); i != movEnd; ++i) {
-        CompositionRect sr((*i)->rect());
-        if (sr.intersects(rect)) {
-            Segment* s = CompositionItemHelper::getSegment(*i);
-            sr.setSelected(true);
+    ItemContainer::iterator movEnd = m_changingItems.end();
+    for (ItemContainer::iterator i = m_changingItems.begin(); i != movEnd; ++i) {
+        CompositionRect segmentRect((*i)->rect());
+        if (segmentRect.intersects(clipRect)) {
+            Segment *s = CompositionItemHelper::getSegment(*i);
+            segmentRect.setSelected(true);
             QColor brushColor = GUIPalette::convertColour(m_composition.getSegmentColourMap().getColourByIndex(s->getColourIndex()));
-            sr.setBrush(brushColor);
+            segmentRect.setBrush(brushColor);
 
-            sr.setPen(CompositionColourCache::getInstance()->SegmentBorder);
+            segmentRect.setPen(CompositionColourCache::getInstance()->SegmentBorder);
 
             // Notation preview data
-            if (npData && s->getType() == Segment::Internal) {
-                makeNotationPreviewRectsMovingSegment(npData, sr.topLeft(), s, sr);
+            if (notationPreview  &&  s->getType() == Segment::Internal) {
+                makeNotationPreviewRectsMovingSegment(segmentRect.topLeft(), s, segmentRect, notationPreview);
                 // Audio preview data
-            } else if (apData && s->getType() == Segment::Audio) {
-                makeAudioPreviewRects(apData, s, sr, rect);
+            } else if (audioPreview  &&  s->getType() == Segment::Audio) {
+                makeAudioPreviewRects(audioPreview, s, segmentRect, clipRect);
             }
 
-            m_res.push_back(sr);
+            m_segmentRects.push_back(segmentRect);
         }
     }
 
-    return m_res;
+    return m_segmentRects;
 }
 
-CompositionModel::heightlist CompositionModelImpl::getTrackDividersIn(const QRect& rect)
+CompositionModelImpl::YCoordList CompositionModelImpl::getTrackDividersIn(const QRect& rect)
 {
     int top = m_grid.getYBin(rect.y());
     int bottom = m_grid.getYBin(rect.y() + rect.height());
@@ -1285,7 +1334,7 @@ CompositionModel::heightlist CompositionModelImpl::getTrackDividersIn(const QRec
     
     setTrackHeights();
     
-    CompositionModel::heightlist list;
+    CompositionModelImpl::YCoordList list;
 
     for (int pos = top; pos <= bottom; ++pos) {
         int divider = m_grid.getYBinCoordinate(pos);
@@ -1296,9 +1345,9 @@ CompositionModel::heightlist CompositionModelImpl::getTrackDividersIn(const QRec
     return list;
 }
 
-CompositionModel::rectlist* CompositionModelImpl::getNotationPreviewData(const Segment* s)
+CompositionModelImpl::RectList* CompositionModelImpl::getNotationPreviewData(const Segment* s)
 {
-    rectlist* npData = m_notationPreviewDataCache[s];
+    RectList* npData = m_notationPreviewDataCache[s];
 
     if (!npData) {
         npData = makeNotationPreviewDataCache(s);
@@ -1307,7 +1356,7 @@ CompositionModel::rectlist* CompositionModelImpl::getNotationPreviewData(const S
     return npData;
 }
 
-CompositionModel::AudioPreviewData* CompositionModelImpl::getAudioPreviewData(const Segment* s)
+CompositionModelImpl::AudioPreviewData* CompositionModelImpl::getAudioPreviewData(const Segment* s)
 {
     Profiler profiler("CompositionModelImpl::getAudioPreviewData");
     RG_DEBUG << "CompositionModelImpl::getAudioPreviewData";
@@ -1322,20 +1371,27 @@ CompositionModel::AudioPreviewData* CompositionModelImpl::getAudioPreviewData(co
     return apData;
 }
 
-CompositionModel::rectlist* CompositionModelImpl::makeNotationPreviewDataCache(const Segment *s)
+CompositionModelImpl::RectList* CompositionModelImpl::makeNotationPreviewDataCache(const Segment *s)
 {
-    rectlist* npData = new rectlist();
-    updatePreviewCacheForNotationSegment(s, npData);
+    RectList* npData = new RectList();
+
+    // Create the preview
+    createEventRects(s, npData);
+
+    // Store in the cache.
+    // Callers guarantee that m_notationPreviewDataCache[s] is not currently
+    // pointing to anything.
     m_notationPreviewDataCache[s] = npData;
+
     return npData;
 }
 
-CompositionModel::AudioPreviewData* CompositionModelImpl::makeAudioPreviewDataCache(const Segment *s)
+CompositionModelImpl::AudioPreviewData* CompositionModelImpl::makeAudioPreviewDataCache(const Segment *s)
 {
     RG_DEBUG << "CompositionModelImpl::makeAudioPreviewDataCache(" << s << ")";
 
-    AudioPreviewData* apData = new AudioPreviewData(false, 0); // 0 channels -> empty
-    updatePreviewCacheForAudioSegment(s, apData);
+    AudioPreviewData* apData = new AudioPreviewData();
+    updatePreviewCacheForAudioSegment(s);
     m_audioPreviewDataCache[s] = apData;
     return apData;
 }

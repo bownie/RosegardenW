@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is Copyright 2002
         Hans Kieserman      <hkieserman@mail.com>
@@ -23,8 +23,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_MUSICXMLEXPORTER_H_
-#define _RG_MUSICXMLEXPORTER_H_
+#ifndef RG_MUSICXMLEXPORTER_H
+#define RG_MUSICXMLEXPORTER_H
 
 #include "MusicXmlExportHelper.h"
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -12,20 +12,28 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _ROSEGARDEN_SEQUENCER_THREAD_H_
-#define _ROSEGARDEN_SEQUENCER_THREAD_H_
+#ifndef RG_SEQUENCER_THREAD_H
+#define RG_SEQUENCER_THREAD_H
 
 #include <QThread>
 
 namespace Rosegarden
 {
 
+/// The Sequencer Thread
+/**
+ * This class consists of a single processing loop, run(), which keeps
+ * RosegardenSequencer processing incoming and outgoing MIDI events.
+ *
+ * A single instance of this is created and owned by RosegardenMainWindow.
+ *
+ * @see RosegardenMainWindow::m_sequencerThread
+ * @see RosegardenMainWindow::launchSequencer()
+ */
 class SequencerThread : public QThread
 {
-public:
-    
-
 protected:
+    /// The sequencer thread's processing loop.
     virtual void run();
 };
 

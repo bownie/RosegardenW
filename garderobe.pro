@@ -1,6 +1,17 @@
 include(update.pri)
 
+INCLUDEPATH += "C:/Qt/5.3/mingw482_32/include/QtWidgets"
+
 TARGET = rosegarden
+
+# We need the widgets, printsupport for QT5
+#
+QT += core gui xml network widgets printsupport
+
+# Remove QT3 compatibility
+#
+CONFIG += qt
+#qt3support
 
 OTHER_FILES += \
     data/rosegarden.qss \
@@ -10,6 +21,7 @@ OTHER_FILES += \
     data/rc/application.rc \
     garderobe.nsi \
     data/locale/zh_CN.ts \
+    data/locale/pt_BR.ts \
     data/locale/sv.ts \
     data/locale/ru.ts \
     data/locale/rosegarden.ts \
@@ -39,10 +51,9 @@ OTHER_FILES += \
 #           __WINDOWS_MM__ \
 #           _PORTABLE_SOUND_
 
-DEFINES += QT3_SUPPORT \
-           VERSION=\\\"12.04.99\\\" \
-           CODENAME=\\\"WinFreedom\\\" \
-           BUILDKEY=0003 \
+DEFINES += VERSION=\\\"14.02\\\" \
+           CODENAME=\\\"Kaleidoscope\\\" \
+           BUILDKEY=0001 \
            LITTLE_ENDIAN \
            __WINDOWS_MM__ \
            _PORTABLE_SOUND_
@@ -51,9 +62,6 @@ win32:RC_FILE += data/rc/application.rc
 
 RESOURCES += \
     data/data.qrc
-
-QT += xml network
-CONFIG += qt qt3support
 
 TRANSLATIONS =      data/locale/ca.ts \
                     data/locale/cs.ts \
@@ -75,11 +83,18 @@ TRANSLATIONS =      data/locale/ca.ts \
                     data/locale/rosegarden.ts \
                     data/locale/ru.ts \
                     data/locale/sv.ts \
-                    data/locale/zh_CN.ts
+                    data/locale/zh_CN.ts \
+                    data/locale/pt_BR.ts
 
 
 INCLUDEPATH += "C:/devel/zlib/include" \
-               "C:/devel/pthreads/Pre-built.2/include"
+               "C:/devel/pthreads/Pre-built.2/include" \
+               "C:/devel/mman" \
+               "C:/devel/fftw" \
+               "C:/devel/jack" \
+               "C:/devel/ladspa" \
+               "C:/devel/dlfcn/include"
+ #              "C:/devel/lrdf/"
 
 # For Performance Counters
 #C:\devel\RG\zlib
@@ -88,7 +103,13 @@ INCLUDEPATH += "C:/devel/zlib/include" \
 #               "C:/Program Files/Microsoft Visual Studio 8/VC/Include"
 
 QMAKE_LIBDIR += "C:/devel/pthreads/Pre-built.2/lib" \
-                "C:/devel/zlib/lib"
+                "C:/devel/zlib/lib" \
+                "C:/devel/mman" \
+                "C:/devel/fftw" \
+                "C:/devel/jack" \
+                "C:/devel/ladspa" \
+                "C:/devel/dlfcn/lib"
+ #               "C:/devel/lrdf/"
 
 LIBS += -lpthread -lzlib -lwinmm
 
@@ -153,6 +174,13 @@ HEADERS += \
     base/AnalysisTypes.h \
     base/AllocateChannels.h \
     base/ChannelInterval.h \
+    base/figuration/ChordSegment.h \
+    base/figuration/FigChord.h \
+    base/figuration/FigurationSourceMap.h \
+    base/figuration/GeneratedRegion.h \
+    base/figuration/RelativeEvent.h \
+    base/figuration/SegmentFigData.h \
+    base/figuration/SegmentID.h \
     commands/edit/TransposeCommand.h \
     commands/edit/SetTriggerCommand.h \
     commands/edit/SetNoteTypeCommand.h \
@@ -182,6 +210,9 @@ HEADERS += \
     commands/edit/ChangeVelocityCommand.h \
     commands/edit/AddMarkerCommand.h \
     commands/edit/AddDotCommand.h \
+    commands/edit/PlaceControllersCommand.h \
+    commands/edit/SelectAddEvenNotesCommand.h \
+    commands/edit/MaskTriggerCommand.h \
     commands/matrix/MatrixPercussionInsertionCommand.h \
     commands/matrix/MatrixModifyCommand.h \
     commands/matrix/MatrixInsertionCommand.h \
@@ -235,6 +266,8 @@ HEADERS += \
     commands/notation/AddMarkCommand.h \
     commands/notation/AddIndicationCommand.h \
     commands/notation/AddFingeringMarkCommand.h \
+    commands/notation/AdoptSegmentCommand.h \
+    commands/notation/GeneratedRegionInsertionCommand.h \
     commands/studio/RenameDeviceCommand.h \
     commands/studio/RemoveControlParameterCommand.h \
     commands/studio/ReconnectDeviceCommand.h \
@@ -254,6 +287,8 @@ HEADERS += \
     document/Command.h \
     document/BasicSelectionCommand.h \
     document/BasicCommand.h \
+    document/DocumentGet.h \
+    document/LinkedSegmentsCommand.h \
     document/io/RG21Loader.h \
     document/io/MusicXmlExporter.h \
     document/io/MusicXMLLoader.h \
@@ -338,6 +373,9 @@ HEADERS += \
     gui/dialogs/AudioManagerDialog.h \
     gui/dialogs/AddTracksDialog.h \
     gui/dialogs/AboutDialog.h \
+    gui/dialogs/SelectDialog.h \
+    gui/dialogs/TrackLabelDialog.h \
+    gui/dialogs/GeneratedRegionDialog.h \
     gui/editors/eventlist/TrivialVelocityDialog.h \
     gui/editors/eventlist/EventViewItem.h \
     gui/editors/eventlist/EventView.h \
@@ -433,7 +471,6 @@ HEADERS += \
     gui/editors/segment/compositionview/CompositionRect.h \
     gui/editors/segment/compositionview/CompositionModelImpl.h \
     gui/editors/segment/compositionview/CompositionModel.h \
-    gui/editors/segment/compositionview/CompositionItemImpl.h \
     gui/editors/segment/compositionview/CompositionItemHelper.h \
     gui/editors/segment/compositionview/CompositionItem.h \
     gui/editors/segment/compositionview/CompositionColourCache.h \
@@ -503,6 +540,7 @@ HEADERS += \
     gui/widgets/AudioListView.h \
     gui/widgets/AudioListItem.h \
     gui/widgets/AudioFaderBox.h \
+    gui/widgets/CheckButton.h \
     misc/Version.h \
     misc/Strings.h \
     misc/Debug.h \
@@ -580,7 +618,6 @@ HEADERS += \
     commands/segment/SegmentTransposeCommand.h \
     commands/segment/SegmentSyncCommand.h \
     commands/segment/SegmentSyncClefCommand.h \
-    commands/segment/SegmentSplitTwiceCommand.h \
     commands/segment/SegmentSplitCommand.h \
     commands/segment/SegmentSplitByRecordingSrcCommand.h \
     commands/segment/SegmentSplitByPitchCommand.h \
@@ -632,6 +669,8 @@ HEADERS += \
     commands/segment/AddTempoChangeCommand.h \
     commands/segment/AddLayerCommand.h \
     commands/segment/SetTriggerSegmentDefaultTimeAdjustCommand.h \
+    commands/segment/UpdateFigurationCommand.h \
+    commands/segment/CutToTriggerSegmentCommand.h \
     gui/general/ThornStyle.h \
     gui/general/TempDirectory.h \
     gui/general/Spline.h \
@@ -763,6 +802,10 @@ HEADERS += \
     base/parameterpattern/IncreaseParameterPattern.h \
     base/parameterpattern/FlatParameterPattern.h \
     base/parameterpattern/AlternatingParameterPattern.h \
+    base/parameterpattern/HalfSinePattern.h \
+    base/parameterpattern/QuarterSinePattern.h \
+    base/parameterpattern/RelativeRamp.h \
+    base/parameterpattern/SelectionSituation.h \
     commands/segment/SegmentQuickLinkCommand.h \
     commands/segment/SegmentLinkTransposeCommand.h \
     commands/segment/SegmentLinkToCopyCommand.h \
@@ -821,6 +864,12 @@ SOURCES += \
     base/AnalysisTypes.cpp \
     base/AllocateChannels.cpp \
     base/ChannelInterval.cpp \
+    base/figuration/ChordSegment.cpp \
+    base/figuration/FigChord.cpp \
+    base/figuration/FigurationSourceMap.cpp \
+    base/figuration/GeneratedRegion.cpp \
+    base/figuration/SegmentFigData.cpp \
+    base/figuration/SegmentID.cpp \
     commands/edit/TransposeCommand.cpp \
     commands/edit/SetTriggerCommand.cpp \
     commands/edit/SetNoteTypeCommand.cpp \
@@ -850,6 +899,9 @@ SOURCES += \
     commands/edit/ChangeVelocityCommand.cpp \
     commands/edit/AddMarkerCommand.cpp \
     commands/edit/AddDotCommand.cpp \
+    commands/edit/PlaceControllersCommand.cpp \
+    commands/edit/SelectAddEvenNotesCommand.cpp \
+    commands/edit/MaskTriggerCommand.cpp \
     commands/matrix/MatrixPercussionInsertionCommand.cpp \
     commands/matrix/MatrixModifyCommand.cpp \
     commands/matrix/MatrixInsertionCommand.cpp \
@@ -903,6 +955,8 @@ SOURCES += \
     commands/notation/AddMarkCommand.cpp \
     commands/notation/AddIndicationCommand.cpp \
     commands/notation/AddFingeringMarkCommand.cpp \
+    commands/notation/AdoptSegmentCommand.cpp \
+    commands/notation/GeneratedRegionInsertionCommand.cpp \
     commands/studio/RenameDeviceCommand.cpp \
     commands/studio/RemoveControlParameterCommand.cpp \
     commands/studio/ReconnectDeviceCommand.cpp \
@@ -916,6 +970,7 @@ SOURCES += \
     document/XmlStorableEvent.cpp \
     document/RoseXmlHandler.cpp \
     document/RosegardenDocument.cpp \
+    document/DocumentGet.cpp \
     document/GzipFile.cpp \
     document/CommandRegistry.cpp \
     document/CommandHistory.cpp \
@@ -925,6 +980,7 @@ SOURCES += \
     document/io/RG21Loader.cpp \
     document/io/MusicXmlExporter.cpp \
     document/io/MusicXMLLoader.cpp \
+    document/LinkedSegmentsCommand.cpp \
     document/io/MusicXMLImportHelper.cpp \
     document/io/MusicXMLXMLHandler.cpp \
     document/io/MupExporter.cpp \
@@ -1006,6 +1062,9 @@ SOURCES += \
     gui/dialogs/AudioManagerDialog.cpp \
     gui/dialogs/AddTracksDialog.cpp \
     gui/dialogs/AboutDialog.cpp \
+    gui/dialogs/SelectDialog.cpp \
+    gui/dialogs/TrackLabelDialog.cpp \
+    gui/dialogs/GeneratedRegionDialog.cpp \
     gui/editors/eventlist/TrivialVelocityDialog.cpp \
     gui/editors/eventlist/EventViewItem.cpp \
     gui/editors/eventlist/EventView.cpp \
@@ -1097,7 +1156,6 @@ SOURCES += \
     gui/editors/segment/compositionview/CompositionRect.cpp \
     gui/editors/segment/compositionview/CompositionModelImpl.cpp \
     gui/editors/segment/compositionview/CompositionModel.cpp \
-    gui/editors/segment/compositionview/CompositionItemImpl.cpp \
     gui/editors/segment/compositionview/CompositionItemHelper.cpp \
     gui/editors/segment/compositionview/CompositionItem.cpp \
     gui/editors/segment/compositionview/CompositionColourCache.cpp \
@@ -1164,6 +1222,7 @@ SOURCES += \
     gui/widgets/AudioRouteMenu.cpp \
     gui/widgets/AudioListView.cpp \
     gui/widgets/AudioFaderBox.cpp \
+    gui/widgets/CheckButton.cpp \
     misc/Version.cpp \
     misc/Strings.cpp \
     misc/Debug.cpp \
@@ -1224,6 +1283,7 @@ SOURCES += \
     sound/AudioCache.cpp \
     sound/AlsaPort.cpp \
     sound/AlsaDriver.cpp \
+    sound/DummyDriver.cpp \
     commands/segment/SetTriggerSegmentDefaultTimeAdjustCommand.cpp \
     commands/segment/SetTriggerSegmentDefaultRetuneCommand.cpp \
     commands/segment/SetTriggerSegmentBaseVelocityCommand.cpp \
@@ -1231,7 +1291,6 @@ SOURCES += \
     commands/segment/SegmentTransposeCommand.cpp \
     commands/segment/SegmentSyncCommand.cpp \
     commands/segment/SegmentSyncClefCommand.cpp \
-    commands/segment/SegmentSplitTwiceCommand.cpp \
     commands/segment/SegmentSplitCommand.cpp \
     commands/segment/SegmentSplitByRecordingSrcCommand.cpp \
     commands/segment/SegmentSplitByPitchCommand.cpp \
@@ -1282,6 +1341,8 @@ SOURCES += \
     commands/segment/AddTimeSignatureAndNormalizeCommand.cpp \
     commands/segment/AddTempoChangeCommand.cpp \
     commands/segment/AddLayerCommand.cpp \
+    commands/segment/UpdateFigurationCommand.cpp \
+    commands/segment/CutToTriggerSegmentCommand.cpp \
     gui/general/ThornStyle.cpp \
     gui/general/TempDirectory.cpp \
     gui/general/Spline.cpp \
@@ -1407,6 +1468,10 @@ SOURCES += \
     base/parameterpattern/IncreaseParameterPattern.cpp \
     base/parameterpattern/FlatParameterPattern.cpp \
     base/parameterpattern/AlternatingParameterPattern.cpp \
+    base/parameterpattern/HalfSinePattern.cpp \
+    base/parameterpattern/QuarterSinePattern.cpp \
+    base/parameterpattern/RelativeRamp.cpp \
+    base/parameterpattern/SelectionSituation.cpp \
     commands/segment/SegmentQuickLinkCommand.cpp \
     commands/segment/SegmentLinkTransposeCommand.cpp \
     commands/segment/SegmentLinkToCopyCommand.cpp \
@@ -1414,8 +1479,8 @@ SOURCES += \
     commands/segment/ExpandFigurationCommand.cpp \
     commands/segment/EraseTempiInRangeCommand.cpp \
     base/ControllerContext.cpp
-FORMS += \
-    gui/dialogs/RosegardenTransportUi.ui \
+
+FORMS += gui/dialogs/RosegardenTransportUi.ui \
     gui/studio/DeviceManagerDialogUi.ui
 
 

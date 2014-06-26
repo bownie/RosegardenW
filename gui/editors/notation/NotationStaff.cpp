@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,13 +15,11 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[NotationStaff]"
+#define RG_NO_DEBUG_PRINT 1
 
 #include "NotationStaff.h"
-#include "misc/Debug.h"
-#include <QApplication>
 
-#include "misc/Strings.h"
-#include "misc/ConfigGroups.h"
 #include "base/Composition.h"
 #include "base/Device.h"
 #include "base/Event.h"
@@ -39,20 +37,27 @@
 #include "base/Studio.h"
 #include "base/Track.h"
 #include "base/ViewElement.h"
+#include "base/figuration/GeneratedRegion.h"
+#include "base/figuration/SegmentID.h"
 #include "document/RosegardenDocument.h"
 #include "gui/editors/guitar/Chord.h"
+#include "gui/editors/notation/NotationChord.h"
+#include "gui/editors/notation/NotationElement.h"
+#include "gui/editors/notation/NotationHLayout.h"
+#include "gui/editors/notation/NotationProperties.h"
+#include "gui/editors/notation/NotationScene.h"
+#include "gui/editors/notation/NoteFontFactory.h"
+#include "gui/editors/notation/NotePixmapFactory.h"
+#include "gui/editors/notation/NotePixmapParameters.h"
+#include "gui/editors/notation/NoteStyleFactory.h"
+#include "gui/editors/notation/StaffLayout.h"
 #include "gui/general/PixmapFunctions.h"
 #include "gui/general/ProgressReporter.h"
-#include "NotationChord.h"
-#include "NotationElement.h"
-#include "NotationProperties.h"
-#include "NotationHLayout.h"
-#include "NotationScene.h"
-#include "NoteFontFactory.h"
-#include "NotePixmapFactory.h"
-#include "NotePixmapParameters.h"
-#include "NoteStyleFactory.h"
-#include "StaffLayout.h"
+#include "misc/ConfigGroups.h"
+#include "misc/Debug.h"
+#include "misc/Strings.h"
+
+#include <QApplication>
 #include <QSettings>
 #include <QMessageBox>
 #include <QGraphicsItem>
@@ -106,6 +111,8 @@ NotationStaff::NotationStaff(NotationScene *scene, Segment *segment,
 
     m_hideRedundance = settings.value("hideredundantclefkey", "true").toBool();
 
+    m_distributeVerses =  settings.value("distributeverses", true).toBool();
+
     settings.endGroup();
 
     setLineThickness(m_notePixmapFactory->getStaffLineThickness());
@@ -113,7 +120,7 @@ NotationStaff::NotationStaff(NotationScene *scene, Segment *segment,
 
 NotationStaff::~NotationStaff()
 {
-    NOTATION_DEBUG << "NotationStaff::~NotationStaff()" << endl;
+    RG_DEBUG << "~NotationStaff()" << endl;
     deleteTimeSignatures();
 }
 
@@ -165,7 +172,7 @@ NotationStaff::insertTimeSignature(double layoutX,
 void
 NotationStaff::deleteTimeSignatures()
 {
-    //    NOTATION_DEBUG << "NotationStaff::deleteTimeSignatures()" << endl;
+    //    RG_DEBUG << "deleteTimeSignatures()" << endl;
 
     for (ItemSet::iterator i = m_timeSigs.begin(); i != m_timeSigs.end(); ++i) {
         delete *i;
@@ -362,12 +369,12 @@ NotationStaff::getClosestElementToLayoutX(double x,
     }
 
     if (proximityThreshold > 0 && minDist > proximityThreshold) {
-        NOTATION_DEBUG << "NotationStaff::getClosestElementToLayoutX() : element is too far away : "
+        RG_DEBUG << "getClosestElementToLayoutX() : element is too far away : "
         << minDist << endl;
         return notes->end();
     }
 
-    NOTATION_DEBUG << "NotationStaff::getClosestElementToLayoutX: found element at layout " << (*result)->getLayoutX() << " - we're at layout " << x << endl;
+    RG_DEBUG << "getClosestElementToLayoutX: found element at layout " << (*result)->getLayoutX() << " - we're at layout " << x << endl;
 
     PRINT_ELAPSED("NotationStaff::getClosestElementToLayoutX");
 
@@ -480,7 +487,7 @@ void
 NotationStaff::renderElements(NotationElementList::iterator from,
                               NotationElementList::iterator to)
 {
-    //    NOTATION_DEBUG << "NotationStaff " << this << "::renderElements()" << endl;
+    //    RG_DEBUG << "NotationStaff " << this << "::renderElements()" << endl;
     Profiler profiler("NotationStaff::renderElements");
 
     emit setOperationName(tr("Rendering staff %1...").arg(getId() + 1));
@@ -516,8 +523,8 @@ NotationStaff::renderElements(NotationElementList::iterator from,
         }
 
         bool selected = isSelected(it);
-        //	NOTATION_DEBUG << "Rendering at " << (*it)->getAbsoluteTime()
-        //			     << " (selected = " << selected << ")" << endl;
+        //      RG_DEBUG << "Rendering at " << (*it)->getAbsoluteTime()
+        //                           << " (selected = " << selected << ")" << endl;
 
         renderSingleElement(it, currentClef, currentKey, selected);
 
@@ -529,8 +536,8 @@ NotationStaff::renderElements(NotationElementList::iterator from,
         }
     }
 
-    //    NOTATION_DEBUG << "NotationStaff " << this << "::renderElements: "
-    //			 << elementCount << " elements rendered" << endl;
+    //    RG_DEBUG << "NotationStaff " << this << "::renderElements: "
+    //                   << elementCount << " elements rendered" << endl;
 }
 
 void
@@ -569,8 +576,8 @@ NotationStaff::renderPrintable(timeT from, timeT to)
         }
 
         bool selected = isSelected(it);
-        //	NOTATION_DEBUG << "Rendering at " << (*it)->getAbsoluteTime()
-        //			     << " (selected = " << selected << ")" << endl;
+        //      RG_DEBUG << "Rendering at " << (*it)->getAbsoluteTime()
+        //                           << " (selected = " << selected << ")" << endl;
 
         renderSingleElement(it, currentClef, currentKey, selected);
 
@@ -582,8 +589,8 @@ NotationStaff::renderPrintable(timeT from, timeT to)
         }
     }
 
-    //    NOTATION_DEBUG << "NotationStaff " << this << "::renderElements: "
-    //			 << elementCount << " elements rendered" << endl;
+    //    RG_DEBUG << "NotationStaff " << this << "::renderElements: "
+    //                   << elementCount << " elements rendered" << endl;
 }
 
 const NotationProperties &
@@ -597,26 +604,26 @@ NotationStaff::elementNeedsRegenerating(NotationElementList::iterator i)
 {
     NotationElement *elt = static_cast<NotationElement *>(*i);
 
-    NOTATION_DEBUG << "NotationStaff::elementNeedsRegenerating: ";
+    RG_DEBUG << "elementNeedsRegenerating: ";
 
     if (!elt->getItem()) {
-        NOTATION_DEBUG << "yes (no item)" << endl;
+        RG_DEBUG << "yes (no item)" << endl;
         return true;
     }
 
     if (isSelected(i) != elt->isSelected()) {
-        NOTATION_DEBUG << "yes (selection status changed)" << endl;
+        RG_DEBUG << "yes (selection status changed)" << endl;
         return true;
     }
 
     if (elt->event()->isa(Indication::EventType)) {
         // determining whether to redraw an indication is complicated
-        NOTATION_DEBUG << "probably (is indication)" << endl;
+        RG_DEBUG << "probably (is indication)" << endl;
         return !elt->isRecentlyRegenerated();
     }
 
     if (!elt->isNote()) {
-        NOTATION_DEBUG << "no (is not note)" << endl;
+        RG_DEBUG << "no (is not note)" << endl;
         return false;
     }
 
@@ -626,7 +633,7 @@ NotationStaff::elementNeedsRegenerating(NotationElementList::iterator i)
     // unfortunately this means inserting clefs is rather slow.
 
     if (!elementNotMovedInY(elt)) {
-        NOTATION_DEBUG << "yes (is note, height changed)" << endl;
+        RG_DEBUG << "yes (is note, height changed)" << endl;
         return true;
     }
 
@@ -640,23 +647,23 @@ NotationStaff::elementNeedsRegenerating(NotationElementList::iterator i)
         (void)(elt->event()->get<Bool>(BaseProperties::TIED_FORWARD, spanning));
     }
     if (!spanning) {
-        NOTATION_DEBUG << "no (is simple note, height unchanged)" << endl;
+        RG_DEBUG << "no (is simple note, height unchanged)" << endl;
         return false;
     }
 
     if (elementShiftedOnly(i)) {
-        NOTATION_DEBUG << "no (is spanning note but only shifted)" << endl;
+        RG_DEBUG << "no (is spanning note but only shifted)" << endl;
         return false;
     }
 
-    NOTATION_DEBUG << "yes (is spanning note with complex move)" << endl;
+    RG_DEBUG << "yes (is spanning note with complex move)" << endl;
     return true;
 }
 
 void
 NotationStaff::positionElements(timeT from, timeT to)
 {
-    NOTATION_DEBUG << "NotationStaff " << this << "::positionElements()"
+    RG_DEBUG << "NotationStaff " << this << "::positionElements()"
                    << from << " -> " << to << endl;
     Profiler profiler("NotationStaff::positionElements", true);
 
@@ -772,11 +779,11 @@ NotationStaff::positionElements(timeT from, timeT to)
         }
     }
 
-    NOTATION_DEBUG << "NotationStaff " << this << "::positionElements "
-    		   << from << " -> " << to << ": "
-    		   << elementsPositioned << " elements positioned, "
-    		   << elementsRendered << " re-rendered"
-    		   << endl;
+    RG_DEBUG << "NotationStaff " << this << "::positionElements "
+             << from << " -> " << to << ": "
+             << elementsPositioned << " elements positioned, "
+             << elementsRendered << " re-rendered"
+             << endl;
 
     NotePixmapFactory::dumpStats(std::cerr);
 }
@@ -812,10 +819,10 @@ NotationStaff::elementNotMovedInY(NotationElement *elt)
     bool ok = (int)(elt->getSceneY()) == (int)(coords.second);
 
     if (!ok) {
-     	NOTATION_DEBUG
-     	    << "elementNotMovedInY: elt at " << elt->getViewAbsoluteTime()
+        RG_DEBUG
+            << "elementNotMovedInY: elt at " << elt->getViewAbsoluteTime()
             << ", ok is " << ok << endl;
-     	NOTATION_DEBUG << "(cf " << (int)(elt->getSceneY()) << " vs "
+        RG_DEBUG << "(cf " << (int)(elt->getSceneY()) << " vs "
                        << (int)(coords.second) << ")" << endl;
     }
     return ok;
@@ -851,7 +858,7 @@ NotationStaff::elementShiftedOnly(NotationElementList::iterator i)
     }
 
     if (!ok) {
-        NOTATION_DEBUG
+        RG_DEBUG
         << "elementShiftedOnly: elt at " << (*i)->getViewAbsoluteTime()
         << ", ok is " << ok << endl;
     }
@@ -935,9 +942,9 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
 
         FitPolicy policy = PretendItFittedAllAlong;
 
-        NOTATION_DEBUG << "renderSingleElement: Inspecting something at " << elt->event()->getAbsoluteTime() << endl;
+        RG_DEBUG << "renderSingleElement: Inspecting something at " << elt->event()->getAbsoluteTime() << endl;
 
-        NOTATION_DEBUG << "NotationStaff::renderSingleElement: Setting selected at " << elt->event()->getAbsoluteTime() << " to " << selected << endl;
+        RG_DEBUG << "renderSingleElement: Setting selected at " << elt->event()->getAbsoluteTime() << " to " << selected << endl;
 
         if (elt->isNote()) {
             renderNote(vli);
@@ -974,9 +981,9 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
                     (properties.REST_OUTSIDE_STAVE, restOutside);
                 restParams.setRestOutside(restOutside);
                 if (restOutside) {
-                    NOTATION_DEBUG << "NotationStaff::renderSingleElement() : rest outside staff" << endl;
+                    RG_DEBUG << "renderSingleElement() : rest outside staff" << endl;
                     if (note == Note::DoubleWholeNote) {
-                        NOTATION_DEBUG << "NotationStaff::renderSingleElement() : breve rest needs leger lines" << endl;
+                        RG_DEBUG << "renderSingleElement() : breve rest needs leger lines" << endl;
                         restParams.setLegerLines(5);
                     }
                 }
@@ -986,19 +993,19 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
                         (restParams,
                          *m_printPainter, int(coords.first), coords.second);
                 } else {
-                    NOTATION_DEBUG << "renderSingleElement: It's a normal rest" << endl;
+                    RG_DEBUG << "renderSingleElement: It's a normal rest" << endl;
                     item = m_notePixmapFactory->makeRest(restParams);
                 }
             }
 
         } else if (elt->event()->isa(Clef::EventType)) {
 
-            NOTATION_DEBUG << "renderSingleElement: It's a clef" << endl;
+            RG_DEBUG << "renderSingleElement: It's a clef" << endl;
             item = m_notePixmapFactory->makeClef(Clef(*elt->event()));
 
         } else if (elt->event()->isa(Symbol::EventType)) {
 
-            NOTATION_DEBUG << "renderSingleElement: It's a symbol" << endl;
+            RG_DEBUG << "renderSingleElement: It's a symbol" << endl;
             item = m_notePixmapFactory->makeSymbol(Symbol(*elt->event()));
 
         } else if (elt->event()->isa(::Rosegarden::Key::EventType)) {
@@ -1022,10 +1029,23 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
                 }
             }
 
-            NOTATION_DEBUG << "renderSingleElement: It's a key" << endl;
+            RG_DEBUG << "renderSingleElement: It's a key" << endl;
             item = m_notePixmapFactory->makeKey(key, currentClef, cancelKey);
 
         } else if (elt->event()->isa(Text::EventType)) {
+
+            // If event is a lyric and doesn't have the verse property, the
+            // document was probably created before the multiple verses feature
+            // was written. In such a case there should be only one verse and
+            // the property is added with its value set to 0 (ie. first verse).
+            //!!! This code should be moved to the place where the rg file is read
+            if (elt->event()->has(Text::TextTypePropertyName) &&
+                  elt->event()->get<String>(Text::TextTypePropertyName) ==
+                  Text::Lyric) {
+                if (!elt->event()->has(Text::LyricVersePropertyName)) {
+                    elt->event()->set<Int>(Text::LyricVersePropertyName, 0);
+                }
+            }
 
             policy = MoveBackToFit;
 
@@ -1036,13 +1056,23 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
 
                 // nothing I guess
 
-            }
-            else if (elt->event()->has(Text::TextTypePropertyName) &&
-                     elt->event()->get<String>(Text::TextTypePropertyName) ==
-                     Text::LilyPondDirective &&
-                     !m_notationScene->areLilyPondDirectivesVisible()) {
+            } else if (elt->event()->has(Text::TextTypePropertyName) &&
+                       elt->event()->get<String>(Text::TextTypePropertyName) ==
+                       Text::LilyPondDirective &&
+                       !m_notationScene->areLilyPondDirectivesVisible()) {
 
                 // nothing here either
+
+            } else if (m_distributeVerses && 
+                       elt->event()->has(Text::TextTypePropertyName) &&
+                       elt->event()->get<String>(Text::TextTypePropertyName) ==
+                       Text::Lyric &&
+                       elt->event()->get<Int>(Text::LyricVersePropertyName) !=
+                       getSegment().getVerseWrapped()) {
+
+                // nothing here either
+                // (this verse have to be displayed with another view of
+                //  the current segment)
 
             } else {
 
@@ -1061,11 +1091,11 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
                             m_printPainter->restore();
                         }
                     } else {
-                        NOTATION_DEBUG << "renderSingleElement: It's a normal text" << endl;
+                        RG_DEBUG << "renderSingleElement: It's a normal text" << endl;
                         item = m_notePixmapFactory->makeText(Text(*elt->event()));
                     }
                 } catch (Exception e) { // Text ctor failed
-                    NOTATION_DEBUG << "Bad text event" << endl;
+                    RG_DEBUG << "Bad text event" << endl;
                 }
             }
 
@@ -1085,7 +1115,8 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
 
                 std::string indicationType = indication.getIndicationType();
 
-                int length, y1;
+                int length;
+                // int y1;
 
                 if ((indicationType == Indication::Slur ||
                         indicationType == Indication::PhrasingSlur) &&
@@ -1120,7 +1151,7 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
                     }
                 }
 
-                y1 = (int)(*indicationEnd)->getLayoutY();
+                // y1 = (int)(*indicationEnd)->getLayoutY();
 
                 if (length < m_notePixmapFactory->getNoteBodyWidth()) {
                     length = m_notePixmapFactory->getNoteBodyWidth();
@@ -1180,7 +1211,7 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
                              indicationType == Indication::PhrasingSlur);
                     }
 
-                } else if (indicationType == Indication::ParameterChord) {
+                } else if (indicationType == Indication::FigParameterChord) {
                     Text text = Text("Chord");
                     item = m_notePixmapFactory->makeText(text);
                 } else if (indicationType == Indication::Figuration) {
@@ -1209,14 +1240,14 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
                         }
                     } else {
 
-                        NOTATION_DEBUG << "Unrecognised indicationType " << indicationType << endl;
+                        RG_DEBUG << "Unrecognised indicationType " << indicationType << endl;
                         if (m_showUnknowns) {
                             item = m_notePixmapFactory->makeUnknown();
                         }
                     }
                 }
             } catch (...) {
-                NOTATION_DEBUG << "Bad indication!" << endl;
+                RG_DEBUG << "Bad indication!" << endl;
             }
 
         } else if (elt->event()->isa(Controller::EventType)) {
@@ -1283,29 +1314,37 @@ NotationStaff::renderSingleElement(ViewElementList::iterator &vli,
                 Guitar::Chord chord (*elt->event());
 
                 /* UNUSED - for printing, just use a large pixmap as below
-                		    if (m_printPainter) {
+                                    if (m_printPainter) {
 
-                			int length = m_notePixmapFactory->getTextWidth(text);
-                			for (double w = -1, inc = 0; w != 0; inc += w) {
-                			    w = setPainterClipping(m_printPainter,
-                						   elt->getLayoutX(),
-                						   int(elt->getLayoutY()),
-                						   int(inc), length, coords,
-                						   policy);
-                			    m_notePixmapFactory->drawText
-                				(text, *m_printPainter, int(coords.first), coords.second);
-                			    m_printPainter->restore();
-                			}
-                		    } else {
-                			*/
+                                        int length = m_notePixmapFactory->getTextWidth(text);
+                                        for (double w = -1, inc = 0; w != 0; inc += w) {
+                                            w = setPainterClipping(m_printPainter,
+                                                                   elt->getLayoutX(),
+                                                                   int(elt->getLayoutY()),
+                                                                   int(inc), length, coords,
+                                                                   policy);
+                                            m_notePixmapFactory->drawText
+                                                (text, *m_printPainter, int(coords.first), coords.second);
+                                            m_printPainter->restore();
+                                        }
+                                    } else {
+                                        */
 
                 item = m_notePixmapFactory->makeGuitarChord
                     (chord.getFingering(), int(coords.first), coords.second);
-                //		    }
+                //                  }
             } catch (Exception e) { // GuitarChord ctor failed
-                NOTATION_DEBUG << "Bad guitar chord event" << endl;
+                RG_DEBUG << "Bad guitar chord event" << endl;
             }
 
+        } else if (elt->event()->isa(SegmentID::EventType)) {
+            policy = MoveBackToFit;
+            Text text(SegmentID(*elt->event()).NotationString());
+            item = m_notePixmapFactory->makeText(text);
+        } else if (elt->event()->isa(GeneratedRegion::EventType)) {
+            policy = MoveBackToFit;
+            Text text(GeneratedRegion(*elt->event()).NotationString());
+            item = m_notePixmapFactory->makeText(text);
         } else {
 
             if (m_showUnknowns) {
@@ -1343,14 +1382,14 @@ NotationStaff::setPainterClipping(QPainter *painter, double lx, int ly,
 {
     painter->save();
 
-    //    NOTATION_DEBUG << "NotationStaff::setPainterClipping: lx " << lx << ", dx " << dx << ", w " << w << endl;
+    //    RG_DEBUG << "setPainterClipping: lx " << lx << ", dx " << dx << ", w " << w << endl;
 
     coords = getSceneCoordsForLayoutCoords(lx + dx, ly);
     int row = getRowForLayoutX(lx + dx);
     double rightMargin = getSceneXForRightOfRow(row);
     double available = rightMargin - coords.first;
 
-    //    NOTATION_DEBUG << "NotationStaff::setPainterClipping: row " << row << ", rightMargin " << rightMargin << ", available " << available << endl;
+    //    RG_DEBUG << "setPainterClipping: row " << row << ", rightMargin " << rightMargin << ", available " << available << endl;
 
     switch (policy) {
 
@@ -1426,13 +1465,13 @@ NotationStaff::setItem(NotationElement *elt, QGraphicsItem *item, int z,
             double rightMargin = getSceneXForRightOfRow(row);
             double extent = sceneX + pixmap.width();
 
-            NOTATION_DEBUG << "NotationStaff::setPixmap: row " << row << ", right margin " << rightMargin << ", extent " << extent << endl;
+            RG_DEBUG << "setPixmap: row " << row << ", right margin " << rightMargin << ", extent " << extent << endl;
 
             if (extent > rightMargin + m_notePixmapFactory->getNoteBodyWidth()) {
 
                 if (policy == SplitToFit) {
 
-                    NOTATION_DEBUG << "splitting at " << (rightMargin-sceneX) << endl;
+                    RG_DEBUG << "splitting at " << (rightMargin-sceneX) << endl;
 
                     std::pair<QPixmap, QPixmap> split =
                         PixmapFunctions::splitPixmap(pixmap,
@@ -1470,7 +1509,7 @@ NotationStaff::setItem(NotationElement *elt, QGraphicsItem *item, int z,
             }
         }
 
-        NOTATION_DEBUG << "NotationStaff::setItem: item = " << (void *)item << " (pitem = " << (void *)pitem << ", scene = " << item->scene() << ")" << endl;
+        RG_DEBUG << "setItem: item = " << (void *)item << " (pitem = " << (void *)pitem << ", scene = " << item->scene() << ")" << endl;
 
         getScene()->addItem(item);
         item->setZValue(z);
@@ -1544,9 +1583,20 @@ NotationStaff::renderNote(ViewElementList::iterator &vli)
     }
     params.setQuantized(quantized);
 
-    bool trigger = false;
-    if (elt->event()->has(BaseProperties::TRIGGER_SEGMENT_ID)) trigger = true;
-    params.setTrigger(trigger);
+    Event *e = elt->event();
+    NotePixmapParameters::Triggering triggering;
+    if (e->has(BaseProperties::TRIGGER_EXPAND)) {
+        bool sounds = (e->get<Bool>(BaseProperties::TRIGGER_EXPAND));
+        if (sounds)
+            { triggering = NotePixmapParameters::triggerYes; }
+        else { triggering = NotePixmapParameters::triggerSkip; }
+    } else {
+        if (e->has(BaseProperties::TRIGGER_SEGMENT_ID))
+            { triggering = NotePixmapParameters::triggerYes; }
+        else { triggering = NotePixmapParameters::triggerNone; }
+    }
+
+    params.setTrigger(triggering);
 
     bool inRange = true;
     Pitch p(*elt->event());
@@ -1591,7 +1641,7 @@ NotationStaff::renderNote(ViewElementList::iterator &vli)
             params.setMarks(chord.getMarksForChord());
         }
 
-        //	    params.setMarks(Marks::getMarks(*elt->event()));
+        //          params.setMarks(Marks::getMarks(*elt->event()));
 
         if (up && note < Note::Semibreve) {
             safeVertDistance = m_notePixmapFactory->getStemLength();
@@ -1856,15 +1906,15 @@ NotationStaff::wrapEvent(Event *e)
     /*!!! always wrap unknowns, just don't necessarily render them?
 
         if (!m_showUnknowns) {
-    	std::string etype = e->getType();
-    	if (etype != Note::EventType &&
-    	    etype != Note::EventRestType &&
-    	    etype != Clef::EventType &&
-    	    etype != Key::EventType &&
-    	    etype != Indication::EventType &&
-    	    etype != Text::EventType) {
-    	    wrap = false;
-    	}
+        std::string etype = e->getType();
+        if (etype != Note::EventType &&
+            etype != Note::EventRestType &&
+            etype != Clef::EventType &&
+            etype != Key::EventType &&
+            etype != Indication::EventType &&
+            etype != Text::EventType) {
+            wrap = false;
+        }
         }
     */
 
@@ -1916,7 +1966,7 @@ NotationStaff::regenerate(timeT from, timeT to, bool secondary)
             }
         }
     }
-    NOTATION_DEBUG << "NotationStaff::regenerate: explicitly reset items for " << resetCount << " elements" << endl;
+    RG_DEBUG << "regenerate: explicitly reset items for " << resetCount << " elements" << endl;
 
     Profiler profiler2("NotationStaff::regenerate: repositioning", true);
 
@@ -2054,7 +2104,7 @@ NotationStaff::getBarInset(int barNo, bool isFirstBarInRow) const
 {
     StaffLayout::BarStyle style = getBarStyle(barNo);
 
-    NOTATION_DEBUG << "getBarInset(" << barNo << "," << isFirstBarInRow << ")" << endl;
+    RG_DEBUG << "getBarInset(" << barNo << "," << isFirstBarInRow << ")" << endl;
 
     if (!(style == RepeatStartBar || style == RepeatBothBar))
         return 0.0;
@@ -2065,7 +2115,7 @@ NotationStaff::getBarInset(int barNo, bool isFirstBarInRow) const
 
     double inset = 0.0;
 
-    NOTATION_DEBUG << "ready" << endl;
+    RG_DEBUG << "ready" << endl;
 
     bool haveKey = false, haveClef = false;
 
@@ -2077,7 +2127,7 @@ NotationStaff::getBarInset(int barNo, bool isFirstBarInRow) const
          s.isBeforeEndMarker(i) && ((*i)->getNotationAbsoluteTime() == barStart);
          ++i) {
 
-        NOTATION_DEBUG << "type " << (*i)->getType() << " at " << (*i)->getNotationAbsoluteTime() << endl;
+        RG_DEBUG << "type " << (*i)->getType() << " at " << (*i)->getNotationAbsoluteTime() << endl;
 
         if ((*i)->isa(::Rosegarden::Key::EventType)) {
 
@@ -2110,19 +2160,34 @@ NotationStaff::getBarInset(int barNo, bool isFirstBarInRow) const
                     }
                 }
 
-                haveKey = true;
+                // Is the key hide because redundant ?
+                if (m_hideRedundance &&
+                    m_notationScene->isEventRedundant(const_cast<Event *>(*i),
+                                                      const_cast<Segment &>(getSegment()))) {
+                    haveKey = false;
+                } else {
+                    haveKey = true;
+                }
 
             } catch (...) {
-                NOTATION_DEBUG << "getBarInset: Bad key in event" << endl;
+                RG_DEBUG << "getBarInset: Bad key in event" << endl;
             }
 
         } else if ((*i)->isa(Clef::EventType)) {
 
             try {
                 clef = Clef(**i);
-                haveClef = true;
+ 
+                // Is the clef hide because redundant ?
+                if (m_hideRedundance &&
+                    m_notationScene->isEventRedundant(const_cast<Event *>(*i),
+                                                      const_cast<Segment &>(getSegment()))) {
+                    haveClef = false;
+                } else {
+                    haveClef = true;
+                }
             } catch (...) {
-                NOTATION_DEBUG << "getBarInset: Bad clef in event" << endl;
+                RG_DEBUG << "getBarInset: Bad clef in event" << endl;
             }
         }
     }
@@ -2151,7 +2216,7 @@ NotationStaff::getBarInset(int barNo, bool isFirstBarInRow) const
         inset += m_notePixmapFactory->getNoteBodyWidth() / 2;
     }
 
-    NOTATION_DEBUG << "getBarInset(" << barNo << "," << isFirstBarInRow << "): inset " << inset << endl;
+    RG_DEBUG << "getBarInset(" << barNo << "," << isFirstBarInRow << "): inset " << inset << endl;
 
 
     return inset;
@@ -2161,6 +2226,24 @@ Rosegarden::ViewElement *
 NotationStaff::makeViewElement(Rosegarden::Event* e)
 {
     return new NotationElement(e);
+}
+
+bool
+NotationStaff::includesTime(timeT t)
+{
+    Composition *composition = getSegment().getComposition();
+    
+    // In order to find the correct starting and ending bar of the
+    // segment, make infinitesimal shifts (+1 and -1) towards its
+    // center.
+
+    timeT t0 = composition->getBarStartForTime
+        (getSegment().getClippedStartTime() + 1);
+
+    timeT t1 = composition->getBarEndForTime
+        (getSegment().getEndMarkerTime() - 1);
+
+    return (t >= t0 && t < t1);
 }
 
 }

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -39,10 +39,28 @@ LSCPPatchExtractor::isLSCPFile(const QString& fileName)
         QTextStream check(&file);
         while (!check.atEnd()) {
             QString currentLine = check.readLine();
-            if (currentLine.contains("map", Qt::CaseInsensitive)) { //CaseInsensitive - you could never be sure
+            if (currentLine.contains("sfArk")) { 
 
-                //A stupid way of determining if we can use the file, but I can't remember better one!
+                // Crappy, but I have no better ideas.  We know for a FACT if
+                // you try to import programs from a .sfArk file, Rosegarden
+                // will end up running isLSCPFile() on it, and it will otherwise
+                // test true, and result in a crash.  I could set up some
+                // QProcess thing with a call to file and grep or whatever, but
+                // I'm just going to hard code this function to reject sfArk
+                // files.  Be my guest to engineer a much more elegant solution,
+                // because one is certainly possible!
+                std::cout << "Some doofus tried to import a .sfArk file.  I'm aborting so we avoid crashing later." << std::endl;
+                return false;
 
+
+            } else if (currentLine.contains("map", Qt::CaseInsensitive)) { //CaseInsensitive - you could never be sure
+
+                // This attempt to determine a valid file apparently returns
+                // true with completely invalid binary files, but not knowing
+                // anything about the LSCP format, I have no better ideas.  This
+                // thing must have come in as a patch I committed on someone's
+                // behalf, because I certainly didn't write this patch
+                // extractor.
                 std::cout << "MAP string found!" << std::endl;
                 return true;
             }
@@ -64,7 +82,7 @@ LSCPPatchExtractor::extractContent(const QString& fileName)
 
     QStringList splitLine;
 
-    unsigned int bank, program;
+    // unsigned int bank, program;
     std::string programName;
     std::string bankName;
     std::string tempDeviceName, tempBankName;
@@ -113,7 +131,7 @@ LSCPPatchExtractor::extractContent(const QString& fileName)
                 temp = temp.replace("x20"," ");
                 temp = temp.remove(".gig");
 
-                currentDevice.bankName = temp.latin1();
+                currentDevice.bankName = temp.toStdString();
                 currentDevice.bankNumber = splitLine.at(positionOfBankElement).toInt();
                 currentDevice.programNumber = splitLine.at(positionOfProgramElement).toInt();
 
@@ -125,7 +143,7 @@ LSCPPatchExtractor::extractContent(const QString& fileName)
                     quotedName.contains("PERSISTENT")) {
                     currentDevice.programName = "Unnamed instrument";
                 } else {
-                    currentDevice.programName = quotedName.latin1();
+                    currentDevice.programName = quotedName.toStdString();
                 }
 
                 device.push_back(currentDevice);

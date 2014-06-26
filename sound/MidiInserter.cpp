@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,13 +15,17 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[MidiInserter]"
+
 #include "MidiInserter.h"
 #include "base/Composition.h"
 #include "base/MidiTypes.h"
 #include "misc/Debug.h"
 #include "sound/MidiFile.h"
 #include "sound/MappedEvent.h"
-#include "assert.h"
+
+#include <QtGlobal>
+
 #include <string>
 
 // #define MIDI_DEBUG 1
@@ -214,7 +218,7 @@ void
 MidiInserter::
 insertCopy(const MappedEvent &evt)
 {
-    assert(!m_finished);
+    Q_ASSERT(!m_finished);
 
     MidiByte   midiChannel = evt.getRecordedChannel();
     TrackData& trackData   = getTrackData(evt.getTrackId(), midiChannel);
@@ -238,8 +242,11 @@ insertCopy(const MappedEvent &evt)
         m_previousRealTime = evt.getEventTime();
         m_previousTime     = midiEventAbsoluteTime;
     }
-
-    // !!! Add a type and mapper for text
+#ifdef MIDI_DEBUG
+    std::cerr << "Inserting an event for channel "
+              << (int)midiChannel + 1
+              << std::endl;
+#endif
 
     try {
         switch (evt.getType())
@@ -327,12 +334,16 @@ insertCopy(const MappedEvent &evt)
                     if ((evt.getType() == MappedEvent::MidiNote) &&
                         (midiVelocity == 0)) {
                         // It's actually a NOTE_OFF.
+                        // "MIDI devices that can generate Note Off
+                        // messages, but don't implement velocity
+                        // features, will transmit Note Off messages
+                        // with a preset velocity of 64"
                         trackData.
                             insertMidiEvent
                             (new MidiEvent(midiEventAbsoluteTime,
                                            MIDI_NOTE_OFF | midiChannel,
                                            pitch,
-                                           127)); // full volume silence
+                                           64));
                     } else {
                         // It's a NOTE_ON.
                         trackData.
@@ -413,34 +424,24 @@ insertCopy(const MappedEvent &evt)
 
                     break;
                 }
-#if 0
+
             case MappedEvent::Text:
                 {
-                    // !!! This code would be part of a mapper, which
-                    // would withhold annotations.
-                    // Text text(**el);
-                    // std::string metaMessage = text.getText();
+                    MidiByte midiTextType = evt.getData1();
 
-                    MidiByte midiTextType = MIDI_TEXT_EVENT;
+                    std::string metaMessage = 
+                        DataBlockRepository::getInstance()->
+                        getDataBlockForEvent(&evt);
 
-                    if (text.getTextType() == Text::Lyric) {
-                        midiTextType = MIDI_LYRIC;
-                    }
-
-                    if (text.getTextType() != Text::Annotation) {
-                        // (we don't write annotations)
-
-                        trackData.
-                            insertMidiEvent
-                            (new MidiEvent(midiEventAbsoluteTime,
-                                           MIDI_FILE_META_EVENT,
-                                           midiTextType,
-                                           metaMessage));
-
-                    }
+                    trackData.
+                        insertMidiEvent
+                        (new MidiEvent(midiEventAbsoluteTime,
+                                       MIDI_FILE_META_EVENT,
+                                       midiTextType,
+                                       metaMessage));
                     break;
                 }
-#endif
+
             
                 // Pacify compiler warnings about missed cases.
             case MappedEvent::InvalidMappedEvent:
@@ -461,7 +462,6 @@ insertCopy(const MappedEvent &evt)
             case MappedEvent::SystemMTCTransport:
             case MappedEvent::SystemMIDISyncAuto:
             case MappedEvent::SystemAudioFileFormat:
-            case MappedEvent::Text:
             default:
                 break;
             }

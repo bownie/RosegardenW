@@ -61,7 +61,8 @@ PitchGraphWidget::PitchGraphWidget(PitchHistory &history, QWidget *parent) :
         settings.value("ignoreoctave",
                        PitchTrackerConfigurationPage::defaultIgnore8ve).
                        toBool();
-    
+
+    settings.endGroup();
     qDebug("******************** end pitchgraphwidget ctor");
 }
 
@@ -78,7 +79,7 @@ PitchGraphWidget::setTuning(Accidentals::Tuning* tuning)
 }
 
 void
-PitchGraphWidget::paintEvent(QPaintEvent *event)
+PitchGraphWidget::paintEvent(QPaintEvent */* event */)
 {
     const QColor defaultColor(Qt::white); // for axes, text etc.
     const QColor noNoteColor(Qt::gray);

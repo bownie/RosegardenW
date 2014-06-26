@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is Copyright 2007-2009
         Yves Guillemot      <yc.guillemot@wanadoo.fr> 
@@ -94,7 +94,7 @@ HeadersGroup::removeAllHeaders()
 }
 
 void
-HeadersGroup::addHeader(int trackId, int height, int ypos, double xcur)
+HeadersGroup::addHeader(int trackId, int height, int ypos, double /* xcur */)
 {
     StaffHeader *sh = new StaffHeader(this, trackId, height, ypos);
     m_layout->addWidget(sh);

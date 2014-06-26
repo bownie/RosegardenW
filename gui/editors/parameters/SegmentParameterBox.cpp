@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[SegmentParameterBox]"
 
 #include "SegmentParameterBox.h"
 
@@ -529,7 +530,7 @@ SegmentParameterBox::populateBoxFromSegments()
     if (m_segments.size() == 0)
         m_label->setText("");
     else 
-        m_label->setText(QObject::tr(m_segments[0]->getLabel().c_str()));
+        m_label->setText(QObject::trUtf8(m_segments[0]->getLabel().c_str()));
 
     // I never noticed this after all this time, but it seems to go all the way
     // back to the "..." button that this was never disabled if there was no
@@ -562,7 +563,7 @@ SegmentParameterBox::populateBoxFromSegments()
 
         // Set label to "*" when multiple labels don't match
         //
-        if (QObject::tr((*it)->getLabel().c_str()) != m_label->text())
+        if (QObject::trUtf8((*it)->getLabel().c_str()) != m_label->text())
             m_label->setText("*");
 
         // Are all, some or none of the Segments repeating?
@@ -701,6 +702,7 @@ SegmentParameterBox::populateBoxFromSegments()
 
         // Assuming "Off" is always the last field
     case None:
+    case NotApplicable:
     default:
         m_quantizeValue->setCurrentIndex(m_quantizeValue->count() - 1);
         break;
@@ -709,23 +711,18 @@ SegmentParameterBox::populateBoxFromSegments()
     m_quantizeValue->setEnabled(quantized != NotApplicable);
 
     switch (transposed) {
-        // setCurrentIndex works with QStrings
-        // 2nd arg of "true" means "add if necessary"
     case All:
-        m_transposeValue->
-//           setCurrentIndex(QString("%1").arg(transposeLevel), true);
-          setItemText(m_transposeValue->currentIndex(), QString("%1").arg(transposeLevel) );
+          m_transposeValue->setCurrentIndex(m_transposeValue->findText(QString("%1").arg(transposeLevel)));
           break;
 
     case Some:
-//           m_transposeValue->setCurrentIndex(QString(""), true);
-          m_transposeValue->setItemText(m_transposeValue->currentIndex(), QString(""));
+          m_transposeValue->setCurrentIndex(m_transposeValue->findText(QString("")));
           break;
 
     case None:
+    case NotApplicable:
     default:
-//           m_transposeValue->setCurrentIndex("0");
-          m_transposeValue->setItemText(m_delayValue->currentIndex(), "0");
+          m_transposeValue->setCurrentIndex(m_transposeValue->findText(QString("0")));
           break;
     }
 
@@ -740,25 +737,23 @@ SegmentParameterBox::populateBoxFromSegments()
             QString label = NotationStrings::makeNoteMenuLabel(delayLevel,
                             true,
                             error);
-//                m_delayValue->setCurrentIndex(label, true);
-               m_delayValue->setItemText(m_delayValue->currentIndex(), label);
+               m_delayValue->setCurrentIndex(m_delayValue->findText(label));
 
         } else if (delayLevel < 0) {
 
-//                m_delayValue->setCurrentIndex(tr("%1 ms").arg(-delayLevel),true);
-               m_delayValue->setItemText(m_delayValue->currentIndex(), tr("%1 ms").arg(-delayLevel) );
+               m_delayValue->setCurrentIndex(m_delayValue->findText( tr("%1 ms").arg(-delayLevel) ));
           }
 
         break;
 
     case Some:
-//           m_delayValue->setCurrentIndex("", true);
-          m_delayValue->setItemText(m_delayValue->currentIndex(), "");
+          m_delayValue->setCurrentIndex(m_delayValue->findText(QString("")));
           break;
 
     case None:
+    case NotApplicable:
     default:
-        m_delayValue->setCurrentIndex(0);
+        m_delayValue->setCurrentIndex(m_delayValue->findText(QString("0")));
         break;
     }
 
@@ -777,6 +772,7 @@ SegmentParameterBox::populateBoxFromSegments()
 
     case All:
     case NotApplicable:
+    case Some:
     default:
         m_colourValue->setCurrentIndex(0);
         break;
@@ -1182,7 +1178,7 @@ SegmentParameterBox::slotFadeOutChanged(int value)
 }
 
 void
-SegmentParameterBox::showAdditionalControls(bool showThem)
+SegmentParameterBox::showAdditionalControls(bool /* showThem */)
 {
 }
 

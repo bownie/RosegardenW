@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -22,8 +22,8 @@
 #include "RIFFAudioFile.h"
 
 
-#ifndef _WAVAUDIOFILE_H_
-#define _WAVAUDIOFILE_H_
+#ifndef RG_WAVAUDIOFILE_H
+#define RG_WAVAUDIOFILE_H
 
 namespace Rosegarden
 {
@@ -84,4 +84,4 @@ protected:
 }
 
 
-#endif // _WAVAUDIOFILE_H_
+#endif // RG_WAVAUDIOFILE_H

@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A MIDI and audio sequencer and musical notation editor.
-  Copyright 2000-2012 the Rosegarden development team.
+  Copyright 2000-2014 the Rosegarden development team.
  
   This file is Copyright 2002
   Hans Kieserman      <hkieserman@mail.com>
@@ -27,6 +27,7 @@
   COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[LilyPondExporter]"
 
 #include "LilyPondExporter.h"
 #include "LilyPondSegmentsContext.h"
@@ -107,8 +108,8 @@ LilyPondExporter::LilyPondExporter(NotationView *parent,
 {
     m_composition = &m_doc->getComposition();
     m_studio = &m_doc->getStudio();
-    m_view = NULL;
     m_notationView = ((NotationView *)parent);
+    m_view = static_cast<RosegardenMainViewWidget *>(m_notationView->parent());
 
     readConfigVariables();
     m_language = LilyPondLanguage::create(m_exportNoteLanguage);
@@ -121,24 +122,30 @@ LilyPondExporter::readConfigVariables(void)
     QSettings settings;
     settings.beginGroup(LilyPondExportConfigGroup);
 
-    m_paperSize = settings.value("lilypapersize", PAPER_A4).toUInt() ;
-    m_paperLandscape = qStrToBool(settings.value("lilypaperlandscape", "false")) ;
-    m_fontSize = settings.value("lilyfontsize", FONT_20).toUInt() ;
-    m_raggedBottom = qStrToBool(settings.value("lilyraggedbottom", "false")) ;
-    m_exportSelection = settings.value("lilyexportselection", EXPORT_NONMUTED_TRACKS).toUInt() ;
-    m_exportLyrics = settings.value("lilyexportlyrics", EXPORT_LYRICS_LEFT).toUInt() ;
-    m_exportTempoMarks = settings.value("lilyexporttempomarks", EXPORT_NONE_TEMPO_MARKS).toUInt() ;
-    m_exportBeams = qStrToBool(settings.value("lilyexportbeamings", "false")) ;
-    m_exportStaffGroup = qStrToBool(settings.value("lilyexportstaffbrackets", "true")) ;
+    m_paperSize = settings.value("lilypapersize", PAPER_A4).toUInt();
+    m_paperLandscape = qStrToBool(settings.value("lilypaperlandscape", "false"));
+    m_fontSize = settings.value("lilyfontsize", FONT_20).toUInt();
+    m_raggedBottom = qStrToBool(settings.value("lilyraggedbottom", "false"));
+    m_exportEmptyStaves = qStrToBool(settings.value("lilyexportemptystaves", "false"));
+    m_useShortNames = qStrToBool(settings.value("lilyuseshortnames", "true"));
+    m_exportSelection = settings.value("lilyexportselection", EXPORT_NONMUTED_TRACKS).toUInt();
+    if (settings.value("lilyexporteditedsegments", "false").toBool()) {
+        m_exportSelection = EXPORT_EDITED_SEGMENTS;
+    }
+    m_exportLyrics = settings.value("lilyexportlyrics", EXPORT_LYRICS_LEFT).toUInt();
+    m_exportTempoMarks = settings.value("lilyexporttempomarks", EXPORT_NONE_TEMPO_MARKS).toUInt();
+    m_exportBeams = qStrToBool(settings.value("lilyexportbeamings", "false"));
+    m_exportStaffGroup = qStrToBool(settings.value("lilyexportstaffbrackets", "true"));
 
-    m_languageLevel = settings.value("lilylanguage", LILYPOND_VERSION_2_12).toUInt() ;
-    m_exportMarkerMode = settings.value("lilyexportmarkermode", EXPORT_NO_MARKERS).toUInt() ;
+    m_languageLevel = settings.value("lilylanguage", LILYPOND_VERSION_2_12).toUInt();
+    m_exportMarkerMode = settings.value("lilyexportmarkermode", EXPORT_NO_MARKERS).toUInt();
     m_exportNoteLanguage = settings.value("lilyexportnotelanguage", LilyPondLanguage::NEDERLANDS).toUInt();
-    m_chordNamesMode = qStrToBool(settings.value("lilychordnamesmode", "false")) ;
-//    m_repeatMode = settings.value("lilyrepeatmode", REPEAT_BASIC).toUInt() ;
+    m_chordNamesMode = qStrToBool(settings.value("lilychordnamesmode", "false"));
+//    m_repeatMode = settings.value("lilyrepeatmode", REPEAT_BASIC).toUInt();
     m_repeatMode = settings.value("lilyexportrepeat", "true").toBool() ? REPEAT_VOLTA : REPEAT_UNFOLD;
     m_voltaBar = settings.value("lilydrawbaratvolta", "true").toBool();
     m_cancelAccidentals = settings.value("lilycancelaccidentals", "false").toBool();
+    m_fingeringsInStaff = settings.value("lilyfingeringsinstaff", "true").toBool();
     settings.endGroup();
 }
 
@@ -160,10 +167,8 @@ LilyPondExporter::isSegmentToPrint(Segment *seg)
         for (SegmentSelection::iterator it = selection.begin(); it != selection.end(); ++it) {
             if ((*it) == seg) currentSegmentSelected = true;
         }
-#ifdef NOT_JUST_NOW //!!!
-    } else if ((m_exportSelection == EXPORT_SELECTED_SEGMENTS) && (m_notationView != NULL)) {
+    } else if ((m_exportSelection == EXPORT_EDITED_SEGMENTS) && (m_notationView != NULL)) {
         currentSegmentSelected = m_notationView->hasSegment(seg);
-#endif
     }
 
     // Check whether the track is a non-midi track.
@@ -177,14 +182,8 @@ LilyPondExporter::isSegmentToPrint(Segment *seg)
     bool ok3 = (m_exportSelection == EXPORT_SELECTED_TRACK)
                && (m_view != NULL)
                && (track->getId() == m_composition->getSelectedTrack());
-#ifdef NOT_JUST_NOW //!!!
-    bool ok4 = (m_exportSelection == EXPORT_SELECTED_TRACK)
-               && (m_notationView != NULL)
-               && (track->getId() == m_notationView->getCurrentSegment()->getTrack());
-#else
-    bool ok4 = false;
-#endif
-    bool ok5 = (m_exportSelection == EXPORT_SELECTED_SEGMENTS) && currentSegmentSelected;
+    bool ok4 = (m_exportSelection == EXPORT_SELECTED_SEGMENTS) && currentSegmentSelected;
+    bool ok5 = (m_exportSelection == EXPORT_EDITED_SEGMENTS) && currentSegmentSelected;
 
     // Skip non-midi tracks and return true if segment is selected
     return isMidiTrack && (ok1 || ok2 || ok3 || ok4 || ok5);
@@ -602,6 +601,7 @@ struct MarkerComp {
 bool
 LilyPondExporter::write()
 {
+    m_warningMessage = "";
     QString tmpName = strtoqstr(m_fileName);
 
     // dmm - modified to act upon the filename itself, rather than the whole
@@ -638,10 +638,11 @@ LilyPondExporter::write()
     std::ofstream str(qstrtostr(tmpName).c_str(), std::ios::out);
     if (!str) {
         std::cerr << "LilyPondExporter::write() - can't write file " << tmpName << std::endl;
+        m_warningMessage = tr("Export failed.  The file could not be opened for writing.");
         return false;
     }
 
-    str << "% This LilyPond file was generated by Rosegarden " << VERSION << std::endl;
+    str << "% This LilyPond file was generated by Rosegarden " << protectIllegalChars(VERSION) << std::endl;
 
     str << m_language->getImportStatement();
 
@@ -663,12 +664,16 @@ LilyPondExporter::write()
         str << "\\version \"2.12.0\"" << std::endl;
         break;
 
+    case LILYPOND_VERSION_2_14:
+        str << "\\version \"2.14.0\"" << std::endl;
+        break;
+
     default:
         // force the default version if there was an error
         std::cerr << "ERROR: Unknown language level " << m_languageLevel
-                  << ", using \\version \"2.12.0\" instead" << std::endl;
-        str << "\\version \"2.12.0\"" << std::endl;
-        m_languageLevel = LILYPOND_VERSION_2_12;
+                  << ", using \\version \"2.14.0\" instead" << std::endl;
+        str << "\\version \"2.14.0\"" << std::endl;
+        m_languageLevel = LILYPOND_VERSION_2_14;
     }
 
     // LilyPond \header block
@@ -699,7 +704,22 @@ LilyPondExporter::write()
                 property == headerPiece || property == headerCopyright ||
                 property == headerTagline) {
                 std::string header = protectIllegalChars(metadata.get<String>(property));
-                if (header != "") {
+                if (property == headerCopyright) {
+                    // replace a (c) or (C) with a real Copyright symbol
+                    size_t posCpy = header.find("(c)");
+                    if (posCpy == std::string::npos) posCpy = header.find("(C)");
+                    if (posCpy != std::string::npos) {
+                        std::string leftOfCpy = header.substr(0, posCpy);
+                        std::string rightOfCpy = header.substr(posCpy + 3);
+                        str << indent(col) << property << " =  \\markup { \"" << leftOfCpy << "\""
+                            << "\\char ##x00A9" << "\"" << rightOfCpy << "\" }" << std::endl;
+                    } else {
+                        if (header != "") {
+                            str << indent(col) << property << " = \""
+                                << header << "\"" << std::endl;
+                        }
+                    }
+                } else if (header != "") {
                     str << indent(col) << property << " = \"" << header << "\"" << std::endl;
                     // let users override defaults, but allow for providing
                     // defaults if they don't:
@@ -712,7 +732,7 @@ LilyPondExporter::write()
         // default tagline
         if (!userTagline) {
             str << indent(col) << "tagline = \""
-                << "Created using Rosegarden " << VERSION << " and LilyPond"
+                << "Created using Rosegarden " << protectIllegalChars(VERSION) << " and LilyPond"
                 << "\"" << std::endl;
         }
 
@@ -779,6 +799,7 @@ LilyPondExporter::write()
     // Find out the printed length of the composition
     Composition::iterator i = m_composition->begin();
     if ((*i) == NULL) {
+        // The composition is empty!
         str << indent(col) << "\\score {" << std::endl;
         str << indent(++col) << "% no segments found" << std::endl;
         // bind staffs with or without staff group bracket
@@ -786,7 +807,8 @@ LilyPondExporter::write()
             << "<<" << " s4 " << ">>" << std::endl;
         str << indent(col) << "\\layout { }" << std::endl;
         str << indent(--col) << "}" << std::endl;
-        return true;
+        m_warningMessage = tr("Export succeeded, but the composition was empty.");
+        return false;
     }
     timeT compositionStartTime = (*i)->getStartTime();
     timeT compositionEndTime = (*i)->getEndMarkerTime();
@@ -814,6 +836,46 @@ LilyPondExporter::write()
         if (isSegmentToPrint(*i)) {
             lsc.addSegment(*i);
         }
+    }
+
+    // Don't continue if lsc is empty
+    if (lsc.containsNoSegment()) {
+        switch (m_exportSelection) {
+          
+            case EXPORT_ALL_TRACKS :
+                // We should have already exited this method if the composition is empty 
+                m_warningMessage = "No segments found while exporting all the"
+                                   " tracks : THIS IS A BUG.";
+                break;
+                
+            case EXPORT_NONMUTED_TRACKS :
+                m_warningMessage = tr("Export of unmuted tracks failed.  There"
+                                      " are no unmuted tracks or no segments on"
+                                      " them.");
+                break;
+                
+            case EXPORT_SELECTED_TRACK :
+                m_warningMessage = tr("Export of selected track failed.  There"
+                                      " are no segments on the selected track.");
+                break;
+                
+            case EXPORT_SELECTED_SEGMENTS :
+                m_warningMessage = tr("Export of selected segments failed.  No"
+                                      " segments are selected.");
+                break;
+                
+            case EXPORT_EDITED_SEGMENTS :
+                // Notation editor can't be open without any segment inside
+                m_warningMessage = "No segments found while exporting the"
+                                   " edited segments : THIS IS A BUG.";
+                break;
+                
+            default :
+                m_warningMessage = "Abnormal m_exportSelection value :"
+                                   " THIS IS A BUG.";
+        }
+
+        return false;
     }
 
     // Look for repeating segments
@@ -1071,7 +1133,7 @@ LilyPondExporter::write()
             return false;
         }
 
-        timeT repeatOffset = 0;
+        /* timeT repeatOffset = 0; */
 
         Segment *seg;
         for (seg = lsc.useFirstSegment(); seg; seg = lsc.useNextSegment()) {
@@ -1108,10 +1170,16 @@ LilyPondExporter::write()
 
                     // Make chords offset colliding notes by default (only write for
                     // first track)
-                    str << indent(++col) << "% force offset of colliding notes in chords:"
+                    str << indent(++col) << "% Force offset of colliding notes in chords:"
                         << std::endl;
                     str << indent(col)   << "\\override Score.NoteColumn #\'force-hshift = #1.0"
                         << std::endl;
+                    if (m_fingeringsInStaff) {
+                        str << indent(col) << "% Allow fingerings inside the staff (configured from export options):"
+                            << std::endl;
+                        str << indent(col)   << "\\override Score.Fingering #\'staff-padding = #\'()"
+                            << std::endl;
+                    }
                 }
 
                 emit setValue(int(double(trackPos) /
@@ -1264,6 +1332,9 @@ LilyPondExporter::write()
                     staffName << protectIllegalChars(m_composition->
                                                     getTrackById(lastTrackIndex)->getLabel());
 
+                    std::string shortStaffName = protectIllegalChars(m_composition->
+                            getTrackById(lastTrackIndex)->getShortLabel());
+
                     /*
                     * The context name is unique to a single track.
                     */
@@ -1278,10 +1349,13 @@ LilyPondExporter::write()
                     // HJJ: Should it be automatically added to the clef: G^8 ?
                     // What if two segments have different transpose in a track?
                     std::ostringstream staffNameWithTranspose;
-                    staffNameWithTranspose << "\\markup { \\column { \"" << staffName.str() << " \"";
+                    staffNameWithTranspose << "\\markup { \\center-column { \"" << staffName.str() << " \"";
                     if ((seg->getTranspose() % 12) != 0) {
                         staffNameWithTranspose << " \\line { ";
-                        switch (seg->getTranspose() % 12) {
+                        int t = seg->getTranspose();
+                        t %= 12;
+                        if (t < 0) t+= 12;
+                        switch (t) {
                         case 1 : staffNameWithTranspose << "\"in D\" \\smaller \\flat"; break;
                         case 2 : staffNameWithTranspose << "\"in D\""; break;
                         case 3 : staffNameWithTranspose << "\"in E\" \\smaller \\flat"; break;
@@ -1301,8 +1375,16 @@ LilyPondExporter::write()
                         str << indent(++col) << "\\set Staff.instrument = " << staffNameWithTranspose.str()
                             << std::endl;
                     } else {
+                        // always write long staff name
                         str << indent(++col) << "\\set Staff.instrumentName = "
                             << staffNameWithTranspose.str() << std::endl;
+
+                        // write short staff name if user desires, and if
+                        // non-empty
+                        if (m_useShortNames && shortStaffName.size()) {
+                            str << indent(col) << "\\set Staff.shortInstrumentName = \""
+                                << shortStaffName << "\"" << std::endl;
+                        }
                     }
 
                     // Set always midi instrument for the Staff
@@ -1760,6 +1842,14 @@ LilyPondExporter::write()
 
     // write \layout block
     str << indent(col++) << "\\layout {" << std::endl;
+
+    // indent instrument names
+    str << indent(col) <<  "indent = 3.0\\cm" << std::endl
+        << "short-indent = 1.5\\cm" << std::endl;
+
+    if (!m_exportEmptyStaves) {
+        str << indent(col) << "\\context { \\Staff \\RemoveEmptyStaves }" << std::endl;
+    }
     if (m_chordNamesMode) {
         str << indent(col) << "\\context { \\GrandStaff \\accepts \"ChordNames\" }" << std::endl;
     }

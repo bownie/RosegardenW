@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_NOTATION_VIEW_H_
-#define _RG_NOTATION_VIEW_H_
+#ifndef RG_NOTATION_VIEW_H
+#define RG_NOTATION_VIEW_H
 
 #include "gui/general/ActionFileClient.h"
 #include "gui/general/SelectionManager.h"
@@ -33,6 +33,7 @@
 #include <vector>
 
 class QWidget;
+class Event;
 
 namespace Rosegarden
 {
@@ -43,13 +44,18 @@ class NotationElement;
 class NotationStaff;
 class Segment;
 class CommandRegistry;
-	
+class ControlRulerWidget;
+class ControlParameter;
+class TriggerSegmentRec;
+ 
 class NotationView : public EditViewBase,
                         public SelectionManager
 {
     Q_OBJECT
 
 public:
+    typedef std::vector<Segment *> SegmentVector;
+    typedef void (NotationView::*opOnEvent) (Event* e, Segment *containing);
     NotationView(RosegardenDocument *doc,
                     std::vector<Segment *> segments,
                     QWidget *parent = 0);
@@ -64,11 +70,18 @@ public:
     void initRulersToolbar();
     virtual void initStatusBar();
     virtual timeT getInsertionTime() const;
+    
+    bool hasSegment(Segment * seg) const;
 
     /** This turns out to be cruft that is rather annoying to eliminate.  We
      * don't use this for anything, and provide an empty implementation.
      */
     virtual void updateViewCaption() { }
+
+    // Adopt a segment that doesn't live in Composition.
+    void adoptSegment(Segment *s);
+    // Unadopt a segment that we previously adopted.
+    void unadoptSegment(Segment *s);
 
 signals:
     void play();
@@ -121,21 +134,26 @@ protected slots:
     void slotEditTranspose();
     void slotEditSwitchPreset();
 
-    void slotMoveEventsUpStaff();
-    void slotMoveEventsDownStaff();
-
     void slotPreviewSelection();
     void slotClearLoop();
     void slotClearSelection();
     void slotEditSelectFromStart();
     void slotEditSelectToEnd();
     void slotEditSelectWholeStaff();
+    void slotSearchSelect();
     void slotFilterSelection();
+    void slotSelectEvenlySpacedNotes();
     void slotVelocityUp();
     void slotVelocityDown();
     void slotSetVelocities();
+    void slotEditCutControllers();
+    void slotEditCopyControllers();
+    void slotSetControllers();
+    void slotPlaceControllers();
 
     void slotSetSelectTool();
+    void slotSetSelectNoTiesTool(void);
+
     void slotSetEraseTool();
     
     /**
@@ -186,6 +204,7 @@ protected slots:
      * Process calls to insert a notes.
      */
     void slotNoteAction();
+    void slotDummy1();
     void slotNoAccidental();
     void slotFollowAccidental();
     void slotSharp();
@@ -217,7 +236,12 @@ protected slots:
     void slotMakeOrnament();
     void slotUseOrnament();
     void slotRemoveOrnament();
-
+    void slotEditOrnamentInline();
+    void slotShowOrnamentExpansion();
+    void slotMaskOrnament();
+    void slotUnmaskOrnament();
+    void slotUnadoptSegment();
+   
     void slotGroupSimpleTuplet();
     void slotGroupGeneralTuplet();
     void slotGroupTuplet(bool simple);
@@ -263,6 +287,7 @@ protected slots:
     void slotToggleGeneralToolBar();
     void slotToggleToolsToolBar();
     void slotToggleDurationToolBar();
+    void slotToggleInterpretToolBar();
     void slotToggleAccidentalsToolBar();
     void slotToggleClefsToolBar();
     void slotToggleMarksToolBar();
@@ -295,6 +320,11 @@ protected slots:
      * Insert a Symbol
      */
     void slotSymbolAction();
+
+    void slotMoveEventsUpStaffInteractive(void);
+    void slotMoveEventsDownStaffInteractive(void);
+    void slotMoveEventsUpStaff(void);
+    void slotMoveEventsDownStaff(void);
 
     /**
      * Called when the mouse cursor moves over a different height on
@@ -347,10 +377,16 @@ protected slots:
     virtual void slotConfigure();
 
     // Open insert pitch bends sequence dialog
+    void slotExpressionSequence();
     void slotPitchBendSequence();
+    void slotControllerSequence();
 
     // Update the "Show staff headers" check box in the menu
     void slotCheckShowHeadersMenu(bool checked);
+
+    /// Select everything in the active segment and run interpret according to
+    // the checked options on the toolbar
+    void slotInterpretActivate();
 
 private:
     /**
@@ -380,6 +416,8 @@ private:
      * Return the device of the current segment, if any
      */
     Device *getCurrentDevice();
+
+    void generalMoveEventsToStaff(bool upStaff, bool useDialog);
 
     /**
      * The DurationMonobar needs to know how to convolute itself somehow to
@@ -431,10 +469,22 @@ private:
     void setCurrentNotePixmap(QPixmap);
     void setCurrentNotePixmapFrom(QAction *);
 
+    void conformRulerSelectionState(void);
+    void insertControllerSequence(const ControlParameter &cp);
+    bool isShowable(Event *e);
+    void setWidgetSegments(void);
+    void EditOrnamentInline(Event *trigger, Segment *containing);
+    void ShowOrnamentExpansion(Event *trigger, Segment *containing);
+    SegmentVector::iterator findAdopted(Segment *s);
+    void ForAllSelection(opOnEvent op);
+    void setCurrentStaff(NotationStaff *staff);
+
 // FIXME: likely to be debated. --gp     Used for subclassing in pitchtracker
 protected:
+    // !!! Duplicates m_doc in base class
     RosegardenDocument *m_document;
     NotationWidget *m_notationWidget;
+    
 private:
     CommandRegistry *m_commandRegistry;
     DurationMonobarModeType m_durationMode;  // Stores morph state.
@@ -475,7 +525,11 @@ private:
     std::vector<int>     m_availableFontSizes;
     std::vector<int>     m_availableSpacings;
 
-    std::vector<Segment *> m_segments;
+    // !!! Is m_segments ever different than m_segments in base class?
+    SegmentVector      m_segments;      // I do not own these
+    // These Segments are not in Composition, they are dummies for
+    // viewing a triggered segment's expansion.
+    SegmentVector      m_adoptedSegments;    // I own these
 
     /**
      * Set the <<< << >> >>> buttons in the transport toolbar to auto repeat

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -511,7 +511,11 @@ MidiFile::parseTrack(ifstream* midiFile, TrackId &lastTrackNum)
 
     std::cerr << "Parse track: last track number is " << lastTrackNum << std::endl;
 
-    while (!midiFile->eof() && ( m_trackByteCount > 0 ) ) {
+    // Since no event and its associated delta time can fit in just one
+    // byte, a single remaining byte in the track has to be padding.
+    // This obscure and non-standard, but such files do exist; ordinarily
+    // there should be no bytes in the track after the last event.
+    while (!midiFile->eof() && ( m_trackByteCount > 1 ) ) {
         if (eventCode < 0x80) {
 #ifdef MIDI_DEBUG
             cerr << "WARNING: Invalid event code " << eventCode
@@ -631,7 +635,7 @@ MidiFile::parseTrack(ifstream* midiFile, TrackId &lastTrackNum)
                 midiEvent = new MidiEvent(deltaTime, eventCode, data1, data2);
 
 #ifdef MIDI_DEBUG
-                std::cerr << "MIDI event for channel " << channel << " (track "
+                std::cerr << "MIDI event for channel " << channel + 1 << " (track "
                 << trackNum << ")" << std::endl;
                 midiEvent->print();
 #endif
@@ -708,6 +712,13 @@ MidiFile::parseTrack(ifstream* midiFile, TrackId &lastTrackNum)
                 break;
             }
         }
+    }
+
+    // If the track has a padding byte, read and discard it to make sure that
+    // the stream is positioned at the beginning of the following
+    // track (if there is one.)
+    if (m_trackByteCount == 1) {
+        midiFile->ignore();
     }
 
     return (true);
@@ -1442,20 +1453,20 @@ MidiFile::convertToMidi(Composition &comp)
         RosegardenMainWindow::self()->
         getSequenceManager()->
         makeTempMetaiterator();
-        
+
     RealTime start = comp.getElapsedRealTime(comp.getStartMarker());
     RealTime end   = comp.getElapsedRealTime(comp.getEndMarker());
     // For ramping, we need to get MappedEvents in order, but
-    // fillCompositionWithEventsUntil's order is only approximately
+    // fetchEvents's order is only approximately
     // right, so we sort events first.
     SortingInserter sorter;
-    MidiInserter inserter(comp, 480, end);
+    metaiterator->jumpToTime(start);
     // Give the end a little margin to make it insert noteoffs at the
     // end.  If they tied with the end they'd get lost.
     metaiterator->
-        fillCompositionWithEventsUntil(true, sorter, start,
-                                       end + RealTime(0,1000));
+        fetchEvents(sorter, start, end + RealTime(0,1000));
     delete metaiterator;
+    MidiInserter inserter(comp, 480, end);
     sorter.insertSorted(inserter);
     inserter.assignToMidiFile(*this);
 }
@@ -1591,6 +1602,16 @@ MidiFile::writeTrack(std::ofstream* midiFile, TrackId trackNumber)
     for (midiEvent = m_midiComposition[trackNumber].begin();
             midiEvent != m_midiComposition[trackNumber].end();
             ++midiEvent) {
+
+        // HACK for #1404.  I gave up trying to find where the events
+        // were originating, and decided to try just stripping them.  If
+        // you can't do it right, do it badly, and somebody will
+        // eventually freak out, then fix it the right way.
+        if ((*midiEvent)->getData1() == 121) {
+            std::cerr << "MidiFile::writeTrack(): Found controller 121.  Skipping.  This is a HACK to address BUG #1404." << std::endl;
+            continue;
+        }
+
         // Write the time to the buffer in MIDI format
         //
         //
@@ -1614,6 +1635,7 @@ MidiFile::writeTrack(std::ofstream* midiFile, TrackId trackNumber)
                                            getMetaMessage().length());
 
             trackBuffer += (*midiEvent)->getMetaMessage();
+            eventCode = 0;
         } else {
             // Send the normal event code (with encoded channel information)
             //

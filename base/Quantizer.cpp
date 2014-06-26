@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -21,6 +21,8 @@
 #include "Composition.h"
 #include "Sets.h"
 #include "base/Profiler.h"
+
+#include <QtGlobal>
 
 #include <iostream>
 #include <cmath>
@@ -72,7 +74,7 @@ Quantizer::quantize(Segment *s,
 		    Segment::iterator from,
 		    Segment::iterator to) const
 {
-    assert(m_toInsert.size() == 0);
+    Q_ASSERT(m_toInsert.size() == 0);
 
     quantizeRange(s, from, to);
 
@@ -82,7 +84,7 @@ Quantizer::quantize(Segment *s,
 void
 Quantizer::quantize(EventSelection *selection)
 {
-    assert(m_toInsert.size() == 0);
+    Q_ASSERT(m_toInsert.size() == 0);
 
     Segment &segment = selection->getSegment();
 
@@ -137,7 +139,7 @@ Quantizer::fixQuantizedValues(Segment *s,
 			      Segment::iterator from,
 			      Segment::iterator to) const
 {
-    assert(m_toInsert.size() == 0);
+    Q_ASSERT(m_toInsert.size() == 0);
 
     quantize(s, from, to);
 
@@ -225,7 +227,7 @@ Quantizer::unquantize(Segment *s,
 		      Segment::iterator from,
 		      Segment::iterator to) const
 {
-    assert(m_toInsert.size() == 0);
+    Q_ASSERT(m_toInsert.size() == 0);
 
     for (Segment::iterator nextFrom = from; from != to; from = nextFrom) {
 	++nextFrom;
@@ -246,7 +248,7 @@ Quantizer::unquantize(Segment *s,
 void
 Quantizer::unquantize(EventSelection *selection) const
 {
-    assert(m_toInsert.size() == 0);
+    Q_ASSERT(m_toInsert.size() == 0);
 
     Segment *s = &selection->getSegment();
 

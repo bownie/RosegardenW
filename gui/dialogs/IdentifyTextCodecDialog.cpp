@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -86,7 +86,7 @@ IdentifyTextCodecDialog::IdentifyTextCodecDialog(QWidget *parent,
     gl->addWidget(codecs);
 
     QString defaultCodec;
-    QTextCodec *codec = 0;
+    // QTextCodec *codec = 0;
 
     QMap<QString, QString> codecDescriptions;
     codecDescriptions["UTF-8"] = tr("Unicode variable-width");
@@ -111,7 +111,7 @@ IdentifyTextCodecDialog::IdentifyTextCodecDialog(QWidget *parent,
     codecDescriptions["KOI8-U"] = tr("Ukrainian");
     codecDescriptions["TSCII"] = tr("Tamil");
 
-    int i = 0;
+    // int i = 0;
     int current = -1;
 
     QList<int> mibs = QTextCodec::availableMibs();
@@ -146,9 +146,9 @@ IdentifyTextCodecDialog::IdentifyTextCodecDialog(QWidget *parent,
 //        std::cerr << "codec " << codec->name().data() << " mib " << mib << " preserves " << preserves << std::endl;
 
         QStringList names;
-        names.push_back(QString::fromAscii(codec->name()));
+        names.push_back(QString::fromLatin1(codec->name()));
         foreach (QByteArray ba, codec->aliases()) {
-            names.push_back(QString::fromAscii(ba));
+            names.push_back(QString::fromLatin1(ba));
         }
 
         QString goodName;
@@ -187,7 +187,7 @@ IdentifyTextCodecDialog::IdentifyTextCodecDialog(QWidget *parent,
         }
 
         if (goodName == "") {
-            goodName = QString::fromAscii(codec->name());
+            goodName = QString::fromLatin1(codec->name());
         }
 
         if (description != "") {
@@ -231,12 +231,12 @@ IdentifyTextCodecDialog::slotCodecSelected(int i)
 QString
 IdentifyTextCodecDialog::getExampleText()
 {
-    QTextCodec *codec = QTextCodec::codecForName(m_codec.toAscii());
+    QTextCodec *codec = QTextCodec::codecForName(m_codec.toLatin1());
     if (!codec) return "";
 //    std::cerr << "codec->name() returns " << codec->name().data() << std::endl;
 
     int offset = 0;
-    for (; offset + 80 < m_text.length(); ++offset) {
+    for (; offset + 80 < (int)m_text.length(); ++offset) {
         if (!isascii(m_text[offset])) {
             for (int i = 0; i < 80; ++i) {
                 if (offset == 0) {

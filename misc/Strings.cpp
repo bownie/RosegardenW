@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -185,6 +185,11 @@ splitQuotedString(QString s)
 		c = s[i];
 		switch (mode) {
 		case sep: mode = unq; tok += c; break;
+
+                    // All fall thru to default.
+                case unq:
+                case q1:
+                case q2:
 		default: tok += c; break;
 		}
 	    }
@@ -192,6 +197,11 @@ splitQuotedString(QString s)
 	} else {
 	    switch (mode) {
 	    case sep: mode = unq; tok += c; break;
+
+                // All fall thru to default.
+            case unq:
+            case q1:
+            case q2:
 	    default: tok += c; break;
 	    }
 	}

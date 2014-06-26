@@ -5,7 +5,7 @@
     A sequencer and musical notation editor.
     Copyright 2000-2010 the Rosegarden development team.
     See the AUTHORS file for more details.
- 
+
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
@@ -207,7 +207,7 @@ size_t
 DSSIPluginInstance::getLatency()
 {
     /*
-#ifdef DEBUG_DSSI 
+#ifdef DEBUG_DSSI
     //    std::cerr << "DSSIPluginInstance::getLatency(): m_latencyPort " << m_latencyPort << ", m_run " << m_run << std::endl;
 #endif
 
@@ -219,7 +219,7 @@ DSSIPluginInstance::getLatency()
                 }
             }
             run(RealTime::zeroTime);
-	}
+    }
 #ifdef DEBUG_DSSI
 
         std::cerr << "DSSIPluginInstance::getLatency(): latency is " << (size_t)(*m_latencyPort + 0.1) << std::endl;
@@ -798,7 +798,7 @@ DSSIPluginInstance::configure(QString key,
 #endif
 
     char *message = m_descriptor->configure
-	(m_instanceHandle, key.toLocal8Bit().data(), value.toLocal8Bit().data());
+    (m_instanceHandle, key.toLocal8Bit().data(), value.toLocal8Bit().data());
 
     m_programCacheValid = false;
 
@@ -818,8 +818,8 @@ DSSIPluginInstance::configure(QString key,
             qm = QString(m_descriptor->LADSPA_Plugin->Label) + ": ";
         }
         qm = qm + QString(message);
-        
-	free(message);
+
+    free(message);
     }
 
     return qm;*/
@@ -1003,7 +1003,7 @@ DSSIPluginInstance::run(const RealTime &blockTime)
     m_descriptor->run_synth(m_instanceHandle, m_blockSize,
                             localEventBuffer, evCount);
 
-#ifdef DEBUG_DSSI_PROCESS 
+#ifdef DEBUG_DSSI_PROCESS
     //    for (int i = 0; i < m_blockSize; ++i) {
     //	std::cout << m_outputBuffers[0][i] << " ";
     //	if (i % 8 == 0) std::cout << std::endl;

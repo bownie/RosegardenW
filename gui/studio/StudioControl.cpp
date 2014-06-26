@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -217,7 +217,7 @@ playPreviewNote(Instrument *instrument, int pitch,
     sendMappedEventList(mC);
 }
 
-// Set up a channel for output.  This is used for fix channel
+// Set up a channel for output.  This is used for fixed channel
 // instruments and also to set up MIDI thru channels.
 void
 StudioControl::
@@ -225,7 +225,7 @@ sendChannelSetup(Instrument *instrument, int channel)
 {
     MappedEventList mC;
     MappedEventInserter inserter(mC);
-    ChannelManager::MapperFunctionalitySimple functionality;
+    ChannelManager::SimpleCallbacks callbacks;
             
     // Acquire it from ChannelManager.  Passing -1 for trackId which
     // is unused here.
@@ -235,8 +235,26 @@ sendChannelSetup(Instrument *instrument, int channel)
     ChannelManager::setControllers(channel, instrument,
                                    inserter, RealTime::zeroTime,
                                    RealTime::zeroTime, 
-                                   &functionality, -1);
+                                   &callbacks, -1);
 
+    sendMappedEventList(mC);
+}
+
+// Send a single controller to output.  This is used for fixed-channel
+// instruments.
+void
+StudioControl::
+sendController(const Instrument *instrument, int channel,
+               MidiByte controller, MidiByte value)
+{
+    MappedEventList mC;
+    MappedEventInserter inserter(mC);
+
+    // Acquire it from ChannelManager.  Passing -1 for trackId which
+    // is unused here.
+    ChannelManager::insertController(channel, instrument, inserter,
+                                     RealTime::zeroTime, -1,
+                                     controller, value);
     sendMappedEventList(mC);
 }
 

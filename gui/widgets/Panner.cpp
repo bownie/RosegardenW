@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,9 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[Panner]"
+#define RG_NO_DEBUG_PRINT 1
 
 #include "Panner.h"
 
@@ -28,7 +31,7 @@
 
 namespace Rosegarden
 {
-	
+
 class PannerScene : public QGraphicsScene
 {
 public:

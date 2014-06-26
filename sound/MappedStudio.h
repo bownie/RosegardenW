@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2011 the Rosegarden development team.
+  Copyright 2000-2014 the Rosegarden development team.
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -11,6 +11,9 @@
   License, or (at your option) any later version.  See the file
   COPYING included with this distribution for more information.
 */
+
+#ifndef RG_MAPPEDSTUDIO_H
+#define RG_MAPPEDSTUDIO_H
 
 #include <map>
 #include <string>
@@ -23,9 +26,6 @@
 #include "base/Device.h"
 
 #include "base/AudioPluginInstance.h" // for PluginPort::PortDisplayHint //!!!???
-
-#ifndef _MAPPEDSTUDIO_H_
-#define _MAPPEDSTUDIO_H_
 
 
 // A sequencer-side representation of certain elements in the
@@ -542,4 +542,4 @@ protected:
     
 }
 
-#endif // _MAPPEDSTUDIO_H_
+#endif // RG_MAPPEDSTUDIO_H

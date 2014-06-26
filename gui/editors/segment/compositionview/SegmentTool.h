@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,11 +16,13 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_SEGMENTTOOL_H_
-#define _RG_SEGMENTTOOL_H_
+#ifndef RG_SEGMENTTOOL_H
+#define RG_SEGMENTTOOL_H
 
 #include "gui/general/BaseTool.h"
+#include "gui/general/ActionFileClient.h"
 #include "CompositionItem.h"
+
 #include <QPoint>
 #include <utility>
 #include <vector>
@@ -46,11 +48,13 @@ class SegmentSelector;
 // Allow the tools to share the Selector tool's selection
 // through these.
 //
-typedef std::pair<QPoint, CompositionItem> SegmentItemPair;
+typedef std::pair<QPoint, CompositionItemPtr> SegmentItemPair;
 typedef std::vector<SegmentItemPair> SegmentItemList;
 
-class SegmentTool : public BaseTool
+class SegmentTool : public BaseTool, public ActionFileClient
 {
+    Q_OBJECT
+
 public:
     friend class SegmentToolBox;
 
@@ -76,7 +80,7 @@ protected:
     virtual void createMenu();
     virtual bool hasMenu() { return true; }
     
-    void setCurrentIndex(CompositionItem item);
+    void setCurrentIndex(CompositionItemPtr item);
 
     SegmentToolBox* getToolBox();
 
@@ -86,10 +90,36 @@ protected:
     //--------------- Data members ---------------------------------
 
     CompositionView*  m_canvas;
-    CompositionItem   m_currentIndex;
+    CompositionItemPtr   m_currentIndex;
     RosegardenDocument* m_doc;
 //    QPoint            m_origPos;
     bool              m_changeMade;
+
+private slots:
+    // This is just a mess of forwarding functions to RosegardenMainWindow.
+    // Is there a better way to get the menu items to appear and to go to
+    // RosegardenMainWindow?
+    void slotEdit();
+    void slotEditInMatrix();
+    void slotEditInPercussionMatrix();
+    void slotEditAsNotation();
+    void slotEditInEventList();
+    void slotEditInPitchTracker();
+    void slotEditCut();
+    void slotEditCopy();
+    void slotEditPaste();
+    void slotDeleteSelectedSegments();
+    void slotJoinSegments();
+    void slotQuantizeSelection();
+    void slotRepeatQuantizeSelection();
+    void slotRelabelSegments();
+    void slotTransposeSegments();
+    void slotPointerSelected();
+    void slotMoveSelected();
+    void slotDrawSelected();
+    void slotEraseSelected();
+    void slotResizeSelected();
+    void slotSplitSelected();
 };
 
 

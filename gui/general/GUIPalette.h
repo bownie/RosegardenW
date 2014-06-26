@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_GUIPALETTE_H_
-#define _RG_GUIPALETTE_H_
+#ifndef RG_GUIPALETTE_H
+#define RG_GUIPALETTE_H
 
 #include "base/Colour.h"
 
@@ -126,6 +126,8 @@ public:
     static const int QuantizedNoteMinValue;
     static const int TriggerNoteHue;
     static const int TriggerNoteMinValue;
+    static const int TriggerSkipHue;
+    static const int TriggerSkipMinValue;
     static const int OutRangeNoteHue;
     static const int OutRangeNoteMinValue;
 

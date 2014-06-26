@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_AUDIOVUMETER_H_
-#define _RG_AUDIOVUMETER_H_
+#ifndef RG_AUDIOVUMETER_H
+#define RG_AUDIOVUMETER_H
 
 #include <QWidget>
 #include "VUMeter.h"
@@ -39,8 +39,7 @@ public:
                  bool stereo = true,
                  bool hasRecord = false,
                  int width = 12,
-                 int height = 140,
-                 const char *name = 0);
+                 int height = 140);
 
     void setLevel(double dB) {
         m_meter->setLevel(dB);
@@ -67,8 +66,7 @@ protected:
                          bool stereo,
                          bool hasRecord,
                          int width,
-                         int height,
-                         const char *name);
+                         int height);
     protected:
         virtual void meterStart() { }
         virtual void meterStop() { }

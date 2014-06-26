@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -14,6 +14,9 @@
 */
 
 #include "ViewSegment.h"
+#include "base/Profiler.h"
+
+#include <QtGlobal>
 
 namespace Rosegarden 
 {
@@ -102,7 +105,8 @@ ViewSegment::findEvent(Event *e)
 void
 ViewSegment::eventAdded(const Segment *t, Event *e)
 {
-    assert(t == &m_segment);
+    Profiler profiler("ViewSegment::eventAdded");
+    Q_ASSERT(t == &m_segment);
     (void)t; // avoid warnings
 
     if (wrapEvent(e)) {
@@ -115,7 +119,8 @@ ViewSegment::eventAdded(const Segment *t, Event *e)
 void
 ViewSegment::eventRemoved(const Segment *t, Event *e)
 {
-    assert(t == &m_segment);
+    Profiler profiler("ViewSegment::eventRemoved");
+    Q_ASSERT(t == &m_segment);
     (void)t; // avoid warnings
 
     // If we have it, lose it
@@ -136,7 +141,7 @@ ViewSegment::endMarkerTimeChanged(const Segment *segment, bool shorten)
 {
     Segment *s = const_cast<Segment *>(segment);
 
-    assert(s == &m_segment);
+    Q_ASSERT(s == &m_segment);
 
     if (shorten) {
 
@@ -167,7 +172,7 @@ ViewSegment::endMarkerTimeChanged(const Segment *segment, bool shorten)
 void
 ViewSegment::segmentDeleted(const Segment *s)
 {
-    assert(s == &m_segment);
+    Q_ASSERT(s == &m_segment);
     (void)s; // avoid warnings
     /*
     std::cerr << "WARNING: ViewSegment notified of segment deletion: this is probably a bug "
@@ -178,6 +183,7 @@ ViewSegment::segmentDeleted(const Segment *s)
 void
 ViewSegment::notifyAdd(ViewElement *e) const
 {
+    Profiler profiler("ViewSegment::notifyAdd");
     for (ObserverSet::const_iterator i = m_observers.begin();
 	 i != m_observers.end(); ++i) {
 	(*i)->elementAdded(this, e);
@@ -187,6 +193,7 @@ ViewSegment::notifyAdd(ViewElement *e) const
 void
 ViewSegment::notifyRemove(ViewElement *e) const
 {
+    Profiler profiler("ViewSegment::notifyRemove");
     for (ObserverSet::const_iterator i = m_observers.begin();
 	 i != m_observers.end(); ++i) {
 	(*i)->elementRemoved(this, e);

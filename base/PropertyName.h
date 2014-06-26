@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -14,8 +14,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _PROPERTY_NAME_H_
-#define _PROPERTY_NAME_H_
+#ifndef RG_PROPERTY_NAME_H
+#define RG_PROPERTY_NAME_H
 
 #include <string>
 #include <map>
@@ -43,13 +43,13 @@ namespace Rosegarden
     };
 
     struct PropertyNameHash {
-      static std::hash<const char *> _H;
+      static std::hash<const char *> hash;
       size_t operator() (const PropertyName &s) const {
-          return _H(s.c_str());
+          return hash(s.c_str());
       }
     };
 
-    std::hash<const char *> PropertyNameHash::_H;
+    std::hash<const char *> PropertyNameHash::hash;
 
   but our implementation is faster in practice: while it behaves
   outwardly like a string, for the Event that makes use of it,

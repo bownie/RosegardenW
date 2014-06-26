@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_SEGMENTSPLITCOMMAND_H_
-#define _RG_SEGMENTSPLITCOMMAND_H_
+#ifndef RG_SEGMENTSPLITCOMMAND_H
+#define RG_SEGMENTSPLITCOMMAND_H
 
 #include <string>
 #include "document/Command.h"
@@ -25,6 +25,7 @@
 
 #include <QCoreApplication>
 
+#include <vector>
 
 namespace Rosegarden
 {
@@ -37,6 +38,7 @@ class SegmentSplitCommand : public NamedCommand
     Q_DECLARE_TR_FUNCTIONS(Rosegarden::SegmentSplitCommand)
 
 public:
+    typedef std::vector<Segment *> SegmentVec;
 
     // If keepLabel is true, "(split)" is not append to the new segments label
     SegmentSplitCommand(Segment *segment,
@@ -44,11 +46,14 @@ public:
                         bool keepLabel = false);
     virtual ~SegmentSplitCommand();
 
-    bool isValid();
+    bool isValid() { return isValid(m_segment, m_splitTime); }
+    bool isValid(Segment * segment, timeT splitTime);
 
     virtual void execute();
     virtual void unexecute();
-    
+
+    static SegmentVec getNewSegments(Segment *segment, timeT splitTime,
+				     bool keepLabel);
     Segment *getSegmentA() { return m_newSegmentA; }
     Segment *getSegmentB() { return m_newSegmentB; }
 

@@ -39,7 +39,7 @@
 // 1: summary printout of tunings after they've been read (default)
 // 2: detail while parsing tunings file (quite verbose)
 // 3: more detail on XML parser state (rather verbose)
-#define TUNING_DEBUG 1
+#define TUNING_DEBUG 0
 
 using namespace Rosegarden::Accidentals;
 
@@ -68,7 +68,7 @@ std::vector<Tuning*> *Tuning::getTunings() {
     // TODO: It would be polite to check the mtime on the tunings file
     //       and to re-read it if it's been changed. For now, you need
     //       to restart Rosegarden.
-    if (m_tunings.size())
+    if (!m_tunings.empty())
         return &m_tunings;
     
     QString tuningsPath =
@@ -82,7 +82,7 @@ std::vector<Tuning*> *Tuning::getTunings() {
     IntervalList *intervals = new IntervalList;
     SpellingList *spellings = new SpellingList;
     
-    if (infile.open(IO_ReadOnly) ) {
+    if (infile.open(QIODevice::ReadOnly) ) {
         QXmlStreamReader stream(&infile);
         QString tuningName, intervalRatio;
         
@@ -247,11 +247,11 @@ void Tuning::parseSpelling(QString note,
     qDebug() << "Accidental: " << acc << "\tPitch Class: " << note;
 #   endif
     if (acc.toInt() != 0) {
-        const int acc_i = atoi(acc.latin1());
+        const int acc_i = atoi(acc.toStdString().c_str());
         note.append(accMap[acc_i]->c_str());
     }
     //insert into spelling list
-    spellings->insert(Spelling(note.ascii(), intervals->size()-1));
+    spellings->insert(Spelling(note.toStdString().c_str(), intervals->size()-1));
 #   if (TUNING_DEBUG > 1)
     qDebug() << "Translated variation:" << note << "\n";
 #   endif                               
@@ -263,12 +263,12 @@ double Tuning::scalaIntervalToCents(const QString & interval,
     double cents = -1.0;
     bool ok;
     QString intervalString(interval.trimmed());
-    int dotPos = intervalString.find(QChar('.'));                
+    int dotPos = intervalString.indexOf(QChar('.'));                
     if (dotPos == -1) { // interval is a ratio          
 #       if (TUNING_DEBUG > 1)
         qDebug() << "Interval is a ratio";
 #       endif
-        int slashPos = intervalString.find(QChar('/'));
+        int slashPos = intervalString.indexOf(QChar('/'));
         double ratio = 1.0;
         if (slashPos == -1) { // interval is integer ratio
 #           if (TUNING_DEBUG > 1)
@@ -344,7 +344,7 @@ void Tuning::saveTuning(const QString &tuningName,
 #   if (TUNING_DEBUG > 1)
     qDebug() << "End of tuning" << tuningName;
 #   endif
-    std::string name = tuningName.ascii();
+    std::string name = tuningName.toStdString().c_str();
     Tuning *newTuning = new Tuning(name, intervals, spellings);
     m_tunings.push_back(newTuning);
 #   if (TUNING_DEBUG)
@@ -372,7 +372,7 @@ Tuning::Tuning(const std::string name,
                     //check interval & spelling list sizes match
                     for (SpellingListIterator it = spellings->begin();
                          it != spellings->end();
-                         it++) {
+                         ++it) {
                         if (it->second > m_size) {
                             qDebug() << "Spelling list does not match "
                                         "number of intervals!";
@@ -462,7 +462,7 @@ std::string Tuning::getSpelling(Rosegarden::Pitch &pitch) const {
         spelling.append(acc.c_str());
     }
     
-    return spelling.ascii();
+    return spelling.toStdString().c_str();
 }
 
 
@@ -577,13 +577,13 @@ double Tuning::getFrequency(Rosegarden::Pitch p) const {
         octave--;
     }
     
-    int octaveDifference = octave - m_refOctave;
+    const int octaveDifference = octave - m_refOctave;
     
-    int octaveRatio = pow( 2, octaveDifference );
+    const double octaveRatio = pow( 2, octaveDifference );
     
     ratio *= octaveRatio;
     
-    double freq = m_cRefFreq * ratio;
+    const double freq = m_cRefFreq * ratio;
     
 #   if (TUNING_DEBUG)
     qDebug() << "Spelling " << spelling.c_str() 
@@ -610,7 +610,7 @@ double Tuning::getFrequency(Rosegarden::Pitch p) const {
 */
 void Tuning::printTuning() const {
     
-    std::cout << "Print Tuning\n";
+    std::cout << "Tuning::printTuning()\n";
     std::cout << "Name: '" << m_name << "'\n";
     
     Rosegarden::Key keyofc; // use key of C to obtain unbiased accidental
@@ -627,7 +627,7 @@ void Tuning::printTuning() const {
     
     for (SpellingListIterator sit = m_spellings->begin();
     sit != m_spellings->end();
-    sit++) {
+    ++sit) {
         
         std::cout << "Spelling '" << sit->first
                   << "'\tinterval " << sit->second

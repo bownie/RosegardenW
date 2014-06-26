@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[CompositionItemHelper]"
+
 #include <cmath>
 
 #include "CompositionItemHelper.h"
@@ -22,8 +24,7 @@
 #include "base/Segment.h"
 #include "base/SnapGrid.h"
 #include "misc/Debug.h"
-#include "CompositionModel.h"
-#include "CompositionItemImpl.h"
+#include "CompositionItem.h"
 #include <QColor>
 #include <QPoint>
 #include <QRect>
@@ -31,7 +32,7 @@
 namespace Rosegarden
 {
     
-timeT CompositionItemHelper::getStartTime(const CompositionItem& item, const Rosegarden::SnapGrid& grid)
+timeT CompositionItemHelper::getStartTime(CompositionItemPtr item, const Rosegarden::SnapGrid& grid)
 {
     timeT t = 0;
 
@@ -48,7 +49,7 @@ timeT CompositionItemHelper::getStartTime(const CompositionItem& item, const Ros
     return t;
 }
 
-timeT CompositionItemHelper::getEndTime(const CompositionItem& item, const Rosegarden::SnapGrid& grid)
+timeT CompositionItemHelper::getEndTime(CompositionItemPtr item, const Rosegarden::SnapGrid& grid)
 {
     timeT t = 0;
 
@@ -68,7 +69,7 @@ timeT CompositionItemHelper::getEndTime(const CompositionItem& item, const Roseg
     return t;
 }
 
-void CompositionItemHelper::setStartTime(CompositionItem& item, timeT time,
+void CompositionItemHelper::setStartTime(CompositionItemPtr item, timeT time,
                                          const Rosegarden::SnapGrid& grid)
 {
     if (item) {
@@ -81,7 +82,7 @@ void CompositionItemHelper::setStartTime(CompositionItem& item, timeT time,
         item->setX(x);
         if (item->isRepeating()) {
             int deltaX = curX - x;
-            CompositionRect& sr = dynamic_cast<CompositionItemImpl*>((_CompositionItem*)item)->getCompRect();
+            CompositionRect& sr = item->getCompRect();
             int curW = sr.getBaseWidth();
             sr.setBaseWidth(curW + deltaX);
         }
@@ -90,7 +91,7 @@ void CompositionItemHelper::setStartTime(CompositionItem& item, timeT time,
     
 }
 
-void CompositionItemHelper::setEndTime(CompositionItem& item, timeT time,
+void CompositionItemHelper::setEndTime(CompositionItemPtr item, timeT time,
                                        const Rosegarden::SnapGrid& grid)
 {
     if (item) {
@@ -102,35 +103,35 @@ void CompositionItemHelper::setEndTime(CompositionItem& item, timeT time,
         item->setWidth(r.width());
 
         if (item->isRepeating()) {
-            CompositionRect& sr = dynamic_cast<CompositionItemImpl*>((_CompositionItem*)item)->getCompRect();
+            CompositionRect& sr = item->getCompRect();
             sr.setBaseWidth(r.width());
         }
     }
 }
 
-int CompositionItemHelper::getTrackPos(const CompositionItem& item, const Rosegarden::SnapGrid& grid)
+int CompositionItemHelper::getTrackPos(CompositionItemPtr item, const Rosegarden::SnapGrid& grid)
 {
     return grid.getYBin(item->rect().y());
 }
 
-Rosegarden::Segment* CompositionItemHelper::getSegment(CompositionItem item)
+Rosegarden::Segment* CompositionItemHelper::getSegment(CompositionItemPtr item)
 {
-    return (dynamic_cast<CompositionItemImpl*>((_CompositionItem*)item))->getSegment();
+    return item->getSegment();
 }
 
-CompositionItem CompositionItemHelper::makeCompositionItem(Rosegarden::Segment* segment)
+CompositionItemPtr CompositionItemHelper::makeCompositionItem(Rosegarden::Segment* segment)
 {
-    return CompositionItem(new CompositionItemImpl(*segment, QRect()));
+    return CompositionItemPtr(new CompositionItem(*segment, QRect()));
 }
 
-CompositionItem CompositionItemHelper::findSiblingCompositionItem(const CompositionModel::itemcontainer& items,
-                                                                  const CompositionItem& referenceItem)
+CompositionItemPtr CompositionItemHelper::findSiblingCompositionItem(const CompositionModelImpl::ItemContainer& items,
+                                                                  CompositionItemPtr referenceItem)
 {
-    CompositionModel::itemcontainer::const_iterator it;
+    CompositionModelImpl::ItemContainer::const_iterator it;
     Rosegarden::Segment* currentSegment = CompositionItemHelper::getSegment(referenceItem);
 
     for (it = items.begin(); it != items.end(); ++it) {
-        CompositionItem item = *it;
+        CompositionItemPtr item = *it;
         Rosegarden::Segment* segment = CompositionItemHelper::getSegment(item);
         if (segment == currentSegment) {
             return item;

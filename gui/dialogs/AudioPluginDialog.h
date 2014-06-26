@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_AUDIOPLUGINDIALOG_H_
-#define _RG_AUDIOPLUGINDIALOG_H_
+#ifndef RG_AUDIOPLUGINDIALOG_H
+#define RG_AUDIOPLUGINDIALOG_H
 
 #include "base/Instrument.h"
 #include "base/MidiProgram.h"
@@ -34,7 +34,6 @@ class QLabel;
 class QGridLayout;
 //class QFrame;
 class QGroupBox;
-class QCloseEvent;
 class QCheckBox;
 class QShortcut;
 class QComboBox;
@@ -60,6 +59,7 @@ public:
                       AudioPluginOSCGUIManager *aGM,
                       PluginContainer *instrument,
                       int index);
+    virtual ~AudioPluginDialog();
 
     PluginContainer* getPluginContainer() const { return m_pluginContainer; }
 
@@ -103,10 +103,10 @@ signals:
     void windowActivated();
 
 protected slots:
-    virtual void slotClose();
+    // Unused
+    //virtual void slotClose();
 
 protected:
-    virtual void closeEvent(QCloseEvent *e);
     virtual void windowActivationChange(bool);
 
     void makePluginParamsBox(QWidget*);

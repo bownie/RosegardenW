@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     This file is Copyright 2005
         Toni Arnold         <toni__arnold@bluewin.ch>
@@ -18,6 +18,8 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[LircCommander]"
+
 #include "LircCommander.h"
 #include "LircClient.h"
 
@@ -31,7 +33,7 @@
 #include "document/CommandHistory.h"
 
 #include <QObject>
-
+#include <unistd.h>
 
 namespace Rosegarden
 {
@@ -65,7 +67,7 @@ LircCommander::LircCommander(LircClient *lirc, RosegardenMainWindow *rgGUIApp)
     connect(this, SIGNAL(trackUp()),
             m_rgGUIApp, SLOT(slotTrackUp()) );
     connect(this, SIGNAL(trackMute()),
-            m_rgGUIApp, SLOT(slotToggleMutedCurrentTrack()) );
+            m_rgGUIApp, SLOT(slotToggleMute()) );
     connect(this, SIGNAL(trackRecord()),
             m_rgGUIApp, SLOT(slotToggleRecordCurrentTrack()) );
     connect(this, SIGNAL(undo()),

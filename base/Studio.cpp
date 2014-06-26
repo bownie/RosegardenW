@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -320,6 +320,18 @@ void
 Studio::addBuss(Buss *buss)
 {
     m_busses.push_back(buss);
+}
+
+void
+Studio::removeBuss(BussId id)
+{
+    for (BussList::iterator i = m_busses.begin(); i != m_busses.end(); ++i) {
+        if ((*i)->getId() == id) {
+            delete *i;
+            m_busses.erase(i);
+            return;
+        }
+    }
 }
 
 PluginContainer *

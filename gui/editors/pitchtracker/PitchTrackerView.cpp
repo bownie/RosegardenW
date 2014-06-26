@@ -42,7 +42,10 @@
 #include <QAction>
 #include <QToolBar>
 #include <QToolButton>
+#include <QMenu>
+#include <QVector>
 
+#include <QDebug>
 
 namespace Rosegarden
 {
@@ -67,6 +70,11 @@ PitchTrackerView::PitchTrackerView(RosegardenDocument *doc,
                                  PitchDetector::defaultFrameSize).toInt();
     m_stepsize = settings.value("stepsize",
                                 PitchDetector::defaultStepSize).toInt();
+
+    int tuning = settings.value("tuning", 0).toInt();
+    int method = settings.value("method", 0).toInt();
+    settings.endGroup();
+
     // The frame size and step size are set from the default properties
     // of PitchDetector or by reading the settings file. In principle,
     // the latter method is open to attack by someone editing the settings
@@ -81,29 +89,32 @@ PitchTrackerView::PitchTrackerView(RosegardenDocument *doc,
                      ". This seems rather unlikely; will continue anyway. "
                      "(fingers crossed!)" << std::endl;
     }
-    
+
     // Find the current tuning index in use by the pitch tracker
-    int tuning = settings.value("tuning", 0).toInt();
     // The static method Tuning::getTunings() returns a pointer to a
     // std::vector of pointers to tunings. i.e.
     //     std::vector<Rosegarden::Accidentals::Tuning*>* getTunings(void);
     // The one we want is obtained be dereferencing the return value of
     // getTunings to obtain the std::vector, then indexing by the quantity
     // retreived above. So the following looks nasty, but that's C++ for you.
-    const std::vector<Accidentals::Tuning*>* availableTunings =
+    const std::vector<Accidentals::Tuning*> *availableTunings =
         Accidentals::Tuning::getTunings();
+
     if (availableTunings) {
+        m_availableTunings =
+          QVector<Accidentals::Tuning*>::fromStdVector(*availableTunings);
+
         if (tuning < 0 ||
             static_cast<unsigned int>(tuning) >= availableTunings->size()) {
             // Illegal index into available tunings (how??) -> use default.
             tuning = 0;
         }
-        m_tuning = (*availableTunings)[tuning];
+        m_tuning = m_availableTunings[tuning];
     } else {
         m_tuning = NULL;
         std::cout << "WARNING: No available tunings!" << std::endl;
     }
-    
+
     m_pitchGraphWidget = new PitchGraphWidget(m_history);
     m_pitchGraphWidget->setTuning(m_tuning);
     // m_notationWidget is owned by our parent, NotationView
@@ -113,7 +124,7 @@ PitchTrackerView::PitchTrackerView(RosegardenDocument *doc,
     m_jackCaptureClient =
         new JackCaptureClient("Rosegarden PitchTracker",
                               m_framesize + m_stepsize);
-                              
+
     if (m_jackCaptureClient->isConnected()) {
         m_jackConnected = true;
     } else {
@@ -123,17 +134,18 @@ PitchTrackerView::PitchTrackerView(RosegardenDocument *doc,
                               "tracker clients are open."));
         return;
     }
-    
-    //int sampleRate = m_jackCaptureClient->getSampleRate();
+
+    int sampleRate =0; // m_jackCaptureClient->getSampleRate();
 
     // pitch detector
-    int method = settings.value("method", 0).toInt();
     if (method < 0 or method > PitchDetector::getMethods()->size()) method = 0;
     PitchDetector::Method pdMethod = (*PitchDetector::getMethods())[method];
-    //m_pitchDetector = new PitchDetector(m_framesize, m_stepsize, sampleRate);
+    m_pitchDetector = new PitchDetector(m_framesize, m_stepsize, sampleRate);
     m_pitchDetector->setMethod(pdMethod);
-    
+
     setSegments(doc, segments);
+
+    setupActions(tuning, method);
 }
 
 PitchTrackerView::~PitchTrackerView()
@@ -142,18 +154,82 @@ PitchTrackerView::~PitchTrackerView()
     if (m_jackCaptureClient) delete m_jackCaptureClient;
 }
 
+void PitchTrackerView::setupActions(int initialTuning, int initialMethod)
+{
+    // Add pitch-tracker-specific view menus
+    QMenu *viewMenu = findMenu("View");
+
+    QMenu *tuningsMenu = new QMenu(tr("Tunings"), viewMenu);
+    m_tuningsActionGroup = new QActionGroup(this);
+
+    {
+        QVectorIterator<Accidentals::Tuning*> it(m_availableTunings);
+        while (it.hasNext()) {
+            QAction *tuning =
+              new QAction(QString::fromStdString(it.next()->getName()),
+                          m_tuningsActionGroup);
+            tuning->setCheckable(true);
+            tuningsMenu->addAction(tuning);
+        }
+        m_tuningsActionGroup->actions().at(initialTuning)->setChecked(true);
+    }
+
+    connect(m_tuningsActionGroup, SIGNAL(triggered(QAction *)),
+            this, SLOT(slotNewTuningFromAction(QAction *)));
+
+
+    QMenu *methodsMenu = new QMenu(tr("Pitch estimate method"), viewMenu);
+    m_methodsActionGroup = new QActionGroup(this);
+
+    {
+        QVectorIterator<PitchDetector::Method> it(*PitchDetector::getMethods());
+        while (it.hasNext()) {
+            QAction *method = new QAction(it.next(), m_methodsActionGroup);
+            method->setCheckable(true);
+            methodsMenu->addAction(method);
+        }
+        m_methodsActionGroup->actions().at(initialMethod)->setChecked(true);
+    }
+
+    connect(m_methodsActionGroup, SIGNAL(triggered(QAction *)),
+            this, SLOT(slotNewPitchEstimationMethod(QAction *)));
+
+    viewMenu->addSeparator();
+    viewMenu->addMenu(tuningsMenu);
+    viewMenu->addMenu(methodsMenu);
+}
+
+void
+PitchTrackerView::slotNewTuningFromAction(QAction *a)
+{
+    const int whichTuning = m_tuningsActionGroup->actions().indexOf(a);
+    m_tuning = m_availableTunings[whichTuning];
+    m_pitchGraphWidget->setTuning(m_tuning);
+    m_pitchGraphWidget->repaint();
+}
+
+void
+PitchTrackerView::slotNewPitchEstimationMethod(QAction *a)
+{
+    const int whichMethod = m_methodsActionGroup->actions().indexOf(a);
+    qDebug() << "Method " << whichMethod << " name: " << PitchDetector::getMethods()->at(whichMethod);
+    m_pitchDetector->setMethod(PitchDetector::getMethods()->at(whichMethod));
+    m_pitchGraphWidget->repaint();
+}
+
+
 void
 PitchTrackerView::setSegments(RosegardenDocument *document,
-                              std::vector<Segment *> segments)
+                              std::vector<Segment *> /* segments */)
 {
     // m_document is owned by our parent, NotationView
     if (m_document) {
-        disconnect(m_document, SIGNAL(pointerPositionChanged(timeT)),
-                   this, SLOT(slotPointerPositionChanged(timeT)));
+        //disconnect(m_document, SIGNAL(pointerPositionChanged(timeT)),
+        //           this, SLOT(slotPointerPositionChanged(timeT)));
     }
     m_document = document;
 
-    // update GUI 
+    // update GUI
 
     connect(m_document, SIGNAL(pointerPositionChanged(timeT)),
             this, SLOT(slotUpdateValues(timeT)));
@@ -165,7 +241,7 @@ PitchTrackerView::setSegments(RosegardenDocument *document,
 
     // Any other jumping around in the score will invalidate the pitch
     // graph, so let's just erase it and let it start again.
-     
+
     connect(this, SIGNAL( stepBackward() ),
             this, SLOT( slotPlaybackJump() ));
     connect(this, SIGNAL( stepForward() ),
@@ -192,7 +268,7 @@ PitchTrackerView::slotPlaybackJump()
     m_transport_posn_change = true;
     std::cout << "PitchTrackerView: User changed playback posn\n";
 }
-    
+
 void
 PitchTrackerView::slotStartTracker()
 {
@@ -206,7 +282,7 @@ PitchTrackerView::slotStartTracker()
         m_jackCaptureClient->startProcessing();
         m_running = true;
 
-        NotationStaff *currentStaff = 
+        NotationStaff *currentStaff =
             m_notationWidget->getScene()->getCurrentStaff();
         if (!currentStaff) return;
 
@@ -245,7 +321,7 @@ PitchTrackerView::addNoteBoundary(double freq, RealTime time)
 // of the captured performance, so we maintain a QVector of score time
 // (time) as well as the real performance time (realTime). Only the
 // latter is used in the genertion of the pitch error graph, but the
-// former will be useful in associating the performance part of the 
+// former will be useful in associating the performance part of the
 // PML with the score part.
 void
 PitchTrackerView::addPitchTime(double freq, timeT time, RealTime realTime)
@@ -260,8 +336,8 @@ PitchTrackerView::addPitchTime(double freq, timeT time, RealTime realTime)
     } else {
         double targetFreq = 0;
         if (m_history.m_targetFreqs.size() > 0) {
-	    targetFreq = m_history.m_targetFreqs.last();
-	}
+        targetFreq = m_history.m_targetFreqs.last();
+    }
         // TODO: isn't log(2) a constant defined in some header?
         // maybe move this out of this file?
         double cents = 1200.0 * log( freq / targetFreq ) / log (2);
@@ -291,7 +367,7 @@ PitchTrackerView::slotUpdateValues(timeT time)
     // in the our element list
     const ViewElementList::iterator score_event_itr =
         m_notes->findNearestTime(time);
-        
+
     // Gracefully handle repositioning of the play cursor by the user
     if (m_transport_posn_change) {
         std::cout << "User changed transport position\n";
@@ -316,7 +392,7 @@ PitchTrackerView::slotUpdateValues(timeT time)
     }
 
     const RealTime rt = m_doc->getComposition().getElapsedRealTime(time);
-    
+
     // See whether the current note has changed since we last looked
     if (score_event_itr != m_notes_itr) {
         // if so, record the current note and issue record the note boundary
@@ -330,20 +406,19 @@ PitchTrackerView::slotUpdateValues(timeT time)
                 m_tuning->getFrequency(Pitch(*e));
             addNoteBoundary(noteFreq, rt);
         }
-    }   
-    
+    }
+
     // Record the actual pitch data. Easy case first
     if (e->isa(Note::EventRestType)) {
         addPitchTime(PitchDetector::NONE, time, rt);
- 
+
     } else if (e->isa(Note::EventType)) {
         /*
-        if (m_jackCaptureClient->getFrame(m_pitchDetector->getInBuffer(),
+         * if (m_jackCaptureClient->getFrame(m_pitchDetector->getInBuffer(),
                                           m_pitchDetector->getBufferSize())) {
             const double freq = m_pitchDetector->getPitch();
             addPitchTime(freq, time, rt);
-        }
-        */
+        }*/
 
     } else {
         std::cout << "PitchTrackerView: ummm, what's a \""

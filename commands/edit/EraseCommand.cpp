@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[EraseCommand]"
 
 #include "EraseCommand.h"
 
@@ -39,17 +40,34 @@ EraseCommand::EraseCommand(EventSelection &selection) :
 void
 EraseCommand::modifySegment()
 {
-    RG_DEBUG << "EraseCommand::modifySegment" << endl;
+    bool needRelayOut = eraseInSegment(m_selection);
+    if (needRelayOut)
+        { m_relayoutEndTime = getSegment().getEndTime(); }
+}
 
+// Erase the events in segment that are in selection.
+// @return
+// whether any deletions that affect later in the segment were done,
+// meaning key or clef deletions.
+bool
+EraseCommand::eraseInSegment(EventSelection *selection)
+{
+    RG_DEBUG << "EraseCommand::eraseInSegment" << endl;
+    timeT startTime  = selection->getStartTime();
+    timeT endTime    = selection->getEndTime();
+    Segment &segment = selection->getSegment();
+    
+    bool erasedLongEffectEvent = false;
+        
     std::vector<Event *> toErase;
     EventSelection::eventcontainer::iterator i;
 
-    for (i = m_selection->getSegmentEvents().begin();
-            i != m_selection->getSegmentEvents().end(); ++i) {
+    for (i = selection->getSegmentEvents().begin();
+            i != selection->getSegmentEvents().end(); ++i) {
 
         if ((*i)->isa(Clef::EventType) ||
                 (*i)->isa(Key ::EventType)) {
-            m_relayoutEndTime = getSegment().getEndTime();
+            erasedLongEffectEvent = true;
         }
 
         // We used to do this by calling SegmentNotationHelper::deleteEvent
@@ -64,10 +82,11 @@ EraseCommand::modifySegment()
     }
 
     for (size_t j = 0; j < toErase.size(); ++j) {
-        getSegment().eraseSingle(toErase[j]);
+        segment.eraseSingle(toErase[j]);
     }
 
-    getSegment().normalizeRests(getStartTime(), getEndTime());
+    segment.normalizeRests(startTime, endTime);
+    return erasedLongEffectEvent;
 }
 
 timeT

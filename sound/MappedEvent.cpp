@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -12,19 +12,17 @@
     COPYING included with this distribution for more information.
 */
 
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
-
-#include <QDir>
-
 #include "MappedEvent.h"
 #include "base/BaseProperties.h"
 #include "Midi.h"
 #include "base/MidiTypes.h"
 #include "base/NotationTypes.h" // for Note::EventType
 
-#include <cassert>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QtGlobal>
+
 #include <cstdlib>
 
 // #define DEBUG_MAPPEDEVENT 1
@@ -96,6 +94,27 @@ MappedEvent::MappedEvent(InstrumentId id,
             SystemExclusive s(e);
             std::string dataBlock = s.getRawData();
             DataBlockRepository::getInstance()->registerDataBlockForEvent(dataBlock, this);
+        } else if (e.isa(Text::EventType)) {
+            const Rosegarden::Text text(e);
+
+            // Somewhat hacky: We know that annotations and LilyPond directives
+            // aren't to be output, so we make their MappedEvents invalid.
+            // InternalSegmentMapper will then discard those.
+            if (text.getTextType() == Text::Annotation || text.getTextType() == Text::LilyPondDirective) {
+                setType(InvalidMappedEvent);
+            } else {
+                setType(MappedEvent::Text);
+
+                MidiByte midiTextType =
+                    (text.getTextType() == Text::Lyric) ?
+                    MIDI_LYRIC :
+                    MIDI_TEXT_EVENT;
+                setData1(midiTextType);
+                                
+                std::string metaMessage = text.getText();
+                addDataString(metaMessage);
+            }            
+            
         } else {
             m_type = InvalidMappedEvent;
         }
@@ -288,7 +307,7 @@ void DataBlockFile::prepareToWrite()
     if (!m_file.isWritable()) {
         m_file.close();
         m_file.open(QIODevice::WriteOnly | QIODevice::Append);
-        assert(m_file.isWritable());
+        Q_ASSERT(m_file.isWritable());
     }
 }
 
@@ -298,7 +317,7 @@ void DataBlockFile::prepareToRead()
     if (!m_file.isReadable()) {
         m_file.close();
         m_file.open(QIODevice::ReadOnly);
-        assert(m_file.isReadable());
+        Q_ASSERT(m_file.isReadable());
     }
 }
 
@@ -367,8 +386,8 @@ bool DataBlockRepository::hasDataBlock(DataBlockRepository::blockid id)
 DataBlockRepository::blockid DataBlockRepository::registerDataBlock(const std::string& s)
 {
     blockid id = 0;
-//    while (id == 0 || DataBlockFile(id).exists())
-//        id = (blockid)random();
+    while (id == 0 || DataBlockFile(id).exists())
+        id = (blockid)rand();
 
  //   std::cerr << "DataBlockRepository::registerDataBlock: " << s.length() << " chars, id is " << id << std::endl;
 
@@ -410,6 +429,13 @@ void DataBlockRepository::clear()
     QString tmpPath = QDir::tempPath();
 
     QDir segmentsDir(tmpPath, "rosegarden_datablock_*");
+
+    if (segmentsDir.count() > 2000) {
+        std::cerr << "DataBlockRepository::clear(): A rather large number of rosegarden_datablock_*\n" <<
+                     "  files (" << segmentsDir.count() << " of them) have been found in " << tmpPath.toStdString() << ".\n" <<
+                     "  It may take a while to delete them all.  Working...\n";
+    }
+
     for (unsigned int i = 0; i < segmentsDir.count(); ++i) {
         QString segmentName = tmpPath + '/' + segmentsDir[i];
         QFile::remove

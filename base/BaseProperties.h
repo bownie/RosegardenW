@@ -1,7 +1,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -11,8 +11,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _BASE_PROPERTIES_H_
-#define _BASE_PROPERTIES_H_
+#ifndef RG_BASE_PROPERTIES_H
+#define RG_BASE_PROPERTIES_H
 
 #include "base/PropertyName.h"
 
@@ -51,6 +51,8 @@ extern const std::string GROUP_TYPE_BEAMED;
 extern const std::string GROUP_TYPE_TUPLED;
 extern const std::string GROUP_TYPE_GRACE; // obsolete
 
+extern const PropertyName TRIGGER_EXPAND;
+extern const PropertyName TRIGGER_EXPANSION_DEPTH;
 extern const PropertyName TRIGGER_SEGMENT_ID;
 extern const PropertyName TRIGGER_SEGMENT_RETUNE;
 extern const PropertyName TRIGGER_SEGMENT_ADJUST_TIMES;

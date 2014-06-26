@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -22,8 +22,8 @@
 #include "RIFFAudioFile.h"
 
 
-#ifndef _BWFAUDIOFILE_H_
-#define _BWFAUDIOFILE_H_
+#ifndef RG_BWFAUDIOFILE_H
+#define RG_BWFAUDIOFILE_H
 
 namespace Rosegarden
 {
@@ -70,13 +70,13 @@ public:
 
     //!!! NOT IMPLEMENTED YET
     // 
-    virtual bool decode(const unsigned char *sourceData,
-                        size_t sourceBytes,
-                        size_t targetSampleRate,
-                        size_t targetChannels,
-                        size_t targetFrames,
-                        std::vector<float *> &targetData,
-                        bool addToResultBuffers = false) { return false; }
+    virtual bool decode(const unsigned char */* sourceData */,
+                        size_t /* sourceBytes */,
+                        size_t /* targetSampleRate */,
+                        size_t /* targetChannels */,
+                        size_t /* targetFrames */,
+                        std::vector<float *> &/* targetData */,
+                        bool /* addToResultBuffers = false */) { return false; }
 
 protected:
 
@@ -85,4 +85,4 @@ protected:
 }
 
 
-#endif // _BWFUDIOFILE_H_
+#endif // RG_BWFAUDIOFILE_H

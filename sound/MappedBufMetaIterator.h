@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _MAPPED_SEGMENT_H_
-#define _MAPPED_SEGMENT_H_
+#ifndef RG_MAPPEDBUFMETAITERATOR_H
+#define RG_MAPPEDBUFMETAITERATOR_H
 
 #include "gui/seqmanager/MappedEventBuffer.h"
 #include "sound/MappedEvent.h"
@@ -27,6 +27,23 @@ namespace Rosegarden {
 
 class MappedInserterBase;
 
+/// Combines MappedEvent objects from a number of MappedEventBuffer objects.
+/**
+ * MappedBufMetaIterator.  What's in a name?  "MappedBuf" refers to
+ * the MappedEventBuffer-derived classes that this class takes as input
+ * (see addSegment()).  The most important MappedEventBuffer-derived class is
+ * InternalSegmentMapper.  "MetaIterator" describes the main function of this
+ * class.  It is an iterator that coordinates other iterators.  Specifically,
+ * MappedEventBuffer::iterator objects.  fillCompositionWithEventsUntil()
+ * gets events from all the various MappedEventBuffer-derived objects
+ * that are connected and (typically) combines them together into a single
+ * MappedEventList via a MappedEventInserter.  A better name for this class
+ * might be MappedEventBufferMixer (or Combiner).
+ *
+ * This is the second part of a two-part process to convert the Event objects
+ * in a Composition into MappedEvent objects that can be sent to ALSA.  For
+ * the first part of this conversion, see InternalSegmentMapper.
+ */
 class MappedBufMetaIterator
 {
 public:
@@ -44,16 +61,19 @@ public:
 
     bool jumpToTime(const RealTime&);
 
+    /// Fetch events from start to end into a mapped event list (via inserter).
     /**
-     * Fill mapped composition with events from current point until
-     * specified time @return true if there are non-metronome events
-     * remaining, false if end of composition was reached
+     * Fetch events that play during the interval from start to end.
+     * They are passed to inserter, which normally inserts them into a
+     * mapped event list.
+     * @return void.  It used to return whether there were
+     * non-metronome events remaining, but this was never used.
+     *
      */
-    bool fillCompositionWithEventsUntil(bool firstFetch,
-                                        MappedInserterBase &inserter,
-                                        const RealTime& start,
-                                        const RealTime& end);
-    
+    void fetchEvents(MappedInserterBase &inserter,
+                     const RealTime& start,
+                     const RealTime& end);
+
     /// re-seek to current time on the iterator for this segment
     void resetIteratorForSegment(MappedEventBuffer *s, bool immediate);
 
@@ -71,14 +91,16 @@ public:
     (const RealTime &songPosition);
 
 protected:
-    // Fill with events.  Caller guarantees that the mappers are
-    // non-competing, meaning that no active mappers use the same
-    // channel during this slice (except for fixed instruments).
-    bool fillNoncompeting(MappedInserterBase &inserter,
-                          const RealTime& start,
-                          const RealTime& end);
-
-    bool acceptEvent(MappedEvent*, bool evtIsFromMetronome);
+    // Fetch events during an interval, with non-competing mappers.
+    /**
+     * Caller guarantees that the mappers are non-competing, meaning
+     * that no active mappers use the same channel during this slice
+     * (except for fixed instruments, for which that guarantee is
+     * impossible).
+    */
+    void fetchEventsNoncompeting(MappedInserterBase &inserter,
+                                 const RealTime& start,
+                                 const RealTime& end);
 
     bool moveIteratorToTime(MappedEventBuffer::iterator&,
                             const RealTime&);
@@ -98,4 +120,4 @@ protected:
 
 }
 
-#endif // _MMAPPED_SEGMENT_H_
+#endif // RG_MAPPEDBUFMETAITERATOR_H

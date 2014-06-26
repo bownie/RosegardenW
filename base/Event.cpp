@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -360,6 +360,15 @@ Event::dumpStats(ostream&)
 
 #endif
 
+bool
+Event::maskedInTrigger(void) const
+{
+    using namespace BaseProperties;
+    
+    if (!has(TRIGGER_EXPAND)) { return false; }
+    return !get<Bool>(TRIGGER_EXPAND);
+}
+
 Event::PropertyNames
 Event::getPropertyNames() const
 {
@@ -409,6 +418,17 @@ void
 Event::clearNonPersistentProperties()
 {
     if (m_nonPersistentProperties) m_nonPersistentProperties->clear();
+}
+
+void
+Event::unsafeChangeTime(timeT offset)
+{
+    // Get the values first, because notation time will sometimes use
+    // m_absoluteTime, sometimes not.
+    const timeT oldTime = getAbsoluteTime();
+    const timeT oldNotationTime = getNotationAbsoluteTime();
+    setAbsoluteTime(oldTime + offset);
+    setNotationAbsoluteTime(oldNotationTime + offset);
 }
 
 size_t

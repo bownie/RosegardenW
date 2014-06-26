@@ -60,7 +60,7 @@ class CompositionModel : public QObject, public CompositionObserver, public Segm
 public:
 
     struct CompositionItemCompare {
-        bool operator()(const CompositionItem &c1, const CompositionItem &c2) const;
+        bool operator()(const CompositionItemPtr c1, const CompositionItemPtr c2) const;
     };
 
     typedef std::vector<QRect> rectlist;

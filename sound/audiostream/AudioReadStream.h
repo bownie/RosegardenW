@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     This file is Copyright 2005-2011 Chris Cannam.
 
@@ -15,8 +15,8 @@
 */
 
 
-#ifndef _ROSEGARDEN_AUDIO_READ_STREAM_H_
-#define _ROSEGARDEN_AUDIO_READ_STREAM_H_
+#ifndef RG_AUDIO_READ_STREAM_H
+#define RG_AUDIO_READ_STREAM_H
 
 #include "base/ThingFactory.h"
 #include "sound/RingBuffer.h"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[ControlEditorDialog]"
 
 #include "ControlEditorDialog.h"
 
@@ -72,7 +73,7 @@ ControlEditorDialog::ControlEditorDialog
             RosegardenDocument *doc,
             DeviceId device
        ):
-        QMainWindow(parent, "controleditordialog"),
+        QMainWindow(parent),
         m_studio(&doc->getStudio()),
         m_doc(doc),
         m_device(device),
@@ -128,7 +129,11 @@ ControlEditorDialog::ControlEditorDialog
     btnBox->setSizePolicy(
         QSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed));
 
-    QHBoxLayout* layout = new QHBoxLayout(btnBox, 4, 10);
+    // QT3: I don't think it's necessary to replace the following ",4, 10" with
+    // anything to explicitly set the dimensions of the HBox, but there might be
+    // some compatibility trickery I'm not remembering, etc.  Leaving as a
+    // reminder in case the layout turns out broken:
+    QHBoxLayout* layout = new QHBoxLayout(btnBox /*, 4, 10 */);
 
     m_addButton = new QPushButton(tr("Add"), btnBox);
     m_deleteButton = new QPushButton(tr("Delete"), btnBox);

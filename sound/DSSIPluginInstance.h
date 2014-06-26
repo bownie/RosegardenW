@@ -79,7 +79,7 @@ protected:
     friend class DSSIPluginFactory;
 
     // Constructor that creates the buffers internally
-    // 
+    //
     DSSIPluginInstance(PluginFactory *factory,
                        InstrumentId instrument,
                        QString identifier,
@@ -88,9 +88,9 @@ protected:
                        size_t blockSize,
                        int idealChannelCount/*,
                        const DSSI_Descriptor* descriptor*/);
-    
+
     // Constructor that uses shared buffers
-    // 
+    //
     DSSIPluginInstance(PluginFactory *factory,
                        InstrumentId instrument,
                        QString identifier,
@@ -160,7 +160,7 @@ protected:
 
     bool                      m_run;
     bool                      m_runSinceReset;
-    
+
     bool                      m_bypassed;
     QString                   m_program;
     bool                      m_grouped;

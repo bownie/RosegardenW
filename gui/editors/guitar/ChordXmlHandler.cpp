@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -35,8 +35,8 @@ bool ChordXmlHandler::startDocument()
     return true;
 }
 
-bool ChordXmlHandler::startElement(const QString& namespaceURI,
-                                   const QString& localName,
+bool ChordXmlHandler::startElement(const QString& /* namespaceURI */,
+                                   const QString& /* localName */,
                                    const QString& qName,
                                    const QXmlAttributes& atts)
 {
@@ -68,8 +68,8 @@ bool ChordXmlHandler::startElement(const QString& namespaceURI,
     return true;
 }
 
-bool ChordXmlHandler::endElement(const QString& namespaceURI,
-                                 const QString& localName,
+bool ChordXmlHandler::endElement(const QString& /* namespaceURI */,
+                                 const QString& /* localName */,
                                  const QString& qName)
 {
     QString lcName = qName.toLower();

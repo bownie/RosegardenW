@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,12 +35,11 @@ AudioVUMeter::AudioVUMeter(QWidget *parent,
                            bool stereo,
                            bool hasRecord,
                            int width,
-                           int height,
-                           const char *name) :
-        QWidget(parent, name),
+                           int height) :
+        QWidget(parent),
         m_stereo(stereo)
 {
-    setBackgroundMode(Qt::NoBackground);
+    //setBackgroundMode(Qt::NoBackground);
     setFixedSize(width, height);
 
     // This offset is intended to match that for the height of the
@@ -60,13 +59,13 @@ AudioVUMeter::AudioVUMeter(QWidget *parent,
         ++m_xoff;
 
     m_meter = new AudioVUMeterImpl(this, type, stereo, hasRecord,
-                                   width - m_xoff, height - m_yoff, name);
+                                   width - m_xoff, height - m_yoff);
 
     m_meter->move(m_xoff / 2, m_yoff / 2);
 }
 
 void
-AudioVUMeter::paintEvent(QPaintEvent *e)
+AudioVUMeter::paintEvent(QPaintEvent */* e */)
 {
     //###
     // See note in VUMeter.cpp explaining the width/height - 1 issue
@@ -79,7 +78,7 @@ AudioVUMeter::paintEvent(QPaintEvent *e)
 
     // first, we'll fill the whole background rect with a 40% alpha version of
     // the border color
-    QColor fill = palette().mid();
+    QColor fill = palette().mid().color();
     int H = 0;
     int S = 0;
     int V = 0;
@@ -90,15 +89,15 @@ AudioVUMeter::paintEvent(QPaintEvent *e)
     paint.fillRect(0, 0, w, h, fill);
     
     // now we draw the border outline around it
-    paint.setPen(palette().mid());
+    paint.setPen(palette().mid().color());
     paint.drawRect(0, 0, w, h);
 
-/*    paint.setPen(palette().background());
+    paint.setPen(palette().background().color());
     paint.setBrush(palette().background());
     paint.drawRect(1, 1, w - 2, m_yoff / 2 - 1);
     paint.drawRect(1, 1, m_xoff / 2 - 1, h - 2);
     paint.drawRect(w - m_xoff / 2 - 1, 1, m_xoff / 2, h - 2);
-    paint.drawRect(1, h - m_yoff / 2 - 1, w - 2, m_yoff / 2);*/
+    paint.drawRect(1, h - m_yoff / 2 - 1, w - 2, m_yoff / 2);
     paint.end();
 
 //  m_meter->paintEvent(e);
@@ -109,8 +108,7 @@ AudioVUMeter::AudioVUMeterImpl::AudioVUMeterImpl(QWidget *parent,
         bool stereo,
         bool hasRecord,
         int width,
-        int height,
-        const char *name) :
+        int height) :
         VUMeter(parent, type, stereo, hasRecord, width, height, VUMeter::Vertical)
 {}
 

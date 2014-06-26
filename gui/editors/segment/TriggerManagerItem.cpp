@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,7 +20,7 @@
 namespace Rosegarden {
 
 int
-TriggerManagerItem::compare(QTreeWidgetItem * i, int col, bool ascending) const
+TriggerManagerItem::compare(QTreeWidgetItem * /* i */, int /* col */, bool /* ascending */) const
 {
 	return 1;
 	//&&& FIX: disabled TriggerManagerItem::compare function

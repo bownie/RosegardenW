@@ -21,7 +21,7 @@
 
 #include <math.h>
 #include <complex>
-//#include <fftw3.h>
+#include <fftw3.h>
 #include <fstream>
 
 #include <QString>
@@ -45,12 +45,12 @@ namespace Rosegarden
 
 
 /**
-* \addtogroup Codicil
-* \@{
-* \brief Stores audio data from jack into a ring buffer
+ * \addtogroup Codicil
+ * \@{
+ * \brief Stores audio data from jack into a ring buffer
  *
- * This is part of the Glasgow Center for Music Technology's
- * "Rosegarden Codicil" project.
+ * This is part of the network for Interdisciplinary research in
+ * Science and Music's "Rosegarden Codicil" project.
  * http://www.n-ism.org/Projects/microtonalism.php
  *
  * The most recent audio samples are read into a buffer. Unlike most audio
@@ -110,7 +110,7 @@ public:
     void setStepSize( int stepSize );     /**< Set no, samples between anals */
     int getBufferSize() const;            /**< Get size of audio buffer */
 
-    void setMethod( Method Method );
+    void setMethod( Method method );
     Method getCurrentMethod() {
         return m_method;
     }
@@ -138,8 +138,8 @@ private:
     int m_sampleRate;
 
     Method m_method;
-    //fftwf_complex *m_ft1, *m_ft2, *m_cepstralOut;
-    //fftwf_plan m_p1, m_p2, m_pc;
+    fftwf_complex *m_ft1, *m_ft2, *m_cepstralOut;
+    fftwf_plan m_p1, m_p2, m_pc;
 
 };
 

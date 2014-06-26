@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -21,14 +21,19 @@
 #include "base/Segment.h"
 #include "base/Composition.h"
 #include "base/Track.h"
-#include <QString>
 
+#include <QString>
 
 namespace Rosegarden
 {
 
-SegmentReconfigureCommand::SegmentReconfigureCommand(QString name) :
-        NamedCommand(name)
+
+SegmentReconfigureCommand::SegmentReconfigureCommand(
+        QString name,
+        Composition *composition) :
+    NamedCommand(name),
+    m_composition(composition),
+    m_oldEndTime(m_composition->getEndMarker())
 {
     setUpdateLinks(false);
 }
@@ -38,47 +43,64 @@ SegmentReconfigureCommand::~SegmentReconfigureCommand()
 
 void
 SegmentReconfigureCommand::addSegment(Segment *segment,
-                                      timeT startTime,
-                                      timeT endMarkerTime,
-                                      TrackId track)
+                                      timeT newStartTime,
+                                      timeT newEndMarkerTime,
+                                      TrackId newTrack)
 {
-    SegmentRec record;
-    record.segment = segment;
-    record.startTime = startTime;
-    record.endMarkerTime = endMarkerTime;
-    record.track = track;
-    m_records.push_back(record);
+    Change change;
+    change.segment = segment;
+    change.newStartTime = newStartTime;
+    change.newEndMarkerTime = newEndMarkerTime;
+    change.newTrack = newTrack;
+    m_changeSet.push_back(change);
 }
 
+#if 0
+// unused
 void
-SegmentReconfigureCommand::addSegments(const SegmentRecSet &records)
+SegmentReconfigureCommand::addSegments(const ChangeSet &changes)
 {
-    for (SegmentRecSet::const_iterator i = records.begin(); i != records.end(); ++i) {
-        m_records.push_back(*i);
+    for (ChangeSet::const_iterator i = changes.begin(); i != changes.end(); ++i) {
+        m_changeSet.push_back(*i);
     }
 }
+#endif
 
 void
 SegmentReconfigureCommand::execute()
 {
-    swap();
+    timeT latestEndTime = swap();
+
+    if (m_composition->autoExpandEnabled()) {
+        // If the composition needs expanding, do so...
+        if (latestEndTime > m_composition->getEndMarker())
+            m_composition->setEndMarker(
+                    m_composition->getBarEndForTime(latestEndTime));
+    }
 }
 
 void
 SegmentReconfigureCommand::unexecute()
 {
     swap();
+
+    // Restore the original composition end in case it was changed
+    m_composition->setEndMarker(m_oldEndTime);
 }
 
-void
+timeT
 SegmentReconfigureCommand::swap()
 {
-    
-    for (SegmentRecSet::iterator i = m_records.begin();
-            i != m_records.end(); ++i) {
+    if (!m_composition)
+        return 0;
 
-        // set the segment's values from the record, but set the
-        // previous values back in to the record for use in the
+    timeT latestEndTime = 0;
+    
+    for (ChangeSet::iterator i = m_changeSet.begin();
+            i != m_changeSet.end(); ++i) {
+
+        // set the segment's new values from the change set, but save the
+        // previous values in the change set for use in the
         // next iteration of the execute/unexecute cycle.
 
         // #1083496: look up both of the "old" values before we set
@@ -86,50 +108,61 @@ SegmentReconfigureCommand::swap()
         // end marker time.
 
         timeT prevStartTime = i->segment->getStartTime();
-        timeT prevEndMarkerTime = i->segment->getEndMarkerTime(FALSE);
+        timeT prevEndMarkerTime = i->segment->getEndMarkerTime(false);
 
-        if (i->segment->getStartTime() != i->startTime) {
-            i->segment->setStartTime(i->startTime);
+        if (i->segment->getStartTime() != i->newStartTime) {
+            i->segment->setStartTime(i->newStartTime);
         }
 
-        if (i->segment->getEndMarkerTime() != i->endMarkerTime) {
-            i->segment->setEndMarkerTime(i->endMarkerTime);
+        if (i->segment->getEndMarkerTime() != i->newEndMarkerTime) {
+            i->segment->setEndMarkerTime(i->newEndMarkerTime);
         }
 
-        i->startTime = prevStartTime;
-        i->endMarkerTime = prevEndMarkerTime;
+        // Keep track of the latest end time.
+        if (i->newEndMarkerTime > latestEndTime) {
+            latestEndTime = i->newEndMarkerTime;
+        }
+
+        i->newStartTime = prevStartTime;
+        i->newEndMarkerTime = prevEndMarkerTime;
 
         TrackId currentTrack = i->segment->getTrack();
 
-        if (currentTrack != i->track) {
-            i->segment->setTrack(i->track);
-            i->track = currentTrack;
+        if (currentTrack != i->newTrack) {
+            i->segment->setTrack(i->newTrack);
+            i->newTrack = currentTrack;
         }
 
         // If segment left from the current segment is repeating then we need to reconfigure
         // it
         Segment* curr_segment = i->segment;
-        Composition* composition = curr_segment->getComposition();
-        Composition::iterator segment_iterator = composition->findSegment(curr_segment);
+        Composition::iterator segment_iterator = m_composition->findSegment(curr_segment);
 
         // Check that we don't have most upper left segment in the composition
         // AND
         // composition has more than one segment
-        if ( segment_iterator != composition->begin() &&
-             segment_iterator != composition->end() &&
-             composition->getNbSegments() > 1 ) {
+        // ??? Check for more than 1 segment is not needed.  If there is only
+        //     one segment, we'll be on begin() and the first condition will
+        //     be false.
+        if ( segment_iterator != m_composition->begin() &&
+             segment_iterator != m_composition->end() &&
+             m_composition->getNbSegments() > 1 ) {
             // move to previous segment
             --segment_iterator;
             Segment* prevSegment = *segment_iterator;
 
             // Segments need to be on the same track
             if (curr_segment->getTrack() == prevSegment->getTrack()) {
-                if (prevSegment->isRepeating() == true)                    
+                if (prevSegment->isRepeating() == true)
+                    // Trigger update notifications by setting to true again.
                     prevSegment->setRepeating(true);
             }
         }
 
-    }   
+    }
+
+    return latestEndTime;
 }
+
 
 }

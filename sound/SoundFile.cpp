@@ -2,7 +2,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2011 the Rosegarden development team.
+  Copyright 2000-2014 the Rosegarden development team.
  
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -233,7 +233,7 @@ SoundFile::getShortFilename() const
     QString rS = m_fileName;
     size_t pos = rS.lastIndexOf("/");
 
-    if (pos > 0 && ( pos + 1 ) < rS.length())
+    if (pos > 0 && ( pos + 1 ) < (size_t)rS.length())
         rS = rS.mid(pos + 1, rS.length());
 
     return rS;
@@ -270,13 +270,13 @@ SoundFile::getLittleEndianFromInteger(unsigned int value, unsigned int length)
 }
 
 int
-SoundFile::getIntegerFromBigEndian(const std::string &s)
+SoundFile::getIntegerFromBigEndian(const std::string &/*s*/)
 {
     return 0;
 }
 
 std::string
-SoundFile::getBigEndianFromInteger(unsigned int value, unsigned int length)
+SoundFile::getBigEndianFromInteger(unsigned int /*value*/, unsigned int /*length*/)
 {
     std::string r;
 

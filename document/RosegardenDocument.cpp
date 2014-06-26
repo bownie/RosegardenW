@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,7 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
-
+#define RG_MODULE_STRING "[RosegardenDocument]"
 #include "RosegardenDocument.h"
 
 #include "CommandHistory.h"
@@ -209,9 +209,9 @@ void RosegardenDocument::setAbsFilePath(const QString &filename)
     m_absFilePath = filename;
 }
 
-void RosegardenDocument::setTitle(const QString &_t)
+void RosegardenDocument::setTitle(const QString &title)
 {
-    m_title = _t;
+    m_title = title;
 }
 
 const QString &RosegardenDocument::getAbsFilePath() const
@@ -594,7 +594,7 @@ bool RosegardenDocument::openDocument(const QString& filename,
         return false;
     }
 
-    //cc 20120508: avoid dereferencing self-deleted progress dialog
+    //cc 20140508: avoid dereferencing self-deleted progress dialog
     //after user has closed it, by using a QPointer
     QPointer<ProgressDialog> progressDlg = 0;
    
@@ -804,7 +804,8 @@ RosegardenDocument::mergeDocument(RosegardenDocument *doc,
         command->addCommand(new ChangeCompositionLengthCommand
                             (&getComposition(),
                              getComposition().getStartMarker(),
-                             lastSegmentEndTime));
+                             lastSegmentEndTime,
+                             getComposition().autoExpandEnabled()));
     }
 
     CommandHistory::getInstance()->addCommand(command);
@@ -1152,11 +1153,19 @@ RosegardenDocument::getSequenceManager()
 
 // FILE FORMAT VERSION NUMBERS
 //
-// These should be updated when the file format changes.
+// These should be updated when the file format changes.  The
+// intent is to warn the user that they are loading a file that
+// was saved with a newer version of Rosegarden, and data might
+// be lost as a result.  See RoseXmlHandler::startElement().
 //
 // Increment the major version number only for updates so
 // substantial that we shouldn't bother even trying to read a file
-// saved with a newer major version number than our own.
+// saved with a newer major version number than our own.  Older
+// versions of Rosegarden *will not* try to load files with
+// newer major version numbers.  Basically, this should be done
+// only as a last resort to lock out all older versions of
+// Rosegarden from reading in and completely mangling the contents
+// of a file.
 //
 // Increment the minor version number for updates that may break
 // compatibility such that we should warn when reading a file
@@ -1171,7 +1180,7 @@ RosegardenDocument::getSequenceManager()
 //
 int RosegardenDocument::FILE_FORMAT_VERSION_MAJOR = 1;
 int RosegardenDocument::FILE_FORMAT_VERSION_MINOR = 6;
-int RosegardenDocument::FILE_FORMAT_VERSION_POINT = 1;
+int RosegardenDocument::FILE_FORMAT_VERSION_POINT = 2;
 
 bool RosegardenDocument::saveDocument(const QString& filename,
                                     QString& errMsg,
@@ -1238,12 +1247,11 @@ bool RosegardenDocument::saveDocumentActual(const QString& filename,
 //    outStream.setEncoding(QTextStream::UnicodeUTF8); qt3
     outStream.setCodec("UTF-8");
 
-    QString version = QString("%1").arg(VERSION);
     // output XML header
     //
     outStream << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
     << "<!DOCTYPE rosegarden-data>\n"
-    << "<rosegarden-data version=\"" << version
+    << "<rosegarden-data version=\"" << VERSION
     << "\" format-version-major=\"" << FILE_FORMAT_VERSION_MAJOR
     << "\" format-version-minor=\"" << FILE_FORMAT_VERSION_MINOR
     << "\" format-version-point=\"" << FILE_FORMAT_VERSION_POINT
@@ -1683,7 +1691,7 @@ RosegardenDocument::xmlParse(QString fileContents, QString &errMsg,
     RoseXmlHandler handler(this, elementCount, permanent);
 
     if (progress) {
-        std::cout << "I am here!" << std::endl;
+        RG_DEBUG << "RosegardenDocument::xmlParse(), have progress dialog.";
 
         connect(&handler, SIGNAL(setValue(int)),
                 progress, SLOT(setValue(int)));
@@ -1845,6 +1853,8 @@ RosegardenDocument::xmlParse(QString fileContents, QString &errMsg,
 void
 RosegardenDocument::insertRecordedMidi(const MappedEventList &mC)
 {
+    Profiler profiler("RosegardenDocument::insertRecordedMidi()");
+
     //RG_DEBUG << "RosegardenDocument::insertRecordedMidi: " << mC.size() << " events";
 
     // Just create a new record Segment if we don't have one already.
@@ -1854,13 +1864,14 @@ RosegardenDocument::insertRecordedMidi(const MappedEventList &mC)
 
     //Track *midiRecordTrack = 0;
 
-    const Composition::recordtrackcontainer &tr =
+    const Composition::recordtrackcontainer &recordTracks =
         getComposition().getRecordTracks();
 
     bool haveMIDIRecordTrack = false;
 
+    // For each recording track
     for (Composition::recordtrackcontainer::const_iterator i =
-                tr.begin(); i != tr.end(); ++i) {
+            recordTracks.begin(); i != recordTracks.end(); ++i) {
         TrackId tid = (*i);
         Track *track = getComposition().getTrackById(tid);
         if (track) {
@@ -1872,6 +1883,12 @@ RosegardenDocument::insertRecordedMidi(const MappedEventList &mC)
                 if (!m_recordMIDISegments[track->getInstrument()]) {
                     addRecordMIDISegment(track->getId());
                 }
+                // ??? This is a tad perplexing at first glance.  What if
+                //     two tracks are armed for record?  Don't we need to
+                //     create two segments?  Won't this end the for loop
+                //     after creating only one?  Maybe it works because this
+                //     routine is called over and over very quickly before
+                //     any events come in.  Seems unnecessary to break here.
                 break;
             }
         }
@@ -1880,251 +1897,275 @@ RosegardenDocument::insertRecordedMidi(const MappedEventList &mC)
     if (!haveMIDIRecordTrack)
         return ;
 
-    if (mC.size() > 0) {
+    // If there are no events, bail.
+    // ??? Seems like something we should do at the very top.  But beware the
+    //     odd "break" above which may depend on this being here.  And perhaps
+    //     we do want to make the record segments even if there is no data
+    //     yet.
+    if (mC.empty())
+        return;
+
+    timeT updateFrom = m_composition.getDuration();
+    bool haveNotes = false;
+
+    MappedEventList::const_iterator i;
+
+    // For each incoming event
+    for (i = mC.begin(); i != mC.end(); ++i) {
+
+        // Send events from the control device to the views
+        if ((*i)->getRecordedDevice() == Device::CONTROL_DEVICE) {
+            const int viewCount = m_viewList.size();
+
+            //QList<RosegardenMainViewWidget *>::iterator v;
+            //for (v = m_viewList.begin(); v != m_viewList.end(); ++v) {
+
+            // For each view
+            for (int k = 0; k < viewCount; ++k) {
+                RosegardenMainViewWidget *v = m_viewList.value(k);
+                // Send the event to the view
+                v->slotControllerDeviceEventReceived(*i);
+            }
+
+            // No further processing is required for this event.
+            continue;
+        }
+
+        const timeT absTime = m_composition.getElapsedTimeForRealTime((*i)->getEventTime());
+
+        /* This is incorrect, unless the tempo at absTime happens to
+           be the same as the tempo at zero and there are no tempo
+           changes within the given duration after either zero or
+           absTime
+
+           timeT duration = m_composition.getElapsedTimeForRealTime((*i)->getDuration());
+        */
+        const timeT endTime = m_composition.getElapsedTimeForRealTime(
+                (*i)->getEventTime() + (*i)->getDuration());
+        timeT duration = endTime - absTime;
 
         Event *rEvent = 0;
-        timeT duration, absTime;
-        timeT updateFrom = m_composition.getDuration();
-        bool haveNotes = false;
+        bool isNoteOn = false;
+        const int pitch = (*i)->getPitch();
+        int channel = (*i)->getRecordedChannel();
+        const int device = (*i)->getRecordedDevice();
 
-        MappedEventList::const_iterator i;
+        switch ((*i)->getType()) {
 
-        // process all the incoming MappedEvents
-        //
-        int lenx = int(m_viewList.size());
-        RosegardenMainViewWidget *v;
-        int k = 0;
-        for (i = mC.begin(); i != mC.end(); ++i) {
+        case MappedEvent::MidiNote:
 
-            if ((*i)->getRecordedDevice() == Device::CONTROL_DEVICE) {
-                // send to GUI
-                
-                //QList<RosegardenMainViewWidget *>::iterator v;
-                //for( v=m_viewList.begin(); v!=m_viewList.end(); v++ ) {
-                for( k=0; k<lenx; k++){
-                    v = m_viewList.value( k );
-                    v->slotControllerDeviceEventReceived(*i);
-                }
-                continue;
-            }
+            // If this is a note on event.
+            // (In AlsaDriver::getMappedEventList() we set the duration to
+            // -1 seconds to indicate a note-on event.)
+            if ((*i)->getDuration() < RealTime::zeroTime) {
 
-            absTime = m_composition.getElapsedTimeForRealTime((*i)->getEventTime());
+                //printf("Note On  ch %2d | ptch %3d | vel %3d\n", channel, pitch, (*i)->getVelocity());
+                //RG_DEBUG << "RD::iRM Note On cpv:" << channel << "/" << pitch << "/" << (*i)->getVelocity();
 
-            /* This is incorrect, unless the tempo at absTime happens to
-               be the same as the tempo at zero and there are no tempo
-               changes within the given duration after either zero or
-               absTime
+                // give it a default duration for insertion into the segment
+                duration = Note(Note::Crotchet).getDuration();
 
-               duration = m_composition.getElapsedTimeForRealTime((*i)->getDuration());
-            */
-            duration = m_composition.
-                       getElapsedTimeForRealTime((*i)->getEventTime() +
-                                                 (*i)->getDuration()) - absTime;
+                // make a mental note to stick it in the note-on map for when
+                // we see the corresponding note-off
+                isNoteOn = true;
 
-            rEvent = 0;
-            bool isNoteOn = false;
-            int pitch = (*i)->getPitch();
-            int channel = (*i)->getRecordedChannel();
-            int device = (*i)->getRecordedDevice();
+                rEvent = new Event(Note::EventType,
+                                   absTime,
+                                   duration);
 
-            switch ((*i)->getType()) {
+                rEvent->set<Int>(PITCH, pitch);
+                rEvent->set<Int>(VELOCITY, (*i)->getVelocity());
 
-            case MappedEvent::MidiNote:
+            } else {  // it's a note-off
 
-                if ((*i)->getDuration() < RealTime::zeroTime) {
+                //printf("Note Off event on Channel %2d: %5d\n", channel, pitch);
+                //RG_DEBUG << "RD::iRM Note Off cp:" << channel << "/" << pitch;
 
-                    // it's a note-on; give it a default duration
-                    // for insertion into the segment, and make a
-                    // mental note to stick it in the note-on map
-                    // for when we see the corresponding note-off
+                PitchMap *pitchMap = &m_noteOnEvents[device][channel];
+                PitchMap::iterator mi = pitchMap->find(pitch);
 
-                    duration = Note(Note::Crotchet).getDuration();
-                    isNoteOn = true;
+                // If we have a matching note-on for this note-off
+                if (mi != pitchMap->end()) {
 
-                    rEvent = new Event(Note::EventType,
-                                       absTime,
-                                       duration);
+                    // Get the vector of note-ons that match with this
+                    // note-off.
+                    NoteOnRecSet rec_vec = mi->second;
 
-                    rEvent->set<Int>(PITCH, pitch);
-                    rEvent->set<Int>(VELOCITY, (*i)->getVelocity());
+                    // Adjust updateFrom for quantization.
+
+                    Event *oldEv = *rec_vec[0].m_segmentIterator;
+                    timeT eventAbsTime = oldEv->getAbsoluteTime();
+
+                    // Make sure we quantize starting at the beginning of this
+                    // note at least.
+                    if (updateFrom > eventAbsTime)
+                        updateFrom = eventAbsTime;
+
+                    // Modify the previously held note-on Event(s), instead
+                    // of assigning to rEvent.
+                    NoteOnRecSet *replaced = adjustEndTimes(rec_vec, endTime);
+                    delete replaced;
+
+                    // Remove the original note-on(s) from the pitch map.
+                    pitchMap->erase(mi);
+
+                    haveNotes = true;
+
+                    // at this point we could quantize the bar if we were
+                    // tracking in a notation view
 
                 } else {
-
-                    // it's a note-off
-
-                    PitchMap *pm = &m_noteOnEvents[device][channel];
-                    PitchMap::iterator mi = pm->find(pitch);
-
-                    if (mi != pm->end()) {
-                        // modify the previously held note-on event,
-                        // instead of assigning to rEvent
-                        NoteOnRecSet rec_vec = mi->second;
-                        Event *oldEv = *rec_vec[0].m_segmentIterator;
-                        Event *newEv = new Event
-                            (*oldEv, oldEv->getAbsoluteTime(), duration);
-
-                        newEv->set<Int>(RECORDED_CHANNEL, channel);
-                        NoteOnRecSet *replaced =
-                            replaceRecordedEvent(rec_vec, newEv);
-                        delete replaced;
-                        pm->erase(mi);
-                        if (updateFrom > newEv->getAbsoluteTime()) {
-                            updateFrom = newEv->getAbsoluteTime();
-                        }
-                        haveNotes = true;
-                        delete newEv;
-                        // at this point we could quantize the bar if we were
-                        // tracking in a notation view
-                    } else {
-                        RG_DEBUG << " WARNING: NOTE OFF received without corresponding NOTE ON";
-                    }
+                    RG_DEBUG << " WARNING: NOTE OFF received without corresponding NOTE ON  channel:" << channel << "  pitch:" << pitch;
                 }
-
-                break;
-
-            case MappedEvent::MidiPitchBend:
-                rEvent = PitchBend
-                         ((*i)->getData1(), (*i)->getData2()).getAsEvent(absTime);
-                rEvent->set<Int>(RECORDED_CHANNEL, channel);
-                break;
-
-            case MappedEvent::MidiController:
-                rEvent = Controller
-                         ((*i)->getData1(), (*i)->getData2()).getAsEvent(absTime);
-                rEvent->set<Int>(RECORDED_CHANNEL, channel);
-                break;
-
-            case MappedEvent::MidiProgramChange:
-                RG_DEBUG << "RosegardenDocument::insertRecordedMidi()"
-                         << " - got Program Change (unsupported)"
-                         << endl;
-                break;
-
-            case MappedEvent::MidiKeyPressure:
-                rEvent = KeyPressure
-                         ((*i)->getData1(), (*i)->getData2()).getAsEvent(absTime);
-                rEvent->set<Int>(RECORDED_CHANNEL, channel);
-                break;
-
-            case MappedEvent::MidiChannelPressure:
-                rEvent = ChannelPressure
-                         ((*i)->getData1()).getAsEvent(absTime);
-                rEvent->set<Int>(RECORDED_CHANNEL, channel);
-                break;
-
-            case MappedEvent::MidiSystemMessage:
-                channel = -1;
-                if ((*i)->getData1() == MIDI_SYSTEM_EXCLUSIVE) {
-                    rEvent = SystemExclusive
-                             (DataBlockRepository::getDataBlockForEvent((*i))).getAsEvent(absTime);
-                }
-
-                // Ignore other SystemMessage events for the moment
-                //
-
-                break;
-
-            case MappedEvent::MidiNoteOneShot:
-                RG_DEBUG << "RosegardenDocument::insertRecordedMidi() - "
-                         << "GOT UNEXPECTED MappedEvent::MidiNoteOneShot";
-                break;
-
-                // Audio control signals - ignore these
-            case MappedEvent::Audio:
-            case MappedEvent::AudioCancel:
-            case MappedEvent::AudioLevel:
-            case MappedEvent::AudioStopped:
-            case MappedEvent::AudioGeneratePreview:
-            case MappedEvent::SystemUpdateInstruments:
-                break;
-
-
-            // list everything in the enum to avoid the annoying compiler
-            // warning
-            case MappedEvent::InvalidMappedEvent:
-            case MappedEvent::Marker:
-            case MappedEvent::SystemJackTransport:
-            case MappedEvent::SystemMMCTransport:
-            case MappedEvent::SystemMIDIClock:
-            case MappedEvent::SystemMetronomeDevice:
-            case MappedEvent::SystemAudioPortCounts:
-            case MappedEvent::SystemAudioPorts:
-            case MappedEvent::SystemFailure:
-            case MappedEvent::Text:
-            case MappedEvent::TimeSignature:
-            case MappedEvent::Tempo:
-            case MappedEvent::Panic:
-            case MappedEvent::SystemMTCTransport:
-            case MappedEvent::SystemMIDISyncAuto:
-            case MappedEvent::SystemAudioFileFormat:
-            default:
-                RG_DEBUG << "RosegardenDocument::insertRecordedMidi() - "
-                         << "GOT UNSUPPORTED MAPPED EVENT";
-                break;
             }
 
-            // sanity check
-            //
-            if (rEvent == 0)
-                continue;
+            break;
 
-            // Set the recorded input port
-            //
-            rEvent->set<Int>(RECORDED_PORT, device);
+        case MappedEvent::MidiPitchBend:
+            rEvent = PitchBend
+                     ((*i)->getData1(), (*i)->getData2()).getAsEvent(absTime);
+            break;
 
-            // Set the proper start index (if we haven't before)
+        case MappedEvent::MidiController:
+            rEvent = Controller
+                     ((*i)->getData1(), (*i)->getData2()).getAsEvent(absTime);
+            break;
+
+        case MappedEvent::MidiProgramChange:
+            rEvent = ProgramChange
+                     ((*i)->getData1()).getAsEvent(absTime);
+            break;
+
+        case MappedEvent::MidiKeyPressure:
+            rEvent = KeyPressure
+                     ((*i)->getData1(), (*i)->getData2()).getAsEvent(absTime);
+            break;
+
+        case MappedEvent::MidiChannelPressure:
+            rEvent = ChannelPressure
+                     ((*i)->getData1()).getAsEvent(absTime);
+            break;
+
+        case MappedEvent::MidiSystemMessage:
+            channel = -1;
+            if ((*i)->getData1() == MIDI_SYSTEM_EXCLUSIVE) {
+                rEvent = SystemExclusive
+                         (DataBlockRepository::getDataBlockForEvent((*i))).getAsEvent(absTime);
+            }
+
+            // Ignore other SystemMessage events for the moment
             //
+
+            break;
+
+        case MappedEvent::MidiNoteOneShot:
+            RG_DEBUG << "RosegardenDocument::insertRecordedMidi() - "
+                     << "GOT UNEXPECTED MappedEvent::MidiNoteOneShot";
+            break;
+
+            // Audio control signals - ignore these
+        case MappedEvent::Audio:
+        case MappedEvent::AudioCancel:
+        case MappedEvent::AudioLevel:
+        case MappedEvent::AudioStopped:
+        case MappedEvent::AudioGeneratePreview:
+        case MappedEvent::SystemUpdateInstruments:
+            break;
+
+
+        // list everything in the enum to avoid the annoying compiler
+        // warning
+        case MappedEvent::InvalidMappedEvent:
+        case MappedEvent::Marker:
+        case MappedEvent::SystemJackTransport:
+        case MappedEvent::SystemMMCTransport:
+        case MappedEvent::SystemMIDIClock:
+        case MappedEvent::SystemMetronomeDevice:
+        case MappedEvent::SystemAudioPortCounts:
+        case MappedEvent::SystemAudioPorts:
+        case MappedEvent::SystemFailure:
+        case MappedEvent::Text:
+        case MappedEvent::TimeSignature:
+        case MappedEvent::Tempo:
+        case MappedEvent::Panic:
+        case MappedEvent::SystemMTCTransport:
+        case MappedEvent::SystemMIDISyncAuto:
+        case MappedEvent::SystemAudioFileFormat:
+        default:
+            RG_DEBUG << "RosegardenDocument::insertRecordedMidi() - "
+                     << "GOT UNSUPPORTED MAPPED EVENT";
+            break;
+        }
+
+        // sanity check
+        //
+        if (rEvent == 0)
+            continue;
+
+        // Set the recorded input port
+        //
+        rEvent->set<Int>(RECORDED_PORT, device);
+
+        // Set the recorded channel, if this isn't a sysex event
+        if (channel >= 0)
+            rEvent->set<Int>(RECORDED_CHANNEL, channel);
+
+        // Set the proper start index (if we haven't before)
+        //
+        for (RecordingSegmentMap::const_iterator it = m_recordMIDISegments.begin();
+             it != m_recordMIDISegments.end(); ++it) {
+            Segment *recordMIDISegment = it->second;
+            if (recordMIDISegment->size() == 0) {
+                recordMIDISegment->setStartTime (m_composition.getBarStartForTime(absTime));
+                recordMIDISegment->fillWithRests(absTime);
+            }
+        }
+
+        // Now insert the new event
+        //
+        insertRecordedEvent(rEvent, device, channel, isNoteOn);
+        delete rEvent;
+    }
+
+    // If we have note events, quantize the notation for the recording
+    // segments.
+    if (haveNotes) {
+
+        QSettings settings;
+        settings.beginGroup( GeneralOptionsConfigGroup );
+
+        // This is usually 0.  I don't think there is even a way to change
+        // this through the UI.
+        int tracking = settings.value("recordtracking", 0).toUInt() ;
+        settings.endGroup();
+        if (tracking == 1) { // notation
             for (RecordingSegmentMap::const_iterator it = m_recordMIDISegments.begin();
                  it != m_recordMIDISegments.end(); ++it) {
+
                 Segment *recordMIDISegment = it->second;
-                if (recordMIDISegment->size() == 0) {
-                    recordMIDISegment->setStartTime (m_composition.getBarStartForTime(absTime));
-                    recordMIDISegment->fillWithRests(absTime);
-                }
-            }
 
-            // Now insert the new event
-            //
-            insertRecordedEvent(rEvent, device, channel, isNoteOn);
-            delete rEvent;
+                EventQuantizeCommand *command = new EventQuantizeCommand
+                    (*recordMIDISegment,
+                     updateFrom,
+                     recordMIDISegment->getEndTime(),
+                     NotationOptionsConfigGroup,
+                     EventQuantizeCommand::QUANTIZE_NOTATION_ONLY);
+                // don't add to history
+                command->execute();
+            }
         }
 
-        // If we have note events, quantize the notation for the recording
-        // segments.
-        if (haveNotes) {
-
-            QSettings settings;
-            settings.beginGroup( GeneralOptionsConfigGroup );
-
-            int tracking = settings.value("recordtracking", 0).toUInt() ;
-            settings.endGroup();
-            if (tracking == 1) { // notation
-                for (RecordingSegmentMap::const_iterator it = m_recordMIDISegments.begin();
-                     it != m_recordMIDISegments.end(); ++it) {
-
-                    Segment *recordMIDISegment = it->second;
-
-                    EventQuantizeCommand *command = new EventQuantizeCommand
-                        (*recordMIDISegment,
-                         updateFrom,
-                         recordMIDISegment->getEndTime(),
-                         NotationOptionsConfigGroup,
-                         EventQuantizeCommand::QUANTIZE_NOTATION_ONLY);
-                    // don't add to history
-                    command->execute();
-                }
-            }
-
-            // this signal is currently unused - leaving just in case
-            // recording segments are updated through the SegmentObserver::eventAdded() interface
-            //         emit recordMIDISegmentUpdated(m_recordMIDISegment, updateFrom);
-        }
+        // this signal is currently unused - leaving just in case
+        // recording segments are updated through the SegmentObserver::eventAdded() interface
+        //         emit recordMIDISegmentUpdated(m_recordMIDISegment, updateFrom);
     }
 }
 
 void
 RosegardenDocument::updateRecordingMIDISegment()
 {
+    Profiler profiler("RosegardenDocument::updateRecordingMIDISegment()");
+
 //    RG_DEBUG << "RosegardenDocument::updateRecordingMIDISegment" << endl;
 
     if (m_recordMIDISegments.size() == 0) {
@@ -2148,14 +2189,8 @@ RosegardenDocument::updateRecordingMIDISegment()
                 // at the recording pointer
                 NoteOnRecSet rec_vec = pm->second;
                 if (rec_vec.size() > 0) {
-                    Event *oldEv = *rec_vec[0].m_segmentIterator;
-                    Event *newEv = new Event(
-                                       *oldEv, oldEv->getAbsoluteTime(),
-                                       m_composition.getPosition() - oldEv->getAbsoluteTime() );
-
                     tweakedNoteOnEvents[mi->first][cm->first][pm->first] =
-                        *replaceRecordedEvent(rec_vec, newEv);
-                    delete newEv;
+                        *adjustEndTimes(rec_vec, m_composition.getPosition());
                 }
             }
     m_noteOnEvents = tweakedNoteOnEvents;
@@ -2208,19 +2243,62 @@ RosegardenDocument::transposeRecordedSegment(Segment *s)
 } 
 
 RosegardenDocument::NoteOnRecSet *
-RosegardenDocument::replaceRecordedEvent(NoteOnRecSet& rec_vec, Event *fresh)
+RosegardenDocument::adjustEndTimes(NoteOnRecSet& rec_vec, timeT endTime)
 {
+    // Not too keen on profilers, but I'll give it a shot for fun...
+    Profiler profiler("RosegardenDocument::adjustEndTimes()");
+
+    // Create a vector to hold the new note-on events for return.
     NoteOnRecSet *new_vector = new NoteOnRecSet();
+
+    // For each note-on event
     for (NoteOnRecSet::const_iterator i = rec_vec.begin(); i != rec_vec.end(); ++i) {
+        // ??? All this removing and re-inserting of Events from the Segment
+        //     seems like a serious waste.  Can't we just modify the Event
+        //     in place?  Otherwise we are doing all of this:
+        //        1. Segment::erase() notifications.
+        //        2. Segment::insert() notifications.
+        //        3. Event delete and new.
+
+        Event *oldEvent = *(i->m_segmentIterator);
+
+        timeT newDuration = endTime - oldEvent->getAbsoluteTime();
+
+        // Don't allow zero duration events.
+        if (newDuration == 0)
+            newDuration = 1;
+
+        // Make a new copy of the event in the segment and modify the
+        // duration as needed.
+        // ??? Can't we modify the Event in place in the Segment?
+        //     No.  All setters are protected.  Events are read-only.
+        Event *newEvent = new Event(
+                *oldEvent,  // reference Event object
+                oldEvent->getAbsoluteTime(),  // absoluteTime (preserved)
+                newDuration  // duration (adjusted)
+                );
+
+        // Remove the old event from the segment
         Segment *recordMIDISegment = i->m_segment;
         recordMIDISegment->erase(i->m_segmentIterator);
+
+        // Insert the new event into the segment
         NoteOnRec noteRec;
         noteRec.m_segment = recordMIDISegment;
-        noteRec.m_segmentIterator = recordMIDISegment->insert(new Event(*fresh));
+        // ??? Performance: This causes a slew of change notifications to be
+        //        sent out by Segment::insert().  That may be causing the
+        //        performance issues when recording.  Try removing the
+        //        notifications from insert() and see if things improve.
+        //        Also take a look at Segment::erase() which is called above.
+        noteRec.m_segmentIterator = recordMIDISegment->insert(newEvent);
+
         // don't need to transpose this event; it was copied from an
         // event that had been transposed already (in storeNoteOnEvent)
+
+        // Collect the new NoteOnRec objects for return.
         new_vector->push_back(noteRec);
     }
+
     return new_vector;
 }
 
@@ -2239,6 +2317,8 @@ RosegardenDocument::storeNoteOnEvent(Segment *s, Segment::iterator it, int devic
 void
 RosegardenDocument::insertRecordedEvent(Event *ev, int device, int channel, bool isNoteOn)
 {
+    Profiler profiler("RosegardenDocument::insertRecordedEvent()");
+
     Segment::iterator it;
     for ( RecordingSegmentMap::const_iterator i = m_recordMIDISegments.begin();
             i != m_recordMIDISegments.end(); ++i) {
@@ -2369,13 +2449,10 @@ RosegardenDocument::stopRecordingMidi()
                 NoteOnRecSet rec_vec = pm->second;
 
                 if (rec_vec.size() > 0) {
-                    Event *oldEv = *rec_vec[0].m_segmentIterator;
-                    Event *newEv = new Event
-                        (*oldEv, oldEv->getAbsoluteTime(),
-                         endTime - oldEv->getAbsoluteTime());
+                    // Adjust the end times of the note-on events for
+                    // this device/channel/pitch.
                     NoteOnRecSet *replaced =
-                        replaceRecordedEvent(rec_vec, newEv);
-                    delete newEv;
+                            adjustEndTimes(rec_vec, endTime);
                     delete replaced;
                 }
             }
@@ -2496,7 +2573,7 @@ RosegardenDocument::checkSequencerTimer()
 void
 RosegardenDocument::addRecordMIDISegment(TrackId tid)
 {
-    RG_DEBUG << "RosegardenDocument::addRecordMIDISegment(" << tid << ")" << endl;
+    RG_DEBUG << "RosegardenDocument::addRecordMIDISegment(" << tid << ")";
 //    std::cerr << kdBacktrace() << std::endl;
 
     Segment *recordMIDISegment;

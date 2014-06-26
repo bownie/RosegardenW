@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -18,8 +18,8 @@
  */
 
 
-#ifndef _CONFIG_GROUPS_H_
-#define _CONFIG_GROUPS_H_
+#ifndef RG_CONFIG_GROUPS_H
+#define RG_CONFIG_GROUPS_H
 
 namespace Rosegarden 
 {
@@ -58,6 +58,8 @@ namespace Rosegarden
     extern const char* const RecentDirsConfigGroup;
     extern const char* const CollapsingFrameConfigGroup;
     extern const char* const PitchBendSequenceConfigGroup;
+    extern const char* const CheckButtonConfigGroup;
+    extern const char* const SelectDialogConfigGroup;
 }
 
 #endif

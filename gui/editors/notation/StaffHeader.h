@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is Copyright 2007-2009
         Yves Guillemot      <yc.guillemot@wanadoo.fr> 
@@ -18,8 +18,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_STAFFHEADER_H_
-#define _RG_STAFFHEADER_H_
+#ifndef RG_STAFFHEADER_H
+#define RG_STAFFHEADER_H
 
 #include "base/NotationTypes.h"
 #include "base/Track.h"
@@ -290,13 +290,13 @@ private :
     QString m_toolTipText;
     QString m_warningToolTipText;
     QPoint m_cursorPos;
+    QTimer *m_toolTipTimer;
+    int m_toolTipCount;
 
     unsigned int m_colourIndex;
     unsigned int m_lastColourIndex;
 
     QToolButton *m_clefOrKeyInconsistency;
-
-    QTimer *m_toolTipTimer;
 
     Inconsistencies<int> *m_transposeOverlaps;
     Inconsistencies<Clef> *m_clefOverlaps;

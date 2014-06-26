@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -13,8 +13,8 @@
 */
 
 
-#ifndef _MAPPED_EVENT_LIST_H_
-#define _MAPPED_EVENT_LIST_H_
+#ifndef RG_MAPPED_EVENT_LIST_H
+#define RG_MAPPED_EVENT_LIST_H
 
 
 #include "base/Composition.h"
@@ -31,7 +31,7 @@ namespace Rosegarden
  *
  * Note that MappedEventList is a list of MappedEvents, not a mapped
  * list of events.  Although a MappedEvent is a fixed-size object for
- * use in contexts like MappedSegment which contain fixed-size sets of
+ * use in contexts like MappedEventBuffer which contain fixed-size sets of
  * fixed-size objects to be read and written with minimal locking,
  * MappedEventList is a normal container with nothing fixed about it;
  * it's just the container that happens to be used in sequencer

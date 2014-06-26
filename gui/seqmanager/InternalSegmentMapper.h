@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _INTERNALSEGMENTMAPPER_H_
-#define _INTERNALSEGMENTMAPPER_H_
+#ifndef RG_INTERNALSEGMENTMAPPER_H
+#define RG_INTERNALSEGMENTMAPPER_H
 
 #include "base/ControllerContext.h"
 #include "gui/seqmanager/MappedEventBuffer.h"
@@ -30,26 +30,49 @@ namespace Rosegarden
 
 class TriggerSegmentRec;
 class Composition;
+class RealTime;
  
-// @class InternalSegmentMapper Mapper for an internal segment.
-// @author Tom Breton (Tehom)
+/// Converts (maps) Event objects into MappedEvent objects for a Segment
+/**
+ * @author Tom Breton (Tehom)
+ *
+ * InternalSegmentMapper.  What's in a name?  "Internal" qualifies a
+ * Segment as containing Rosegarden's internal representation of MIDI
+ * notes etc, as opposed to an audio segment.  The term "Mapper" is
+ * used largely for historical reasons, but can be understood as
+ * mapping (converting) Event objects from a Segment into MappedEvent
+ * objects which are ready for playback.  The key mapping routine is
+ * InternalSegmentMapper::fillBuffer().
+ *
+ * This class might be better named MappedMIDISegment as that is what it is
+ * rather than what it does.  It's a more "O-O" name, which in this case feels
+ * better.  Of course, the base class and other related classes would need
+ * to adopt similar names.  The entire MappedEventBuffer hierarchy probably
+ * needs to be examined to see if there are opportunities for simplification
+ * and renaming for increased clarity.
+ *
+ * This is the first part of a two-part process to convert the Event objects
+ * in a Composition into MappedEvent objects that can be sent to ALSA.  For
+ * the second part of this conversion, see MappedBufMetaIterator.
+ */
 class InternalSegmentMapper : public SegmentMapper
 {
     friend class SegmentMapperFactory;
     friend class ControllerSearch;
     friend class ControllerContextMap;
 
-    class Callback : public ChannelManager::MapperFunctionality
+    class Callbacks : public ChannelManager::Callbacks
         {
         public:
     
-        Callback(InternalSegmentMapper *mapper) :
+        Callbacks(InternalSegmentMapper *mapper) :
             m_mapper(mapper) {}
         private:
             virtual ControllerAndPBList
                 getControllers(Instrument *instrument, RealTime start);
             InternalSegmentMapper *m_mapper;
         };
+    friend class Callbacks;
 
     typedef std::pair<timeT, int> Noteoff;
     struct NoteoffCmp
@@ -71,35 +94,40 @@ class InternalSegmentMapper : public SegmentMapper
     ~InternalSegmentMapper(void);
 
     // Do channel-setup
+    virtual void makeReady(MappedInserterBase &inserter, RealTime time);
+
+    // Insert the event "evt"
     virtual void doInsert(MappedInserterBase &inserter, MappedEvent &evt,
                          RealTime start, bool firstOutput);
+
+    // Return whether the event should be played.
+    virtual bool shouldPlay(MappedEvent *evt, RealTime startTime);
 
     virtual int calculateSize();
 
     int addSize(int size, Segment *);
 
     /// dump all segment data in the file
-    virtual void dump();
+    virtual void fillBuffer();
 
     Instrument *getInstrument(void)
     { return m_channelManager.m_instrument; }
-
-    void mergeTriggerSegment(Segment *target,
-                             Event *trigger,
-                             timeT performanceDuration,
-                             TriggerSegmentRec *rec);
 
     void popInsertNoteoff(int trackid, Composition &comp);
     void enqueueNoteoff(timeT time, int pitch);
 
     bool haveEarlierNoteoff(timeT t);
+    RealTime toRealTime(Composition &comp, timeT t);
+    int getControllerValue(timeT searchTime,
+                           const std::string eventType,
+                           int controllerId);
 
     /** Data members **/
 
     IntervalChannelManager m_channelManager;
 
     // Separate storage for triggered events.  This storage, like
-    // original segment, contains just one time thru; logic in "dump"
+    // original segment, contains just one time thru; logic in "fillBuffer"
     // turns it into repeats as needed.
     Segment               *m_triggeredEvents;
     
@@ -111,4 +139,4 @@ class InternalSegmentMapper : public SegmentMapper
   
 }
 
-#endif /* ifndef _INTERNALSEGMENTMAPPER_H_ */
+#endif /* ifndef RG_INTERNALSEGMENTMAPPER_H */

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -31,9 +31,7 @@
 #include <QString>
 #include <QToolButton>
 #include <QWidget>
-
-#include <cassert>
-
+#include <QtGlobal>
 
 namespace Rosegarden
 {
@@ -91,7 +89,7 @@ CollapsingFrame::setFont(QFont font)
 void
 CollapsingFrame::setWidget(QWidget *widget)
 {
-    assert(!m_widget);
+    Q_ASSERT(!m_widget);
     m_widget = widget;
     if (m_fill) {
         m_layout->addWidget(widget, 1, 0, 1, 3);
@@ -118,7 +116,7 @@ CollapsingFrame::toggle()
 
     m_collapsed = !m_collapsed;
 
-    m_widget->setShown(!m_collapsed);
+    m_widget->setVisible(!m_collapsed);
 
     QPixmap pixmap;
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -29,8 +29,8 @@
 #include "base/Exception.h"
 #include "XmlExportable.h"
 
-#ifndef _CONFIGURATION_H_
-#define _CONFIGURATION_H_
+#ifndef RG_CONFIGURATION_H
+#define RG_CONFIGURATION_H
 
 namespace Rosegarden
 {
@@ -202,4 +202,4 @@ Configuration::get(const PropertyName &name) const
  
 }
 
-#endif // _AUDIODEVICE_H_
+#endif // RG_CONFIGURATION_H

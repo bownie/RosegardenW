@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file Copyright 2006 Martin Shepherd <mcs@astro.caltech.edu>.
 
@@ -17,8 +17,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_ROSEGARDENPARAMETERAREA_H_
-#define _RG_ROSEGARDENPARAMETERAREA_H_
+#ifndef RG_ROSEGARDENPARAMETERAREA_H
+#define RG_ROSEGARDENPARAMETERAREA_H
 
 #include <QStackedWidget>
 #include <vector>

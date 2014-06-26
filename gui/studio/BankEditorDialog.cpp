@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[BankEditorDialog]"
 
 #include "BankEditorDialog.h"
 #include "MidiBankTreeWidgetItem.h"
@@ -1353,7 +1354,7 @@ BankEditorDialog::getMidiDevice(QTreeWidgetItem* item)
 }
 
 std::pair<int, int>
-BankEditorDialog::getFirstFreeBank(QTreeWidgetItem* item)
+BankEditorDialog::getFirstFreeBank(QTreeWidgetItem* /* item */)
 {
     //!!! percussion? this is actually only called in the expectation
     // that percussion==false at the moment
@@ -1553,7 +1554,7 @@ BankEditorDialog::addCommandToHistory(Command *command)
 void
 BankEditorDialog::slotImport()
 {
-    QString home = QUrl::fromLocalFile(QDesktopServices::storageLocation(QDesktopServices::HomeLocation)).path();
+    QString home = QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::HomeLocation)).path();
     QString deviceDir = home + "/.local/share/rosegarden/library";
 
     QString url_str = FileDialog::getOpenFileName(this, tr("Import Banks from Device in File"), deviceDir,

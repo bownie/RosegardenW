@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_NOTATIONHLAYOUT_H_
-#define _RG_NOTATIONHLAYOUT_H_
+#ifndef RG_NOTATIONHLAYOUT_H
+#define RG_NOTATIONHLAYOUT_H
 
 #include "base/LayoutEngine.h"
 #include "base/NotationTypes.h"
@@ -449,7 +449,9 @@ protected:
     int m_spacing;
     int m_proportion;
     int m_keySigCancelMode;
-    bool m_hideRedundance;         // Don't show unneeded clefs and keys
+    bool m_hideRedundance;    // Don't show unneeded clefs and keys
+    bool m_showRepeated;      // Repeated segments are visible
+    bool m_distributeVerses;  // Lyrics are distributed among repeated segments
 
     //!!! This should not be here -- different staffs may have
     //different sizes in principle, so we should always be referring

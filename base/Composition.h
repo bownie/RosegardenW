@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,13 +13,9 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _COMPOSITION_H_
-#define _COMPOSITION_H_
+#ifndef RG_COMPOSITION_H
+#define RG_COMPOSITION_H
 
-#include <set>
-#include <map>
-
-#include <QtCore/QWeakPointer>
 
 #include "FastVector.h"
 
@@ -32,6 +28,13 @@
 #include "TriggerSegment.h"
 
 #include "Marker.h"
+
+// Qt
+#include <QtCore/QWeakPointer>
+
+// System
+#include <set>
+#include <map>
 
 namespace Rosegarden 
 {
@@ -65,6 +68,8 @@ class Composition : public XmlExportable
 public:
     typedef segmentcontainer::iterator iterator;
     typedef segmentcontainer::const_iterator const_iterator;
+
+    typedef std::vector<Segment *> SegmentVec;
 
     typedef std::map<TrackId, Track*> trackcontainer;
     typedef trackcontainer::iterator trackiterator;
@@ -107,9 +112,11 @@ public:
 
     timeT getStartMarker() const { return m_startMarker; }
     timeT getEndMarker() const { return m_endMarker; }
+    bool autoExpandEnabled() { return m_autoExpand; }
 
     void setStartMarker(const timeT &sM);
     void setEndMarker(const timeT &eM);
+    void setAutoExpand(bool autoExpand) { m_autoExpand = autoExpand; }
 
 
     //////
@@ -333,11 +340,13 @@ public:
      * Add every segment in segmentcontainer
      */
     void addAllSegments(segmentcontainer segments);
+    void addAllSegments(SegmentVec segments);
 
     /**
      * Detach every segment in segmentcontainer
      */
     void detachAllSegments(segmentcontainer segments);
+    void detachAllSegments(SegmentVec segments);
 
     //////
     //
@@ -385,6 +394,10 @@ public:
      */
     TriggerSegmentRec *getTriggerSegmentRec(TriggerSegmentId);
 
+    /**
+     * As above for a given Event, or NULL if none.
+     **/
+    TriggerSegmentRec *getTriggerSegmentRec(Event* e);
     /**
      * Add a new trigger Segment with a given ID and base pitch and
      * velocity.  Fails and returns 0 if the ID is already in use.
@@ -894,6 +907,10 @@ public:
     void notifyTrackSelectionChanged(TrackId) const;
 
     //////
+    // LYRICS WITH REPEATED SEGMENTS
+    void distributeVerses();
+
+    //////
     // DEBUG FACILITIES
     void dump(std::ostream&, bool full=false) const;
     
@@ -1060,6 +1077,7 @@ protected:
     //
     timeT                             m_startMarker;
     timeT                             m_endMarker;
+    bool                              m_autoExpand;
 
     static int                        m_defaultNbBars;
 

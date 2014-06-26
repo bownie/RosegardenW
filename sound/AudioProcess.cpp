@@ -5,7 +5,7 @@
     A sequencer and musical notation editor.
     Copyright 2000-2012 the Rosegarden development team.
     See the AUTHORS file for more details.
- 
+
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
@@ -87,18 +87,6 @@ AudioThread::AudioThread(std::string name,
 
 AudioThread::~AudioThread()
 {
-#ifdef DEBUG_THREAD_CREATE_DESTROY
-    std::cerr << "AudioThread::~AudioThread() [" << m_name << "]" << std::endl;
-#endif
-
-    if (m_thread.p) {
-        pthread_mutex_destroy(&m_lock);
-        m_thread.p = 0;
-    }
-
-#ifdef DEBUG_THREAD_CREATE_DESTROY
-    std::cerr << "AudioThread::~AudioThread() exiting" << std::endl;
-#endif
 }
 
 void
@@ -204,7 +192,7 @@ AudioThread::staticThreadRun(void *arg)
     if (!inst)
         return 0;
 
-    pthread_cleanup_push(staticThreadCleanup, arg);
+   // pthread_cleanup_push(staticThreadCleanup, arg);
 
     inst->getLock();
     inst->m_exiting = false;
@@ -216,10 +204,11 @@ AudioThread::staticThreadRun(void *arg)
 #endif
 
     inst->releaseLock();
-    pthread_cleanup_pop(0);
+    //pthread_cleanup_pop(0);
 
     return 0;
 }
+
 
 void
 AudioThread::staticThreadCleanup(void *arg)
@@ -1176,10 +1165,10 @@ AudioInstrumentMixer::discardPluginEvents()
         InstrumentId id = j->first;
 
         for (PluginList::iterator i = m_plugins[id].begin();
-	     i != m_plugins[id].end(); ++i) {
+         i != m_plugins[id].end(); ++i) {
 
             RunnablePluginInstance *instance = *i;
-	    if (instance) instance->discardEvents();
+        if (instance) instance->discardEvents();
         }
     }
 
@@ -1553,16 +1542,16 @@ AudioInstrumentMixer::updateInstrumentMuteStates()
     ControlBlock *cb = ControlBlock::getInstance();
 
     for (BufferMap::iterator i = m_bufferMap.begin();
-	 i != m_bufferMap.end(); ++i) {
+     i != m_bufferMap.end(); ++i) {
 
-	InstrumentId id = i->first;
-	BufferRec &rec = i->second;
-	
-	if (id >= SoftSynthInstrumentBase) {
-	    rec.muted = cb->isInstrumentMuted(id);
-	} else {
-	    rec.muted = cb->isInstrumentUnused(id);
-	}
+    InstrumentId id = i->first;
+    BufferRec &rec = i->second;
+
+    if (id >= SoftSynthInstrumentBase) {
+        rec.muted = cb->isInstrumentMuted(id);
+    } else {
+        rec.muted = cb->isInstrumentUnused(id);
+    }
     }
 }
 
@@ -1696,7 +1685,7 @@ AudioInstrumentMixer::processBlock(InstrumentId id,
     BufferRec &rec = m_bufferMap[id];
     RealTime bufferTime = rec.filledTo;
 
-#ifdef DEBUG_MIXER 
+#ifdef DEBUG_MIXER
     //    if (m_driver->isPlaying()) {
     if ((id % 100) == 0)
         std::cerr << "AudioInstrumentMixer::processBlock(" << id << "): buffer time is " << bufferTime << std::endl;
@@ -1727,7 +1716,7 @@ AudioInstrumentMixer::processBlock(InstrumentId id,
         if (ch == 0 || thisWriteSpace < minWriteSpace) {
             minWriteSpace = thisWriteSpace;
             if (minWriteSpace < m_blockSize) {
-#ifdef DEBUG_MIXER 
+#ifdef DEBUG_MIXER
                 //		if (m_driver->isPlaying()) {
                 if ((id % 100) == 0)
                     std::cerr << "AudioInstrumentMixer::processBlock(" << id << "): only " << minWriteSpace << " write space on channel " << ch << " for block size " << m_blockSize << std::endl;

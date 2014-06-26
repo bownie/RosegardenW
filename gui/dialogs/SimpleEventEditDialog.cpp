@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -27,11 +27,11 @@
 #include "PitchDialog.h"
 #include "TimeDialog.h"
 #include "gui/widgets/LineEdit.h"
+#include "gui/widgets/FileDialog.h"
 
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QFileDialog>
 #include <QCheckBox>
 #include <QFile>
 #include <QGroupBox>
@@ -1053,7 +1053,7 @@ SimpleEventEditDialog::slotEditPitch()
 void
 SimpleEventEditDialog::slotSysexLoad()
 {
-    QString path = QFileDialog::getOpenFileName( this, tr("Load System Exclusive data in File"), QDir::currentPath(),
+    QString path = FileDialog::getOpenFileName( this, tr("Load System Exclusive data in File"), QDir::currentPath(),
                    tr("System exclusive files") + " (*.syx *.SYX)" + ";;" +
                    tr("All files") + " (*)"); //":SYSTEMEXCLUSIVE",
 
@@ -1066,7 +1066,7 @@ SimpleEventEditDialog::slotSysexLoad()
     char c;
     bool ioOk;
 
-    while (ioOk = file.getChar(&c)) {
+    while ((ioOk = file.getChar(&c))) {
         if (c == static_cast<char>(0xf0)) break;
     }
     while (ioOk) {
@@ -1082,7 +1082,7 @@ SimpleEventEditDialog::slotSysexLoad()
 void
 SimpleEventEditDialog::slotSysexSave()
 {
-    QString path = QFileDialog::getSaveFileName( this, //":SYSTEMEXCLUSIVE",
+    QString path = FileDialog::getSaveFileName( this, //":SYSTEMEXCLUSIVE",
 			tr("Save System Exclusive data to..."),
 					tr("*.syx|System exclusive files (*.syx)")
 					);

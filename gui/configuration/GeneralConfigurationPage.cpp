@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -186,7 +186,7 @@ GeneralConfigurationPage::GeneralConfigurationPage(RosegardenDocument *doc,
         m_jackTransport->addItem(tr("Sync, and offer timebase master"));
     */
 
-    bool jackMaster = settings.value("jackmaster", false).toBool();
+    // bool jackMaster = settings.value("jackmaster", false).toBool();
     bool jackTransport = settings.value("jacktransport", false).toBool();
 /*
     if (jackTransport)
@@ -343,9 +343,11 @@ GeneralConfigurationPage::GeneralConfigurationPage(RosegardenDocument *doc,
 
     m_pdfViewer = new QComboBox(frame);
     connect(m_pdfViewer, SIGNAL(activated(int)), this, SLOT(slotModified()));
-    m_pdfViewer->addItem(tr("Okular (KDE 4.x)"), 0);
-    m_pdfViewer->addItem(tr("Evince (GNOME)"), 1);
-    m_pdfViewer->addItem(tr("Adobe Acrobat Reader (non-free)"),2);
+    m_pdfViewer->addItem(tr("Okular (KDE 4.x)"));
+    m_pdfViewer->addItem(tr("Evince (GNOME)"));
+    m_pdfViewer->addItem(tr("Adobe Acrobat Reader (non-free)"));
+    m_pdfViewer->addItem(tr("MuPDF"));
+    m_pdfViewer->addItem(tr("ePDFView"));
     m_pdfViewer->setToolTip(tr("Used to preview generated LilyPond output"));
 
     layout->addWidget(m_pdfViewer, row, 1, 1, 3);
@@ -416,6 +418,8 @@ void GeneralConfigurationPage::apply()
     int graphicsSystem = getGraphicsSystem();
     settings.setValue("graphics_system", graphicsSystem);
     bool graphicsSystemChanged = false;
+    // !!! This comparison is suspicious.  Need to clarify the role,
+    // if any, of negative values.
     if (graphicsSystem != m_lastGraphicsSystemIndex) graphicsSystemChanged = true;
 
     int client = getDblClickClient();
@@ -424,12 +428,12 @@ void GeneralConfigurationPage::apply()
     int namestyle = getNoteNameStyle();
     settings.setValue("notenamestyle", namestyle);
     
-    bool texturesChanged = false;
+    // bool texturesChanged = false;
     bool mainTextureChanged = false;
 
     if (settings.value("backgroundtextures", true).toBool() !=
         m_backgroundTextures->isChecked()) {
-        texturesChanged = true;
+        // texturesChanged = true;
         mainTextureChanged = true;
         settings.endGroup();
     } else {
@@ -437,7 +441,7 @@ void GeneralConfigurationPage::apply()
         settings.beginGroup(NotationViewConfigGroup);
         if (settings.value("backgroundtextures", true).toBool() !=
             m_notationBackgroundTextures->isChecked()) {
-            texturesChanged = true;
+            // texturesChanged = true;
         }
         settings.endGroup();
     }

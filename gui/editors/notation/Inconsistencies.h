@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -15,8 +15,8 @@
 
 
 
-#ifndef _INCONSISTENCIES_H_
-#define _INCONSISTENCIES_H_
+#ifndef RG_INCONSISTENCIES_H
+#define RG_INCONSISTENCIES_H
 
 #include <vector>
 #include <map>
@@ -52,11 +52,11 @@ public :
         timeT end = comp->getEndMarker();
 
         typename std::map<timeT, OverlapRange<T> >::iterator it;
-        if (getFirst(start, end, it)) {
+        if (this->getFirst(start, end, it)) {
             for (;;) {
                 timeT t1, t2;
-                if (!isConsistent(it)) {
-                    getTimeRange(it, t1, t2);
+                if (!this->isConsistent(it)) {
+                    this->getTimeRange(it, t1, t2);
                     int bar1 = comp->getBarNumber(t1) + 1;
                     int bar2 = comp->getBarNumber(t2) + 1;
                     str += QString("<blockquote>");
@@ -68,18 +68,18 @@ public :
                     }
 
                     str += QString("<blockquote>");
-                    const std::vector<Segment *> *s = getSegments(it);
+                    const std::vector<Segment *> *s = this->getSegments(it);
                     std::vector<Segment *>::const_iterator sit;
                     for (sit = s->begin(); sit != s->end(); ++sit) {
                         if (sit != s->begin()) str += QString("<br>");                            
                         T pr = Overlaps<T>::getPropertyAtTime(*sit, t1);
                         str+= segLine
                                   .arg(QString::fromStdString((*sit)->getLabel()))
-                                  .arg(getTranslatedName(pr));
+                                  .arg(this->getTranslatedName(pr));
                     }
                     str += QString("</blockquote></blockquote>");
                 }
-                if (!getNext(end, it)) break;
+                if (!this->getNext(end, it)) break;
             }
         }
     }
@@ -132,5 +132,5 @@ Inconsistencies<int>::getTranslatedName(int transpose) const
 
 }
 
-#endif // _INCONSISTENCIES_H_
+#endif // RG_INCONSISTENCIES_H
 

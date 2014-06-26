@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is Copyright 2003-2006
         D. Michael McIntyre <dmmcintyr@users.sourceforge.net>
@@ -18,8 +18,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_EVENTFILTERDIALOG_H_
-#define _RG_EVENTFILTERDIALOG_H_
+#ifndef RG_EVENTFILTERDIALOG_H
+#define RG_EVENTFILTERDIALOG_H
 
 #include <QDialog>
 #include <utility>
@@ -127,6 +127,7 @@ protected slots:
     // create a pitch chooser widget sub-dialog to show pitch on staff
     void slotPitchFromChooser();
     void slotPitchToChooser();
+
     
 private:
     //---------[ data members ]-----------------------------
@@ -148,6 +149,9 @@ private:
     QSpinBox*    m_pitchToSpinBox;
     QSpinBox*    m_velocityFromSpinBox;
     QSpinBox*    m_velocityToSpinBox;
+
+    QCheckBox*   m_useNotationDuration;
+    QCheckBox*   m_selectRests;
 
     std::vector<timeT> m_standardQuantizations;
 

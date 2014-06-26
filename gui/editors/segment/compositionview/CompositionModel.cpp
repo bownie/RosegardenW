@@ -27,7 +27,7 @@
 namespace Rosegarden
 {
 
-bool CompositionModel::CompositionItemCompare::operator()(const CompositionItem &c1, const CompositionItem &c2) const
+bool CompositionModel::CompositionItemCompare::operator()(const CompositionItemPtr c1, const CompositionItemPtr c2) const
 {
     return CompositionItemHelper::getSegment(c1) < CompositionItemHelper::getSegment(c2);
 }

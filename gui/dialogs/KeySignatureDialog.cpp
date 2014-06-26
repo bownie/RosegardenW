@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -215,10 +215,8 @@ KeySignatureDialog::KeySignatureDialog(QWidget *parent,
 
     QObject::connect(keyUp, SIGNAL(clicked()), this, SLOT(slotKeyUp()));
     QObject::connect(keyDown, SIGNAL(clicked()), this, SLOT(slotKeyDown()));
-    QObject::connect(m_keyCombo, SIGNAL(activated(const QString &)),
-                     this, SLOT(slotKeyNameChanged(const QString &)));
-    QObject::connect(m_keyCombo, SIGNAL(textChanged(const QString &)),
-                     this, SLOT(slotKeyNameChanged(const QString &)));
+    QObject::connect(m_keyCombo, SIGNAL(activated(int)),
+                     this, SLOT(slotKeyNameChanged(int)));
     QObject::connect(m_majorMinorCombo, SIGNAL(activated(const QString &)),
                      this, SLOT(slotMajorMinorChanged(const QString &)));
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Help);
@@ -353,7 +351,13 @@ KeySignatureDialog::regenerateKeyCombo()
         // translations from (generated) InstrumentStrings.cpp, must have "note
         // name" to distinguish from keyboard shortcut, even though this is a
         // key name
-        m_keyCombo->addItem(QObject::tr(name.toStdString().c_str(), "note name"));
+        // But m_key object needed to display the key pixmap can't be easily
+        // obtained from a translated key name. That's why the untranslated key
+        // name is now stored in the user data associated to each QComboBox
+        // item.
+        QVariant untranslatedName(name);
+        m_keyCombo->addItem(QObject::tr(name.toStdString().c_str(), "note name"),
+                            untranslatedName);
 
         if (m_valid && (*i == m_key)) {
             m_keyCombo->setCurrentIndex(m_keyCombo->count() - 1);
@@ -383,7 +387,11 @@ void
 KeySignatureDialog::redrawKeyPixmap()
 {
     if (m_valid) {
-        NotePixmapFactory::ColourType ct = (m_Thorn ? NotePixmapFactory::PlainColourLight : NotePixmapFactory::PlainColour);
+        NotePixmapFactory::ColourType ct =
+            m_Thorn ? NotePixmapFactory::PlainColourLight
+                    : NotePixmapFactory::PlainColour;
+        m_notePixmapFactory->setSelected(false);
+        m_notePixmapFactory->setShaded(false);
         QPixmap pmap = m_notePixmapFactory->makeKeyDisplayPixmap(m_key, m_clef, ct);
         m_keyPixmap->setPixmap(pmap);
     } else {
@@ -392,7 +400,7 @@ KeySignatureDialog::redrawKeyPixmap()
 }
 
 void
-KeySignatureDialog::slotKeyNameChanged(const QString &s)
+KeySignatureDialog::slotKeyNameChanged(int index)
 {
     if (m_ignoreComboChanges)
         return ;
@@ -400,6 +408,7 @@ KeySignatureDialog::slotKeyNameChanged(const QString &s)
     if (m_explanatoryLabel)
         m_explanatoryLabel->hide();
 
+    const QString s = m_keyCombo->itemData(index).toString();
     std::string name(getKeyName(s, m_key.isMinor()));
 
     try {
@@ -425,7 +434,8 @@ KeySignatureDialog::slotMajorMinorChanged(const QString &s)
     if (m_ignoreComboChanges)
         return ;
 
-    std::string name(getKeyName(m_keyCombo->currentText(), s == tr("Minor")));
+    QString text = m_keyCombo->itemData(m_keyCombo->currentIndex()).toString();
+    std::string name(getKeyName(text, s == tr("Minor")));
 
     try {
         m_key = Rosegarden::Key(name);

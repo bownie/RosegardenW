@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A MIDI and audio sequencer and musical notation editor.
-  Copyright 2000-2011 the Rosegarden development team.
+  Copyright 2000-2014 the Rosegarden development team.
  
   Other copyrights also apply to some parts of this work.  Please
   see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
   COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[RosegardenScrollView]"
 
 #include <QWheelEvent>
 #include <QDesktopWidget>
@@ -241,7 +242,7 @@ QPoint RosegardenScrollView::viewportToContents(const QPoint& vp)
                   vp.y() + contentsY());
 }
 
-void RosegardenScrollView::viewportPaintEvent( QPaintEvent* event )
+void RosegardenScrollView::viewportPaintEvent( QPaintEvent* /* event */ )
 {
 }
 
@@ -259,7 +260,7 @@ void RosegardenScrollView::viewportMousePressEvent(QMouseEvent* e)
         e->ignore();
 }
 
-void RosegardenScrollView::contentsMousePressEvent( QMouseEvent* event )
+void RosegardenScrollView::contentsMousePressEvent( QMouseEvent* /* event */ )
 {
 }
 
@@ -277,7 +278,7 @@ void RosegardenScrollView::viewportMouseReleaseEvent(QMouseEvent* e)
         e->ignore();
 }
 
-void RosegardenScrollView::contentsMouseReleaseEvent( QMouseEvent* event )
+void RosegardenScrollView::contentsMouseReleaseEvent( QMouseEvent* /* event */ )
 {
 }
 
@@ -295,7 +296,7 @@ void RosegardenScrollView::viewportMouseMoveEvent(QMouseEvent* e)
         e->ignore();
 }
 
-void RosegardenScrollView::contentsMouseMoveEvent( QMouseEvent* event )
+void RosegardenScrollView::contentsMouseMoveEvent( QMouseEvent* /* event */ )
 {
 }
 
@@ -313,7 +314,7 @@ void RosegardenScrollView::viewportMouseDoubleClickEvent(QMouseEvent* e)
         e->ignore();
 }
 
-void RosegardenScrollView::contentsMouseDoubleClickEvent( QMouseEvent* event )
+void RosegardenScrollView::contentsMouseDoubleClickEvent( QMouseEvent* /* event */ )
 {
 }
 
@@ -440,8 +441,8 @@ const double RosegardenScrollView::DefaultMinDeltaScroll = 1.2;
 
 bool RosegardenScrollView::isTimeForSmoothScroll()
 {
-    static int desktopWidth = QApplication::desktop()->width(),
-        desktopHeight = QApplication::desktop()->height();
+    // static int desktopWidth = QApplication::desktop()->width(),
+    //    desktopHeight = QApplication::desktop()->height();
 
     if (m_smoothScroll) {
         int ta = m_scrollShortcuterationTimer.elapsed();
@@ -626,7 +627,7 @@ void RosegardenScrollView::resizeEvent(QResizeEvent* e)
     updateBottomWidgetGeometry();
 }
 
-void RosegardenScrollView::setHBarGeometry(QScrollBar &hbar, int x, int y, int w, int h)
+void RosegardenScrollView::setHBarGeometry(QScrollBar &/* hbar */, int /* x */, int /* y */, int /* w */, int /* h */)
 {
     ///@TODO Not available in QAbstractScrollArea - Q3ScrollView::setHBarGeometry(hbar, x, y, w, h);
 //	hbar.setGeometry( x,y, w,h );

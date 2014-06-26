@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -49,6 +49,12 @@ AudioRouteMenu::AudioRouteMenu(QWidget *par,
         m_direction(direction),
         m_format(format)
 {
+    if (instrument) {
+        // Make instrument tell us if it gets destroyed.
+        connect(instrument, SIGNAL(destroyed()),
+                this, SLOT(slotInstrumentGone()));
+    }
+    
     switch (format) {
 
     case Compact: {
@@ -106,6 +112,11 @@ AudioRouteMenu::slotSetInstrument(Studio *studio,
     m_studio = studio;
     m_instrument = instrument;
     slotRepopulate();
+    if (instrument) {
+        // Make instrument tell us if it gets destroyed.
+        connect(instrument, SIGNAL(destroyed()),
+                this, SLOT(slotInstrumentGone()));
+    }
 }
 
 void
@@ -137,7 +148,7 @@ AudioRouteMenu::slotShowMenu()
 
     connect(menu, SIGNAL(triggered(QAction *)), this, SLOT(slotEntrySelected(QAction *)));
 
-    int itemHeight = menu->itemHeight(0) + 2;
+    int itemHeight = menu->actionGeometry(menu->actions().value(0)).height() + 2;
     QPoint pos = QCursor::pos();
 
     pos.rx() -= 10;
@@ -218,6 +229,9 @@ AudioRouteMenu::getCurrentEntry()
 QString
 AudioRouteMenu::getEntryText(int entry)
 {
+    if (!m_instrument)
+        { return tr("none");}
+
     switch (m_direction) {
 
     case In: {
@@ -268,6 +282,9 @@ AudioRouteMenu::slotEntrySelected(QAction *a)
 void
 AudioRouteMenu::slotEntrySelected(int i)
 {
+    if (!m_instrument)
+        { return; }
+    
     switch (m_direction) {
 
     case In: {
@@ -378,6 +395,12 @@ AudioRouteMenu::slotEntrySelected(int i)
     emit changed();
 }
 
+void
+AudioRouteMenu::
+slotInstrumentGone(void)
+{
+    m_instrument = 0;
+}
 
 }
 #include "moc_AudioRouteMenu.cpp"

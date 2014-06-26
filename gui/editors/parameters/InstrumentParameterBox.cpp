@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[InstrumentParameterBox]"
 
 #include "InstrumentParameterBox.h"
 
@@ -152,7 +153,7 @@ InstrumentParameterBox::getSelectedInstrument()
 }
 
 QString
-InstrumentParameterBox::getPreviousBox(RosegardenParameterArea::Arrangement arrangement) const
+InstrumentParameterBox::getPreviousBox(RosegardenParameterArea::Arrangement /* arrangement */) const
 {
     return tr("Track");
 }

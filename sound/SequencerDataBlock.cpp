@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -16,10 +16,13 @@
 #include "SequencerDataBlock.h"
 #include "MappedEventList.h"
 
+//#include "misc/Debug.h"
+
+//#include <QThread>
+#include <QMutexLocker>
+
 namespace Rosegarden
 {
-
-//!!! todo: review mutex requirements
 
 SequencerDataBlock *
 SequencerDataBlock::getInstance()
@@ -35,71 +38,97 @@ SequencerDataBlock::SequencerDataBlock()
 }
 
 bool
-SequencerDataBlock::getVisual(MappedEvent &ev) const
+SequencerDataBlock::getVisual(MappedEvent &ev)
 {
-    static int eventIndex = 0;
-
-    if (!m_haveVisualEvent) {
+    // If there is no visual event, or setVisual() is working, bail
+    if (!m_haveVisualEvent)
         return false;
-    } else {
-        int thisEventIndex = m_visualEventIndex;
-        if (thisEventIndex == eventIndex)
-            return false;
-        ev = *((MappedEvent *) & m_visualEvent);
-        eventIndex = thisEventIndex;
-        return true;
-    }
+
+    // Get the index in case setVisual() changes it.
+    int thisEventIndex = m_setVisualIndex;
+
+    // If we've already seen this one, bail.  This prevents reading
+    // before setVisual() is finished updating.
+    if (thisEventIndex == m_getVisualIndex)
+        return false;
+
+    // ??? A call to setVisual() could happen at this point and modify
+    //     m_visualEvent while we are reading it.  This isn't as safe as
+    //     it appears.  I think we need a mutex for this.  Though since
+    //     it is just the MIDI OUT display on playback, it's probably not
+    //     worth worrying about.
+
+    // Copy the event to the caller.
+    ev = *((MappedEvent *) & m_visualEvent);
+
+    // Remember where we were for next time.
+    m_getVisualIndex = thisEventIndex;
+
+    return true;
 }
 
 void
 SequencerDataBlock::setVisual(const MappedEvent *ev)
 {
+    // Prevent access by getVisual() while we are changing this.
     m_haveVisualEvent = false;
+
     if (ev) {
+        // Save the visual event
         *((MappedEvent *)&m_visualEvent) = *ev;
-        ++m_visualEventIndex;
+
+        // Indicate that it has changed and it is safe to read now.
+        ++m_setVisualIndex;
+
+        // Allow access once again.
         m_haveVisualEvent = true;
     }
 }
 
 int
-SequencerDataBlock::getRecordedEvents(MappedEventList &mC) const
+SequencerDataBlock::getRecordedEvents(MappedEventList &mC)
 {
-    static int readIndex = -1;
-
-    if (readIndex == -1) {
-        readIndex = m_recordEventIndex;
-        return 0;
-    }
-
-    int currentIndex = m_recordEventIndex;
-    int count = 0;
+    // Grab a copy of the stopping point in case the other thread
+    // changes it while we are working.
+    int stopIndex = m_recordEventIndex;
 
     MappedEvent *recordBuffer = (MappedEvent *)m_recordBuffer;
 
-    while (readIndex != currentIndex) {
-        mC.insert(new MappedEvent(recordBuffer[readIndex]));
-        if (++readIndex == SEQUENCER_DATABLOCK_RECORD_BUFFER_SIZE)
-            readIndex = 0;
-        ++count;
+    // While there are events in the record buffer, copy each event to
+    // the user's list.
+    while (m_readIndex != stopIndex) {
+        mC.insert(new MappedEvent(recordBuffer[m_readIndex]));
+
+        // Increment and wrap around to the beginning if needed.
+        if (++m_readIndex == SEQUENCER_DATABLOCK_RECORD_BUFFER_SIZE)
+            m_readIndex = 0;
     }
 
-    return count;
+    return mC.size();
 }
 
 void
 SequencerDataBlock::addRecordedEvents(MappedEventList *mC)
 {
-    // ringbuffer
+    // Grab a copy of the record position so we don't update it
+    // while the other thread is using it.
     int index = m_recordEventIndex;
+
     MappedEvent *recordBuffer = (MappedEvent *)m_recordBuffer;
 
+    // Copy each incoming event into the ring buffer.
     for (MappedEventList::iterator i = mC->begin(); i != mC->end(); ++i) {
         recordBuffer[index] = **i;
+
+        // Increment and wrap around to the beginning if needed.
         if (++index == SEQUENCER_DATABLOCK_RECORD_BUFFER_SIZE)
             index = 0;
     }
 
+    // Once the buffer is in a consistent state, move the record index
+    // so that the other thread will read the new events.
+    // ??? Is this guaranteed to be atomic and therefore thread safe?
+    //     I believe so, and that's why this has always worked.
     m_recordEventIndex = index;
 }
 
@@ -141,6 +170,8 @@ bool
 SequencerDataBlock::getInstrumentLevel(InstrumentId id,
                                        LevelInfo &info) const
 {
+    // ??? Move statics to class scope non-static and clear them appropriately
+    //     in clearTemporaries().
     static int lastUpdateIndex[SEQUENCER_DATABLOCK_MAX_NB_INSTRUMENTS];
 
     int index = instrumentToIndex(id);
@@ -170,6 +201,8 @@ bool
 SequencerDataBlock::getInstrumentLevelForMixer(InstrumentId id,
         LevelInfo &info) const
 {
+    // ??? Move statics to class scope non-static and clear them appropriately
+    //     in clearTemporaries().
     static int lastUpdateIndex[SEQUENCER_DATABLOCK_MAX_NB_INSTRUMENTS];
 
     int index = instrumentToIndex(id);
@@ -203,6 +236,8 @@ SequencerDataBlock::setInstrumentLevel(InstrumentId id, const LevelInfo &info)
 bool
 SequencerDataBlock::getInstrumentRecordLevel(InstrumentId id, LevelInfo &info) const
 {
+    // ??? Move statics to class scope non-static and clear them appropriately
+    //     in clearTemporaries().
     static int lastUpdateIndex[SEQUENCER_DATABLOCK_MAX_NB_INSTRUMENTS];
 
     int index = instrumentToIndex(id);
@@ -225,6 +260,8 @@ SequencerDataBlock::getInstrumentRecordLevel(InstrumentId id, LevelInfo &info) c
 bool
 SequencerDataBlock::getInstrumentRecordLevelForMixer(InstrumentId id, LevelInfo &info) const
 {
+    // ??? Move statics to class scope non-static and clear them appropriately
+    //     in clearTemporaries().
     static int lastUpdateIndex[SEQUENCER_DATABLOCK_MAX_NB_INSTRUMENTS];
 
     int index = instrumentToIndex(id);
@@ -276,6 +313,8 @@ SequencerDataBlock::getTrackLevel(TrackId id, LevelInfo &info) const
 bool
 SequencerDataBlock::getSubmasterLevel(int submaster, LevelInfo &info) const
 {
+    // ??? Move statics to class scope non-static and clear them appropriately
+    //     in clearTemporaries().
     static int lastUpdateIndex[SEQUENCER_DATABLOCK_MAX_NB_SUBMASTERS];
 
     if (submaster < 0 || submaster > SEQUENCER_DATABLOCK_MAX_NB_SUBMASTERS) {
@@ -308,6 +347,8 @@ SequencerDataBlock::setSubmasterLevel(int submaster, const LevelInfo &info)
 bool
 SequencerDataBlock::getMasterLevel(LevelInfo &level) const
 {
+    // ??? Move statics to class scope non-static and clear them appropriately
+    //     in clearTemporaries().
     static int lastUpdateIndex = 0;
 
     int currentIndex = m_masterLevelUpdateIndex;
@@ -333,28 +374,32 @@ SequencerDataBlock::clearTemporaries()
 {
     m_positionSec = 0;
     m_positionNsec = 0;
-    m_visualEventIndex = 0;
-    *((MappedEvent *)&m_visualEvent) = MappedEvent();
+
+    m_setVisualIndex = 0;
+    m_getVisualIndex = 0;
     m_haveVisualEvent = false;
+    *((MappedEvent *)&m_visualEvent) = MappedEvent();
+
     m_recordEventIndex = 0;
-    //!!!    m_recordLevel.level = 0;
-    //!!!    m_recordLevel.levelRight = 0;
-    memset(m_knownInstruments, 0,
-           SEQUENCER_DATABLOCK_MAX_NB_INSTRUMENTS * sizeof(InstrumentId));
+    m_readIndex = 0;
+    memset(m_recordBuffer, 0, sizeof(m_recordBuffer));
+
+    memset(m_knownInstruments, 0, sizeof(m_knownInstruments));
     m_knownInstrumentCount = 0;
-    memset(m_levelUpdateIndices, 0,
-           SEQUENCER_DATABLOCK_MAX_NB_INSTRUMENTS * sizeof(int));
-    memset(m_levels, 0,
-           SEQUENCER_DATABLOCK_MAX_NB_INSTRUMENTS * sizeof(LevelInfo));
+
+    memset(m_levelUpdateIndices, 0, sizeof(m_levelUpdateIndices));
+    memset(m_levels, 0, sizeof(m_levels));
+
+    memset(m_recordLevelUpdateIndices, 0, sizeof(m_recordLevelUpdateIndices));
+    memset(m_recordLevels, 0, sizeof(m_recordLevels));
+
     memset(m_submasterLevelUpdateIndices, 0,
-           SEQUENCER_DATABLOCK_MAX_NB_SUBMASTERS * sizeof(int));
-    memset(m_submasterLevels, 0,
-           SEQUENCER_DATABLOCK_MAX_NB_SUBMASTERS * sizeof(LevelInfo));
+            sizeof(m_submasterLevelUpdateIndices));
+    memset(m_submasterLevels, 0, sizeof(m_submasterLevels));
+
     m_masterLevelUpdateIndex = 0;
     m_masterLevel.level = 0;
     m_masterLevel.levelRight = 0;
-
 }
 
 }
-

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file is Copyright 2003
@@ -17,8 +17,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _BASE_COLOUR_H_
-#define _BASE_COLOUR_H_
+#ifndef RG_BASE_COLOUR_H
+#define RG_BASE_COLOUR_H
 
 #include <string>
 

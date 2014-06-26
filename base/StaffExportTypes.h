@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file Coypright 2009 D. Michael McIntyre
 
@@ -17,8 +17,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _STAFF_EXPORT_H_
-#define _STAFF_EXPORT_H_
+#ifndef RG_STAFF_EXPORT_H
+#define RG_STAFF_EXPORT_H
 
 namespace Rosegarden
 {

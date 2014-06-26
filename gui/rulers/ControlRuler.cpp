@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[ControlRuler]"
 
 #include "ControlRuler.h"
 
@@ -64,7 +66,7 @@ const int ControlRuler::MinItemHeight = 5;
 const int ControlRuler::MaxItemHeight = 64 + 5;
 const int ControlRuler::ItemHeightRange = 64;
 
-ControlRuler::ControlRuler(ViewSegment *viewsegment,
+    ControlRuler::ControlRuler(ViewSegment */*viewsegment*/,
                            RulerScale* rulerScale,
                            QWidget* parent
 						  ) :
@@ -75,6 +77,9 @@ ControlRuler::ControlRuler(ViewSegment *viewsegment,
         m_notationStaff(0),
         m_segment(0),
 //        m_assignedEventSelection(0),
+        m_firstVisibleItem(m_controlItemMap.end()),
+        m_lastVisibleItem(m_controlItemMap.end()),
+        m_nextItemLeft(m_controlItemMap.end()),
         m_currentIndex(0),
         m_currentTool(0),
         m_xScale(0),
@@ -87,10 +92,7 @@ ControlRuler::ControlRuler(ViewSegment *viewsegment,
         m_itemMoved(false),
         m_selecting(false),
         m_selectionRect(0),
-        m_menu(0),
-        m_firstVisibleItem(m_controlItemMap.end()),
-        m_lastVisibleItem(m_controlItemMap.end()),
-        m_nextItemLeft(m_controlItemMap.end())
+        m_menu(0)
 {
 //    setViewSegment(viewsegment);
 
@@ -144,7 +146,7 @@ ControlItemMap::iterator ControlRuler::findControlItem(float x)
 
 ControlItemMap::iterator ControlRuler::findControlItem(const Event *event)
 {
-    double xstart = getRulerScale()->getXForTime(event->getAbsoluteTime());
+    // double xstart = getRulerScale()->getXForTime(event->getAbsoluteTime());
 
     ControlItemMap::iterator it;
     std::pair <ControlItemMap::iterator,ControlItemMap::iterator> ret;
@@ -365,7 +367,7 @@ void ControlRuler::updateSegment()
     // Either run through the ruler's EventSelection, updating from each item
     //  or, if there isn't one, go through m_selectedItems
     timeT start,end;
-    bool segmentModified = false;
+    // bool segmentModified = false;
 
     QString commandLabel = "Adjust control/property";
 
@@ -402,7 +404,7 @@ void ControlRuler::updateSegment()
         commandLabel = "Add control";
         macro->setName(commandLabel);
 
-        segmentModified = true;
+        // segmentModified = true;
     } else {
         // Check for movement in time here and delete events if necessary
         if (start != m_eventSelection->getStartTime() || end != m_eventSelection->getEndTime()) {
@@ -413,7 +415,7 @@ void ControlRuler::updateSegment()
             start = std::min(start,m_eventSelection->getStartTime());
             end = std::max(end,m_eventSelection->getEndTime());
 
-            segmentModified = true;
+            // segmentModified = true;
         }
     }
 
@@ -437,7 +439,7 @@ void ControlRuler::slotUpdate()
 ///TODO Set some update flag?
 }
 
-void ControlRuler::notationLayoutUpdated(timeT startTime, timeT endTime)
+void ControlRuler::notationLayoutUpdated(timeT startTime, timeT /*endTime*/)
 {
     // notationLayoutUpdated should be called after notation has adjusted the layout
     // Clearly, for property control rulers, notes may have been moved so their position needs updating
@@ -471,7 +473,7 @@ void ControlRuler::notationLayoutUpdated(timeT startTime, timeT endTime)
     update();
 }
 
-void ControlRuler::paintEvent(QPaintEvent *event)
+void ControlRuler::paintEvent(QPaintEvent */*event*/)
 {
     RG_DEBUG << "ControlRuler::paintEvent: width()=" << width() << " height()=" << height();
     QPainter painter(this);
@@ -506,7 +508,7 @@ void ControlRuler::paintEvent(QPaintEvent *event)
     painter.drawLine(xstart, mapYToWidget(0.75f), xend, mapYToWidget(0.75f));
 }
 
-void ControlRuler::slotScrollHorizSmallSteps(int step)
+void ControlRuler::slotScrollHorizSmallSteps(int /*step*/)
 {
 }
 
@@ -602,7 +604,7 @@ void ControlRuler::resizeEvent(QResizeEvent *)
     slotSetPannedRect(m_pannedRect);
 }
 
-void ControlRuler::slotSetTool(const QString &matrixtoolname)
+void ControlRuler::slotSetTool(const QString &/*matrixtoolname*/)
 {
 }
 
@@ -659,7 +661,7 @@ void ControlRuler::mouseMoveEvent(QMouseEvent* e)
 }
 
 void
-ControlRuler::wheelEvent(QWheelEvent *e)
+ControlRuler::wheelEvent(QWheelEvent */*e*/)
 {
     // not sure what to do yet
 
@@ -725,6 +727,12 @@ void ControlRuler::updateSelection()
 
 void ControlRuler::addToSelection(ControlItem *item)
 {
+    ControlItemList::iterator found = 
+        std::find (m_selectedItems.begin(),
+                   m_selectedItems.end(), item);
+    
+    // If we already have this item, do nothing.
+    if (found != m_selectedItems.end()) { return; }
     m_selectedItems.push_back(item);
     item->setSelected(true);
     m_eventSelection->addEvent(item->getEvent());
@@ -788,14 +796,14 @@ QColor ControlRuler::valueToColour(int max, int val)
 void ControlRuler::flipForwards()
 {
     ///CJ Expect to drop tghis with a better way of ordering bars
-    std::pair<int, int> minMax = getZMinMax();
+    // std::pair<int, int> minMax = getZMinMax();
 
 }
 
 void ControlRuler::flipBackwards()
 {
     ///CJ Expect to drop tghis with a better way of ordering bars
-    std::pair<int, int> minMax = getZMinMax();
+    // std::pair<int, int> minMax = getZMinMax();
 
 }
 

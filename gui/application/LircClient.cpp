@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     This file is Copyright 2005
         Toni Arnold         <toni__arnold@bluewin.ch>
@@ -18,6 +18,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[LircClient]"
 
 #include "LircClient.h"
 
@@ -29,6 +30,7 @@
 #include <QSocketNotifier>
 #include <fcntl.h>
 #include <cstdlib>
+#include <unistd.h>
 
 namespace Rosegarden
 {

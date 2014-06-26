@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[PasteEventsCommand]"
 
 #include "PasteEventsCommand.h"
 
@@ -282,8 +283,12 @@ PasteEventsCommand::modifySegment()
             m_pastedEvents.addEvent(e);
         }
 
-        destination->normalizeRests
-        (source->getStartTime(), source->getEndTime());
+//        destination->normalizeRests(pasteTime, pasteTime + duration);
+ 
+        // We ran the normalizeRests() calls like this as far back as I can go
+        // in history, and since normalizeRests() has been implicated in a
+        // string of recent paste bugs, we're going with the historical version: 
+        destination->normalizeRests(source->getStartTime(), source->getEndTime());
 
         return ;
     }
@@ -301,8 +306,13 @@ PasteEventsCommand::modifySegment()
         m_pastedEvents.addEvent(e);
     }
 
-    destination->normalizeRests
-    (source->getStartTime(), source->getEndTime());
+//    destination->normalizeRests(pasteTime, pasteTime + duration);
+
+
+    // We ran the normalizeRests() calls like this as far back as I can go
+    // in history, and since normalizeRests() has been implicated in a
+    // string of recent paste bugs, we're going with the historical version: 
+    destination->normalizeRests(source->getStartTime(), source->getEndTime());
 }
 
 EventSelection

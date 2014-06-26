@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_EVENTPARAMETERDIALOG_H_
-#define _RG_EVENTPARAMETERDIALOG_H_
+#ifndef RG_EVENTPARAMETERDIALOG_H
+#define RG_EVENTPARAMETERDIALOG_H
 
 #include "base/PropertyName.h"
 #include "commands/edit/SelectionPropertyCommand.h"
@@ -78,7 +78,7 @@ protected:
 public:
     EventParameterDialog(QWidget *parent,
                          const QString &name,
-			 ParameterPattern::Situation *situation,
+			 SelectionSituation *situation,
 			 const ParameterPatternVec *patterns);
 private:
     // Initialize just the pattern-choosing widgets.
@@ -107,7 +107,7 @@ protected:
     ParamWidgetVec       m_paramVec;
     // Helper containing non-gui data, which will outlive
     // EventParameterDialog.
-    const ParameterPattern::Situation  *m_situation;
+    const SelectionSituation  *m_situation;
     // The available patterns.
     const ParameterPatternVec *m_patterns;
     // Number of parameters currently in use.  Not always the same as

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -165,6 +165,7 @@ Rotary::paintEvent(QPaintEvent *)
     case StepTicks:
         numTicks = 1 + (m_maximum + 0.0001 - m_minimum) / m_step;
         break;
+    case NoTicks:
     default:
         break;
     }
@@ -436,8 +437,16 @@ Rotary::mouseDoubleClickEvent(QMouseEvent * /*e*/)
         minv = powf(10, minv);
         maxv = powf(10, maxv);
         val = powf(10, val);
-        step = powf(10, step);
-        if (step > 0.001) step = 0.001;
+//      step = powf(10, step);
+//      if (step > 0.001) step = 0.001;
+        step = (maxv - minv) / 100.0;
+        if (step > 1.0) {
+            step = .1;
+        } else if (step > .1) {
+            step = .01;
+        } else {
+            step = .001;
+        }
     }
 
     FloatEdit dialog(this,
@@ -468,7 +477,8 @@ Rotary::mouseDoubleClickEvent(QMouseEvent * /*e*/)
     if (dialog.exec() == QDialog::Accepted) {
         float newval = dialog.getValue();
         if (m_logarithmic) {
-            if (m_position < powf(10, -10)) m_position = -10;
+//          if (m_position < powf(10, -10)) m_position = -10;
+            if (m_position < -10) m_position = -10;
             else m_position = log10f(newval);
         } else {
             m_position = newval;

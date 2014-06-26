@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -155,16 +155,19 @@ MidiKeyMapping::getMapForKeyName(MidiByte pitch) const
     }
 }
 
+#if 0
+// unused
 int
 MidiKeyMapping::getOffset(MidiByte pitch) const
 {
-    int c;
+    int c = 0;
     for (KeyNameMap::const_iterator i = m_map.begin(); i != m_map.end(); ++i) {
-	if (i->first == pitch) return c;
-	++c;
+        if (i->first == pitch) return c;
+        ++c;
     }
     return -1;
 }
+#endif
 
 int
 MidiKeyMapping::getPitchForOffset(int offset) const

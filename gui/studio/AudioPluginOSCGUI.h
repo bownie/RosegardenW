@@ -57,7 +57,7 @@ protected:
     QString m_basePath;
     QString m_serverUrl;
 };
-    
+
 
 }
 

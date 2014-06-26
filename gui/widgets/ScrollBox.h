@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is based on code from KGhostView, Copyright 1997-2002
         Markkhu Hihnala     <mah@ee.oulu.fi>
@@ -20,8 +20,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_SCROLLBOX_H_
-#define _RG_SCROLLBOX_H_
+#ifndef RG_SCROLLBOX_H
+#define RG_SCROLLBOX_H
 
 #include <QFrame>
 #include <QPixmap>

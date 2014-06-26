@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -57,15 +57,15 @@ SegmentPencil::SegmentPencil(CompositionView *c, RosegardenDocument *d)
 void SegmentPencil::ready()
 {
     m_canvas->viewport()->setCursor(Qt::IBeamCursor);
-    connect(m_canvas, SIGNAL(contentsMoving (int, int)),
-            this, SLOT(slotCanvasScrolled(int, int)));
+    //connect(m_canvas, SIGNAL(contentsMoving (int, int)),
+    //        this, SLOT(slotCanvasScrolled(int, int)));
     setContextHelpFor(QPoint(0, 0));
 }
 
 void SegmentPencil::stow()
 {
-    disconnect(m_canvas, SIGNAL(contentsMoving (int, int)),
-               this, SLOT(slotCanvasScrolled(int, int)));
+    //disconnect(m_canvas, SIGNAL(contentsMoving (int, int)),
+    //           this, SLOT(slotCanvasScrolled(int, int)));
 }
 
 void SegmentPencil::slotCanvasScrolled(int newX, int newY)
@@ -93,7 +93,7 @@ void SegmentPencil::handleMouseButtonPress(QMouseEvent *e)
 
     // Check if mouse click was on a rect
     //
-    CompositionItem item = m_canvas->getFirstItemAt(e->pos());
+    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
 
     // If user clicked a rect, and pencilAnyway is false, then there's nothing
     // left to do here
@@ -211,13 +211,13 @@ void SegmentPencil::handleMouseButtonRelease(QMouseEvent* e)
             segment->setLabel( track->getPresetLabel().c_str() );
         }
 
-        CompositionItem item = CompositionItemHelper::makeCompositionItem(segment);
+        CompositionItemPtr item = CompositionItemHelper::makeCompositionItem(segment);
         m_canvas->getModel()->clearSelected();
         m_canvas->getModel()->setSelected(item);
         m_canvas->getModel()->signalSelection();
 
         m_canvas->setTmpRect(QRect());
-        m_canvas->slotUpdateSegmentsDrawBuffer();
+        m_canvas->slotUpdateAll();
 
     }
 }

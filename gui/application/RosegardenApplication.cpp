@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[RosegardenApplication]"
 
 #include "RosegardenApplication.h"
 
@@ -56,15 +57,15 @@ int RosegardenApplication::newInstance()
 */
 void RosegardenApplication::sfxLoadExited(QProcess *proc)
 {
-	if (proc->exitStatus() != QProcess::NormalExit ) {
-            QSettings settings;
-            settings.beginGroup( SequencerOptionsConfigGroup );
+    if (proc->exitStatus() != QProcess::NormalExit ) {
+        QSettings settings;
+        settings.beginGroup( SequencerOptionsConfigGroup );
 
-            QString soundFontPath = settings.value("soundfontpath", "").toString() ;
-            settings.endGroup();		// corresponding to: settings().beginGroup( SequencerOptionsConfigGroup );
-            //### dtb: Using topLevelWidgets()[0] in place of mainWidget() is a big assumption on my part.
-            QMessageBox::critical( topLevelWidgets()[0], "",
-                    tr("Failed to load soundfont %1").arg(soundFontPath ));
+        QString soundFontPath = settings.value("soundfontpath", "").toString() ;
+        settings.endGroup();                // corresponding to: settings().beginGroup( SequencerOptionsConfigGroup );
+        //### dtb: Using topLevelWidgets()[0] in place of mainWidget() is a big assumption on my part.
+        QMessageBox::critical( topLevelWidgets()[0], "",
+                               tr("Failed to load soundfont %1").arg(soundFontPath ));
     } else {
         RG_DEBUG << "RosegardenApplication::sfxLoadExited() : sfxload exited normally\n";
     }
@@ -84,14 +85,14 @@ void RosegardenApplication::slotSetStatusMessage(QString msg)
 }
 
 void
-RosegardenApplication::refreshGUI(int maxTime)
+RosegardenApplication::refreshGUI(int /* maxTime */)
 {
-//    eventLoop()->processEvents(QEventLoop::ExcludeUserInput |			//&&& eventLoop()->processEvents()
+//    eventLoop()->processEvents(QEventLoop::ExcludeUserInput |                 //&&& eventLoop()->processEvents()
 //                               QEventLoop::ExcludeSocketNotifiers,
    //                            maxTime);
 }
 
-void RosegardenApplication::saveState(QSessionManager& sm)
+void RosegardenApplication::saveState(QSessionManager& /* sm */)
 {
     emit aboutToSaveState();
 //&&&    KUniqueApplication::saveState(sm);
@@ -100,6 +101,16 @@ void RosegardenApplication::saveState(QSessionManager& sm)
 RosegardenApplication* RosegardenApplication::ApplicationObject()
 {
     return dynamic_cast<RosegardenApplication*>(qApp);
+}
+
+bool
+RosegardenApplication::notify(QObject * receiver, QEvent * event) 
+{
+    try { return QApplication::notify(receiver, event); } 
+    catch(std::exception& e) {
+        RG_DEBUG << "Exception thrown:" << e.what();
+        return false;
+    }
 }
 
 QByteArray RosegardenApplication::Empty;

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -353,8 +353,8 @@ EventEditDialog::addPersistentProperty(const PropertyName &name)
             checkBox->setObjectName(strtoqstr(name));
             checkBox->setChecked(m_originalEvent.get<Bool>(name));
             m_persistentGridLay->addWidget(checkBox, m_persistentGridRow, 2);
-            QObject::connect(checkBox, SIGNAL(activated()),
-                              this, SLOT(slotBoolPropertyChanged()));
+            QObject::connect(checkBox, SIGNAL(toggled(bool)),
+                              this, SLOT(slotBoolPropertyChanged(bool)));
             checkBox->show();
             break;
         }
@@ -468,18 +468,18 @@ EventEditDialog::slotRealTimePropertyChanged(int value)
     QString propertyName = propertyFullName.section('%', 0, 0),
                            nsecOrSec = propertyFullName.section('%', 1, 1);
 
-    RealTime realTime = m_event.get<RealTimeT>(qstrtostr(propertyName));
+    // RealTime realTime = m_event.get<RealTimeT>(qstrtostr(propertyName));
 
-    if (nsecOrSec == "sec")
-        realTime.sec = value;
-    else
-        realTime.nsec = value;
+    // if (nsecOrSec == "sec")
+    //     realTime.sec = value;
+    // else
+    //     realTime.nsec = value;
 
     m_event.set<Int>(qstrtostr(propertyName), value);
 }
 
 void
-EventEditDialog::slotBoolPropertyChanged()
+EventEditDialog::slotBoolPropertyChanged(bool)
 {
     const QObject *s = sender();
     const QCheckBox *checkBox = dynamic_cast<const QCheckBox *>(s);

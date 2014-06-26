@@ -4,7 +4,7 @@
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
 
-    This program is Copyright 2000-2011
+    This program is Copyright 2000-2014
         Guillaume Laurent   <glaurent@telegraph-road.org>,
         Chris Cannam        <cannam@all-day-breakfast.com>,
         Richard Bown        <richard.bown@ferventsoftware.com>
@@ -22,8 +22,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_COMMAND_H_
-#define _RG_COMMAND_H_
+#ifndef RG_COMMAND_H
+#define RG_COMMAND_H
 
 #include <QString>
 

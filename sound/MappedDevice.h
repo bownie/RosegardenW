@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2011 the Rosegarden development team.
+  Copyright 2000-2014 the Rosegarden development team.
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -11,6 +11,9 @@
   License, or (at your option) any later version.  See the file
   COPYING included with this distribution for more information.
 */
+
+#ifndef RG_MAPPEDDEVICE_H
+#define RG_MAPPEDDEVICE_H
 
 #include <string>
 #include <vector>
@@ -20,9 +23,6 @@
 #include "base/Device.h"
 #include "base/MidiDevice.h"
 #include "MappedCommon.h"
-
-#ifndef _MAPPEDDEVICE_H_
-#define _MAPPEDDEVICE_H_
 
 // A DCOP wrapper to get MappedInstruments across to the GUI
 //
@@ -100,5 +100,5 @@ typedef std::vector<MappedInstrument*>::iterator
 
 }
 
-#endif // _MAPPEDDEVICE_H_
+#endif // RG_MAPPEDDEVICE_H
 

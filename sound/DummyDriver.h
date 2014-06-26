@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -18,8 +18,8 @@
 // but still want to build the sequencer.
 //
 
-#ifndef _DUMMYDRIVER_H_
-#define _DUMMYDRIVER_H_
+#ifndef RG_DUMMYDRIVER_H
+#define RG_DUMMYDRIVER_H
 
 namespace Rosegarden
 {
@@ -27,10 +27,8 @@ namespace Rosegarden
 class DummyDriver : public SoundDriver
 {
 public:
-    DummyDriver(MappedStudio *studio):
-        SoundDriver(studio, std::string("DummyDriver - no sound")) { }
-    DummyDriver(MappedStudio *studio, const std::string & name):
-        SoundDriver(studio, std::string("DummyDriver: " + name)) { }
+    DummyDriver(MappedStudio *studio);
+    DummyDriver(MappedStudio *studio, QString pastLog);
     virtual ~DummyDriver() { }
 
     virtual bool initialise()  { return true; }
@@ -131,6 +129,8 @@ public:
     virtual void setLoop(const RealTime &/*loopStart*/,
                          const RealTime &/*loopEnd*/) { }
 
+    virtual QString getStatusLog();
+
     virtual std::vector<PlayableAudioFile*> getPlayingAudioFiles()
         { return std::vector<PlayableAudioFile*>(); }
 
@@ -141,7 +141,7 @@ public:
         i = 0; n = 0;
     }
 
-    virtual void claimUnwantedPlugin(void *plugin) { }
+    virtual void claimUnwantedPlugin(void */* plugin */) { }
     virtual void scavengePlugins() { }
 
     virtual bool areClocksRunning() const { return true; }
@@ -151,9 +151,10 @@ protected:
                                 const RealTime &, const RealTime &) { }
     virtual void generateFixedInstruments()  { }
 
+    QString m_pastLog;
 };
 
 }
 
-#endif // _DUMMYDRIVER_H_
+#endif // RG_DUMMYDRIVER_H
 

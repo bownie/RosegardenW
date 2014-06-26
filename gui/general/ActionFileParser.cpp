@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[ActionFileParser]"
 
 #include "ActionFileParser.h"
 
@@ -88,8 +90,8 @@ ActionFileParser::startDocument()
 }
 
 bool
-ActionFileParser::startElement(const QString& namespaceURI,
-                               const QString& localName,
+ActionFileParser::startElement(const QString& /* namespaceURI */,
+                               const QString& /* localName */,
                                const QString& qName,
                                const QXmlAttributes& atts)
 {
@@ -249,8 +251,8 @@ ActionFileParser::startElement(const QString& namespaceURI,
 }
 
 bool
-ActionFileParser::endElement(const QString& namespaceURI,
-                             const QString& localName,
+ActionFileParser::endElement(const QString& /* namespaceURI */,
+                             const QString& /* localName */,
                              const QString& qName)
 {
     QString name = qName.toLower();
@@ -596,7 +598,7 @@ ActionFileParser::addSeparatorToMenu(QString menuName)
 }
 
 bool
-ActionFileParser::setToolbarText(QString name, QString text)
+ActionFileParser::setToolbarText(QString /* name */, QString /* text */)
 {
     //!!! This doesn't appear to be possible (no QToolBar::setTitle
     //!!! method), but I don't think that will be a big problem in

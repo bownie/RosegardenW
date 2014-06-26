@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -775,11 +775,11 @@ const
 {
     SymbolDataMap::const_iterator i = m_data.find(charName);
     if (i == m_data.end())
-        return false;
+        return 0;
 
     SizeDataMap::const_iterator si = m_sizes.find(size);
     if (si == m_sizes.end())
-        return false;
+        return 0;
 
     int fontId = i->second.getFontId();
 
@@ -792,7 +792,7 @@ const
 
     SystemFontNameMap::const_iterator fni = m_systemFontNames.find(fontId);
     if (fontId < 0 || fni == m_systemFontNames.end())
-        return false;
+        return 0;
     QString fontName = fni->second;
 
     CharBaseMap::const_iterator bi = m_bases.find(fontId);

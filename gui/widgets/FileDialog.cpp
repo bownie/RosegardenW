@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[FileDialog]"
 
 #include "FileDialog.h"
 
@@ -48,7 +50,7 @@ FileDialog::FileDialog(QWidget *parent,
     // set up the sidebar stuff; the entire purpose of this class 
     QList<QUrl> urls;
 
-    QString home = QUrl::fromLocalFile(QDesktopServices::storageLocation(QDesktopServices::HomeLocation)).path();
+    QString home = QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::HomeLocation)).path();
     QString examples = home + "/.local/share/rosegarden/examples";
     QString templates = home + "/.local/share/rosegarden/templates";
     QString rosegarden = home + "/rosegarden";
@@ -58,15 +60,21 @@ FileDialog::FileDialog(QWidget *parent,
               << "                  templates: " << templates << endl
               << "                 rosegarden: " << rosegarden << endl;
 
-    urls << QUrl::fromLocalFile(QDesktopServices::storageLocation(QDesktopServices::HomeLocation))
+    urls << QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::HomeLocation))
          << QUrl::fromLocalFile(examples)
          << QUrl::fromLocalFile(templates)
-         << QUrl::fromLocalFile(QDesktopServices::storageLocation(QDesktopServices::DocumentsLocation))
-         << QUrl::fromLocalFile(QDesktopServices::storageLocation(QDesktopServices::MusicLocation))
+         << QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
+         << QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::MusicLocation))
          << QUrl::fromLocalFile(rosegarden)
          ; // closing ; on this line to allow the lines above to be shuffled easily
 
     setSidebarUrls(urls);
+
+    // NOTE: This code only executes if the Thorn style is in use, so there is
+    // no need for conditional execution here.  Go straight to it, and hack the
+    // stylesheet.  This fixes #1396, by ensuring that the file dialog has white
+    // in the right places, even at deep levels of style inheritance.
+    setStyleSheet("QAbstractScrollArea { background: #FFFFFF;} QLineEdit { background: #FFFFFF; }");
 }
 
 
@@ -106,7 +114,7 @@ FileDialog::getOpenFileName(QWidget *parent,
 
     if (dialog.exec() == QDialog::Accepted) {
         if (selectedFilter)
-            *selectedFilter = dialog.selectedFilter();
+            *selectedFilter = dialog.selectedNameFilter();
         return dialog.selectedFiles().value(0);
     }
 
@@ -145,7 +153,7 @@ FileDialog::getOpenFileNames(QWidget *parent,
 
     if (dialog.exec() == QDialog::Accepted) {
         if (selectedFilter)
-            *selectedFilter = dialog.selectedFilter();
+            *selectedFilter = dialog.selectedNameFilter();
         return dialog.selectedFiles();
     }
 
@@ -188,7 +196,7 @@ FileDialog::getSaveFileName(QWidget *parent,
 
     if (dialog.exec() == QDialog::Accepted) {
         if (selectedFilter)
-            *selectedFilter = dialog.selectedFilter();
+            *selectedFilter = dialog.selectedNameFilter();
         return dialog.selectedFiles().value(0);
     }
 

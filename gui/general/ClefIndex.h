@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -14,8 +14,8 @@
 */
 
 
-#ifndef _CLEF_INDEX_H_
-#define _CLEF_INDEX_H_
+#ifndef RG_CLEF_INDEX_H
+#define RG_CLEF_INDEX_H
 
 #include "base/NotationTypes.h"
 #include <QString>
@@ -50,4 +50,4 @@ int clefNameToClefIndex(QString s);
 
 }
 
-#endif // _CLEF_INDEX_H_
+#endif // RG_CLEF_INDEX_H

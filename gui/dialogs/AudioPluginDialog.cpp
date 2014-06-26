@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[AudioPluginDialog]"
 
 #include "AudioPluginDialog.h"
 
@@ -78,6 +79,9 @@ AudioPluginDialog::AudioPluginDialog(QWidget *parent,
 
     setModal(false);
     setWindowTitle(tr("Audio Plugin"));
+
+    // This will get rid of the dialog and the object on close.
+    setAttribute(Qt::WA_DeleteOnClose);
 
     QGridLayout *metagrid = new QGridLayout(this);
 //    metagrid->setMargin(0);
@@ -190,23 +194,33 @@ AudioPluginDialog::AudioPluginDialog(QWidget *parent,
                  QDialogButtonBox::Close | QDialogButtonBox::Help);
 
     m_editorButton = new QPushButton(tr("Editor"));
-    RG_DEBUG << "AudioPluginDialog::ctor - created Editor button" << endl;
+    //RG_DEBUG << "AudioPluginDialog::ctor - created Editor button" << endl;
     buttonBox->addButton(m_editorButton, QDialogButtonBox::ActionRole);
     connect(m_editorButton, SIGNAL(clicked(bool)), this, SLOT(slotEditor()));
     m_editorButton->setEnabled(false);
 
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL ( helpRequested() ), this, SLOT ( slotHelpRequested() ) );
 
-    RG_DEBUG << "About to KABOOM in the ctor!" << endl;
+    // "Close" button has the RejectRole
+    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    // "Help" button has the HelpRole
+    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
+
+    RG_DEBUG << "AudioPluginDialog populating plugin category list...";
     populatePluginCategoryList();
+    RG_DEBUG << "AudioPluginDialog populating plugin list...";
     populatePluginList();
-    RG_DEBUG << "Or not. Whew!" << endl;
+
+    RG_DEBUG << "AudioPluginDialog ctor finished.";
 }
 
+
+AudioPluginDialog::~AudioPluginDialog()
+{
+    //RG_DEBUG << "AudioPluginDialog dtor";
+    emit destroyed(m_containerId, m_index);
+}
 
 
 void
@@ -487,7 +501,9 @@ AudioPluginDialog::slotPluginSelected(int i)
         // action (after the constructor)
         //
         if (m_generating == false) {
-            inst->clearPorts();
+///////
+//          inst->clearPorts();
+///////
             if (inst->getIdentifier() != identifier) {
                 inst->clearConfiguration();
             }
@@ -651,7 +667,8 @@ AudioPluginDialog::slotPluginSelected(int i)
         m_guiShown = true;
     }
 
-    bool gui = false;
+    // unused
+    //bool gui = false;
     m_pluginGUIManager->hasGUI(m_containerId, m_index);
 //    std::cout << "gui is: " << gui
 //              << " container ID: " << m_containerId
@@ -700,7 +717,7 @@ AudioPluginDialog::getProgramsForInstance(AudioPluginInstance *inst, int &curren
 void
 AudioPluginDialog::slotPluginPortChanged(float value)
 {
-    RG_DEBUG << "AudioPluginDialog::slotPluginPortChanged()" << endl;
+    RG_DEBUG << "AudioPluginDialog::slotPluginPortChanged(" << value << ")" << endl;
     const QObject* object = sender();
 
     const PluginControl* control = dynamic_cast<const PluginControl*>(object);
@@ -863,26 +880,13 @@ AudioPluginDialog::slotBypassChanged(bool bp)
 }
 
 void
-AudioPluginDialog::windowActivationChange(bool oldState)
+AudioPluginDialog::windowActivationChange(bool /*oldState*/)
 {
     if (isActiveWindow()) {
         emit windowActivated();
     }
 }
 
-void
-AudioPluginDialog::closeEvent(QCloseEvent *e)
-{
-    e->accept();
-    emit destroyed(m_containerId, m_index);
-}
-
-void
-AudioPluginDialog::slotClose()
-{
-    emit destroyed(m_containerId, m_index);
-    reject();
-}
 
 void
 AudioPluginDialog::slotCopy()

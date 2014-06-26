@@ -205,6 +205,8 @@ public:
     virtual void startClocks();
     virtual void stopClocks();
 
+
+
     /*
     virtual void setConnection(DeviceId deviceId, QString connection);
     virtual void setPlausibleConnection(DeviceId deviceId,
@@ -215,6 +217,8 @@ public:
 
     //virtual void processNotesOff(const RealTime &time, bool now, bool everything = false);
 
+    // New function
+    virtual QString getStatusLog();
 
     // Find the
     int getOutputPortForMappedInstrument(InstrumentId id);

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,11 +13,11 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _LADSPA_PLUGIN_FACTORY_H_
-#define _LADSPA_PLUGIN_FACTORY_H_
+#ifndef RG_LADSPA_PLUGIN_FACTORY_H
+#define RG_LADSPA_PLUGIN_FACTORY_H
 
 #include "PluginFactory.h"
-//#include <ladspa.h>
+#include <ladspa.h>
 
 #include <vector>
 #include <map>
@@ -49,10 +49,10 @@ public:
                                                       unsigned int blockSize,
                                                       unsigned int channels);
 
-    //MappedObjectValue getPortMinimum(const LADSPA_Descriptor *, int port);
-    //MappedObjectValue getPortMaximum(const LADSPA_Descriptor *, int port);
-  //  MappedObjectValue getPortDefault(const LADSPA_Descriptor *, int port);
-   // int getPortDisplayHint(const LADSPA_Descriptor *, int port);
+    MappedObjectValue getPortMinimum(const LADSPA_Descriptor *, int port);
+    MappedObjectValue getPortMaximum(const LADSPA_Descriptor *, int port);
+    MappedObjectValue getPortDefault(const LADSPA_Descriptor *, int port);
+    int getPortDisplayHint(const LADSPA_Descriptor *, int port);
 
 protected:
     LADSPAPluginFactory();

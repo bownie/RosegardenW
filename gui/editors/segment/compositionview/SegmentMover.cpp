@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[SegmentMover]"
 
 #include "SegmentMover.h"
 
@@ -26,7 +27,7 @@
 #include "base/SnapGrid.h"
 #include "commands/segment/SegmentReconfigureCommand.h"
 #include "CompositionItemHelper.h"
-#include "CompositionModel.h"
+#include "CompositionModelImpl.h"
 #include "CompositionView.h"
 #include "document/RosegardenDocument.h"
 #include "gui/general/BaseTool.h"
@@ -55,15 +56,15 @@ SegmentMover::SegmentMover(CompositionView *c, RosegardenDocument *d)
 void SegmentMover::ready()
 {
     m_canvas->viewport()->setCursor(Qt::SizeAllCursor);
-    connect(m_canvas, SIGNAL(contentsMoving (int, int)),
-            this, SLOT(slotCanvasScrolled(int, int)));
+    //connect(m_canvas, SIGNAL(contentsMoving (int, int)),
+    //        this, SLOT(slotCanvasScrolled(int, int)));
     setBasicContextHelp();
 }
 
 void SegmentMover::stow()
 {
-    disconnect(m_canvas, SIGNAL(contentsMoving (int, int)),
-               this, SLOT(slotCanvasScrolled(int, int)));
+    //disconnect(m_canvas, SIGNAL(contentsMoving (int, int)),
+    //           this, SLOT(slotCanvasScrolled(int, int)));
 }
 
 void SegmentMover::slotCanvasScrolled(int newX, int newY)
@@ -79,7 +80,7 @@ void SegmentMover::slotCanvasScrolled(int newX, int newY)
 
 void SegmentMover::handleMouseButtonPress(QMouseEvent *e)
 {
-    CompositionItem item = m_canvas->getFirstItemAt(e->pos());
+    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
     SegmentSelector* selector = dynamic_cast<SegmentSelector*>
                                 (getToolBox()->getTool("segmentselector"));
 
@@ -110,16 +111,16 @@ void SegmentMover::handleMouseButtonPress(QMouseEvent *e)
         if (m_canvas->getModel()->haveSelection()) {
             RG_DEBUG << "SegmentMover::handleMouseButtonPress() : haveSelection\n";
             // startChange on all selected segments
-            m_canvas->getModel()->startChangeSelection(CompositionModel::ChangeMove);
+            m_canvas->getModel()->startChangeSelection(CompositionModelImpl::ChangeMove);
 
 
-            CompositionModel::itemcontainer& changingItems = m_canvas->getModel()->getChangingItems();
+            CompositionModelImpl::ItemContainer& changingItems = m_canvas->getModel()->getChangingItems();
             // set m_currentIndex to its "sibling" among selected (now moving) items
             setCurrentIndex(CompositionItemHelper::findSiblingCompositionItem(changingItems, m_currentIndex));
 
         } else {
             RG_DEBUG << "SegmentMover::handleMouseButtonPress() : no selection\n";
-            m_canvas->getModel()->startChange(item, CompositionModel::ChangeMove);
+            m_canvas->getModel()->startChange(item, CompositionModelImpl::ChangeMove);
         }
 
 // 		m_canvas->updateContents();
@@ -151,20 +152,20 @@ void SegmentMover::handleMouseButtonRelease(QMouseEvent *e)
 
         if (changeMade()) {
 
-            CompositionModel::itemcontainer& changingItems = m_canvas->getModel()->getChangingItems();
+            CompositionModelImpl::ItemContainer& changingItems = m_canvas->getModel()->getChangingItems();
 
             SegmentReconfigureCommand *command =
                 new SegmentReconfigureCommand
-                (changingItems.size() == 1 ? tr("Move Segment") : tr("Move Segments"));
+                (changingItems.size() == 1 ? tr("Move Segment") : tr("Move Segments"), &comp);
 
 
-            CompositionModel::itemcontainer::iterator it;
+            CompositionModelImpl::ItemContainer::iterator it;
 
             for (it = changingItems.begin();
                     it != changingItems.end();
                     ++it) {
 
-                CompositionItem item = *it;
+                CompositionItemPtr item = *it;
 
                 Segment* segment = CompositionItemHelper::getSegment(item);
 
@@ -187,7 +188,7 @@ void SegmentMover::handleMouseButtonRelease(QMouseEvent *e)
                 // We absolutely don't want to snap the end time
                 // to the grid.  We want it to remain exactly the same
                 // as it was, but relative to the new start time.
-                timeT newEndTime = newStartTime + segment->getEndMarkerTime(FALSE)
+                timeT newEndTime = newStartTime + segment->getEndMarkerTime(false)
                                    - segment->getStartTime();
 
                 command->addSegment(segment,
@@ -202,12 +203,12 @@ void SegmentMover::handleMouseButtonRelease(QMouseEvent *e)
         m_canvas->hideTextFloat();
         m_canvas->setDrawGuides(false);
         m_canvas->getModel()->endChange();
-        m_canvas->slotUpdateSegmentsDrawBuffer();
+        m_canvas->slotUpdateAll();
 
     }
 
     setChangeMade(false);
-    m_currentIndex = CompositionItem();
+    m_currentIndex = CompositionItemPtr();
 
     setBasicContextHelp();
 }
@@ -229,12 +230,12 @@ int SegmentMover::handleMouseMove(QMouseEvent *e)
         clearContextHelp();
     }
 
-    CompositionModel::itemcontainer& changingItems = m_canvas->getModel()->getChangingItems();
+    CompositionModelImpl::ItemContainer& changingItems = m_canvas->getModel()->getChangingItems();
 
     //         RG_DEBUG << "SegmentMover::handleMouseMove : nb changingItems = "
     //                  << changingItems.size() << endl;
 
-    CompositionModel::itemcontainer::iterator it;
+    CompositionModelImpl::ItemContainer::iterator it;
     int guideX = 0;
     int guideY = 0;
     QRect updateRect;

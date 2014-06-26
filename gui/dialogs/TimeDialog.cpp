@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -55,9 +55,13 @@ TimeDialog::TimeDialog(QWidget *parent, QString title,
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
     connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
 
-    QPushButton *resetButton = buttonBox->button(QDialogButtonBox::Reset);
-    connect(resetButton, SIGNAL(clicked()),
-            m_timeWidget, SLOT(slotResetToDefault()));
+    // Without a real slot to connect to, this is unused and misleads
+    // the user.
+    // QPushButton *resetButton =
+    // buttonBox->button(QDialogButtonBox::Reset);
+    // No such slot
+    // connect(resetButton, SIGNAL(clicked()),
+    //         m_timeWidget, SLOT(slotResetToDefault()));
 }
 
 TimeDialog::TimeDialog(QWidget *parent, QString title,
@@ -81,8 +85,9 @@ TimeDialog::TimeDialog(QWidget *parent, QString title,
                 constrainToCompositionDuration);
     vboxLayout->addWidget(m_timeWidget);
 
-    connect(this, SIGNAL(ResetClicked()),
-            m_timeWidget, SLOT(slotResetToDefault()));
+    // No such slot
+    // connect(this, SIGNAL(ResetClicked()),
+    //         m_timeWidget, SLOT(slotResetToDefault()));
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Reset | QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     vboxLayout->addWidget(buttonBox);
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));

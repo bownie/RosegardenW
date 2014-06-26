@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -18,6 +18,7 @@
 
 #include "ControlParameter.h"
 #include "base/MidiTypes.h"
+#include "gui/rulers/ControllerEventAdapter.h"
 
 namespace Rosegarden
 {
@@ -127,4 +128,60 @@ ControlParameter::toXmlString()
     return control.str();
 }
 
+// Return a new event setting our controller to VALUE at TIME
+// @author Tom Breton (Tehom)
+Event *
+ControlParameter::
+newEvent(timeT time, int value) const
+{
+    Event *event = new Event (getType(), time);
+    ControllerEventAdapter(event).setValue(value);
+    
+    if (getType() == Controller::EventType) {
+        event->set<Int>(Controller::NUMBER, m_controllerValue);
+    }
+    return event;
+}
+
+// Return whether "e" is this type of controller / pitchbend.
+// @author Tom Breton (Tehom)
+bool
+ControlParameter::
+matches(Event *e) const
+{
+    return 
+        e->isa(m_type) &&
+        ((m_type != Controller::EventType) ||
+         (e->has(Controller::NUMBER) &&
+          e->get <Int>(Controller::NUMBER) == m_controllerValue));    
+}
+
+    
+// These exists to support calling PitchBendSequenceDialog because
+// some calls to PitchBendSequenceDialog always pitchbend or
+// expression rather than getting a ControlParameter from a ruler or
+// device.  This can't be just a static member of ControlParameter, in
+// order to prevent the "static initialization order fiasco".
+const ControlParameter&
+ControlParameter::
+getPitchBend(void)
+{
+    static const ControlParameter
+        pitchBend(
+                  "PitchBend", Rosegarden::PitchBend::EventType, "<none>", 
+                  0, 16383, 8192, MidiByte(1), 4, -1);
+    return pitchBend;
+}
+
+const ControlParameter&
+ControlParameter::
+getExpression(void)
+{
+    static const ControlParameter
+        expression(
+                  "Expression", Rosegarden::Controller::EventType,
+                  "<none>", 0, 127, 100, MidiByte(11), 2, -1);
+    return expression;
+}
+    
 }

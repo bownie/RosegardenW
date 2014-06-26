@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -18,8 +18,8 @@
 //
 
 
-#ifndef _TRACK_H_
-#define _TRACK_H_
+#ifndef RG_TRACK_H
+#define RG_TRACK_H
 
 #include <string>
 
@@ -77,6 +77,9 @@ public:
 
     void setLabel(const std::string &label);
     std::string getLabel() const { return m_label; }
+
+    void setShortLabel(const std::string &shortLabel);
+    std::string getShortLabel() const { return m_shortLabel; }
 
     void setPresetLabel(const std::string &label);
     std::string getPresetLabel() const { return m_presetLabel; }
@@ -136,6 +139,7 @@ private:
     TrackId        m_id;
     bool           m_muted;
     std::string    m_label;
+    std::string    m_shortLabel;
     std::string    m_presetLabel;
     int            m_position;
     InstrumentId   m_instrument;
@@ -160,5 +164,5 @@ private:
 
 }
 
-#endif // _TRACK_H_
+#endif // RG_TRACK_H
  

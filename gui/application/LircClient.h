@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is Copyright 2005
         Toni Arnold         <toni__arnold@bluewin.ch>
@@ -19,8 +19,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_LIRCCLIENT_H_
-#define _RG_LIRCCLIENT_H_
+#ifndef RG_LIRCCLIENT_H
+#define RG_LIRCCLIENT_H
 
 #ifdef HAVE_LIRC
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[TempoRuler]"
 
 #include "TempoRuler.h"
 
@@ -170,8 +171,9 @@ TempoRuler::connectSignals()
 void
 TempoRuler::slotScrollHoriz(int x)
 {
-    int w = width(), h = height();
-    int dx = x - ( -m_currentXOffset);
+    // int w = width();
+    // int h = height();
+    // int dx = x - ( -m_currentXOffset);
     m_currentXOffset = -x;
 
     update();
@@ -451,7 +453,7 @@ TempoRuler::mouseMoveEvent(QMouseEvent *e)
 }
 
 void
-TempoRuler::wheelEvent(QWheelEvent *e)
+TempoRuler::wheelEvent(QWheelEvent */* e */)
 {}
 
 void

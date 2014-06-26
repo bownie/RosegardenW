@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is Copyright 2007-2009
         Yves Guillemot      <yc.guillemot@wanadoo.fr> 
@@ -112,10 +112,11 @@ StaffHeader::StaffHeader(HeadersGroup *group,
         m_toolTipText(QString("")),
         m_warningToolTipText(QString("")),
         m_cursorPos(QPoint()),
+        m_toolTipTimer(0),
+        m_toolTipCount(0),
         m_colourIndex(0),
         m_lastColourIndex(0),
         m_clefOrKeyInconsistency(0),
-        m_toolTipTimer(0),
         m_transposeOverlaps(0),
         m_clefOverlaps(0),
         m_keyOverlaps(0),
@@ -290,8 +291,8 @@ StaffHeader::StaffHeader(HeadersGroup *group,
     // mouseMoveEvent()).
     m_toolTipTimer = new QTimer(this);
     connect(m_toolTipTimer, SIGNAL(timeout()), this, SLOT(slotToolTip()));
-    m_toolTipTimer->setSingleShot(true);
-    m_toolTipTimer->setInterval(500);  // 0.5 s
+    m_toolTipTimer->setSingleShot(false);
+    m_toolTipTimer->setInterval(200);  // 0.2 s
     setMouseTracking(true);
 
     connect(m_headersGroup, SIGNAL(currentSegmentChanged()),
@@ -598,7 +599,7 @@ StaffHeader::lookAtStaff(double x, int maxWidth)
     int transpose = 0, transpose0 = 0, transpose1 = 0;
     unsigned int colourIndex = 0, colourIndex0 = 0;
 
-    size_t staff;
+    // size_t staff;
 
     Composition *comp = m_headersGroup->getComposition();
     Track *track = comp->getTrackById(m_track);
@@ -649,7 +650,7 @@ StaffHeader::lookAtStaff(double x, int maxWidth)
                     status |= SEGMENT_HERE;
                 }
 
-                staff = i;
+                // staff = i;
 
                 // If current value is visible, remember it
                 if (key.getAccidentalCount()) key1 = key;
@@ -854,19 +855,26 @@ StaffHeader::SegmentCmp::operator()(const Segment * s1, const Segment * s2) cons
 // occured, but I was unable to determine what this action is).
 // The 4 following methods and m_toolTipTimer are used to replace that
 // ToolTip event.
+// Moreover, QToolTip::showText() called from NotationWidget when the
+// showToolTip() signal is emitted displays the tooltip for a short duration
+// only. That's why m_toolTipCount is used with a multipleshot m_toolTipTimer
+// to get a reasonable tooltip display duration (10 s).
+
 
 void
-StaffHeader::enterEvent(QEvent *event)
+StaffHeader::enterEvent(QEvent */* event */)
 {
     // Start timer when mouse enters
     m_toolTipTimer->start();
+    m_toolTipCount = 50;   // Set a 10 s tooltip duration if timer is 0.2 s
 }
 
 void
-StaffHeader::leaveEvent(QEvent *event)
+StaffHeader::leaveEvent(QEvent */* event */)
 {
     // Stop timer when mouse leaves
     m_toolTipTimer->stop();
+    m_toolTipCount = 0;
 }
 
 void
@@ -882,7 +890,9 @@ StaffHeader::mouseMoveEvent(QMouseEvent *event)
 void
 StaffHeader::slotToolTip()
 {
-    // Timeout occured : show the tool tip
+    // Timeout occured : show the tool tip while countdown unfinished
+
+    if (m_toolTipCount-- <= 0)  return;
 
     // First select what tool tip to display then show it
     QRect inconIconRect = m_clefOrKeyInconsistency->frameGeometry();
@@ -952,10 +962,11 @@ StaffHeader::slotShowInconsistencies()
     warning->setWindowFlags(Qt::Dialog); // Get a popup in middle of screen
     warning->setMinimumWidth(500);
     warning->show();
+    connect(this, SIGNAL(destroyed()), warning, SLOT(close()));
 }
 
 void
-StaffHeader::eventAdded(const Segment *seg, Event *ev)
+StaffHeader::eventAdded(const Segment */* seg */, Event *ev)
 {
    if (ev->isa(Key::EventType) || ev->isa(Clef::EventType)) {
         emit(staffModified());
@@ -963,7 +974,7 @@ StaffHeader::eventAdded(const Segment *seg, Event *ev)
 }
 
 void
-StaffHeader::eventRemoved(const Segment *seg, Event *ev)
+StaffHeader::eventRemoved(const Segment */* seg */, Event *ev)
 {
     if (ev->isa(Key::EventType) || ev->isa(Clef::EventType)) {
         emit(staffModified());
@@ -971,25 +982,25 @@ StaffHeader::eventRemoved(const Segment *seg, Event *ev)
 }
 
 void
-StaffHeader::appearanceChanged(const Segment *seg)
+StaffHeader::appearanceChanged(const Segment */* seg */)
 {
         emit(staffModified());
 }
 
 void
-StaffHeader::startChanged(const Segment *seg, timeT)
+StaffHeader::startChanged(const Segment */* seg */, timeT)
 {
         emit(staffModified());
 }
 
 void
-StaffHeader::endMarkerTimeChanged(const Segment *seg, bool /*shorten*/)
+StaffHeader::endMarkerTimeChanged(const Segment */* seg */, bool /*shorten*/)
 {
         emit(staffModified());
 }
 
 void
-StaffHeader::transposeChanged(const Segment *seg, int)
+StaffHeader::transposeChanged(const Segment */* seg */, int)
 {
         emit(staffModified());
 }

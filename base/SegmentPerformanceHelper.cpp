@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -336,7 +336,7 @@ SegmentPerformanceHelper::getRealSoundingDuration(iterator i)
 
 
 bool
-SegmentPerformanceHelper::getGraceNoteTimeAndDuration(bool host, iterator i,
+SegmentPerformanceHelper::getGraceNoteTimeAndDuration(bool /* host */, iterator i,
 						      timeT &t, timeT &d)
 {
     // [This code currently assumes appoggiatura.  Acciaccatura later.]

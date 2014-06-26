@@ -1136,5 +1136,11 @@ PortableSoundDriver::getConnection(DeviceId id)
     return QString("<deviceId is out of scope>");
 }
 
+QString
+PortableSoundDriver::getStatusLog()
+{
+    return QLatin1String("PortableSoundDriver::getStatusLog");
+}
+
 
 }

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -15,8 +15,8 @@
 
 
 
-#ifndef _OVERLAPS_RANGE_H_
-#define _OVERLAPS_RANGE_H_
+#ifndef RG_OVERLAP_RANGE_H
+#define RG_OVERLAP_RANGE_H
 
 #include <vector>
 #include <map>
@@ -110,5 +110,5 @@ OverlapRange<int>::getRangeProperty(Segment *segment, timeT)
 
 }
 
-#endif // _OVERLAPS_RANGE_H_
+#endif // RG_OVERLAP_RANGE_H
 

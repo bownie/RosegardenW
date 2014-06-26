@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_SEQUENCEMANAGER_H_
-#define _RG_SEQUENCEMANAGER_H_
+#ifndef RG_SEQUENCEMANAGER_H
+#define RG_SEQUENCEMANAGER_H
 
 #include "base/Composition.h"
 #include "base/Event.h"
@@ -191,6 +191,7 @@ public:
     void processAddedSegment(Segment*);
     void processRemovedSegment(Segment*);
     void segmentModified(Segment*);
+    void segmentInstrumentChanged(Segment *s);
 
     virtual bool event(QEvent *e);
 
@@ -289,7 +290,7 @@ protected:
     // composition end time marker changes this can be caused by a
     // window resize, and since the reset is potentially expensive we
     // want to collapse several following requests into one.
-    QTimer                    *m_compositionMapperResetTimer;
+    //QTimer                    *m_compositionMapperResetTimer;
 
     // Just to make sure we don't bother the user too often
     //

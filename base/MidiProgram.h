@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _MIDIBANK_H_
-#define _MIDIBANK_H_
+#ifndef RG_MIDIBANK_H
+#define RG_MIDIBANK_H
 
 #include <string>
 #include <vector>
@@ -101,7 +101,7 @@ public:
      * mapping, 1 if it is the second-lowest, etc.  Return -1 if it
      * is not in the mapping at all.  Not instant.
      */
-    int                  getOffset(MidiByte pitch) const;
+//    int                  getOffset(MidiByte pitch) const;
 
     /**
      * Return the offset'th pitch in the mapping.  Return -1 if there

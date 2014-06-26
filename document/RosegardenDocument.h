@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_ROSEGARDENGUIDOC_H_
-#define _RG_ROSEGARDENGUIDOC_H_
+#ifndef RG_ROSEGARDENDOCUMENT_H
+#define RG_ROSEGARDENDOCUMENT_H
 
 #include "base/Composition.h"
 #include "base/Configuration.h"
@@ -221,7 +221,7 @@ public:
     /**
      * sets the filename of the document
      */
-    void setTitle(const QString &_t);
+    void setTitle(const QString &title);
 
     /**
      * returns the title of the document
@@ -291,8 +291,10 @@ public:
      */
     bool isSequencerRunning();
 
+    /// Insert some recorded MIDI events into our recording Segment.
     /**
-     * insert some recorded MIDI events into our recording Segment
+     * These MIDI events come from AlsaDriver::getMappedEventList() in
+     * the sequencer thread.
      */
     void insertRecordedMidi(const MappedEventList &mc);
 
@@ -581,8 +583,9 @@ protected:
     bool deleteOrphanedAudioFiles(bool documentWillNotBeSaved);
 
 
+    /// Identifies a specific event within a specific segment.
     /**
-     * A struct formed by a Segment pointer and an iterator to the same 
+     * A struct formed by a Segment pointer and an iterator into the same
      * Segment, used in NoteOn calculations when recording MIDI.
      */
     struct NoteOnRec {
@@ -594,7 +597,7 @@ protected:
      * A vector of NoteOnRec elements, necessary in multitrack MIDI 
      * recording for NoteOn calculations
      */
-    typedef std::vector<NoteOnRec>  NoteOnRecSet;
+    typedef std::vector<NoteOnRec> NoteOnRecSet;
 
     /**
      * Store a single NoteOnRec element in the m_noteOnEvents map
@@ -602,11 +605,15 @@ protected:
     void storeNoteOnEvent( Segment *s, Segment::iterator it, 
                            int device, int channel );
 
+    /// Adjust the end time for a list of overlapping note events.
     /**
+     * Adjusts the end time for all the note-on events for a
+     * device/channel/pitch.
+     *
      * Replace recorded Note events in one or several segments, returning the
      * resulting NoteOnRecSet
      */
-    NoteOnRecSet* replaceRecordedEvent(NoteOnRecSet &rec_vec, Event *fresh);
+    NoteOnRecSet* adjustEndTimes(NoteOnRecSet &rec_vec, timeT endTime);
     
     /**
      * Insert a recorded event in one or several segments
@@ -684,17 +691,17 @@ protected:
     /**
      * a map[Pitch] of NoteOnRecSet elements, for NoteOn calculations
      */
-    typedef std::map<int, NoteOnRecSet>                         PitchMap;
+    typedef std::map<int /*pitch*/, NoteOnRecSet> PitchMap;
     
     /**
      * a map[Channel] of PitchMap
      */
-    typedef std::map<int, PitchMap>                             ChanMap;
+    typedef std::map<int /*channel*/, PitchMap> ChanMap;
     
     /**
      * a map[Port] of ChanMap
      */
-    typedef std::map<int, ChanMap>                              NoteOnMap;
+    typedef std::map<int /*device*/, ChanMap> NoteOnMap;
 
     /**
      * During recording, we collect note-ons that haven't yet had a note-off

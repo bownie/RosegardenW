@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -14,8 +14,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _SEGMENT_H_
-#define _SEGMENT_H_
+#ifndef RG_SEGMENT_H
+#define RG_SEGMENT_H
 
 #include <set>
 #include <list>
@@ -28,9 +28,12 @@
 #include "RealTime.h"
 #include "MidiProgram.h"
 
+#include <QColor>
+
 namespace Rosegarden
 {
 
+/// A refresh flag with a time range.
 class SegmentRefreshStatus : public RefreshStatus
 {
 public:
@@ -46,7 +49,26 @@ protected:
     timeT m_to;
 };
 
+class SegmentObserver;
+class Quantizer;
+class BasicQuantizer;
+class Composition;
+class SegmentLinker;
+class BasicCommand;
 
+/// Container of Event objects.
+/**
+ * EventContainer is a precursor to Segment, used in code that needs
+ * to store events but doesn't need all the ancillary data and
+ * behaviors that Segment provides.
+ **/
+class EventContainer : public std::multiset<Event*, Event::EventCmp>
+{
+ public:
+    iterator findEventOfType(iterator i, const std::string &type);
+};
+
+/// Container of Event objects.
 /**
  * Segment is the container for a set of Events that are all played on
  * the same track.  Each event has an absolute starting time,
@@ -65,15 +87,7 @@ protected:
  *
  * The Segment owns the Events its items are pointing at.
  */
-
-class SegmentObserver;
-class Quantizer;
-class BasicQuantizer;
-class Composition;
-class SegmentLinker;
-class BasicCommand;
-
-class Segment : public QObject, public std::multiset<Event*, Event::EventCmp>
+class Segment : public QObject, public EventContainer
 {
   Q_OBJECT
 
@@ -84,6 +98,18 @@ public:
         Internal,
         Audio
     } SegmentType;
+
+    /**
+     * The manners in which a segment can participate in the
+     * composition.  The ones other than `normal' are for various
+     * forms of dummies for display or editing.
+     */
+    typedef enum {
+        normal,
+        editableClone,
+        readOnly,
+        justForShow,
+    } Participation;
 
     /**
      * Construct a Segment of a given type with a given formal starting time.
@@ -157,6 +183,18 @@ public:
      */
     void setTrack(TrackId trackId);
 
+    /**
+     * Values other than `normal' make the segment act like it's not
+     * really in the composition.  Eg, setTrack won't actually move it
+     * to track N.  Actually attaching/detaching it from the
+     * Composition is not handled by this.
+     */
+    void setParticipation(Participation participation)
+    { m_participation = participation; }
+
+    Participation getParticipation(void)
+    { return m_participation; }
+
     // label
     //
     void setLabel(const std::string &label);
@@ -165,6 +203,8 @@ public:
     // Colour information
     void setColourIndex(const unsigned int input);
     unsigned int getColourIndex() const { return m_colourIndex; }
+    /// Get a high-contrast color to use for segment previews
+    QColor getPreviewColour() const;
 
     /**
      * Returns a numeric id of some sort
@@ -223,10 +263,10 @@ public:
      * The return value will not necessarily be that last set
      * with setEndMarkerTime, as if there is a Composition its
      * end marker will also be used for clipping.
-     * comp = TRUE truncates endmarker time based on composition
-     * end.  comp = FALSE disregards composition end.
+     * comp = true truncates endmarker time based on composition
+     * end.  comp = false disregards composition end.
      */
-    timeT getEndMarkerTime(bool comp = TRUE) const;
+    timeT getEndMarkerTime(bool comp = true) const;
 
     /**
      * Return the time of the end of the last event stored in the
@@ -281,7 +321,7 @@ public:
      * Return an iterator pointing to the nominal end of the
      * Segment.  This may be earlier than the end() iterator.
      */
-    iterator getEndMarker();
+    iterator getEndMarker() const;
 
     /**
      * Return true if the given iterator points earlier in the
@@ -353,24 +393,16 @@ public:
     //
     // EVENT MANIPULATION
 
-    /**
-     * Inserts a single Event
-     */
+    /// Insert a single Event
     iterator insert(Event *e);
 
-    /**
-     * Erases a single Event
-     */
+    /// Erase a single Event
     void erase(iterator pos);
 
-    /**
-     * Erases a set of Events
-     */
+    /// Erase a set of Events
     void erase(iterator from, iterator to);
 
-    /**
-     * Clear the segment.
-     */
+    /// Clear the segment.
     void clear() { erase(begin(), end()); }
 
     /**
@@ -568,13 +600,14 @@ public:
     bool isRepeating() const { return m_repeating; }
     void setRepeating(bool value);
 
+
     /**
      * If this Segment is repeating, calculate and return the time at
-     * which the repeating stops.  This is the start time of the
-     * following Segment on the same Track, if any, or else the end
-     * time of the Composition.  If this Segment does not repeat, or
-     * the time calculated would precede the end time of the Segment,
-     * instead return the end time of the Segment.
+     * which the repeating stops.
+     * This is the time of the first part of another Segment on the same
+     * Track, if any, which follows the end of this Segment.
+     * If there is not such a Segment, instead return the end time of the
+     * Segment.
      */
     timeT getRepeatEndTime() const;
 
@@ -586,6 +619,41 @@ public:
 
     int getTranspose() const { return m_transpose; }
     void setTranspose(int transpose);
+
+    /**
+     * Return the number of verses in the lyrics
+     * (call countVerses() when needed)
+     */
+    int getVerseCount();
+    
+    /**
+     * (Re)compute the internally remembered verse count
+     */
+    void countVerses();
+
+    /**
+     * Return the verse index of lyrics associated with the segment if
+     * this one is unfolded in the notation editor.
+     * (ie the verse which have to be written under the staff among all the
+     * verses included as text of lyrics inside the segment)
+     */
+    int getVerse() const { return m_verse; }
+
+    /**
+     * Return the verse index of lyrics associated with the segment if
+     * this one is unfolded in the notation editor.
+     * As getVerse(), but return again the first verses when going beyond
+     * the total verses count.
+     */
+    int getVerseWrapped();
+
+    /**
+     * Used to set the value returned by getVerse().
+     * Should only be called from a method recomputing verse for all
+     * the segments in composition (or for the temporary segments in
+     * a notation editor)
+     */
+    void setVerse (int verse) { m_verse = verse; }
 
 
 
@@ -659,6 +727,11 @@ public:
         }
     };
 
+    typedef std::multiset<Segment*, Segment::SegmentCmp> segmentcontainer;
+
+    // Get the segments in the current composition.
+    static segmentcontainer& getCompositionSegments(void);
+    
     void  addObserver(SegmentObserver *obs) { m_observers.push_back(obs); }
     void removeObserver(SegmentObserver *obs) { m_observers.remove(obs); }
 
@@ -776,6 +849,12 @@ public:
     bool isTmp() const { return m_isTmp; }
 
     /**
+     * Set the segment to display as greyed out, a visual indication
+     * that it is temporary or read-only.
+     **/
+    void setGreyOut(void);
+    
+    /**
      * Set the current segment as the reference of the linked segment group and
      * return true.
      * Return false if the segment is not linked and can't have a reference.
@@ -799,6 +878,8 @@ public:
 
 
 private:
+    void checkInsertAsClefKey(Event *e) const;
+    
     Composition *m_composition; // owns me, if it exists
 
     timeT  m_startTime;
@@ -888,25 +969,37 @@ private:
 
     // Audio autofading
     //
-    bool                  m_autoFade;
+    bool      m_autoFade;
     RealTime  m_fadeInTime;
     RealTime  m_fadeOutTime;
 
+    // Linked segments
     SegmentLinker *m_segmentLinker;
     LinkTransposeParams m_linkTransposeParams;
-    bool m_isTmp;   // Mark a segment (usually a link) as temporary
+    bool m_isTmp;      // Mark a segment (must be a link) as temporary
+
+    /**
+     * Values other than `normal' make the segment act like it's not
+     * really in the composition.  Eg, setTrack won't actually move it
+     * to track N.
+     */
+    Participation m_participation;
+    int m_verseCount;  // -1 means not computed still
+    int m_verse;       // Used to distribute lyrics among repeated segments
 };
 
-typedef std::multiset<Segment*, Segment::SegmentCmp> segmentcontainer;
+typedef Segment::segmentcontainer segmentcontainer;
 
+/// Base class interface for Segment notifications.
+/**
+ * See Segment::addObserver() and Segment::m_observers.
+ */
 class SegmentObserver
 {
 public:
     virtual ~SegmentObserver() {}
 
-    /**
-     * Called after the event has been added to the segment
-     */
+    /// Called after an event has been added to the segment.
     virtual void eventAdded(const Segment *, Event *) { }
 
     /**
@@ -915,28 +1008,27 @@ public:
      */
     virtual void eventRemoved(const Segment *, Event *) { }
 
+    // Exists just for performance reasons.  Called in lieu of calling
+    // eventAdded or eventRemoved many times.  The default just calls
+    // both eventRemoved() and eventAdded() on every event.
+    virtual void AllEventsChanged(const Segment *);
+
     /**
      * Called after a change in the segment that will change the way its displays,
      * like a label change for instance
      */
     virtual void appearanceChanged(const Segment *) { }
 
-    /**
-     * Called after a change that affects the start time of the segment
-     */
+    /// Called after a change that affects the start time of the segment.
     virtual void startChanged(const Segment *, timeT) { }
 
+    /// Called after the segment's end marker time has been changed.
     /**
-     * Called after the segment's end marker time has been
-     * changed
-     *
      * @param shorten true if the marker change shortens the segment's duration
      */
     virtual void endMarkerTimeChanged(const Segment *, bool /*shorten*/) { }
 
-    /**
-     * Called after a change of the segment transposition
-     */
+    /// Called after a change of the segment transposition.
     virtual void transposeChanged(const Segment *, int /*transpose*/) { }
 
     /**
@@ -946,9 +1038,6 @@ public:
     virtual void segmentDeleted(const Segment *) = 0;
 };
 
-
-
-// an abstract base
 
 class SegmentHelper
 {

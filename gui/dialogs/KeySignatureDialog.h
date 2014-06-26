@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_KEYSIGNATUREDIALOG_H_
-#define _RG_KEYSIGNATUREDIALOG_H_
+#ifndef RG_KEYSIGNATUREDIALOG_H
+#define RG_KEYSIGNATUREDIALOG_H
 
 #include "base/NotationTypes.h"
 #include <string>
@@ -70,7 +70,7 @@ public:
 public slots:
     void slotKeyUp();
     void slotKeyDown();
-    void slotKeyNameChanged(const QString &);
+    void slotKeyNameChanged(int);
     void slotMajorMinorChanged(const QString &);
     void slotHelpRequested();
 

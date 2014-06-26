@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _AUDIOFILEMANAGER_H_
-#define _AUDIOFILEMANAGER_H_
+#ifndef RG_AUDIOFILEMANAGER_H
+#define RG_AUDIOFILEMANAGER_H
 
 #include <string>
 #include <vector>
@@ -328,4 +328,4 @@ private:
 
 }
 
-#endif // _AUDIOFILEMANAGER_H_
+#endif // RG_AUDIOFILEMANAGER_H

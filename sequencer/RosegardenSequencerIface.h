@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -12,8 +12,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _ROSEGARDENSEQUENCERIFACE_H_
-#define _ROSEGARDENSEQUENCERIFACE_H_
+#ifndef RG_ROSEGARDENSEQUENCERIFACE_H
+#define RG_ROSEGARDENSEQUENCERIFACE_H
 
 #include "gui/application/TransportStatus.h"
 
@@ -28,9 +28,17 @@
 
 namespace Rosegarden {
 
+/// UNUSED
+/**
+ * RosegardenSequencer used to derive from this class, but there is no
+ * other use of RosegardenSequencerIface in the rest of the system.
+ */
 class RosegardenSequencerIface
 {
 public:
+    /// Required or derived dtors won't be called through base pointers.
+    virtual ~RosegardenSequencerIface()  { }
+
     // close the sequencer
     //
     virtual void quit() = 0;
@@ -329,4 +337,4 @@ public:
 
 }
 
-#endif // _ROSEGARDENSEQUENCERIFACE_H_
+#endif // RG_ROSEGARDENSEQUENCERIFACE_H

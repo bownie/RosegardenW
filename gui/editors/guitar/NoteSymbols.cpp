@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file contains code from 
     Other copyrights also apply to some parts of this work.  Please
@@ -139,7 +139,7 @@ NoteSymbols::drawOpenSymbol ( bool big,
 }
 
 void
-NoteSymbols::drawNoteSymbol ( bool big,
+NoteSymbols::drawNoteSymbol ( bool /* big */,
                               QPainter* p,
                               unsigned int stringNb,
                               int fretNb,
@@ -398,7 +398,7 @@ NoteSymbols::getGuitarChordHeight ( int imgHeight ) const
 }
 
 unsigned int
-NoteSymbols::getFontPixelSize ( int imgWidth, int imgHeight ) const
+NoteSymbols::getFontPixelSize ( int /* imgWidth */, int imgHeight ) const
 {
     return std::max(8, imgHeight / 10);
 }

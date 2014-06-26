@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[HydrogenXMLHandler]"
 
 #include "HydrogenXMLHandler.h"
 
@@ -260,6 +261,10 @@ HydrogenXMLHandler::endElement_093(const QString& /*namespaceURI*/,
             m_currentTrackNb++;
             m_composition->addTrack(track);
 
+            std::vector<TrackId> trackIds;
+            trackIds.push_back(track->getId());
+            m_composition->notifyTracksAdded(trackIds);
+
             m_segmentAdded = false;
 
             // Each pattern has it's own bar so that the imported
@@ -293,6 +298,11 @@ HydrogenXMLHandler::endElement_093(const QString& /*namespaceURI*/,
             m_segment->setLabel(qstrtostr(label));
 
             m_composition->addTrack(track);
+
+            std::vector<TrackId> trackIds;
+            trackIds.push_back(track->getId());
+            m_composition->notifyTracksAdded(trackIds);
+
             m_composition->addSegment(m_segment);
             m_segment = 0;
 

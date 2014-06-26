@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2010 the Rosegarden development team.
+  Copyright 2000-2014 the Rosegarden development team.
  
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -12,17 +12,18 @@
   COPYING included with this distribution for more information.
 */
 
-#include <iostream>
-#include <cassert>
 
 #include "LADSPAPluginInstance.h"
 #include "LADSPAPluginFactory.h"
+
+#include <QtGlobal>
+
+#include <iostream>
 
 //#define DEBUG_LADSPA 1
 
 namespace Rosegarden
 {
-
 
 LADSPAPluginInstance::LADSPAPluginInstance(PluginFactory *factory,
         InstrumentId instrument,
@@ -30,8 +31,8 @@ LADSPAPluginInstance::LADSPAPluginInstance(PluginFactory *factory,
         int position,
         unsigned long sampleRate,
         size_t blockSize,
-        int idealChannelCount /*,
-        const LADSPA_Descriptor* descriptor*/) :
+        int idealChannelCount
+        /* const LADSPA_Descriptor* descriptor */ ) :
         RunnablePluginInstance(factory, identifier),
         m_instrument(instrument),
         m_position(position),
@@ -58,10 +59,10 @@ LADSPAPluginInstance::LADSPAPluginInstance(PluginFactory *factory,
     m_ownBuffers = true;
 
     instantiate(sampleRate);
-    /*if (isOK()) {
+    if (isOK()) {
         connectPorts();
         activate();
-    }*/
+    }
 }
 
 LADSPAPluginInstance::LADSPAPluginInstance(PluginFactory *factory,
@@ -71,13 +72,13 @@ LADSPAPluginInstance::LADSPAPluginInstance(PluginFactory *factory,
         unsigned long sampleRate,
         size_t blockSize,
         sample_t **inputBuffers,
-        sample_t **outputBuffers/*,
-        //const LADSPA_Descriptor* descriptor*/) :
+        sample_t **outputBuffers
+        /* const LADSPA_Descriptor* descriptor */) :
         RunnablePluginInstance(factory, identifier),
         m_instrument(instrument),
         m_position(position),
         m_instanceCount(0),
-       // m_descriptor(descriptor),
+        //m_descriptor(descriptor),
         m_blockSize(blockSize),
         m_inputBuffers(inputBuffers),
         m_outputBuffers(outputBuffers),
@@ -90,10 +91,10 @@ LADSPAPluginInstance::LADSPAPluginInstance(PluginFactory *factory,
     init();
 
     instantiate(sampleRate);
-    /*if (isOK()) {
+    if (isOK()) {
         connectPorts();
         activate();
-    }*/
+    }
 }
 
 
@@ -107,7 +108,8 @@ LADSPAPluginInstance::init(int idealChannelCount)
 
     // Discover ports numbers and identities
     //
-    /*for (unsigned long i = 0; i < m_descriptor->PortCount; ++i) {
+    /*
+    for (unsigned long i = 0; i < m_descriptor->PortCount; ++i) {
         if (LADSPA_IS_PORT_AUDIO(m_descriptor->PortDescriptors[i])) {
             if (LADSPA_IS_PORT_INPUT(m_descriptor->PortDescriptors[i])) {
 #ifdef DEBUG_LADSPA
@@ -259,12 +261,11 @@ LADSPAPluginInstance::~LADSPAPluginInstance()
 void
 LADSPAPluginInstance::instantiate(unsigned long sampleRate)
 {
-    /*
 #ifdef DEBUG_LADSPA
     std::cout << "LADSPAPluginInstance::instantiate - plugin unique id = "
     << m_descriptor->UniqueID << std::endl;
 #endif
-
+/*
     if (!m_descriptor)
         return ;
 
@@ -284,7 +285,8 @@ LADSPAPluginInstance::instantiate(unsigned long sampleRate)
 void
 LADSPAPluginInstance::activate()
 {
-  /*  if (!m_descriptor || !m_descriptor->activate)
+    /*
+     * if (!m_descriptor || !m_descriptor->activate)
         return ;
 
     for (std::vector<LADSPA_Handle>::iterator hi = m_instanceHandles.begin();
@@ -299,8 +301,8 @@ LADSPAPluginInstance::connectPorts()
     if (!m_descriptor || !m_descriptor->connect_port)
         return ;
 
-    assert(sizeof(LADSPA_Data) == sizeof(float));
-    assert(sizeof(sample_t) == sizeof(float));
+    Q_ASSERT(sizeof(LADSPA_Data) == sizeof(float));
+    Q_ASSERT(sizeof(sample_t) == sizeof(float));
 
     size_t inbuf = 0, outbuf = 0;
 
@@ -343,7 +345,8 @@ LADSPAPluginInstance::connectPorts()
 
 void
 LADSPAPluginInstance::setPortValue(unsigned int portNumber, float value)
-{/*
+{
+    /*
     for (size_t i = 0; i < m_controlPortsIn.size(); ++i) {
         if (m_controlPortsIn[i].first == portNumber) {
             LADSPAPluginFactory *f = dynamic_cast<LADSPAPluginFactory *>(m_factory);
@@ -367,8 +370,8 @@ LADSPAPluginInstance::getPortValue(unsigned int portNumber)
         if (m_controlPortsIn[i].first == portNumber) {
             return (*m_controlPortsIn[i].second);
         }
-    }
-*/
+    }*/
+
     return 0.0;
 }
 
@@ -382,8 +385,8 @@ LADSPAPluginInstance::run(const RealTime &)
             hi != m_instanceHandles.end(); ++hi) {
         m_descriptor->run(*hi, m_blockSize);
     }
-*/
-    m_run = true;
+
+    m_run = true;*/
 }
 
 void
@@ -418,7 +421,6 @@ LADSPAPluginInstance::cleanup()
 
     m_instanceHandles.clear();*/
 }
-
 
 
 }

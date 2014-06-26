@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _PROJECT_PACKAGER_H_
-#define _PROJECT_PACKAGER_H_
+#ifndef RG_PROJECT_PACKAGER_H
+#define RG_PROJECT_PACKAGER_H
 
 #include "document/RosegardenDocument.h"
 #include "gui/widgets/ProgressBar.h"
@@ -126,10 +126,13 @@ protected slots:
      */
     void puke(QString error);
 
-    /** Remove a directory full of files.  Used to remove the tmp working
-     * directory after a pack, or to clean up from an aborted pack
+    /**
+     * Recursively remove a directory and all of its contents.  Returns
+     * true if successful.
+     *
+     * Candidate for promotion to a utility class, or perhaps Qt itself.
      */
-    void rmTmpDir();
+    static bool rmdirRecursive(QString dirName);
 
     /** If user cancels, clean up tmp dir
      */

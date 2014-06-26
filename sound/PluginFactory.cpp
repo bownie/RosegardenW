@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -28,28 +28,28 @@ namespace Rosegarden
 
 int PluginFactory::m_sampleRate = 48000;
 
-static LADSPAPluginFactory *_ladspaInstance = 0;
-static LADSPAPluginFactory *_dssiInstance = 0;
+static LADSPAPluginFactory *ladspaInstance = 0;
+static LADSPAPluginFactory *dssiInstance = 0;
 
 PluginFactory *
 PluginFactory::instance(QString pluginType)
 {
     if (pluginType == "ladspa") {
-        if (!_ladspaInstance) {
+        if (!ladspaInstance) {
             std::cerr << "PluginFactory::instance(" << pluginType
             << "): creating new LADSPAPluginFactory" << std::endl;
-            _ladspaInstance = new LADSPAPluginFactory();
-            _ladspaInstance->discoverPlugins();
+            ladspaInstance = new LADSPAPluginFactory();
+            ladspaInstance->discoverPlugins();
         }
-        return _ladspaInstance;
+        return ladspaInstance;
     } else if (pluginType == "dssi") {
-        if (!_dssiInstance) {
+        if (!dssiInstance) {
             std::cerr << "PluginFactory::instance(" << pluginType
             << "): creating new DSSIPluginFactory" << std::endl;
-            _dssiInstance = new DSSIPluginFactory();
-            _dssiInstance->discoverPlugins();
+            dssiInstance = new DSSIPluginFactory();
+            dssiInstance->discoverPlugins();
         }
-        return _dssiInstance;
+        return dssiInstance;
     } else {
         return 0;
     }

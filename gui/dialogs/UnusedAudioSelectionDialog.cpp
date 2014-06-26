@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -30,72 +30,64 @@
 #include <QWidget>
 #include <QVBoxLayout>
 #include <QDateTime>
+#include <iostream>
 
 
 namespace Rosegarden
 {
 
+
 UnusedAudioSelectionDialog::UnusedAudioSelectionDialog(QWidget *parent,
         QString introductoryText,
-        std::vector<QString> fileNames,
-        bool offerCancel 
-		) :
+        std::vector<QString> fileNames
+       ) :
         QDialog(parent)
 {
     setModal(true);
     setWindowTitle(tr("Select Unused Audio Files"));
 
-    QGridLayout *metagrid = new QGridLayout;
-    setLayout(metagrid);
-    QWidget *vbox = new QWidget(this);
-    QVBoxLayout *vboxLayout = new QVBoxLayout;
-    metagrid->addWidget(vbox, 0, 0);
+    QVBoxLayout *layout = new QVBoxLayout;
+    setLayout(layout);
 
-    new QLabel(introductoryText, vbox);
+    layout->addWidget(new QLabel(introductoryText));
 
-    m_listView = new QTableWidget( vbox );
-    vboxLayout->addWidget(m_listView);
-    vbox->setLayout(vboxLayout);
-	
-	m_listView->setColumnCount( 3 );
-	QStringList sl;
-	sl << tr("File name") << tr("File size") << tr("Last modified date");
-	m_listView->setHorizontalHeaderLabels( sl );
-	
-//     m_listView->addColumn(tr("File name"));
-//     m_listView->addColumn(tr("File size"));
-//     m_listView->addColumn(tr("Last modified date"));
-	QTableWidgetItem *item = 0;
-	unsigned int i;
-	unsigned int rc;
-	for (i=0; i < fileNames.size(); ++i ) {
+    m_listView = new QTableWidget;
+    layout->addWidget(m_listView);
+    
+    m_listView->setColumnCount(3);
+    QStringList sl;
+    sl << tr("File name") << tr("File size") << tr("Last modified date");
+    m_listView->setHorizontalHeaderLabels(sl);
+    
+    QTableWidgetItem *item = 0;
+    unsigned int i;
+    unsigned int rc;
+    for (i = 0; i < fileNames.size(); i++) {
         QString fileName = fileNames[i];
         QFileInfo info(fileName);
         QString fileSize = tr(" (not found) ");
         QString fileDate;
         if (info.exists()) {
             fileSize = QString(" %1 ").arg(info.size());
-			fileDate = QString(" %1 ").arg( (info.lastModified()).toString(Qt::ISODate) );
+            fileDate = QString(" %1 ").arg((info.lastModified()).toString(Qt::ISODate));
         }
-		//QTableWidgetItem *item = new QTableWidgetItem(m_listView, fileName, fileSize, fileDate);
-		rc = m_listView->rowCount();
-		m_listView->insertRow( rc );
-		
-		item = new QTableWidgetItem(fileName);
-		m_listView->setItem( rc, i+0, item );
-		item = new QTableWidgetItem(fileSize);
-		m_listView->setItem( rc, i+1, item );
-		item = new QTableWidgetItem(fileDate);
-		m_listView->setItem( rc, i+2, item );
-		
-	}
+        rc = m_listView->rowCount();
+        m_listView->insertRow(rc);
+        
+        item = new QTableWidgetItem(fileName);
+        m_listView->setItem(rc, 0, item);
+        item = new QTableWidgetItem(fileSize);
+        m_listView->setItem(rc, 1, item);
+        item = new QTableWidgetItem(fileDate);
+        m_listView->setItem(rc, 2, item);
+        
+    }
 
-	m_listView->setSelectionMode( QAbstractItemView::MultiSelection );
-	m_listView->setSelectionBehavior( QAbstractItemView::SelectItems ); // or QAbstractItemView::SelectRows
-	
+    m_listView->setSelectionMode(QAbstractItemView::MultiSelection);
+    m_listView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-    metagrid->addWidget(buttonBox, 1, 0);
-    metagrid->setRowStretch(0, 10);
+    layout->addWidget(buttonBox);
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
     connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
 };
@@ -105,19 +97,18 @@ UnusedAudioSelectionDialog::getSelectedAudioFileNames() const
 {
     std::vector<QString> selectedNames;
 
-	QList<QTableWidgetItem *> sItems = m_listView->selectedItems();
-	QTableWidgetItem *item;
-	
-	for( int i=0; i < sItems.size(); i++ ){
-        //if (m_listView->isSelected(item)) {
-			item = sItems.at(i);
-            selectedNames.push_back( item->text() );
-        //}
-
-		//item = m_listView->next();
+    QList<QTableWidgetItem *> sItems = m_listView->selectedItems();
+    QTableWidgetItem *item;
+    
+    for (int i = 0; i < sItems.size(); i++) {
+            item = sItems.at(i);
+            // Only reutrn items from column 0, which contains the filename
+            // we're after:
+            if (item->column() == 0) selectedNames.push_back(item->text());
     }
 
     return selectedNames;
 };
+
 
 }

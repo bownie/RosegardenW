@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_DELETERANGECOMMAND_H_
-#define _RG_DELETERANGECOMMAND_H_
+#ifndef RG_DELETERANGECOMMAND_H
+#define RG_DELETERANGECOMMAND_H
 
 #include "document/Command.h"
 #include "base/Event.h"
@@ -41,35 +41,6 @@ public:
                        timeT begin,
                        timeT end);
     virtual ~DeleteRangeCommand();
-
-
-    class RejoinCommand : public NamedCommand
-    {
-    public:
-        // This command rejoins pairs of subsequent segment on the same
-        // track. Segments pairs are defined using the addSegmentsPair
-        // method.
-
-        RejoinCommand() :
-            NamedCommand(tr("Rejoin Command"))
-            { }
-
-        virtual ~RejoinCommand();
-
-        // Add a pair of segments that will be jointed later
-        void addSegmentsPair(Segment *s1, Segment *s2);
-
-        void execute();
-        void unexecute();
-
-
-    private:
-        Segment *m_segment;
-        timeT m_endMarkerTime;
-        Composition *m_composition;
-
-        std::vector<SegmentJoinCommand *> m_rejoins;
-    };
 };
 
 

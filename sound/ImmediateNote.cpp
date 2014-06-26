@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -92,11 +92,12 @@ fillWithNote(MappedEventList &mC, Instrument *instrument,
   m_channelManager.reallocateEternalChannel();
 
   // Set up channel.
-  ChannelManager::MapperFunctionalitySimple callback;
+  ChannelManager::SimpleCallbacks callbacks;
   MappedEventInserter inserter(mC);
+
   // Insert the event.
   m_channelManager.doInsert(inserter, mE, RealTime::zeroTime,
-                            &callback, true, NO_TRACK);
+                            &callbacks, true, NO_TRACK);
 }
 
 

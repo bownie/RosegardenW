@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -56,7 +56,7 @@ WAVAudioFile::open()
     if (m_inFile && (*m_inFile))
         return true;
 
-    m_inFile = new std::ifstream(m_fileName,
+    m_inFile = new std::ifstream(m_fileName.toLocal8Bit(),
                                  std::ios::in | std::ios::binary);
 
     if (!(*m_inFile)) {
@@ -91,7 +91,7 @@ WAVAudioFile::write()
     }
 
     // open for writing
-    m_outFile = new std::ofstream(m_fileName,
+    m_outFile = new std::ofstream(m_fileName.toLocal8Bit(),
                                   std::ios::out | std::ios::binary);
 
     if (!(*m_outFile))

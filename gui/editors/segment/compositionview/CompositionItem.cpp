@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,10 +18,32 @@
 
 #include "CompositionItem.h"
 
-#include <QObject>
+#include "CompositionRect.h"
+
 #include <QRect>
 
 
 namespace Rosegarden
 {
+
+
+CompositionItem::CompositionItem(Segment &s, const CompositionRect &rect)
+        : m_segment(s),
+        m_rect(rect),
+        m_z(0)
+{}
+
+QRect CompositionItem::rect() const
+{
+    QRect res = m_rect;
+
+    // For repeating segments, use the base width
+    if (m_rect.isRepeating()) {
+        res.setWidth(m_rect.getBaseWidth());
+    }
+
+    return res;
+}
+
+
 }

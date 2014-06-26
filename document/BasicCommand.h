@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_BASICCOMMAND_H_
-#define _RG_BASICCOMMAND_H_
+#ifndef RG_BASICCOMMAND_H
+#define RG_BASICCOMMAND_H
 
 #include "base/Segment.h"
 #include "document/Command.h"
@@ -75,6 +75,12 @@ protected:
                  Segment &segment,
                  timeT start, timeT end,
                  bool bruteForceRedoRequired = false);
+
+    // Variant ctor to be used when events to insert are known when
+    // the command is cted.  Implies brute force redo.
+    BasicCommand(const QString &name,
+                 Segment &segment,
+		 Segment *redoEvents);
 
     virtual void modifySegment() = 0;
 

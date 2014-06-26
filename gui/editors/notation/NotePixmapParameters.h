@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_NOTEPIXMAPPARAMETERS_H_
-#define _RG_NOTEPIXMAPPARAMETERS_H_
+#ifndef RG_NOTEPIXMAPPARAMETERS_H
+#define RG_NOTEPIXMAPPARAMETERS_H
 
 #include "base/NotationTypes.h"
 #include <vector>
@@ -34,6 +34,8 @@ namespace Rosegarden
 class NotePixmapParameters
 {
 public:
+    enum Triggering { triggerNone, triggerYes, triggerSkip, };
+    
     NotePixmapParameters(Note::Type noteType,
                          int dots,
                          Accidental accidental =
@@ -61,7 +63,7 @@ public:
     void setSelected(bool selected)       { m_selected         = selected;  }
     void setHighlighted(bool highlighted) { m_highlighted      = highlighted;}
     void setQuantized(bool quantized)     { m_quantized        = quantized; }
-    void setTrigger(bool trigger)         { m_trigger          = trigger;   }
+    void setTrigger(Triggering trigger)   { m_trigger          = trigger;   }
     void setIsOnLine(bool isOnLine)       { m_onLine           = isOnLine;  }
     void setSafeVertDistance(int safe)    { m_safeVertDistance = safe;      }
 
@@ -174,7 +176,7 @@ private:
     bool    m_selected;
     bool    m_highlighted;
     bool    m_quantized;
-    bool    m_trigger;
+    Triggering m_trigger;
     bool    m_onLine;
     int     m_safeVertDistance;
     bool    m_restOutsideStave;

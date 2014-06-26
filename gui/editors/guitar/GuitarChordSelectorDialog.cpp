@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -89,7 +89,7 @@ GuitarChordSelectorDialog::GuitarChordSelectorDialog(QWidget *parent)
             this, SLOT(slotComplexityChanged(int)));
 
     page->setContentsMargins(5, 5, 5, 5);
-    QVBoxLayout* vboxLayout = new QVBoxLayout(page);
+    QVBoxLayout* vboxLayout = new QVBoxLayout();
     //topLayout->addLayout(vboxLayout, 1, 2, 3, 1);
     topLayout->addLayout(vboxLayout, 2, 1);
     vboxLayout->addWidget(m_chordComplexityCombo);

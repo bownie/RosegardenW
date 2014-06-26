@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[ControllerEventsRuler]"
 
 #include "ControllerEventsRuler.h"
 #include "ControlRuler.h"
@@ -60,7 +62,7 @@ ControllerEventsRuler::ControllerEventsRuler(ViewSegment *segment,
         RulerScale* rulerScale,
         QWidget* parent,
         const ControlParameter *controller,
-        const char* name) //, WFlags f)
+        const char* /* name */) //, WFlags f)
         : ControlRuler(segment, rulerScale, parent), // name, f),
         m_defaultItemWidth(20),
         m_lastDrawnRect(QRectF(0,0,0,0)),
@@ -427,7 +429,7 @@ ControllerEventsRuler::addControlLine(float x1, float y1, float x2, float y2, bo
     // span of around four bars generated over 15,000 pitch bend events!  That's
     // super duper fine resolution, but it's too much for anything to handle.
     // Let's try to do some sensible thinning without getting too complicated...
-    bool isPitchBend = (m_controller->getType() == Rosegarden::PitchBend::EventType);
+    // bool isPitchBend = (m_controller->getType() == Rosegarden::PitchBend::EventType);
     int thinningHackCounter = 1;
     
     long intermediateValue = originValue;    

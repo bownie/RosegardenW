@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _NOTATION_SCENE_H_
-#define _NOTATION_SCENE_H_
+#ifndef RG_NOTATION_SCENE_H
+#define RG_NOTATION_SCENE_H
 
 #include <QGraphicsScene>
 
@@ -90,15 +90,12 @@ public:
     NotationStaff *getCurrentStaff();
     void setCurrentStaff(NotationStaff *);
 
-    NotationStaff *getStaffAbove();
-    NotationStaff *getStaffBelow();
+    NotationStaff *getStaffAbove(timeT t);
+    NotationStaff *getStaffBelow(timeT t);
     NotationStaff *getPriorStaffOnTrack();
     NotationStaff *getNextStaffOnTrack();
 
     NotationStaff *getStaffForSceneCoords(double x, int y) const;
-
-    NotationStaff *getNextStaffVertically(int direction);
-    NotationStaff *getNextStaffHorizontally(int direction, bool cycle);
 
     Segment *getCurrentSegment();
 
@@ -185,9 +182,9 @@ public:
     void updateClefKeyContext() { m_clefKeyContext->setSegments(this); }
 
     /// Return true if element is a clef or a key which already is in use
-    bool isEventRedundant(Event *ev, Segment &seg);
-    bool isEventRedundant(Clef &clef, timeT time, Segment &seg);
-    bool isEventRedundant(Key &key, timeT time, Segment &seg);
+    bool isEventRedundant(Event *ev, Segment &seg) const;
+    bool isEventRedundant(Clef &clef, timeT time, Segment &seg) const;
+    bool isEventRedundant(Key &key, timeT time, Segment &seg) const;
 
     /// Return the segments about to be deleted if any
     std::vector<Segment *> * getSegmentsDeleted() { return &m_segmentsDeleted; }
@@ -240,7 +237,7 @@ signals:
      *
      * \a noteName contains the MIDI name of the corresponding note
      */
-//!!!    void hoveredOverNoteChanged(const QString &noteName);
+    void hoveredOverNoteChanged(const QString &noteName);
 
     /**
      * Emitted when the mouse cursor moves to a note which is at a
@@ -249,7 +246,7 @@ signals:
      * \a time is set to the absolute time of the note the cursor is
      * hovering on
      */
-//!!!    void hoveredOverAbsoluteTimeChanged(unsigned int time);
+    void hoveredOverAbsoluteTimeChanged(unsigned int time);
 
 protected slots:
     void slotCommandExecuted();
@@ -267,11 +264,16 @@ protected:
     void segmentRepeatEndChanged(const Composition *, Segment *, timeT);
     void segmentStartChanged(const Composition *, Segment *, timeT);
     void segmentEndMarkerChanged(const Composition *, Segment *, bool);
+    void trackChanged(const Composition *, Track *);
 
 
 
 private:
     void setNotePixmapFactories(QString fontName = "", int size = -1);
+    NotationStaff *getNextStaffVertically(int direction, timeT t);
+    NotationStaff *getNextStaffHorizontally(int direction, bool cycle);
+    NotationStaff *getStaffbyTrackAndTime(const Track *track, timeT targetTime);
+    void initCurrentStaffIndex(void);
 
     NotationWidget *m_widget; // I do not own this
 
@@ -346,6 +348,10 @@ private:
     bool m_sceneIsEmpty;   // No more segment in scene
     bool m_showRepeated;   // Repeated segments are visible
     bool m_editRepeated;   // Direct edition of repeated segments is allowed
+    bool m_haveInittedCurrentStaff;
+
+    // Remember current labels of tracks
+    std::map<int, std::string> m_trackLabels;
 };
 
 }

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -41,16 +41,16 @@ LinearParameterPattern::getText(QString propertyName) const
 }
 
 ParameterPattern::SliderSpecVector
-LinearParameterPattern::getSliderSpec(const Situation *situation) const
+LinearParameterPattern::getSliderSpec(const SelectionSituation *situation) const
 {
     SliderSpecVector result;
     std::pair<int,int> minMax =
-        situation->m_selection-> getMinMaxProperty(situation->m_property);
+        situation->getMinMax();
 
     SliderSpec lowArg = SliderSpec(EventParameterDialog::tr("Low Value"), 
-                                    minMax.first);
+                                    minMax.first, situation);
     SliderSpec highArg = SliderSpec(EventParameterDialog::tr("High Value"), 
-                                    minMax.second);
+                                    minMax.second, situation);
 
     if(m_isDiminuendo) {
         result.push_back(highArg);
@@ -68,23 +68,29 @@ LinearParameterPattern::
 setEventProperties(iterator begin, iterator end,
                    Result *result) const
 {
-    const PropertyName property = result->m_situation->m_property;
     const int          value1   = result->m_parameters[0];
     const int          value2   = result->m_parameters[1];
 
-    StartAndDuration times = getTimes (begin, end);
-    timeT startTime = times.first;
-    timeT duration  = times.second;
+    const StartAndDuration times = getTimes (begin, end);
+    const timeT startTime = times.first;
+    const timeT duration  = times.second;
 
-    double step = double(value1 - value2) / double(duration);
+    const double valueChange = value2 - value1;
 
     for (iterator i = begin; i != end; ++i) {
-        if ((*i)->isa(result->m_situation->m_eventType)) {
-            timeT relativeTime = (*i)->getAbsoluteTime() - startTime;
-            int value = value1 - int(step * relativeTime);
-            (*i)->set<Int>(property, value);
-        }
+        const timeT relativeTime = (*i)->getAbsoluteTime() - startTime;
+	const double timeRatio = double(relativeTime)/double(duration);
+        const int value = value1 + int(getValueDelta(valueChange, timeRatio));
+        result->m_situation->setValue(*i, value);
     }
 }
+
+double
+LinearParameterPattern::
+getValueDelta(double valueChange, double timeRatio) const
+{
+    return valueChange * timeRatio;
+}
+    
 
 } // End namespace Rosegarden 

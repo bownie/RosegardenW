@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[AudioMixerWindow]"
 
 #include "AudioMixerWindow.h"
 
@@ -75,7 +76,7 @@
 #include <QDesktopServices>
 #include <QToolBar>
 #include <QToolButton>
-
+#include <QtGlobal>
 
 namespace Rosegarden
 {
@@ -130,26 +131,59 @@ AudioMixerWindow::AudioMixerWindow(QWidget *parent,
     createAction("show_unassigned_faders", SLOT(slotToggleUnassignedFaders()))
         ->setChecked(mixerOptions & MIXER_SHOW_UNASSIGNED_FADERS);
 
-    QAction *action = 0;
+    QAction *ri_action[17];
+    for (int i = 0; i < 17; i++){
+      ri_action[i] = 0;
+    }
 
     for (int i = 1; i <= 16; i *= 2) {
-        action = createAction
+        ri_action[i] = createAction
             (QString("inputs_%1").arg(i), SLOT(slotSetInputCountFromAction()));
-        if (i == int(m_studio->getRecordIns().size()))
-            action->setChecked(true);
+    }
+
+    QAction *sm_action[9];
+    for (int i = 0; i < 9; i++){
+      sm_action[i] = 0;
     }
 
     createAction("submasters_0", SLOT(slotSetSubmasterCountFromAction()));
     
     for (int i = 2; i <= 8; i *= 2) {
-        action = createAction
+        sm_action[i] = createAction
             (QString("submasters_%1").arg(i), SLOT(slotSetSubmasterCountFromAction()));
-        
-        if (i == int(m_studio->getBusses().size()) - 1)
-            action->setChecked(true);
+    }
+
+    QAction *pl_action[4];
+    for (int i = 0; i < 4; i++){
+        pl_action[i] = 0;
+    }
+
+    for (int i = 0; i < 4; i++){
+        pl_action[i] = createAction
+                (QString("panlaw_%1").arg(i), SLOT(slotSetPanLaw()));
     }
 
     createGUI("mixer.rc");
+
+    // The action->setChecked() stuff must be done after createGUI("mixer.rc").
+    for (int i = 1; i <= 16; i *= 2) {
+        if (i == int(m_studio->getRecordIns().size())) {
+            ri_action[i]->setChecked(true);
+        }
+    }
+    // "submasters_0" is checked by default in data/rc/mixer.rc
+    for (int i = 2; i <= 8; i *= 2) {
+        if (i == int(m_studio->getBusses().size()) - 1) {
+            sm_action[i]->setChecked(true);
+        }
+    }
+
+    for (int i = 0; i < 4; i++) {
+        if (i == AudioLevel::getPanLaw()) {
+            pl_action[i]->setChecked(true);
+        }
+    }
+
     setRewFFwdToAutoRepeat();
 
     // We must populate AFTER the actions are created, or else all the
@@ -237,7 +271,7 @@ AudioMixerWindow::populate()
     QGridLayout *mainLayout = new QGridLayout(m_mainBox);
 
     setWindowTitle(tr("Audio Mixer"));
-    setIcon(IconLoader().loadPixmap("window-audiomixer"));
+    setWindowIcon(IconLoader().loadPixmap("window-audiomixer"));
 
     int count = 1;
     int col = 0;
@@ -303,7 +337,7 @@ AudioMixerWindow::populate()
         rec.m_meter->setToolTip(tr("Audio level"));
 
         rec.m_stereoButton = new QPushButton(m_mainBox);
-        rec.m_stereoButton->setPixmap(m_monoPixmap);
+        rec.m_stereoButton->setIcon(m_monoPixmap);
         rec.m_stereoButton->setFixedSize(20, 20);
         rec.m_stereoButton->setFlat(true);
         rec.m_stereoness = false;
@@ -311,7 +345,7 @@ AudioMixerWindow::populate()
 
         rec.m_recordButton = new QPushButton(m_mainBox);
         rec.m_recordButton->setText("R");
-        rec.m_recordButton->setToggleButton(true);
+        rec.m_recordButton->setCheckable(true);
         rec.m_recordButton->setFixedWidth(rec.m_stereoButton->width());
         rec.m_recordButton->setFixedHeight(rec.m_stereoButton->height());
         rec.m_recordButton->setFlat(true);
@@ -337,29 +371,41 @@ AudioMixerWindow::populate()
         rec.m_pluginBox->setLayout(pluginBoxLayout);
         rec.m_pluginBox->show();
 
-        QLabel *idLabel;
-        QString idString;
-
-        // use the instrument alias if one is set, else a standard label
-        std::string alias = (*i)->getAlias();
-
         InstrumentAliasButton *aliasButton = new InstrumentAliasButton(m_mainBox, (*i));
         aliasButton->setFixedSize(10, 6); // golden rectangle
         aliasButton->setToolTip(tr("Click to rename this instrument"));
         connect (aliasButton, SIGNAL(changed()), this, SLOT(slotRepopulate()));
         mainLayout->addWidget(aliasButton, 0, col, 1, 2, Qt::AlignLeft);
 
+        // use the instrument alias if one is set, else a standard label
+        std::string alias = (*i)->getAlias();
+        QString idString;
+        QLabel *idLabel = NULL;
+
+        //NB. The objectName property is used to address widgets in a nice piece
+        // of old school Qt2 style faffery, so we DO need to set these.
         if ((*i)->getType() == Instrument::Audio) {
-            if (alias.size()) idString = strtoqstr(alias);
-            else idString = tr("Audio %1").arg((*i)->getId() -
-                                            AudioInstrumentBase + 1);
-            idLabel = new QLabel(idString, m_mainBox, "audioIdLabel");
+            // use the instrument alias if one is set, else a standard label
+            if (alias.size()) {
+                idString = strtoqstr(alias);
+            } else {
+                idString = tr("Audio %1").arg((*i)->getId() - AudioInstrumentBase + 1);
+            }
+            idLabel = new QLabel(idString, m_mainBox);
+            idLabel->setObjectName("audioIdLabel");
         } else {
-            if (alias.size()) idString = strtoqstr(alias);
-            else idString = tr("Synth %1").arg((*i)->getId() -
-                                            SoftSynthInstrumentBase + 1);
-            idLabel = new QLabel(idString, m_mainBox, "synthIdLabel");
+            // use the instrument alias if one is set, else a standard label
+            if (alias.size()) {
+                idString = strtoqstr(alias);
+            } else {
+                idString = tr("Synth %1").arg((*i)->getId() - SoftSynthInstrumentBase + 1);
+            }
+            idLabel = new QLabel(idString, m_mainBox);
+            idLabel->setObjectName("synthIdLabel");
         }
+
+        Q_ASSERT(idLabel);
+
         idLabel->setFont(boldFont);
         idLabel->setToolTip(tr("Click the button above to rename this instrument"));
 
@@ -457,8 +503,10 @@ AudioMixerWindow::populate()
 
         rec.m_pluginBox->setLayout(pluginBoxLayout);
 
-        QLabel *idLabel = new QLabel(tr("Sub %1").arg(count), m_mainBox, "subMaster");
+        QLabel *idLabel = new QLabel(tr("Sub %1").arg(count), m_mainBox);
         idLabel->setFont(boldFont);
+        //NB. objectName matters here:
+        idLabel->setObjectName("subMaster");
 
         mainLayout->addWidget(idLabel, 1, col, 1, 2, Qt::AlignLeft);
 
@@ -591,9 +639,11 @@ AudioMixerWindow::slotPluginSelected(InstrumentId id,
             rec.m_plugins[index]->setText(tr("<none>"));
             rec.m_plugins[index]->setToolTip(tr("<no plugin>"));
 
-            rec.m_plugins[index]->setPaletteBackgroundColor
-            (qApp->palette().
-             color(QPalette::Active, QColorGroup::Button));
+            //QT3: color hackery simply ignored here.  
+            //
+//            rec.m_plugins[index]->setPaletteBackgroundColor
+//            (qApp->palette().
+//             color(QPalette::Active, QColorGroup::Button));
 
         } else {
 
@@ -602,7 +652,7 @@ AudioMixerWindow::slotPluginSelected(InstrumentId id,
             //!!! Hacky.  We still rely on the old "colour" property to figure
             // out the state, instead of doing something far more pleasant and
             // intelligible three years from now.  (Remember this when you wince
-            // in 2012.  Kind of like that photo of you wearing nothing but a
+            // in 2014.  Kind of like that photo of you wearing nothing but a
             // sock and an electric guitar, drunk off your ass, innit?)
             QColor pluginBgColour = Qt::blue;  // anything random will do
 
@@ -646,17 +696,22 @@ AudioMixerWindow::slotPluginSelected(InstrumentId id,
             rec.m_plugins[index]->setText(tr("<none>"));
             rec.m_plugins[index]->setToolTip(tr("<no plugin>"));
 
-            rec.m_plugins[index]->setPaletteBackgroundColor
-            (qApp->palette().
-             color(QPalette::Active, QColorGroup::Button));
+            //QT3: color hackery just plowed through and glossed over all
+            // through here...  It's all too complicated to sort out without
+            // being able to run and look at things, so this will just have to
+            // be something where we take a look back and figure it out later.
+
+//            rec.m_plugins[index]->setPaletteBackgroundColor
+//            (qApp->palette().
+//             color(QPalette::Active, QColorGroup::Button));
 
         } else {
 
             AudioPlugin *pluginClass
             = m_document->getPluginManager()->getPlugin(plugin);
 
-            QColor pluginBgColour =
-                qApp->palette().color(QPalette::Active, QColorGroup::Light);
+            QColor pluginBgColour = Qt::yellow; // QT3: junk color replaces following:
+//                qApp->palette().color(QPalette::Active, QColorGroup::Light);
 
             if (pluginClass) {
                 rec.m_plugins[index]->
@@ -667,10 +722,12 @@ AudioMixerWindow::slotPluginSelected(InstrumentId id,
             }
 
 
-            rec.m_plugins[index]->setPaletteForegroundColor(QColor(Qt::white));
-            rec.m_plugins[index]->setPaletteBackgroundColor(pluginBgColour);
+//            rec.m_plugins[index]->setPaletteForegroundColor(QColor(Qt::white));
+//            rec.m_plugins[index]->setPaletteBackgroundColor(pluginBgColour);
         }
     }
+    // Force an immediate update of button colors.
+    populate();
 }
 
 void
@@ -753,9 +810,9 @@ AudioMixerWindow::updateStereoButton(int id)
         rec.m_stereoness = stereo;
 
         if (stereo)
-            rec.m_stereoButton->setPixmap(m_stereoPixmap);
+            rec.m_stereoButton->setIcon(m_stereoPixmap);
         else
-            rec.m_stereoButton->setPixmap(m_monoPixmap);
+            rec.m_stereoButton->setIcon(m_monoPixmap);
     }
 }
 
@@ -796,8 +853,8 @@ AudioMixerWindow::updatePluginButtons(int id)
 
             bool used = false;
             bool bypass = false;
-            QColor pluginBgColour =
-                qApp->palette().color(QPalette::Active, QColorGroup::Light);
+            QColor pluginBgColour = Qt::green;
+//                qApp->palette().color(QPalette::Active, QColorGroup::Light);
 
             rec->m_plugins[i]->show();
 
@@ -1390,30 +1447,48 @@ AudioMixerWindow::slotSetSubmasterCountFromAction()
 
         // offset by 1 generally to take into account the fact that
         // the first buss in the studio is the master, not a submaster
-
         if (count + 1 == current)
             return ;
 
-        BussList dups;
-        for (int i = 0; i < count; ++i) {
-            if (i + 1 < int(busses.size())) {
-                dups.push_back(new Buss(*busses[i + 1]));
-            } else {
-                dups.push_back(new Buss(i + 1));
+        if (count + 1 < current) {
+
+            BussList::iterator it = busses.end();
+            it--;  // Now this actually points to something
+
+            while (count + 1 < current--) {
+                m_studio->removeBuss((*it--)->getId());
             }
-        }
 
-        m_studio->clearBusses();
+        } else {
 
-        for (BussList::iterator i = dups.begin();
-                i != dups.end(); ++i) {
-            m_studio->addBuss(*i);
+            BussList::iterator it = busses.end();
+            it--;
+            unsigned int lastId = (*it)->getId();
+
+            while (count + 1 > current++) {
+                m_studio->addBuss(new Buss(++lastId));
+            }
+
         }
+//      busses = m_studio->getBusses();
+//      for (BussList::iterator it = busses.begin(); it != busses.end(); it++)
+//          std::cout << "******* BussId:" << (*it)->getId() << std::endl;
     }
 
     m_document->initialiseStudio();
 
     populate();
+}
+
+void AudioMixerWindow::slotSetPanLaw()
+{
+    const QObject *s = sender();
+    QString name = s->objectName();
+
+    if (name.left(7) == "panlaw_") {
+        int panLaw = name.right(name.length() - 7).toInt();
+        AudioLevel::setPanLaw(panLaw);
+    }
 }
 
 void AudioMixerWindow::FaderRec::setVisible(bool visible)
@@ -1612,9 +1687,11 @@ AudioMixerWindow::slotToggleUnassignedFaders()
 void
 AudioMixerWindow::toggleNamedWidgets(bool show, const char* const name)
 {
-    QLayoutIterator it = m_mainBox->layout()->iterator();
+    //NB. Completely rewritten to get around the disappearance of
+    // QLayoutIterator.
+    int i = 0;
     QLayoutItem *child;
-    while ((child = it.current()) != 0) {
+    while ((child = layout()->itemAt(i)) != 0) {
         QWidget *widget = child->widget();
         if (widget &&
             widget->objectName() == QString::fromUtf8(name)) {
@@ -1624,9 +1701,8 @@ AudioMixerWindow::toggleNamedWidgets(bool show, const char* const name)
                 widget->hide();
         }
 
-        ++it;
+        ++i;
     }
-
 }
 
 void

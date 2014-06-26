@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,7 +28,7 @@ namespace Rosegarden
 {
 
 void
-TimeSigSegmentMapper::dump()
+TimeSigSegmentMapper::fillBuffer()
 {
     RealTime eventTime;
 
@@ -52,7 +52,7 @@ TimeSigSegmentMapper::dump()
         ++index;
     }
 
-    setBufferFill(index);
+    resize(index);
 }
 
 int
@@ -61,4 +61,11 @@ TimeSigSegmentMapper::calculateSize()
     return m_doc->getComposition().getTimeSignatureCount();
 }
 
+// Time signatures always "play", even not-yet-played signatures
+// before the beginning of a slice.
+bool
+TimeSigSegmentMapper::
+shouldPlay(MappedEvent */*evt*/, RealTime /*startTime*/)
+{ return true; }
+    
 }

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_SEGMENTRESIZER_H_
-#define _RG_SEGMENTRESIZER_H_
+#ifndef RG_SEGMENTRESIZER_H
+#define RG_SEGMENTRESIZER_H
 
 #include "SegmentTool.h"
 #include <QString>
@@ -25,7 +25,7 @@
 
 class QPoint;
 class QMouseEvent;
-class CompositionItem;
+class CompositionItemPtr;
 
 
 namespace Rosegarden
@@ -54,7 +54,7 @@ public:
     virtual void handleMouseButtonRelease(QMouseEvent*);
     virtual int  handleMouseMove(QMouseEvent*);
 
-    static bool cursorIsCloseEnoughToEdge(const CompositionItem&, const QPoint&, int, bool &);
+    static bool cursorIsCloseEnoughToEdge(CompositionItemPtr, const QPoint&, int, bool &);
 
     void setEdgeThreshold(int e) { m_edgeThreshold = e; }
     int getEdgeThreshold() { return m_edgeThreshold; }

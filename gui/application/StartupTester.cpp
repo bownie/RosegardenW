@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -36,14 +36,14 @@ StartupTester::StartupTester() :
     m_ready(false),
     m_haveAudioFileImporter(false)
 {
-    QHttp *http = new QHttp();
-    connect(http, SIGNAL(responseHeaderReceived(const QHttpResponseHeader &)),
-            this, SLOT(slotHttpResponseHeaderReceived(const QHttpResponseHeader &)));
-    connect(http, SIGNAL(done(bool)),
-            this, SLOT(slotHttpDone(bool)));
-    m_versionHttpFailed = false;
-    http->setHost("www.rosegardenmusic.com");
-    http->get("/latest-version.txt");
+    //QHttp *http = new QHttp();
+    //connect(http, SIGNAL(responseHeaderReceived(const QHttpResponseHeader &)),
+    //        this, SLOT(slotHttpResponseHeaderReceived(const QHttpResponseHeader &)));
+    //connect(http, SIGNAL(done(bool)),
+    //        this, SLOT(slotHttpDone(bool)));
+    //m_versionHttpFailed = false;
+    //http->setHost("www.rosegardenmusic.com");
+    //http->get("/latest-version.txt");
 }
 
 StartupTester::~StartupTester()
@@ -53,42 +53,7 @@ StartupTester::~StartupTester()
 void
 StartupTester::run() {
     m_runningMutex.lock();
-//    m_audioFileImporterMutex.lock();
     m_ready = true;
-
-    //setup "rosegarden-audiofile-importer" process
-/*    m_proc = new QProcess();
-    QStringList procArgs;
-
-    m_stdoutBuffer = "";
-///CJ - Don't think this connection process is necessary or useful
-///CJ - Simpler to wait for the process to finish and check the stdout and stderr streams
-//    QObject::connect(proc, SIGNAL(receivedStdout(QProcess *, char *, int)),
-//                     this, SLOT(stdoutReceived(QProcess *, char *, int)));
-    QObject::connect(m_proc, SIGNAL(readyReadStandardOutput()),
-                     this, SLOT(stdoutReceived()));
-                     
-    procArgs << "--conftest";
-//    m_proc->execute("rosegarden-audiofile-importer", procArgs);
-//    m_proc->start("rosegarden-audiofile-importer", procArgs);
-//    m_proc->waitForFinished();
-
-    // Wait for stdout to be processed by stdoutReceived
-    // Note if this isn't done, this thread will go ahead and delete m_proc before the stdoutReceived slot is called
-    while(m_proc->bytesAvailable() > 0)
-        usleep(10000);
-
-    if ((m_proc->exitStatus() != QProcess::NormalExit) || m_proc->exitCode()) {
-        RG_DEBUG << "StartupTester - No audio file importer available" << endl;
-        m_haveAudioFileImporter = false;
-        parseStdoutBuffer(m_audioFileImporterMissing);
-    } else {
-        RG_DEBUG << "StartupTester - Audio file importer OK" << endl;
-        m_haveAudioFileImporter = true;
-    }
-    delete m_proc;
-    procArgs = QStringList();
-    m_audioFileImporterMutex.unlock();*/
 
     m_haveAudioFileImporter = true;
     NoteFontFactory::getFontNames(true);
@@ -120,8 +85,8 @@ void
 StartupTester::parseStdoutBuffer(QStringList &target)
 {
     QRegExp re("Required: ([^\n]*)");
-    if (re.search(m_stdoutBuffer) != -1) {
-        target = QStringList::split(", ", re.cap(1));
+    if (re.indexIn(m_stdoutBuffer) != -1) {
+        target = re.cap(1).split(", ");
     }
 }
 
@@ -160,6 +125,7 @@ StartupTester::isVersionNewerThan(QString a, QString b)
     return false;
 }
 
+/*
 void
 StartupTester::slotHttpResponseHeaderReceived(const QHttpResponseHeader &h)
 {
@@ -183,13 +149,11 @@ StartupTester::slotHttpDone(bool error)
     std::cerr << "Comparing current version \"" << VERSION
               << "\" with latest version \"" << latestVersion << "\""
               << std::endl;
-    QString version;
-    version = VERSION;
-
-    if (isVersionNewerThan(latestVersion, version)) {
+    if (isVersionNewerThan(latestVersion, VERSION)) {
         emit newerVersionAvailable(latestVersion);
     }
 }
+*/
 
 }
 

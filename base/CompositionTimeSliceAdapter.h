@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file is Copyright 2002
@@ -17,8 +17,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _COMPOSITION_TIMESLICE_ADAPTER_H_
-#define _COMPOSITION_TIMESLICE_ADAPTER_H_
+#ifndef RG_COMPOSITION_TIMESLICE_ADAPTER_H
+#define RG_COMPOSITION_TIMESLICE_ADAPTER_H
 
 #include <list>
 #include <utility>

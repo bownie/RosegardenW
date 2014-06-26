@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[TrackButtons]"
 
 #include "TrackButtons.h"
 
@@ -37,8 +38,10 @@
 #include "gui/application/RosegardenMainWindow.h"
 #include "gui/general/GUIPalette.h"
 #include "gui/general/IconLoader.h"
+#include "gui/seqmanager/SequenceManager.h"
 #include "gui/widgets/LedButton.h"
 #include "sound/AudioFileManager.h"
+#include "sound/ControlBlock.h"
 #include "sound/PluginIdentifier.h"
 #include "sequencer/RosegardenSequencer.h"
 
@@ -191,7 +194,8 @@ TrackButtons::updateUI(Track *track)
             label->setTrackName(tr("<untitled>"));
         }
     } else {
-        label->setTrackName(track->getLabel().c_str());
+        label->setTrackName(strtoqstr(track->getLabel()));
+        label->setShortName(strtoqstr(track->getShortLabel()));
     }
 
     initInstrumentNames(ins, label);
@@ -478,30 +482,26 @@ TrackButtons::getHighlightedTracks()
 #endif
 
 void
-TrackButtons::slotRenameTrack(QString newName, TrackId trackId)
+TrackButtons::slotRenameTrack(QString longLabel, QString shortLabel, TrackId trackId)
 {
-    if (!m_doc)
-        return;
+    if (!m_doc) return;
 
     Track *track = m_doc->getComposition().getTrackById(trackId);
 
-    if (!track)
-        return;
+    if (!track) return;
 
     TrackLabel *label = m_trackLabels[track->getPosition()];
 
-    // If the name isn't really changing
-    if (label->getTrackName() == newName)
-        return;
+    // If neither label is changing, skip it
+    if (label->getTrackName() == longLabel &&
+        QString::fromStdString(track->getShortLabel()) == shortLabel) return;
 
     // Rename the track
     CommandHistory::getInstance()->addCommand(
             new RenameTrackCommand(&m_doc->getComposition(),
                                    trackId,
-                                   qstrtostr(newName)));
-
-    // Width cannot change.  Remove this.
-    //emit widthChanged();
+                                   longLabel,
+                                   shortLabel));
 }
 
 void
@@ -820,13 +820,20 @@ TrackButtons::slotInstrumentSelected(int instrumentIndex)
     //RG_DEBUG << "TrackButtons::slotInstrumentSelected: instrument " << inst;
 
     if (inst != 0) {
+        Composition &comp = m_doc->getComposition();
         Track *track =
-                m_doc->getComposition().getTrackByPosition(m_popupTrackPos);
+                comp.getTrackByPosition(m_popupTrackPos);
 
         if (track != 0) {
-            // Select the new instrument for the track
+            // Select the new instrument for the track.  Seems like we
+            // need to do all 3 ways:
+            // For Track.cpp
             track->setInstrument(inst->getId());
+            // For TrackParameterBox
             emit instrumentSelected((int)inst->getId());
+            // For ControlBlock's representation of track.
+            ControlBlock::getInstance()->
+                setInstrumentForTrack(m_popupTrackPos, inst->getId());
 
             // Update the instrument names
             initInstrumentNames(inst, m_trackLabels[m_popupTrackPos]);
@@ -835,6 +842,20 @@ TrackButtons::slotInstrumentSelected(int instrumentIndex)
             // Udpate the LED color
             m_recordLeds[m_popupTrackPos]->setColor(getRecordLedColour(inst));
 
+            SequenceManager *sM =
+                m_doc->getSequenceManager();
+
+            // Segments on this track are now playing on a new
+            // instrument, so they're no longer ready (making them
+            // ready is done just-in-time elsewhere), nor is thru
+            // channel ready.
+            for (Composition::iterator i =
+                     comp.begin();
+                 i != comp.end(); ++i) {
+                if (((int)(*i)->getTrack()) == m_popupTrackPos) {
+                    sM->segmentInstrumentChanged(*i);
+                }
+            }    
         } else {
             RG_DEBUG << "slotInstrumentSelected() - can't find track!\n";
         }
@@ -1029,8 +1050,8 @@ TrackButtons::makeButton(Track *track)
     trackLabel->setFixedHeight(m_cellSize - m_buttonGap);
     trackLabel->setIndent(7);
 
-    connect(trackLabel, SIGNAL(renameTrack(QString, TrackId)),
-            SLOT(slotRenameTrack(QString, TrackId)));
+    connect(trackLabel, SIGNAL(renameTrack(QString, QString, TrackId)),
+            SLOT(slotRenameTrack(QString, QString, TrackId)));
 
     m_trackLabels.push_back(trackLabel);
 

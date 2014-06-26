@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -32,8 +32,8 @@
 //
 
 
-#ifndef _STUDIO_H_
-#define _STUDIO_H_
+#ifndef RG_STUDIO_H
+#define RG_STUDIO_H
 
 namespace Rosegarden
 {
@@ -92,6 +92,7 @@ public:
     BussList getBusses();
     Buss *getBussById(BussId id);
     void addBuss(Buss *buss);
+    void removeBuss(BussId id);
 
     // Return an Instrument or a Buss
     PluginContainer *getContainerById(InstrumentId id);
@@ -212,4 +213,4 @@ private:
 
 }
 
-#endif // _STUDIO_H_
+#endif // RG_STUDIO_H

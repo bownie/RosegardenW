@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_CHANGECOMPOSITIONLENGTHCOMMAND_H_
-#define _RG_CHANGECOMPOSITIONLENGTHCOMMAND_H_
+#ifndef RG_CHANGECOMPOSITIONLENGTHCOMMAND_H
+#define RG_CHANGECOMPOSITIONLENGTHCOMMAND_H
 
 #include "document/Command.h"
 #include <QString>
@@ -41,7 +41,8 @@ class ChangeCompositionLengthCommand : public NamedCommand
 public:
     ChangeCompositionLengthCommand(Composition *composition,
                                    timeT startTime,
-                                   timeT endTime);
+                                   timeT endTime,
+                                   bool autoExpand);
     virtual ~ChangeCompositionLengthCommand();
 
     static QString getGlobalName()
@@ -52,10 +53,14 @@ public:
 
 protected:
     Composition *m_composition;
+
     timeT        m_startTime;
     timeT        m_endTime;
+    bool         m_autoExpand;
+
     timeT        m_oldStartTime;
     timeT        m_oldEndTime;
+    bool         m_oldAutoExpand;
 
 };
 

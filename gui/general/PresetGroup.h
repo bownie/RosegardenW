@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is Copyright 2006-2009
 	D. Michael McIntyre <dmmcintyr@users.sourceforge.net>
@@ -18,8 +18,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_PRESETGROUP_H_
-#define _RG_PRESETGROUP_H_
+#ifndef RG_PRESETGROUP_H
+#define RG_PRESETGROUP_H
 
 #include "base/Exception.h"
 #include "CategoryElement.h"

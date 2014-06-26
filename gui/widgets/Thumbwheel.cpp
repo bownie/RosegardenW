@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file originally from Sonic Visualiser, copyright 2007 Queen
     Mary, University of London.
@@ -263,7 +263,7 @@ Thumbwheel::mouseDoubleClickEvent(QMouseEvent *mouseEvent)
 
     bool ok = false;
 
-    int newValue = QInputDialog::getInteger
+    int newValue = QInputDialog::getInt
         (this,
          tr("Enter new value"),
          tr("Enter a new value from %1 to %2:")

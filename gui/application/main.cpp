@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -12,6 +12,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[main]"
 
 #include "misc/ConfigGroups.h"
 #include "misc/Strings.h"
@@ -47,8 +49,10 @@
 #include <QtGui>
 #include <QPixmapCache>
 #include <QStringList>
+#include <QStyleFactory>
 
 #include <sys/time.h>
+#include <unistd.h>
 
 using namespace Rosegarden;
 
@@ -326,7 +330,7 @@ static QString description =
 #include <X11/Xatom.h>
 #include <X11/SM/SMlib.h>
 
-static int _x_errhandler(Display *dpy, XErrorEvent *err)
+static int xErrorHandler(Display *dpy, XErrorEvent *err)
 {
     char errstr[256];
     XGetErrorText(dpy, err->error_code, errstr, 256);
@@ -357,23 +361,17 @@ int main(int argc, char *argv[])
 {
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--version")) {
-            std::string version;
-            version = VERSION;
-
-            std::string buildkey;
-            buildkey = BUILDKEY;
-
-            //QString code = QString("%1").arg("CODENAME");
-
-            //std::string codename;
-            //codename = code.To
-
-            std::cout << "Rosegarden version: " << version << " (\"" << CODENAME << "\")" << std::endl;
-            std::cout << "Build key: " << buildkey << std::endl;
+            std::cout << "Rosegarden version: " << VERSION << " (\"" << CODENAME << "\")" << std::endl;
+            std::cout << "Build key: " << BUILDKEY << std::endl;
             std::cout << "Built against Qt version: " << QT_VERSION_STR << std::endl;
             return 0;
         }
     }
+
+#ifdef DEBUG
+    // Force all Qt warnings to crash the system.
+    setenv("QT_FATAL_WARNINGS", "1", 1);
+#endif
 
     QPixmapCache::setCacheLimit(8192); // KB
 
@@ -387,7 +385,7 @@ int main(int argc, char *argv[])
     // (this has to be outside the ifdef block below)
     QSettings preAppSettings("rosegardenmusic", "Rosegarden");
     preAppSettings.beginGroup(GeneralOptionsConfigGroup);
-    //unsigned int graphicsSystem = preAppSettings.value("graphics_system", Native).toUInt();
+    unsigned int graphicsSystem = preAppSettings.value("graphics_system", Native).toUInt();
     preAppSettings.endGroup();
 
 
@@ -463,13 +461,17 @@ int main(int argc, char *argv[])
 
     // In order to ensure the Thorn style comes out right, we need to set our
     // custom style, which is based on QPlastiqueStyle
-    if (Thorn) QApplication::setStyle(new ThornStyle);
+    //if (Thorn) QApplication::setStyle(new ThornStyle);
+
 
     RosegardenApplication theApp(argc, argv);    
-
+    theApp.setStyle(QStyleFactory::create("Fusion"));
     theApp.setOrganizationName("rosegardenmusic");
     theApp.setOrganizationDomain("rosegardenmusic.com");
     theApp.setApplicationName(QObject::tr("Rosegarden"));
+    // This allows icons to appear in the instrument popup menu in
+    // TrackButtons.
+    theApp.setAttribute(Qt::AA_DontShowIconsInMenus, false);
     QStringList args = theApp.arguments();
     QSettings settings;
 
@@ -577,14 +579,10 @@ int main(int argc, char *argv[])
 #endif
 
     QString lastVersion = settings.value("lastversion", "").toString();
-
-    QString version;
-    version = VERSION;
-
-    bool newVersion = (lastVersion != version);
+    bool newVersion = (lastVersion != VERSION);
     if (newVersion) {
         std::cerr << "*** This is the first time running this Rosegarden version" << std::endl;
-        settings.setValue("lastversion", version);
+        settings.setValue("lastversion", VERSION);
 
     }
 
@@ -661,7 +659,7 @@ int main(int argc, char *argv[])
         startLogo->show();
         startLogo->repaint();
         theApp.processEvents();
-        theApp.flushX();
+        theApp.flush();
     }
 
     struct timeval logoShowTime;
@@ -682,7 +680,11 @@ int main(int argc, char *argv[])
 
     rosegardengui->setIsFirstRun(newVersion);
 
-    theApp.setMainWidget(rosegardengui);
+    //@@@ QApplication.setMainWidget() is no longer supported.
+    //@@@ The documentation suggests connecting the lastWindowsClosed() signal
+    //@@@ to the quit() slot, but QApplication has a boolean quitOnLastWindowClosed
+    //@@@ property that defaults to true, so calling quit() should not be needed.
+    //theApp.setMainWidget(rosegardengui);
 
     rosegardengui->show();
 
@@ -692,7 +694,7 @@ int main(int argc, char *argv[])
         startLogo->raise();
         startLogo->setHideEnabled(true);
         startLogo->repaint();
-        theApp.flushX();
+        theApp.flush();
     }
 
     for (int i = 1; i < args.size(); ++i) {
@@ -710,7 +712,7 @@ int main(int argc, char *argv[])
     if (startLogo) {
         startLogo->raise();
         startLogo->setHideEnabled(true);
-        theApp.flushX();
+        theApp.flush();
     }
 
     settings.endGroup();
@@ -747,7 +749,7 @@ int main(int argc, char *argv[])
 
 
 #ifdef Q_WS_X11
-    XSetErrorHandler(_x_errhandler);
+    XSetErrorHandler(xErrorHandler);
 #endif
 
     if (startLogo) {
@@ -840,6 +842,12 @@ int main(int argc, char *argv[])
     QMessageBox::warning(0, "Rosegarden", "Warning!", QMessageBox::Ok, QMessageBox::Ok);
 #endif
 
-    return theApp.exec();
+    int returnCode = theApp.exec();
+
+    // Announce end of run so that we can tell if we have crashed on
+    // the way down.
+    RG_DEBUG << "Rosegarden main() exiting with rc:" << returnCode;
+
+    return returnCode;
 }
 

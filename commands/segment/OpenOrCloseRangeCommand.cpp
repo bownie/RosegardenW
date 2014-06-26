@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,6 +23,7 @@
 #include "misc/Debug.h"
 #include "base/Composition.h"
 #include "base/NotationTypes.h"
+#include "base/Profiler.h"
 #include "base/Segment.h"
 #include "base/Selection.h"
 
@@ -39,17 +40,34 @@ OpenOrCloseRangeCommand::OpenOrCloseRangeCommand(Composition *composition,
         m_beginTime(rangeBegin),
         m_endTime(rangeEnd),
         m_prepared(false),
+        m_hasExecuted(false),
         m_opening(open),
         m_loopBegin(0),
         m_loopEnd(0)
 {}
 
 OpenOrCloseRangeCommand::~OpenOrCloseRangeCommand()
-{}
+{
+    if (m_prepared) {
+        // We own markers that we need to free.  Those are the markers
+        // currently not in the composition.
+        
+        // If we are currently executed, those markers are in "pre",
+        // but if we are unexecuted, they are in "post".
+        MarkerSelection &unused =
+            m_hasExecuted ? m_markersPre : m_markersPost;
+            
+        for (MarkerSelection::Container::const_iterator i =
+                 unused.begin(); i != unused.end(); ++i) {
+            delete *i;
+        }
+    }
+}
 
 void
 OpenOrCloseRangeCommand::execute()
 {
+    Profiler profiler("OpenOrCloseRangeCommand::execute()");
     timeT offset = m_endTime - m_beginTime;
     if (!m_opening)
         offset = -offset;
@@ -86,6 +104,10 @@ OpenOrCloseRangeCommand::execute()
                        m_composition->getEndMarker(),
                        false);
 
+        m_markersPre = MarkerSelection
+            (*m_composition, movingFrom,
+             m_composition->getEndMarker());
+
         for (TimeSignatureSelection::timesigcontainer::const_iterator i =
                     m_timesigsPre.begin(); i != m_timesigsPre.end(); ++i) {
 
@@ -102,6 +124,12 @@ OpenOrCloseRangeCommand::execute()
             m_temposPost.addTempo(t + offset, change.first, change.second);
         }
 
+        for (MarkerSelection::Container::const_iterator i =
+                    m_markersPre.begin(); i != m_markersPre.end(); ++i) {
+
+            m_markersPost.addCopyAtOffset(offset, *i);
+        }
+        
         m_prepared = true;
     }
 
@@ -123,6 +151,8 @@ OpenOrCloseRangeCommand::execute()
     m_timesigsPost.AddToComposition(m_composition);
     m_temposPre.RemoveFromComposition(m_composition);
     m_temposPost.AddToComposition(m_composition);
+    m_markersPre.RemoveFromComposition(m_composition);
+    m_markersPost.AddToComposition(m_composition);
 
     // Preserve the loop range for undo
     m_loopBegin = m_composition->getLoopStart();
@@ -149,7 +179,7 @@ OpenOrCloseRangeCommand::execute()
     // If we are closing the range, the loop range and the range to be removed
     // are the same.  We will leave the loop range alone in case the user wants
     // to Cut Range again (or Delete Range if that is ever added to the UI).
-
+    m_hasExecuted = true;
 }
 
 void
@@ -168,11 +198,14 @@ OpenOrCloseRangeCommand::unexecute()
     m_timesigsPre.AddToComposition(m_composition);
     m_temposPost.RemoveFromComposition(m_composition);
     m_temposPre.AddToComposition(m_composition);
+    m_markersPost.RemoveFromComposition(m_composition);
+    m_markersPre.AddToComposition(m_composition);
     
     RosegardenDocument *doc = RosegardenMainWindow::self()->getDocument();
 
     // Put back the loop range
     doc->setLoop(m_loopBegin, m_loopEnd);
+    m_hasExecuted = false;
 }
 
 }

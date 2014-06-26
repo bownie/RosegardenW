@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file based on code from KMix
     Copyright (C) 2000 Stefan Schimanski <1Stein@gmx.de>.
@@ -18,8 +18,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_LEDBUTTON_H_
-#define _RG_LEDBUTTON_H_
+#ifndef RG_LEDBUTTON_H
+#define RG_LEDBUTTON_H
 
 #include "Led.h"
 

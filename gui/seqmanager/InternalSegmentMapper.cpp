@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -32,8 +32,8 @@
 #include "misc/Debug.h"
 #include "sound/ControlBlock.h"
 #include "sound/MappedEvent.h"
+#include "sound/Midi.h" // For MIDI_SYSTEM_EXCLUSIVE
 
-#include "assert.h"
 #include <limits>
 #include <algorithm>
 
@@ -43,7 +43,7 @@ namespace Rosegarden
 {
 
 InternalSegmentMapper::InternalSegmentMapper(RosegardenDocument *doc,
-					     Segment *segment)
+                                             Segment *segment)
     : SegmentMapper(doc, segment),
       m_channelManager(doc->getInstrument(segment)),
       m_triggeredEvents(new Segment)
@@ -55,16 +55,22 @@ InternalSegmentMapper::
     if(m_triggeredEvents) { delete m_triggeredEvents; }
 }
 
-void InternalSegmentMapper::dump()
+RealTime
+InternalSegmentMapper::
+toRealTime(Composition &comp, timeT t)
+{
+    return 
+        comp.getElapsedRealTime(t) + m_segment->getRealTimeDelay();
+}
+
+
+void InternalSegmentMapper::fillBuffer()
 {
     Composition &comp = m_doc->getComposition();
-
-    RealTime eventTime;
-    RealTime duration;
     Track* track = comp.getTrackById(m_segment->getTrack());
 #ifdef DEBUG_INTERNAL_SEGMENT_MAPPER
     SEQUENCER_DEBUG
-        << "InternalSegmentMapper::dump track number"
+        << "InternalSegmentMapper::fillBuffer track number"
         << (int)track->getId()
         << endl;
 #endif
@@ -79,12 +85,11 @@ void InternalSegmentMapper::dump()
     if (repeatCount > 0)
         repeatEndTime = m_segment->getRepeatEndTime();
 
-    int size = 0;
-    setBufferFill(0);
+    resize(0);
 
 #ifdef DEBUG_INTERNAL_SEGMENT_MAPPER
     SEQMAN_DEBUG
-        << "InternalSegmentMapper::dump"
+        << "InternalSegmentMapper::fillBuffer"
         << (void *)this
         << "Segment"
         << (void *)m_segment
@@ -149,7 +154,9 @@ void InternalSegmentMapper::dump()
                 continue;
             }
 
-            if (!usingImplied) { // don't permit nested triggered segments
+            // We handle nested ornament expansion elsewhere, so
+            // trigger events won't be found in implied.
+            if (!usingImplied) { 
 
                 long triggerId = -1;
                 (**k)->get<Int>(BaseProperties::TRIGGER_SEGMENT_ID, triggerId);
@@ -158,39 +165,38 @@ void InternalSegmentMapper::dump()
 
                     TriggerSegmentRec *rec =
                         comp.getTriggerSegmentRec(triggerId);
+                    // We will invalidate `implied' so we arrange to
+                    // re-find it later.  Since we're always treating
+                    // a normal note here, we always use the findTime
+                    // method.
+                    timeT refTime = (*j)->getAbsoluteTime();
+                    ControllerContextParams
+                        params(refTime, getInstrument(), m_segment,
+                               m_triggeredEvents, m_controllerCache, 0);
 
-                    if (rec && rec->getSegment()) {
-                        timeT performanceDuration =
-                            SegmentPerformanceHelper(*m_segment).
-                            getSoundingDuration(j);
-                        if (performanceDuration > 0) {
-                            // This will invalidate "implied" so we
-                            // arrange to re-find it later.  Since
-                            // we're always treating a normal note
-                            // here, we always use the findTime method.
-                            timeT refTime = (*j)->getAbsoluteTime();
-                            // Put triggered events into
-                            // m_triggeredEvents.  This may
-                            // invalidates "implied" because it may
-                            // insert notes.
-                            mergeTriggerSegment(m_triggeredEvents, *j,
-                                                performanceDuration, rec);
-                            // Re-find "implied".
-                            implied =
-                                Segment::iterator
-                                (m_triggeredEvents->findTime(refTime));
+                    // Add triggered events into m_triggeredEvents.
+                    // This invalidates `implied'.
+                    bool insertedSomething =
+                        rec->ExpandInto(m_triggeredEvents,
+                                        j, m_segment, &params);
+                    if (insertedSomething) {
+                        // Re-find `implied'
+                        implied =
+                            Segment::iterator
+                            (m_triggeredEvents->findTime(refTime));
 
-                            // Recalculate how much buffer space we'll
-                            // need.  
-                            size = calculateSize();
-                            size = addSize(size, rec->getSegment());
-                            // Get more space if we need to.
-                            if (size > getBufferSize()) {
-                                resizeBuffer(size);
-                            }
+                        // Recalculate how much buffer space to
+                        // reserve.  !!! Probably should calculate the
+                        // extra from m_triggeredEvents rather than
+                        // rec->getSegment()
+                        int spaceNeeded =
+                            addSize(calculateSize(), rec->getSegment());
+                        // Reserve more space if we will need it.
+                        if (spaceNeeded > capacity()) {
+                            reserve(spaceNeeded);
                         }
                     }
-
+                        
                     // whatever happens, we don't want to write this one
                     ++j; 
 
@@ -222,14 +228,12 @@ void InternalSegmentMapper::dump()
                         playDuration = repeatEndTime - playTime;
 
                     playTime = playTime + m_segment->getDelay();
-                    eventTime = comp.getElapsedRealTime(playTime);
+                    const RealTime eventTime = toRealTime(comp, playTime);
 
                     // slightly quicker than calling helper.getRealSoundingDuration()
                     RealTime endTime =
-                        comp.getElapsedRealTime(playTime + playDuration);
-                    duration = endTime - eventTime;
-
-                    eventTime = eventTime + m_segment->getRealTimeDelay();
+                        toRealTime(comp, playTime + playDuration);
+                    const RealTime duration = endTime - eventTime;
 
                     try {
                         // Create mapped event and put it in buffer.
@@ -239,6 +243,9 @@ void InternalSegmentMapper::dump()
                                       ***k,  // three stars! what an accolade
                                       eventTime,
                                       duration);
+
+                        // Somewhat hacky: The MappedEvent ctor makes
+                        // events that needn't be inserted invalid.
                         if (e.isValid()) {
                             e.setTrackId(track->getId());
 
@@ -255,12 +262,12 @@ void InternalSegmentMapper::dump()
                                 enqueueNoteoff(playTime + playDuration,
                                                e.getPitch());
                             }
-                            mapAnEvent(&e);
+                            mapAnEvent(&e); 
                         } else {}
                         
                     } catch (...) {
 #ifdef DEBUG_INTERNAL_SEGMENT_MAPPER
-                        SEQMAN_DEBUG << "SegmentMapper::dump - caught exception while trying to create MappedEvent\n";
+                        SEQMAN_DEBUG << "SegmentMapper::fillBuffer - caught exception while trying to create MappedEvent\n";
 #endif
                     }
                 }
@@ -275,13 +282,20 @@ void InternalSegmentMapper::dump()
         popInsertNoteoff(track->getId(), comp);
     }
 
-    bool anything = (getBufferFill() != 0);
+    bool anything = (size() != 0);
 
     RealTime minRealTime;
     RealTime maxRealTime;
     if (anything) {
         minRealTime = getBuffer()[0].getEventTime();
-        maxRealTime = getBuffer()[getBufferFill() - 1].getEventTime();
+        maxRealTime = getBuffer()[size() - 1].getEventTime();
+
+        // Fix for bug #1378.  Start slightly before the first note so
+        // that program etc is sent then.  We'll allow it to be before
+        // zeroTime, since MappedBufMetaIterator can handle early
+        // start-times.
+        static const RealTime preparationTime = RealTime::fromSeconds(0.5);
+        minRealTime = minRealTime - preparationTime;
     } else {
         minRealTime = maxRealTime = RealTime::zeroTime;
     }
@@ -356,113 +370,12 @@ popInsertNoteoff(int trackid, Composition &comp)
     // Our noteoffs already have performance pitch, so
     // don't add segment's transpose.
     MappedEvent event(0, MappedEvent::MidiNote, pitch, 0);
-    event.setEventTime(comp.getElapsedRealTime(internalTime));
+    event.setEventTime(toRealTime(comp, internalTime));
     event.setTrackId(trackid);
     mapAnEvent(&event);
 
     // pop
     m_noteOffs.erase(m_noteOffs.begin());
-}
-
-void
-InternalSegmentMapper::
-mergeTriggerSegment(Segment *target,
-                    Event *trigger,
-                    timeT evDuration,
-                    TriggerSegmentRec *rec)
-{
-    if (!rec || !rec->getSegment() || rec->getSegment()->empty()) return;
-
-    timeT evTime = trigger->getAbsoluteTime();
-
-    ControllerContextMap controllerContextMap;
-
-    timeT trStart = rec->getSegment()->getStartTime();
-    timeT trEnd = rec->getSegment()->getEndMarkerTime();
-    timeT trDuration = trEnd - trStart;
-    if (trDuration == 0) return;
-
-    bool retune = false;
-    std::string timeAdjust = BaseProperties::TRIGGER_SEGMENT_ADJUST_NONE;
-
-    trigger->get<Bool>(BaseProperties::TRIGGER_SEGMENT_RETUNE, retune);
-    trigger->get<String>(BaseProperties::TRIGGER_SEGMENT_ADJUST_TIMES, timeAdjust);
-
-    long evPitch = rec->getBasePitch();
-    (void)trigger->get<Int>(BaseProperties::PITCH, evPitch);
-    int pitchDiff = evPitch - rec->getBasePitch();
-
-    long evVelocity = rec->getBaseVelocity();
-    (void)trigger->get<Int>(BaseProperties::VELOCITY, evVelocity);
-    int velocityDiff = evVelocity - rec->getBaseVelocity();
-
-    timeT offset = 0;
-    if (timeAdjust == BaseProperties::TRIGGER_SEGMENT_ADJUST_SYNC_END) {
-        offset = evDuration - trDuration;
-    }
-
-    for (Segment::iterator i = rec->getSegment()->begin();
-         rec->getSegment()->isBeforeEndMarker(i); ++i) {
-
-        timeT t = (*i)->getAbsoluteTime() - trStart;
-        timeT d = (*i)->getDuration();
-
-        if (evDuration != trDuration &&
-            timeAdjust == BaseProperties::TRIGGER_SEGMENT_ADJUST_SQUISH) {
-            t = timeT(double(t * evDuration) / double(trDuration));
-            d = timeT(double(d * evDuration) / double(trDuration));
-        }
-
-        t += evTime + offset;
-
-        if (t < evTime) {
-            if (t + d <= evTime)
-                continue;
-            else {
-                d -= (evTime - t);
-                t = evTime;
-            }
-        }
-
-        if (timeAdjust == BaseProperties::TRIGGER_SEGMENT_ADJUST_SYNC_START) {
-            if (t + d > evTime + evDuration) {
-                if (t >= evTime + evDuration)
-                    continue;
-                else {
-                    d = evTime + evDuration - t;
-                }
-            }
-        }
-
-        Event *newEvent = new Event(**i, t, d);
-
-        if (retune && newEvent->has(BaseProperties::PITCH)) {
-            int pitch =
-                newEvent->get<Int>(BaseProperties::PITCH) + pitchDiff;
-            if (pitch > 127)
-                pitch = 127;
-            if (pitch < 0)
-                pitch = 0;
-            newEvent->set<Int>(BaseProperties::PITCH, pitch);
-        }
-
-        if (newEvent->has(BaseProperties::VELOCITY)) {
-            int velocity =
-                newEvent->get<Int>(BaseProperties::VELOCITY) + velocityDiff;
-            if (velocity > 127)
-                velocity = 127;
-            if (velocity < 0)
-                velocity = 0;
-            newEvent->set<Int>(BaseProperties::VELOCITY, velocity);
-        }
-
-        if (newEvent->isa(Controller::EventType) ||
-            newEvent->isa(PitchBend::EventType)) {
-            m_controllerCache.
-                makeControlValueAbsolute(this, newEvent, evTime);
-        }
-        target->insert(newEvent);
-    }
 }
 
 int
@@ -480,6 +393,17 @@ InternalSegmentMapper::calculateSize()
     return addSize(0, m_segment);
 }
 
+// Make the channel ready to be played on.  
+void
+InternalSegmentMapper::
+makeReady(MappedInserterBase &inserter, RealTime time)
+{
+    Callbacks callbacks(this);
+    m_channelManager.setInstrument(m_doc->getInstrument(m_segment));
+    m_channelManager.makeReady(inserter, time, &callbacks,
+                               m_segment->getTrack());
+}
+
 void
 InternalSegmentMapper::doInsert(MappedInserterBase &inserter, MappedEvent &evt,
                                RealTime start, bool dirtyIter)
@@ -487,17 +411,49 @@ InternalSegmentMapper::doInsert(MappedInserterBase &inserter, MappedEvent &evt,
     if (dirtyIter) {
         m_channelManager.setInstrument(m_doc->getInstrument(m_segment));
     }
-    Callback functionality(this);
-    m_channelManager.doInsert(inserter, evt, start, &functionality,
+    Callbacks callbacks(this);
+    m_channelManager.doInsert(inserter, evt, start, &callbacks,
                               dirtyIter, m_segment->getTrack());
 }
-/***  InternalSegmentMapper::Callback ***/
+
+int
+InternalSegmentMapper::
+getControllerValue(timeT searchTime, const std::string eventType,
+                   int controllerId)
+{
+    return
+        m_controllerCache.
+        getControllerValue(getInstrument(), m_segment, m_triggeredEvents,
+                           searchTime, eventType, controllerId);
+}
+
+bool
+InternalSegmentMapper::
+shouldPlay(MappedEvent *evt, RealTime sliceStart)
+{
+    // #1048388:
+    // Ensure sysex heeds mute status, but ensure clocks etc still get
+    // through
+    if (evt->getType() == MappedEvent::MidiSystemMessage &&
+        evt->getData1() != MIDI_SYSTEM_EXCLUSIVE)
+        { return true; }
+    
+    // Otherwise if it's muted it doesn't play.
+    if (mutedEtc()) { return false; }
+
+    // Otherwise it should play if it's not already all done sounding.
+    // The timeslice logic will have already excluded events that
+    // start too late.
+    return !evt->EndedBefore(sliceStart);
+}
+
+/***  InternalSegmentMapper::Callbacks ***/
 
 ControllerAndPBList
-InternalSegmentMapper::Callback::
+InternalSegmentMapper::Callbacks::
 getControllers(Instrument *instrument, RealTime start)
 {
-    Profiler profiler("InternalSegmentMapper::Callback::getControllers", false);
+    Profiler profiler("InternalSegmentMapper::Callbacks::getControllers", false);
     timeT startTime =
         m_mapper->m_doc->getComposition().getElapsedTimeForRealTime(start);
 
@@ -515,9 +471,7 @@ getControllers(Instrument *instrument, RealTime start)
         MidiByte controlId = cIt->first;
         MidiByte controlValue =
             m_mapper->
-            m_controllerCache.
-            getControllerValue(m_mapper,
-                               startTime,
+            getControllerValue(startTime,
                                Controller::EventType,
                                controlId);
         returnValue.m_controllers.
@@ -530,9 +484,7 @@ getControllers(Instrument *instrument, RealTime start)
     {
         MidiByte controlValue =
             m_mapper->
-            m_controllerCache.
-            getControllerValue(m_mapper,
-                               startTime,
+            getControllerValue(startTime,
                                PitchBend::EventType,
                                0);
 
@@ -543,4 +495,3 @@ getControllers(Instrument *instrument, RealTime start)
 }
 
 }
-

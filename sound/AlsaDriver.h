@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -15,8 +15,8 @@
 // Specialisation of SoundDriver to support ALSA (http://www.alsa-project.org)
 //
 //
-#ifndef _ALSADRIVER_H_
-#define _ALSADRIVER_H_
+#ifndef RG_ALSADRIVER_H
+#define RG_ALSADRIVER_H
 
 #include <vector>
 #include <set>
@@ -37,6 +37,8 @@
 #include "JackDriver.h"
 #endif
 
+#include <QMutex>
+
 namespace Rosegarden
 {
 
@@ -55,11 +57,19 @@ public:
     virtual void punchOut();
     virtual void resetPlayback(const RealTime &oldPosition, const RealTime &position);
     virtual void allNotesOff();
-    virtual void processNotesOff(const RealTime &time, bool now, bool everything = false);
 
     virtual RealTime getSequencerTime();
 
-    virtual bool getMappedEventList(MappedEventList &composition);
+    /// Get MIDI data from ALSA
+    /**
+     * Called by RosegardenSequencer::processRecordedMidi() when recording and
+     * RosegardenSequencer::processAsynchronousEvents() when playing or
+     * stopped.
+     *
+     * These events are processed by RosegardenDocument::insertRecordedMidi()
+     * in the GUI thread.
+     */
+    virtual bool getMappedEventList(MappedEventList &mappedEventList);
     
     virtual bool record(RecordStatus recordStatus,
                         const std::vector<InstrumentId> *armedInstruments = 0,
@@ -70,7 +80,17 @@ public:
     virtual void stopClocks();
     virtual bool areClocksRunning() const { return m_queueRunning; }
 
+    /// Send both MIDI and audio events out, unqueued
+    /**
+     * This version sends MIDI data to ALSA for transmission via MIDI
+     * immediately.  (I assume audio events are also sent immediately.)
+     */
     virtual void processEventsOut(const MappedEventList &mC);
+    /// Send both MIDI and audio events out, queued
+    /**
+     * Used by RosegardenSequencer::keepPlaying() to send events out
+     * during playback.
+     */
     virtual void processEventsOut(const MappedEventList &mC,
                                   const RealTime &sliceStart,
                                   const RealTime &sliceEnd);
@@ -104,12 +124,6 @@ public:
     //
     virtual void processPending();
 
-    // We can return audio control signals to the gui using MappedEvents.
-    // Meter levels or audio file completions can go in here.
-    //
-    void insertMappedEventForReturn(MappedEvent *mE);
-
-    
     virtual RealTime getAudioPlayLatency() {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getAudioPlayLatency();
@@ -378,14 +392,28 @@ public:
     virtual void reportFailure(MappedEvent::FailureCode code);
 
 protected:
-    typedef std::vector<AlsaPortDescription *> AlsaPortList;
-
     void clearDevices();
 
     ClientPortPair getFirstDestination(bool duplex);
     ClientPortPair getPairForMappedInstrument(InstrumentId id);
     int getOutputPortForMappedInstrument(InstrumentId id);
-    std::map<unsigned int, std::multimap<unsigned int, MappedEvent*> >  m_noteOnMap;
+
+    /// Map of note-on events indexed by "channel note".
+    /**
+     * A "channel note" is a combination channel and note: (channel << 8) + note.
+     */
+    typedef std::multimap<unsigned int /*channelNote*/, MappedEvent *> ChannelNoteOnMap;
+    /// Two-dimensional note-on map indexed by deviceID and "channel note".
+    typedef std::map<unsigned int /*deviceID*/, ChannelNoteOnMap > NoteOnMap;
+    /// Map of note-on events to match up with note-off's.
+    /**
+     * Indexed by device ID and "channelNote".
+     *
+     * Used by AlsaDriver::getMappedEventList().
+     */
+    NoteOnMap m_noteOnMap;
+
+    typedef std::vector<AlsaPortDescription *> AlsaPortList;
 
     /**
      * Bring m_alsaPorts up-to-date; if newPorts is non-null, also
@@ -401,6 +429,14 @@ protected:
     MappedDevice *createMidiDevice(DeviceId deviceId,
                                    MidiDevice::DeviceDirection);
 
+    /// Send MIDI out via ALSA.
+    /**
+     * For unqueued (immediate) send, specify RealTime::zeroTime for
+     * sliceStart and sliceEnd.  Otherwise events will be queued for
+     * future send at appropriate times.
+     *
+     * Used by processEventsOut() to send MIDI out via ALSA.
+     */
     virtual void processMidiOut(const MappedEventList &mC,
                                 const RealTime &sliceStart,
                                 const RealTime &sliceEnd);
@@ -486,7 +522,7 @@ private:
     bool                         m_haveShutdown;
 
     // Track System Exclusive Event across several ALSA messages
-    // ALSA mack break long system exclusive messages into chunks.
+    // ALSA may break long system exclusive messages into chunks.
     typedef std::map<unsigned int,
                      std::pair<MappedEvent *, std::string> > DeviceEventMap;
     DeviceEventMap             *m_pendSysExcMap;
@@ -524,6 +560,16 @@ private:
     std::vector<AlsaTimerInfo> m_timers;
     std::string m_currentTimer;
 
+    /// Send out the note-off events in m_noteOffQueue
+    /**
+     * Only send out the note-offs up to "time".  Note-offs in the future
+     * are scheduled to happen at the proper times.
+     * If "now" is true, the events are sent immediately, even if they would
+     * be in the future.  If "everything" is true, "time" is ignored and all
+     * note-off events in the queue are sent.  This is used for shutdown.
+     */
+    void processNotesOff(const RealTime &time, bool now, bool everything = false);
+
     // This auxiliary queue is here as a hack, to avoid stuck notes if
     // resetting playback while a note-off is currently in the ALSA
     // queue.  When playback is reset by ffwd or rewind etc, we drop
@@ -555,11 +601,38 @@ private:
     std::string getKernelVersionString();
     void extractVersion(std::string vstr, int &major, int &minor, int &subminor, std::string &suffix);
     bool versionIsAtLeast(std::string vstr, int major, int minor, int subminor);
+
+    QMutex m_mutex;
+
+    /// Add an event to be returned by getMappedEventList().
+    /**
+     * Used by AlsaDriver::punchOut() to send an AudioGeneratePreview message
+     * to the GUI.
+     *
+     * Old comments:
+     * "We can return audio control signals to the GUI using MappedEvents.
+     *  Meter levels or audio file completions can go in here."
+     *
+     * @see m_returnComposition
+     */
+    void insertMappedEventForReturn(MappedEvent *mE);
+
+    /// Holds events to be returned by getMappedEventList().
+    /**
+     * Rename this to something less confusing.  "Composition" has a very
+     * specific meaning in rg.  This is not a Composition object.
+     * This object is a holding area for events that need to be returned
+     * at a later point.  Investigate its purpose, then come up with a
+     * better name.  m_mappedEventsForReturn?  m_audioGeneratePreviewEvents?
+     *
+     * @see insertMappedEventForReturn()
+     */
+    MappedEventList m_returnComposition;
+
 };
 
 }
 
 #endif // HAVE_ALSA
 
-#endif // _ALSADRIVER_H_
-
+#endif // RG_ALSADRIVER_H

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,13 +15,14 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_CONTROLRULERWIDGET_H_
-#define _RG_CONTROLRULERWIDGET_H_
+#ifndef RG_CONTROLRULERWIDGET_H
+#define RG_CONTROLRULERWIDGET_H
 
 #include <QWidget>
 #include "base/Event.h"
 #include "base/ViewElement.h"
 #include "base/MidiDevice.h"
+#include "base/parameterpattern/SelectionSituation.h"
 
 class QStackedWidget;
 class QTabBar;
@@ -38,7 +39,8 @@ class RulerScale;
 class PropertyName;
 class ViewSegment;
 class EventSelection;
-
+class ControllerEventsRuler;
+ 
 class ControlRulerWidget : public QWidget //, Observer
 {
 Q_OBJECT
@@ -63,6 +65,10 @@ public:
      * widget as appropriate for the sort of notation layout in effect.
      */
     bool isAnyRulerVisible();
+    EventSelection *getSelection(void);
+    bool hasSelection(void);
+    SelectionSituation *getSituation(void);
+    ControlParameter   *getControlParameter(void);
 
 public slots:
     void slotTogglePropertyRuler(const PropertyName &);
@@ -85,6 +91,8 @@ signals:
     void childRulerSelectionChanged(EventSelection *);
     
 protected:
+    ControllerEventsRuler *getActiveRuler(void);
+    
     QStackedWidget *m_stackedWidget;
     ControlRulerTabBar *m_tabBar;
     

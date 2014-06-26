@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[AudioListView]"
 
 #include "AudioListView.h"
 
@@ -144,7 +145,7 @@ void AudioListView::dragEnterEvent(QDragEnterEvent *e){
     QStringList uriList;
     QString text;
 
-    if (e->provides("text/uri-list") || e->provides("text/plain")) {
+    if (e->mimeData()->hasFormat("text/uri-list") || e->mimeData()->hasFormat("text/plain")) {
 
         if (uriList.empty() && text == "") {
             RG_DEBUG << "AudioListView::dragEnterEvent: Drop Empty ! " << endl;
@@ -167,7 +168,7 @@ void AudioListView::dropEvent(QDropEvent* e)
     QStringList uriList;
     QString text;
     
-    if (e->provides("text/uri-list") || e->provides("text/plain")) {
+    if (e->mimeData()->hasFormat("text/uri-list") || e->mimeData()->hasFormat("text/plain")) {
         
         if( e->source() ){
             RG_DEBUG << "AudioListView::dropEvent() - objectName : " << e->source()->objectName() << endl;
@@ -187,12 +188,12 @@ void AudioListView::dropEvent(QDropEvent* e)
             e->accept();
         }
 
-        if (e->provides("text/uri-list")) {
+        if (e->mimeData()->hasFormat("text/uri-list")) {
             uriList = QString::fromLocal8Bit(
-                        e->encodedData("text/uri-list").data()
+                        e->mimeData()->data("text/uri-list")
                     ).split( QRegExp("[\\r\\n]+"), QString::SkipEmptyParts );
         } else {
-            text = QString::fromLocal8Bit(e->encodedData("text/plain").data());
+            text = QString::fromLocal8Bit(e->mimeData()->data("text/plain"));
         }
     } else {
         e->ignore();

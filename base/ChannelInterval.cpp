@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -17,6 +17,7 @@
 
 #include "ChannelInterval.h"
 
+#include "misc/Debug.h"
 #include <limits>
 
 namespace Rosegarden
@@ -30,9 +31,36 @@ namespace Rosegarden
 // We can't assume all events are > ZeroTime, there are rare
 // exceptions.  These used to correspond to constants in RealTime.cpp.
 const RealTime ChannelInterval::m_beforeEarliestTime(std::numeric_limits<int>::min(),0);
-const RealTime ChannelInterval::m_earliestTime(std::numeric_limits<int>::min()-1,0);
+const RealTime ChannelInterval::m_earliestTime(std::numeric_limits<int>::min()+1,0);
 const RealTime ChannelInterval::m_latestTime(std::numeric_limits<int>::max(),0);
 const RealTime ChannelInterval::m_afterLatestTime(std::numeric_limits<int>::max(),999999999);
+
+#if !defined NDEBUG
+void
+ChannelInterval::
+assertSane() const
+{
+    Q_ASSERT(m_end > m_start);
+    Q_ASSERT(m_marginBefore >= RealTime::zeroTime);
+    Q_ASSERT(m_marginAfter >= RealTime::zeroTime);
+}
+#endif
+
+#if defined NDEBUG
+DEFINE_DUMMY_PRINTER(ChannelInterval);
+
+#else
+
+QDebug &operator<<(QDebug &dbg, const ChannelInterval &channelInterval) {
+    dbg
+        << "interval" << channelInterval.m_start.toString()
+        << "to" << channelInterval.m_end.toString()
+        << "on channel" << channelInterval.getChannelId();
+    dbg.nospace() << ".";
+    dbg.space();
+    return dbg;
+}
+#endif
 
 }
 

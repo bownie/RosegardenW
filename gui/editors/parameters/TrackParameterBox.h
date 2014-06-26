@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is Copyright 2006
         Pedro Lopez-Cabanillas <plcl@users.sourceforge.net>
@@ -19,8 +19,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_TRACKPARAMETERBOX_H_
-#define _RG_TRACKPARAMETERBOX_H_
+#ifndef RG_TRACKPARAMETERBOX_H
+#define RG_TRACKPARAMETERBOX_H
 
 #include "RosegardenParameterArea.h"
 #include "RosegardenParameterBox.h"

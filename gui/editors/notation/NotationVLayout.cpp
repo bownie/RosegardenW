@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -30,6 +30,7 @@
 #include "base/ViewSegment.h"
 #include "gui/general/ProgressReporter.h"
 #include "gui/editors/guitar/Chord.h"
+#include "misc/ConfigGroups.h"
 #include "NotationChord.h"
 #include "NotationElement.h"
 #include "NotationProperties.h"
@@ -37,6 +38,7 @@
 #include "NotePixmapFactory.h"
 #include <QMessageBox>
 #include <QObject>
+#include <QSettings>
 #include <QString>
 #include <QWidget>
 
@@ -56,7 +58,12 @@ NotationVLayout::NotationVLayout(Composition *c, NotePixmapFactory *npf,
         m_notationQuantizer(c->getNotationQuantizer()),
         m_properties(properties)
 {
-    // empty
+    // Get display settings
+    QSettings settings;
+    settings.beginGroup(NotationViewConfigGroup);
+    m_showRepeated =  settings.value("showrepeated", true).toBool();
+    m_distributeVerses =  settings.value("distributeverses", true).toBool();
+    settings.endGroup();
 }
 
 NotationVLayout::~NotationVLayout()
@@ -381,8 +388,10 @@ NotationVLayout::scanViewSegment(ViewSegment &staffBase, timeT, timeT, bool)
                     el->setLayoutY(staff.getLayoutYForHeight(-7) + displacedY);
                 } else if (type == Text::Lyric) {
                     long verse = 0;
-                    // verses even further below the statff
-                    el->event()->get<Int>(Text::LyricVersePropertyName, verse);
+                    if (!m_distributeVerses) {
+                        // verses even further below the staff
+                        el->event()->get<Int>(Text::LyricVersePropertyName, verse);
+                    }
                     el->setLayoutY(staff.getLayoutYForHeight(-10 - 3 * verse) + displacedY);
                 } else if (type == Text::Annotation) {
                     // annotations way below the staff
@@ -473,8 +482,10 @@ NotationVLayout::positionSlur(NotationStaff &staff,
 
     int startX = (int)(*i)->getLayoutX(), endX = startX + 10;
     bool startStemUp = false, endStemUp = false;
-    long startMarks = 0, endMarks = 0;
-    bool startTied = false, endTied = false;
+    long startMarks = 0;
+    // long endMarks = 0;
+    // bool startTied = false;
+    // bool endTied = false;
     bool beamAbove = false, beamBelow = false;
     bool dynamic = false;
 
@@ -536,12 +547,12 @@ NotationVLayout::positionSlur(NotationStaff &staff,
                     startStemUp = stemUp;
                     startMarks = chord.getMarkCountForChord();
 
-                    bool tied = false;
-                    if ((event->get
-                            <Bool>(TIED_FORWARD, tied) && tied) ||
-                            (event->get<Bool>(TIED_BACKWARD, tied) && tied)) {
-                        startTied = true;
-                    }
+                    // bool tied = false;
+                    // if ((event->get
+                    //         <Bool>(TIED_FORWARD, tied) && tied) ||
+                    //         (event->get<Bool>(TIED_BACKWARD, tied) && tied)) {
+                    //     startTied = true;
+                    // }
 
                     haveStart = true;
 
@@ -560,14 +571,14 @@ NotationVLayout::positionSlur(NotationStaff &staff,
                 endTopHeight = chord.getHighestNoteHeight();
                 endX = (int)(*scooter)->getLayoutX();
                 endStemUp = stemUp;
-                endMarks = chord.getMarkCountForChord();
+                // endMarks = chord.getMarkCountForChord();
 
-                bool tied = false;
-                if ((event->get
-                        <Bool>(TIED_FORWARD, tied) && tied) ||
-                        (event->get<Bool>(TIED_BACKWARD, tied) && tied)) {
-                    endTied = true;
-                }
+                // bool tied = false;
+                // if ((event->get
+                //         <Bool>(TIED_FORWARD, tied) && tied) ||
+                //         (event->get<Bool>(TIED_BACKWARD, tied) && tied)) {
+                //     endTied = true;
+                // }
             }
 
             if (!beamed) {

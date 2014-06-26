@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -47,39 +47,11 @@ static std::vector<std::string> getStandardIndications()
     v.push_back(Indication::OttavaDown);
     v.push_back(Indication::QuindicesimaDown);
     v.push_back(Indication::TrillLine);
-    v.push_back(Indication::ParameterChord);
+    v.push_back(Indication::FigParameterChord);
     v.push_back(Indication::Figuration);
     return v;
 }
 
-static const char *shortcuts[] = {
-    ")",
-    "Ctrl+)",
-    "",
-    "<",
-    ">",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    ""
-};
-static const char *icons[] = {
-    "group-slur",
-    "",
-    "group-glissando",
-    "group-crescendo",
-    "group-decrescendo",
-    "",
-    "group-ottava",
-    "",
-    "",
-    "trill_line",
-    "",
-    ""
-};
 static const char *actionNames[] = {
     "slur",
     "phrasing_slur",
@@ -268,7 +240,7 @@ AddIndicationCommand::getGlobalName(std::string indicationType)
         return tr("Add &Glissando");
     } else if (indicationType == Indication::TrillLine) {
         return tr("Add Tri&ll With Line");
-    } else if (indicationType == Indication::ParameterChord) {
+    } else if (indicationType == Indication::FigParameterChord) {
         return tr("Add Parameter Chord");
     } else if (indicationType == Indication::Figuration) {
         return tr("Add Figuration");

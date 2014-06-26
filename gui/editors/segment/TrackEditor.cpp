@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -17,6 +17,7 @@
 
 
 
+#define RG_MODULE_STRING "[TrackEditor]"
 
 #include "TrackEditor.h"
 #include "TrackButtons.h"
@@ -38,7 +39,6 @@
 #include "commands/segment/SegmentInsertCommand.h"
 #include "commands/segment/SegmentRepeatToCopyCommand.h"
 #include "commands/segment/SegmentLinkToCopyCommand.h"
-#include "compositionview/CompositionModel.h"
 #include "compositionview/CompositionModelImpl.h"
 #include "compositionview/CompositionView.h"
 #include "document/CommandHistory.h"
@@ -74,7 +74,7 @@
 #include <QDragLeaveEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
-
+#include <QMimeData>
 
 namespace Rosegarden
 {
@@ -317,7 +317,7 @@ TrackEditor::init(QWidget* rosegardenguiview)
 
     // Was only emitted from dead code.
     //connect(this, SIGNAL(needUpdate()),
-    //        m_compositionView, SLOT(slotUpdateSegmentsDrawBuffer()));
+    //        m_compositionView, SLOT(slotUpdateAll()));
 
     connect(m_compositionView->getModel(),
             SIGNAL(selectedSegments(const SegmentSelection &)),
@@ -802,7 +802,7 @@ void TrackEditor::dropEvent(QDropEvent *e)
     QString text;
     QString audioText;
 
-    if (e->provides("text/uri-list") || e->provides("text/plain")) {
+    if (e->mimeData()->hasFormat("text/uri-list") || e->mimeData()->hasFormat("text/plain")) {
 
         if (e->proposedAction() & Qt::CopyAction) {
             e->acceptProposedAction();
@@ -811,14 +811,14 @@ void TrackEditor::dropEvent(QDropEvent *e)
             e->accept();
         }
 
-        if (e->provides("text/uri-list")) {
+        if (e->mimeData()->hasFormat("text/uri-list")) {
             // note: we could also do
             // QList<QUrl> uList = e->mimeData()->urls();
             uriList =
-                QString::fromLocal8Bit(e->encodedData("text/uri-list").data())
+                QString::fromLocal8Bit(e->mimeData()->data("text/uri-list"))
                 .split(QRegExp("[\\r\\n]+"), QString::SkipEmptyParts);
         }
-        if (e->provides("text/plain")) {
+        if (e->mimeData()->hasFormat("text/plain")) {
             text = e->mimeData()->text();
             //text = QString::fromLocal8Bit(e->encodedData("text/plain").data());
             //uriList << text;

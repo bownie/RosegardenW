@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -20,7 +20,6 @@
 #include <iostream>
 #include <cstdlib> // for atoi
 #include <limits.h> // for SHRT_MIN
-#include <cassert>
 #include <sstream>
 #include <cstdio> // needed for sprintf()
 
@@ -753,7 +752,7 @@ const std::string Indication::OttavaUp = "ottavaup";
 const std::string Indication::OttavaDown = "ottavadown";
 const std::string Indication::QuindicesimaDown = "ottava2down";
 const std::string Indication::TrillLine = "trill-line";
-const std::string Indication::ParameterChord = "parameter-chord";
+const std::string Indication::FigParameterChord = "parameter-chord";
 const std::string Indication::Figuration = "figuration";
 
 Indication::Indication(const Event &e)
@@ -816,7 +815,7 @@ Indication::isValid(const std::string &s) const
          s == TrillLine ||
 	 s == QuindicesimaUp || s == OttavaUp ||
 	 s == OttavaDown || s == QuindicesimaDown ||
-         s == ParameterChord ||
+         s == FigParameterChord ||
          s == Figuration);
 }
 
@@ -1065,7 +1064,7 @@ resolveNoAccidental(int pitch,
  */
 void
 resolveSpecifiedAccidental(int pitch,
-			      const Clef &clef,
+			      const Clef &/* clef */,
 			      const Key &key,
 			      int &height,
 			      int &octave,
@@ -2518,6 +2517,5 @@ Symbol::getAsEvent(timeT absoluteTime) const
     e->set<String>(SymbolTypePropertyName, m_type);
     return e;
 }
-
 
 } // end namespace Rosegarden

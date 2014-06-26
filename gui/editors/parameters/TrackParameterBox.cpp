@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     This file is Copyright 2006
         Pedro Lopez-Cabanillas <plcl@users.sourceforge.net>
@@ -19,6 +19,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[TrackParameterBox]"
 
 #include "TrackParameterBox.h"
 
@@ -599,12 +600,12 @@ TrackParameterBox::populateRecordingDeviceList()
             m_recChannel->setEnabled(false);
 
             // hide these for audio instruments
-            m_defaultsGroup->parentWidget()->setShown(false);
+            m_defaultsGroup->parentWidget()->setVisible(false);
 
         } else { // InstrumentType::Midi and InstrumentType::SoftSynth
 
             // show these if not audio instrument
-            m_defaultsGroup->parentWidget()->setShown(true);
+            m_defaultsGroup->parentWidget()->setVisible(true);
 
             m_recDeviceIds.push_back(Device::ALL_DEVICES);
             m_recDevice->addItem(tr("All"));
@@ -709,7 +710,7 @@ TrackParameterBox::slotUpdateControls(int /*dummy*/)
     Track *trk = comp.getTrackById(m_selectedTrackId);
 
     m_defClef->setCurrentIndex(trk->getClef());
-    m_defTranspose->setItemText(m_defTranspose->currentIndex(), QString("%1").arg(trk->getTranspose()));
+    m_defTranspose->setCurrentIndex(m_defTranspose->findText(QString("%1").arg(trk->getTranspose())));
     m_defColor->setCurrentIndex(trk->getColor());
     m_highestPlayable = trk->getHighestPlayable();
     m_lowestPlayable = trk->getLowestPlayable();
@@ -786,13 +787,13 @@ TrackParameterBox::selectedTrackNameChanged()
     }
 
     Track *trk = comp.getTrackById(m_selectedTrackId);
-    QString m_trackName = strtoqstr(trk->getLabel());
-    if (m_trackName.isEmpty())
-        m_trackName = tr("<untitled>");
+    QString trackName = strtoqstr(trk->getLabel());
+    if (trackName.isEmpty())
+        trackName = tr("<untitled>");
     else
-        m_trackName.truncate(20);
+        trackName.truncate(20);
     int trackNum = trk->getPosition() + 1;
-    m_trackLabel->setText(tr("[ Track %1 - %2 ]").arg(trackNum).arg(m_trackName));
+    m_trackLabel->setText(tr("[ Track %1 - %2 ]").arg(trackNum).arg(trackName));
 }
 
 void
@@ -899,7 +900,7 @@ TrackParameterBox::slotInstrumentChanged(int index)
         // swallowing two entire days of my life to put back with the following
         // magic lines of code:
         int prepend = 0;
-        for (unsigned int n = 0; n < m_playDevice->currentIndex(); n++) {
+        for (int n = 0; n < m_playDevice->currentIndex(); n++) {
             DeviceId id = m_playDeviceIds[n];
             Device *dev = m_doc->getStudio().getDevice(id);
 
@@ -1183,12 +1184,8 @@ TrackParameterBox::slotPresetPressed()
                 CommandHistory::getInstance()->addCommand(command);
             }
             m_defClef->setCurrentIndex(dialog.getClef());
-//             m_defTranspose->setCurrentIndex(QString("%1").arg
-//                     (dialog.getTranspose()), true);
-
                      
-            m_defTranspose->setItemText(m_defTranspose->currentIndex(), QString("%1").arg
-                    (dialog.getTranspose()));
+            m_defTranspose->setCurrentIndex(m_defTranspose->findText(QString("%1").arg(dialog.getTranspose())));
 
             m_highestPlayable = dialog.getHighRange();
             m_lowestPlayable = dialog.getLowRange();

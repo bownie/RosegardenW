@@ -2,7 +2,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -22,8 +22,8 @@
 // of the plugin at the sequencer.
 //
 
-#ifndef _AUDIOPLUGININSTANCE_H_
-#define _AUDIOPLUGININSTANCE_H_
+#ifndef RG_AUDIOPLUGININSTANCE_H
+#define RG_AUDIOPLUGININSTANCE_H
 
 namespace Rosegarden
 {
@@ -163,4 +163,4 @@ protected:
 
 }
 
-#endif // _AUDIOPLUGININSTANCE_H_
+#endif // RG_AUDIOPLUGININSTANCE_H

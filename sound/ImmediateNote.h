@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _INTERNALPREVIEWER_H_
-#define _INTERNALPREVIEWER_H_
+#ifndef RG_INTERNALPREVIEWER_H
+#define RG_INTERNALPREVIEWER_H
 
 #include "gui/seqmanager/ChannelManager.h"
 
@@ -43,4 +43,4 @@ class ImmediateNote
  
 }
 
-#endif /* ifndef _INTERNALPREVIEWER_H_ */
+#endif /* ifndef RG_INTERNALPREVIEWER_H */

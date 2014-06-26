@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -29,9 +29,9 @@ namespace Rosegarden
 // the QString compare().
 //
 int
-EventViewItem::compare(QTreeWidgetItem *i, int col, bool ascending) const
+EventViewItem::compare(QTreeWidgetItem */* i */, int /* col */, bool /* ascending */) const
 {
-    EventViewItem *ei = dynamic_cast<EventViewItem *>(i);
+    // EventViewItem *ei = dynamic_cast<EventViewItem *>(i);
 
 	return 0;
 	//&&& reimplement compare ?? required ??

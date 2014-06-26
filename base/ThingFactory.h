@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -13,8 +13,8 @@
 */
 
 
-#ifndef _ROSEGARDEN_THING_FACTORY_H_
-#define _ROSEGARDEN_THING_FACTORY_H_
+#ifndef RG_THING_FACTORY_H
+#define RG_THING_FACTORY_H
 
 #include <QUrl>
 #include <QSet>

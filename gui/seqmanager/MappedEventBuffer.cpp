@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,10 +28,9 @@ namespace Rosegarden
 {
 
 MappedEventBuffer::MappedEventBuffer(RosegardenDocument *doc) :
-    m_size(0),
-    m_fill(0),
     m_buffer(0),
-    m_isMetronome(false),
+    m_capacity(0),
+    m_size(0),
     m_doc(doc),
     m_start(RealTime::zeroTime),
     m_end(RealTime::beforeMaxTime),
@@ -51,13 +50,13 @@ MappedEventBuffer::init()
     int size = calculateSize();
 
     if (size > 0) {
-        resizeBuffer(size);
+        reserve(size);
 
         SEQMAN_DEBUG << "SegmentMapper::init : size = " << size
                      << endl;
 
         initSpecial();
-        dump();
+        fillBuffer();
     } else {
         SEQMAN_DEBUG << "SegmentMapper::init : mmap size = 0 - skipping mmapping for now\n";
     }
@@ -66,101 +65,114 @@ MappedEventBuffer::init()
 bool
 MappedEventBuffer::refresh()
 {
-    bool res = false;
+    bool resized = false;
 
     int newFill = calculateSize();
-    int oldSize = getBufferSize();
+    int oldSize = capacity();
 
 #ifdef DEBUG_MAPPED_EVENT_BUFFER    
     SEQMAN_DEBUG << "SegmentMapper::refresh() - " << this
                  << " - old size = " << oldSize
-                 << " - old fill = " << getBufferFill()
+                 << " - old fill = " << size()
                  << " - new fill = " << newFill
                  << endl;
-#endif    
+#endif
+
+    // If we need to expand the buffer to hold the events
     if (newFill > oldSize) {
-        res = true;
-        resizeBuffer(newFill);
+        resized = true;
+        reserve(newFill);
     }
 
-    dump();
+    // Ask the deriver to fill the buffer from the document
+    fillBuffer();
 
-    return res;
+    return resized;
 }
 
 int
-MappedEventBuffer::getBufferSize() const
+MappedEventBuffer::capacity() const
+{
+    return m_capacity.fetchAndAddRelaxed(0);
+}
+
+int
+MappedEventBuffer::size() const
 {
     return m_size.fetchAndAddRelaxed(0);
 }
 
-int
-MappedEventBuffer::getBufferFill() const
-{
-    return m_fill.fetchAndAddRelaxed(0);
-}
-
 void
-MappedEventBuffer::resizeBuffer(int newSize)
+MappedEventBuffer::reserve(int newSize)
 {
-    if (newSize <= getBufferSize()) return;
+    if (newSize <= capacity())  return;
 
     MappedEvent *oldBuffer = m_buffer;
     MappedEvent *newBuffer = new MappedEvent[newSize];
 
     if (oldBuffer) {
-        for (int i = 0; i < m_fill; ++i) {
+        for (int i = 0; i < m_size; ++i) {
             newBuffer[i] = m_buffer[i];
         }
     }
+
     {
         QWriteLocker locker(&m_lock);
         m_buffer = newBuffer;
-        m_size.fetchAndStoreRelease(newSize);
+        m_capacity.fetchAndStoreRelease(newSize);
     }
 
 #ifdef DEBUG_MAPPED_EVENT_BUFFER
-    SEQUENCER_DEBUG << "MappedEventBuffer::resizeBuffer: Resized to " << newSize << " events" << endl;
+    SEQUENCER_DEBUG << "MappedEventBuffer::reserve: Resized to " << newSize << " events" << endl;
 #endif
+
     delete[] oldBuffer;
 }
 
 void
-MappedEventBuffer::setBufferFill(int newFill)
+MappedEventBuffer::resize(int newFill)
 {
-    m_fill.fetchAndStoreRelaxed(newFill);
+    m_size.fetchAndStoreRelaxed(newFill);
 }
 
 void
 MappedEventBuffer::
 mapAnEvent(MappedEvent *e)
 {
-    if (getBufferFill() >= getBufferSize()) {
+    if (size() >= capacity()) {
         // We need a bigger buffer.  We scale by 1.5, a compromise
         // between allocating too often and wasting too much space.
         // We also add 1 in case the space didn't increase due to
         // rounding.
-        int newSize = 1 + float(getBufferSize()) * 1.5;
-        resizeBuffer(newSize);
+        int newSize = 1 + float(capacity()) * 1.5;
+        reserve(newSize);
     }
-        
-    getBuffer()[getBufferFill()] = e;
+
+    getBuffer()[size()] = e;
     // Some mappers need this to be done now because they may resize
     // the buffer later, which will only copy the filled part.
-    setBufferFill(getBufferFill() + 1);
+    resize(size() + 1);
 }
 
 void
 MappedEventBuffer::
 doInsert(MappedInserterBase &inserter, MappedEvent &evt,
          RealTime /*start*/, bool /*firstOutput*/)
-{ inserter.insertCopy(evt); }
+{
+    inserter.insertCopy(evt);
+}
+
+// The default doesn't have to do anything to get ready.
+void
+MappedEventBuffer::
+makeReady(MappedInserterBase &/*inserter*/, RealTime /*time*/) {}
 
 void
 MappedEventBuffer::
 addOwner(void)
 {
-    m_refCount++;
+    ++m_refCount;
+
 #ifdef DEBUG_MAPPED_EVENT_BUFFER
     SEQUENCER_DEBUG << "MappedEventBuffer::addOwner"
                     << (void*)this
@@ -181,50 +193,87 @@ removeOwner(void)
                     << (int) m_refCount
                     << endl;
 #endif
-    m_refCount--;
-    if (!m_refCount) { delete this; }
+
+    --m_refCount;
+    if (!m_refCount)  delete this;
 }
 
     /*** MappedEventBuffer::iterator ***/
 
 MappedEventBuffer::iterator::iterator(MappedEventBuffer *s) :
-    m_s(s), m_index(0), m_ready(false)
+    m_s(s),
+    m_index(0),
+    m_ready(false),
+    m_active(false)
+    //m_currentTime
 {
     s->addOwner();
 }
 
-MappedEventBuffer::iterator &
-MappedEventBuffer::iterator::operator=(const iterator& it)
+// UNTESTED
+MappedEventBuffer::iterator::iterator(const iterator &i) :
+    m_s(i.m_s),
+    m_index(i.m_index),
+    m_ready(i.m_ready),
+    m_active(i.m_active),
+    m_currentTime(i.m_currentTime)
 {
-    if (&it == this) return *this;
+    // Add a reference count for this
+    m_s->addOwner();
+}
 
-    m_s     = it.m_s;
-    m_index = it.m_index;
-    m_ready = it.m_ready;
+// UNTESTED
+MappedEventBuffer::iterator &
+MappedEventBuffer::iterator::operator=(const iterator& rhs)
+{
+    // Handle self-assignment gracefully.
+    // With this particular class, the issue is that the call to
+    // removeOwner() might cause the MappedEventBuffer to be deleted.
+    // Then the following call to addOwner() would be on a deleted
+    // object.
+    if (&rhs == this)
+        return *this;
+
+    // Adjust reference count
+    m_s->removeOwner();
+
+    // Full bitwise copy
+    m_s = rhs.m_s;
+    m_index = rhs.m_index;
+    m_ready = rhs.m_ready;
+    m_active = rhs.m_active;
+    m_currentTime = rhs.m_currentTime;
+
+    // Adjust reference count
+    m_s->addOwner();
+
     return *this;
 }
 
+// ++prefix
 MappedEventBuffer::iterator &
 MappedEventBuffer::iterator::operator++()
 {
-    int fill = m_s->getBufferFill();
-    if (m_index < fill) ++m_index;
+    int fill = m_s->size();
+    if (m_index < fill)  ++m_index;
     return *this;
 }
 
+// postfix++
 MappedEventBuffer::iterator
 MappedEventBuffer::iterator::operator++(int)
 {
+    // This line is the main reason we need a copy ctor.
     iterator r = *this;
-    int fill = m_s->getBufferFill();
-    if (m_index < fill) ++m_index;
+    int fill = m_s->size();
+    if (m_index < fill)  ++m_index;
     return r;
 }
 
 MappedEventBuffer::iterator &
 MappedEventBuffer::iterator::operator+=(int offset)
 {
-    int fill = m_s->getBufferFill();
+    int fill = m_s->size();
     if (m_index + offset <= fill) {
         m_index += offset;
     } else {
@@ -236,8 +285,11 @@ MappedEventBuffer::iterator::operator+=(int offset)
 MappedEventBuffer::iterator &
 MappedEventBuffer::iterator::operator-=(int offset)
 {
-    if (m_index > offset) m_index -= offset;
-    else m_index = 0;
+    if (m_index > offset)
+        m_index -= offset;
+    else
+        m_index = 0;
+
     return *this;
 }
 
@@ -255,25 +307,31 @@ MappedEvent
 MappedEventBuffer::iterator::operator*()
 {
     const MappedEvent *e = peek();
-    if (e) return *e;
-    else return MappedEvent();
+
+    if (e)
+        return *e;
+    else
+        return MappedEvent();
 }
 
 MappedEvent *
 MappedEventBuffer::iterator::peek() const
 {
-    QReadLocker locker(&m_s->m_lock);
-    if (m_index >= m_s->getBufferFill()) {
+    // The lock formerly here has moved out to callers.
+
+    // If we're at the end, return NULL
+    if (m_index >= m_s->size())
         return 0;
-    }
+
+    // Otherwise return a pointer into the buffer.
     return &m_s->m_buffer[m_index];
 }
 
 bool
 MappedEventBuffer::iterator::atEnd() const
 {
-    int fill = m_s->getBufferFill();
-    return (m_index >= fill);
+    int size = m_s->size();
+    return (m_index >= size);
 }
 
 void
@@ -285,10 +343,10 @@ doInsert(MappedInserterBase &inserter, MappedEvent &evt)
     // jumped into the middle of a long note, we'd wrongly find the
     // controller values as they are at the time the note starts.
     if (evt.getEventTime() > m_currentTime)
-        { m_currentTime = evt.getEventTime(); }
+        m_currentTime = evt.getEventTime();
 
     // Mapper does the actual insertion.
-    getSegment()->doInsert(inserter, evt, m_currentTime, !getReady());
+    getSegment()->doInsert(inserter, evt, m_currentTime, !isReady());
     setReady(true);
 }
 

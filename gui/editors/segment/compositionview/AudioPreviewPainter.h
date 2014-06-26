@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,10 +15,10 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_AUDIOPREVIEWPAINTER_H_
-#define _RG_AUDIOPREVIEWPAINTER_H_
+#ifndef RG_AUDIOPREVIEWPAINTER_H
+#define RG_AUDIOPREVIEWPAINTER_H
 
-#include "CompositionModel.h"
+#include "CompositionModelImpl.h"
 
 #include <QPainter>
 #include <QColor>
@@ -33,7 +33,7 @@ class CompositionRect;
 class AudioPreviewPainter {
 public:
     AudioPreviewPainter(CompositionModelImpl& model,
-			CompositionModel::AudioPreviewData* apData,
+			CompositionModelImpl::AudioPreviewData* apData,
 			const Composition &composition,
 			const Segment* segment);
 
@@ -49,7 +49,7 @@ protected:
 
     //--------------- Data members ---------------------------------
     CompositionModelImpl& m_model;
-    CompositionModel::AudioPreviewData* m_apData;
+    CompositionModelImpl::AudioPreviewData* m_apData;
     const Composition &m_composition;
     const Segment* m_segment;
     CompositionRect m_rect;

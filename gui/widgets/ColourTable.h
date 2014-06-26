@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Portions of this file Copyright 2003
         Mark Hymers         <markh@linuxfromscratch.org>
@@ -18,8 +18,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_ROSEGARDENCOLOURTABLE_H_
-#define _RG_ROSEGARDENCOLOURTABLE_H_
+#ifndef RG_COLOURTABLE_H
+#define RG_COLOURTABLE_H
 
 #include <map>
 #include <QTableWidget>

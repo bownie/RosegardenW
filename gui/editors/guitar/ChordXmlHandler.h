@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
 */
 
 
-#ifndef _RG_CHORDXMLHANDLER_H_
-#define _RG_CHORDXMLHANDLER_H_
+#ifndef RG_CHORDXMLHANDLER_H
+#define RG_CHORDXMLHANDLER_H
 
 #include "gui/general/ProgressReporter.h"
 #include "Chord.h"
@@ -51,7 +51,7 @@ public:
     virtual bool endDocument ();
 
     /// Return the error string set during the parsing (if any)
-    QString errorString() { return m_errorString; }
+    QString errorString() const { return m_errorString; }
     bool error(const QXmlParseException& exception);
     bool fatalError(const QXmlParseException& exception);
 
@@ -68,4 +68,4 @@ protected:
 
 }
 
-#endif /*_RG_CHORDXMLHANDLER_H_*/
+#endif /*RG_CHORDXMLHANDLER_H*/

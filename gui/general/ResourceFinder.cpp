@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -12,13 +12,14 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[ResourceFinder]"
+
 #include "ResourceFinder.h"
 
 #include <QDir>
 #include <QFileInfo>
 #include <QStringList>
 #include <QProcess>
-#include <QSettings>
 
 #include "misc/Debug.h"
 #include "misc/Strings.h"
@@ -68,36 +69,12 @@ ResourceFinder::getSystemResourcePrefixList()
     static const char *appname = "rosegarden";
     char *rosegarden = getenv("ROSEGARDEN");
 
-
     if (rosegarden) {
         list << rosegarden;
     } else {
         for (size_t i = 0; i < sizeof(prefixes)/sizeof(prefixes[0]); ++i) {
             list << QString("%1/%2").arg(prefixes[i]).arg(appname);
         }
-
-        // Try normal registry
-        //
-        QSettings settings("HKEY_LOCAL_MACHINE\\SOFTWARE\\Xylgo\\Rosegarden", QSettings::NativeFormat);
-        QString value = settings.value("Install_Dir").toString() + "\\data";
-
-        if (!value.isEmpty())
-        {
-            list << value;
-        }
-        else
-        {
-            QSettings settings("HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Xylgo\\Rosegarden", QSettings::NativeFormat);
-            value = settings.value("Install_Dir").toString() + "\\data";
-
-            if (!value.isEmpty())
-            {
-                list << value;
-            }
-        }
-
-        //std::cerr << "FROM REGISTRY GOT STRING " << value << std::endl;
-
     }
 
     return list;
@@ -108,11 +85,9 @@ ResourceFinder::getUserResourcePrefix()
 {
     static const char *homepath = ".local/share";
     static const char *appname = "rosegarden";
-    QString home = getenv("HOMEDRIVE");
-    home += getenv("HOMEPATH");
+    char *home = getenv("HOME");
 
-    if (! home.isEmpty()) {
-        //std::cout << "Got home directory = " << home << std::endl;
+    if (home) {
         return QString("%1/%2/%3").arg(home).arg(homepath).arg(appname);
     } else {
         std::cerr << "ResourceFinder::getUserResourcePrefix: ERROR: No home directory available?" << std::endl;

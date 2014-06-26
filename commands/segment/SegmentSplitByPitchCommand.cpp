@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -30,6 +30,7 @@
 #include "base/SegmentNotationHelper.h"
 
 #include <QString>
+#include <QtGlobal>
 
 #include <vector>
 #include <algorithm>
@@ -194,13 +195,12 @@ SegmentSplitByPitchCommand::getNewRangingSplitPitch(Segment::iterator prevNote,
     typedef std::set<int> Pitches;
     typedef std::set<int>::iterator PitchItr;
 
-    const Quantizer *quantizer
-    (m_segment->getComposition()->getNotationQuantizer());
+    const Quantizer *quantizer(m_segment->getComposition()->getNotationQuantizer());
 
     int myHighest, myLowest;
     int prevHighest = 0, prevLowest = 0;
     bool havePrev = false;
-    std::set<int> pitches;
+    Pitches pitches;
     pitches.insert(c0p.begin(), c0p.end());
 
     myLowest = c0p[0];
@@ -280,8 +280,7 @@ SegmentSplitByPitchCommand::getSplitPitchAt(Segment::iterator i)
     // when this algorithm appears to be working ok, we should be
     // able to make it much quicker
 
-    const Quantizer *quantizer
-    (m_segment->getComposition()->getNotationQuantizer());
+    const Quantizer *quantizer(m_segment->getComposition()->getNotationQuantizer());
 
     Chord c0(*m_segment, i, quantizer);
     // Pitches in the chord.
@@ -316,7 +315,7 @@ SegmentSplitByPitchCommand::getSplitPitchAt(Segment::iterator i)
 
         /* NOTREACHED */
     case ChordToneOfInitialPitch:
-        assert(m_toneIndex >= 0);
+        Q_ASSERT(m_toneIndex >= 0);
 
         // Lower than the lowest tone (a pointless command but
         // shouldn't be an error)

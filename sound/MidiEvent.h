@@ -2,7 +2,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2011 the Rosegarden development team.
+  Copyright 2000-2014 the Rosegarden development team.
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -12,8 +12,8 @@
 */
 
 
-#ifndef _ROSEGARDEN_MIDI_EVENT_H_
-#define _ROSEGARDEN_MIDI_EVENT_H_
+#ifndef RG_MIDI_EVENT_H
+#define RG_MIDI_EVENT_H
 
 #include "Midi.h"
 #include "base/Event.h"
@@ -131,4 +131,4 @@ struct MidiEventCmp
 
 }
 
-#endif // _ROSEGARDEN_MIDI_EVENT_H_
+#endif // RG_MIDI_EVENT_H

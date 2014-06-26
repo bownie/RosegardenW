@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -29,8 +29,6 @@
 #include <QLabel>
 #include <QMessageBox>
 #include <QDir>
-#include <QDesktopServices>
-#include <QUrl>
 
 #include <iostream>
 
@@ -44,8 +42,8 @@ LilyPondProcessor::LilyPondProcessor(QWidget *parent, int mode, QString filename
     // We have to split the combined filename (eg. "/tmp/rosegarden_tmp_T73123.ly"
     // into a separate filename and directory component, to hack around a
     // critical bug I couldn't resolve any other way.
-    //int pos = filename.lastIndexOf("/");
-    m_filename = filename; //.mid(pos + 1, (filename.size() - pos - 1));
+    int pos = filename.lastIndexOf("/");
+    m_filename = filename.mid(pos + 1, (filename.size() - pos - 1));
     m_dir = QDir::tempPath(); // OK, we'll just be lazy and not parse it back out of the string
 
     // (I'm not sure why RG_DEBUG didn't work from in here.  Having to use
@@ -120,14 +118,7 @@ LilyPondProcessor::runConvertLy()
     m_info->setText(tr("Running <b>convert-ly</b>..."));
     m_process = new QProcess;
     m_process->setWorkingDirectory(m_dir);
-
-    std::cout << "WORKING DIRECTORY = " << m_dir.toStdString() << std::endl;
-    std::cout << "m_filename = " << m_filename.toStdString() << std::endl;
-
-    m_outFile = m_filename + "_new";
-
-    m_process->start("cmd.exe", QStringList() << "/c" << "convert-ly " + m_filename << " > " + m_outFile);
-
+    m_process->start("convert-ly", QStringList() << "-e" << m_filename);
     connect(m_process, SIGNAL(finished(int, QProcess::ExitStatus)),
             this, SLOT(runLilyPond(int, QProcess::ExitStatus)));
 
@@ -153,31 +144,12 @@ LilyPondProcessor::runLilyPond(int exitCode, QProcess::ExitStatus)
         puke(tr("<qt><p>Ran <b>convert-ly</b> successfully, but it terminated with errors.</p><p>Processing terminated due to fatal errors.</p></qt>"));
     }
 
-
-    /*
-    QMessageBox::warning(this, QString("Rename file"), QString("Renaming file %1").arg(m_filename), QMessageBox::Ok, QMessageBox::Ok);
-
-    if (!QFile::rename(m_filename, m_filename + "_old"))
-    {
-        puke(tr("Rename failed for " + m_filename));
-        return;
-    }
-
-    QMessageBox::warning(this, QString("Rename file"), QString("Renaming file %1").arg(m_outFile), QMessageBox::Ok, QMessageBox::Ok);
-
-    if (!QFile::rename(m_outFile, m_filename))
-    {
-        puke(tr("Rename failed for " + m_filename));
-        return;
-    }
-    */
-
     m_progress->setValue(50);
 
     m_process = new QProcess;
     m_process->setWorkingDirectory(m_dir);
     m_info->setText(tr("Running <b>lilypond</b>..."));
-    m_process->start("cmd.exe", QStringList() << "/c" << "lilypond" << "--pdf" << m_outFile);
+    m_process->start("lilypond", QStringList() << "--pdf" << m_filename);
     connect(m_process, SIGNAL(finished(int, QProcess::ExitStatus)),
             this, SLOT(runFinalStage(int, QProcess::ExitStatus)));
             
@@ -193,22 +165,6 @@ LilyPondProcessor::runLilyPond(int exitCode, QProcess::ExitStatus)
     // monitoring and guessing code that's easy to do in a script and hell to do
     // in real code
     m_progress->setMaximum(0);
-}
-
-void
-LilyPondProcessor::removeTempFiles()
-{
-    if (!QFile::remove(m_filename))
-    {
-        puke(tr("Failed to remove file ") + m_filename);
-        return;
-    }
-
-    if (!QFile::remove(m_outFile))
-    {
-        puke(tr("Failed to remove file ") + m_outFile);
-        return;
-    }
 }
 
 void
@@ -251,12 +207,8 @@ LilyPondProcessor::runFinalStage(int exitCode, QProcess::ExitStatus)
         return;
     }
 
-    // Copy and then replace
-    //
-    QString pdfName = m_filename;
-    pdfName.replace(".ly", ".pdf");
+    QString pdfName = m_filename.replace(".ly", ".pdf");
 
-    /*
     // retrieve user preferences from QSettings
     QSettings settings;
     settings.beginGroup(ExternalApplicationsConfigGroup);
@@ -280,7 +232,8 @@ LilyPondProcessor::runFinalStage(int exitCode, QProcess::ExitStatus)
         case 0: pdfViewer = "okular";   break;
         case 1: pdfViewer = "evince";   break;
         case 2: pdfViewer = "acroread"; break;
-        case 3: pdfViewer = "kpdf"; 
+        case 3: pdfViewer = "mupdf";    break;
+        case 4: pdfViewer = "epdfview"; break;
         default: pdfViewer = "kpdf"; // just because I'm still currently on KDE3
     }
 
@@ -297,21 +250,14 @@ LilyPondProcessor::runFinalStage(int exitCode, QProcess::ExitStatus)
     // Because I just thought of that, but don't feel like refactoring all of
     // this yet again.  Oh well.
     QString finalProcessor;
-    */
 
-    // Need a better way of doing this
-    //
-//    m_process = new QProcess;
-//    QString acroread = "C:/Program Files (x86)/Adobe/Reader 10.0/Reader/AcroRd32.exe";
+    m_process = new QProcess;
 
     switch (m_mode) {
         case LilyPondProcessor::Print:
             m_info->setText(tr("Printing %1...").arg(pdfName));
-
-
-//            m_process->setWorkingDirectory(m_dir);
-//            m_process->start(acroread, QStringList() << "/p" << pdfName);
-//            break;
+            finalProcessor = filePrinter;
+            break;
 
         // just default to preview (I always use preview anyway, as I never
         // trust the results for a direct print without previewing them first,
@@ -319,15 +265,9 @@ LilyPondProcessor::runFinalStage(int exitCode, QProcess::ExitStatus)
         case LilyPondProcessor::Preview:
         default:
             m_info->setText(tr("Previewing %1...").arg(pdfName));
-            if (!QDesktopServices::openUrl(QUrl(pdfName)))
-            {
-                puke(tr("Failed to launch PDF viewer"));
-            }
-            break;
+            finalProcessor = pdfViewer;
     }
 
-
-/*
     m_process->setWorkingDirectory(m_dir);
     m_process->start(finalProcessor, QStringList() << pdfName);
     if (m_process->waitForStarted()) {
@@ -337,10 +277,9 @@ LilyPondProcessor::runFinalStage(int exitCode, QProcess::ExitStatus)
                 (m_mode == LilyPondProcessor::Print ? tr("file printer") : tr("PDF viewer")));
         puke(t);
     }
-*/
+
     m_progress->setMaximum(100);
     m_progress->setValue(100);
-
 
     accept();
 }

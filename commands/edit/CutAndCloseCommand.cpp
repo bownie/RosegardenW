@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,7 +23,10 @@
 #include "base/Segment.h"
 #include "base/Selection.h"
 #include "CutCommand.h"
+
+#include <QtGlobal>
 #include <QString>
+
 #include "misc/Debug.h"
 
 
@@ -46,7 +49,7 @@ CutAndCloseCommand::CloseCommand::execute()
     // We shift all the events from m_gapEnd to the end of the
     // segment back so that they start at m_gapStart instead of m_gapEnd.
 
-    assert(m_gapEnd >= m_gapStart);
+    Q_ASSERT(m_gapEnd >= m_gapStart);
     if (m_gapEnd == m_gapStart)
         return ;
 
@@ -106,7 +109,7 @@ CutAndCloseCommand::CloseCommand::unexecute()
     // segment forward so as to start at m_gapEnd instead of
     // m_gapStart.
 
-    assert(m_gapEnd >= m_gapStart);
+    Q_ASSERT(m_gapEnd >= m_gapStart);
     if (m_gapEnd == m_gapStart)
         return ;
 

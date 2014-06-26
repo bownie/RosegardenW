@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,10 +15,10 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _THORN_STYLE_H_
-#define _THORN_STYLE_H_
+#ifndef RG_THORN_STYLE_H
+#define RG_THORN_STYLE_H
 
-#include <QPlastiqueStyle>
+#include <QStyle>
 #include <QIcon>
 
 
@@ -29,7 +29,7 @@ namespace Rosegarden
 /** Subclass QPlastiqueStyle so we can define our own custom icons for
  * QMessageBox and so on and make them look better in the Thorn style.
  */
-class ThornStyle : public QPlastiqueStyle
+class ThornStyle : public QStyle
 {
     Q_OBJECT
 

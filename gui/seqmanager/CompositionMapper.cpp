@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,19 +19,12 @@
 #include "CompositionMapper.h"
 #include "misc/Debug.h"
 
-#include <QDir>
 #include "base/Composition.h"
 #include "base/Segment.h"
 #include "document/RosegardenDocument.h"
-#include "sequencer/RosegardenSequencer.h"
 #include "gui/seqmanager/MappedEventBuffer.h"
 #include "gui/seqmanager/SegmentMapperFactory.h"
 #include "gui/seqmanager/SegmentMapper.h"
-#include <QDir>
-#include <QFile>
-#include <QString>
-#include <QStringList>
-#include <stdint.h>
 
 
 namespace Rosegarden
@@ -60,7 +53,7 @@ CompositionMapper::~CompositionMapper()
 {
     SEQMAN_DEBUG << "~CompositionMapper()\n";
 
-    for (segmentmappers::iterator i = m_segmentMappers.begin();
+    for (SegmentMappers::iterator i = m_segmentMappers.begin();
          i != m_segmentMappers.end(); ++i) {
         i->second->removeOwner();
     }
@@ -131,7 +124,7 @@ CompositionMapper::mapSegment(Segment *segment)
     SEQMAN_DEBUG << "We have" << m_segmentMappers.size()
                  << "segments"
                  << endl;
-    segmentmappers::iterator itMapper = m_segmentMappers.find(segment);
+    SegmentMappers::iterator itMapper = m_segmentMappers.find(segment);
 
     // If it already exists, don't add it but do refresh it.
     if (itMapper != m_segmentMappers.end()) {

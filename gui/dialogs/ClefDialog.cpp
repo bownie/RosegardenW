@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -278,7 +278,11 @@ ClefDialog::slotOctaveDown()
 void
 ClefDialog::redrawClefPixmap()
 {
-    NotePixmapFactory::ColourType ct = (m_Thorn ? NotePixmapFactory::PlainColourLight : NotePixmapFactory::PlainColour);
+    NotePixmapFactory::ColourType ct =
+        m_Thorn ? NotePixmapFactory::PlainColourLight
+                : NotePixmapFactory::PlainColour;
+    m_notePixmapFactory->setSelected(false);
+    m_notePixmapFactory->setShaded(false);
     QPixmap pmap = m_notePixmapFactory->makeClefDisplayPixmap(m_clef, ct);
     m_clefPixmap->setPixmap(pmap);
 

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,58 +16,75 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_COMPOSITIONITEM_H_
-#define _RG_COMPOSITIONITEM_H_
+#ifndef RG_COMPOSITIONITEM_H
+#define RG_COMPOSITIONITEM_H
 
-//#include <qguardedptr.h>
+#include "CompositionRect.h"
+
 #include <QObject>
 #include <QRect>
 #include <QPointer>
 
-
 namespace Rosegarden
 {
 
-/// The interface for a composition item.
+
+class Segment;
+
+/// Representation of segments that are changing.
 /**
- * This is primarily an interface (abstract base) class that defines the
- * interface for a composition item.  It also has a saved rectangle which
- * is a common property of composition items.  CompositionItem is a
- * QPointer to this class.
+ * When segments are being selected, moved, or resized, CompositionModelImpl
+ * creates CompositionItem objects to represent those changing segments
+ * as they change.
  *
- * See the deriver (CompositionItemImpl) for details.
- *
- * Given that there is only one deriver from this interface and
- * probably has been for quite some time, this class can probably be removed.
+ * All these accessors and mutators strike me as being rather unsavory.
+ * Might want to just turn this into a wide-open struct.  That's essentially
+ * what it is.  rect() could be a helper function, and m_savedRect could
+ * be kept private since its mutator is interesting.
+ * It would be a lot easier to understand.
  */
-class _CompositionItem : public QObject {	
+class CompositionItem : public QObject {
 public:
-    virtual bool isRepeating() const = 0;
-    virtual QRect rect() const = 0;
-    virtual void translate(int x, int y) = 0;
-    virtual void moveTo(int x, int y) = 0;
-    virtual void setX(int x) = 0;
-    virtual void setY(int y) = 0;
-    virtual void setZ(unsigned int z) = 0;
-    virtual int  x() = 0;
-    virtual int  y() = 0;
-    virtual unsigned int  z() = 0;
-    virtual void setWidth(int w) = 0;
+    CompositionItem(Segment &s, const CompositionRect &r);
 
-    // used by itemcontainer
-    virtual long hashKey() = 0;
+    // Rect Mutators
 
-    QRect savedRect() const   { return m_savedRect; }
-    void saveRect() const     { m_savedRect = rect(); }
+    void setX(int x)                   { m_rect.setX(x); }
+    void setY(int y)                   { m_rect.setY(y); }
+    void moveTo(int x, int y)          { m_rect.moveTo(x, y); }
+    void setWidth(int w)               { m_rect.setWidth(w); }
+    void setZ(unsigned int z)          { m_z = z; }
 
-protected:
-    mutable QRect m_savedRect;
+    // Rect Accessors
+
+    // rename: baseRect()?  Since it has only the baseWidth().
+    QRect rect() const;
+    int x() const                      { return m_rect.x(); }
+    int y() const                      { return m_rect.y(); }
+    unsigned int z() const             { return m_z; }
+    bool isRepeating() const           { return m_rect.isRepeating(); }
+    CompositionRect& getCompRect()     { return m_rect; }
+
+    // Access to the contained segment
+    Segment *getSegment()              { return &m_segment; }
+    const Segment *getSegment() const  { return &m_segment; }
+
+    // Saved rect.  Used to store the original rect before changing it.
+    void saveRect()                    { m_savedRect = rect(); }
+    QRect savedRect() const            { return m_savedRect; }
+
+private:
+
+    Segment &m_segment;
+    CompositionRect m_rect;
+    unsigned int m_z;
+
+    QRect m_savedRect;
 };
 
-
-typedef QPointer<_CompositionItem> CompositionItem;  
-
-bool operator<(const CompositionItem& , const CompositionItem& );
+// ??? It might be educational to investigate whether QPointer is actually
+//     needed for this.
+typedef QPointer<CompositionItem> CompositionItemPtr;
 
 
 }

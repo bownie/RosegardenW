@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is Copyright 2002
         Hans Kieserman      <hkieserman@mail.com>
@@ -125,14 +125,15 @@ MusicXmlExporter::exportTrack(Track *track)
         return false;
     }
 
-    bool hasSegments = false;
-    for (Composition::iterator s = m_composition->begin();
-         s != m_composition->end(); ++s) {
-        if ((*s)->getTrack() == track->getId()) {
-            hasSegments = true;
-            break;
-        }
-    }
+    // hasSegments was never used.
+    // bool hasSegments = false;
+    // for (Composition::iterator s = m_composition->begin();
+    //      s != m_composition->end(); ++s) {
+    //     if ((*s)->getTrack() == track->getId()) {
+    //         hasSegments = true;
+    //         break;
+    //     }
+    // }
 
     if (m_exportSelection == EXPORT_ALL_TRACKS) {
         // Obvious.
@@ -215,7 +216,7 @@ MusicXmlExporter::writeHeader(std::ostream &str)
     }
 
     str << "    <encoding>" << std::endl;
-    str << "      <software>Rosegarden v" << VERSION << "</software>" << std::endl;
+    str << "      <software>Rosegarden v" VERSION "</software>" << std::endl;
     str << "      <encoding-date>"
         << QDateTime::currentDateTime().toString("yyyy-MM-dd")
         << "</encoding-date>" << std::endl;

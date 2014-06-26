@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -23,7 +23,9 @@
 #include "PluginFactory.h"
 
 #include "misc/ConfigGroups.h"
+
 #include <QSettings>
+#include <QtGlobal>
 
 #ifdef HAVE_ALSA
 #ifdef HAVE_LIBJACK
@@ -65,7 +67,7 @@ JackDriver::JackDriver(AlsaDriver *alsaDriver) :
         m_framesProcessed(0),
         m_ok(false)
 {
-    assert(sizeof(sample_t) == sizeof(float));
+    Q_ASSERT(sizeof(sample_t) == sizeof(float));
     initialise();
 }
 
@@ -213,12 +215,25 @@ JackDriver::initialise(bool reinitialise)
 
     std::string jackClientName = "rosegarden";
 
+    // set up JackOpenOptions per user config
+    QSettings settings;
+    settings.beginGroup(SequencerOptionsConfigGroup);
+    bool autoStartJack = settings.value("autostartjack", true).toBool();
+    settings.endGroup();
+    // default is to auto start JACK; use JackNullOption
+    jack_options_t jackOptions = JackNullOption;
+    if (!autoStartJack) jackOptions = JackNoStartServer;
+
     // attempt connection to JACK server
     //
-    if ((m_client = jack_client_open(jackClientName.c_str(), JackNullOption, 0)) == 0) {
+    if ((m_client = jack_client_open(jackClientName.c_str(), jackOptions, 0)) == 0) {
         audit << "JackDriver::initialiseAudio - "
 	      << "JACK server not running"
-	      << std::endl;
+	      << std::endl
+              << "Attempt to start JACK server was "
+              << (jackOptions & JackNoStartServer ? "NOT " : "")
+              << "made per user config"
+              << std::endl;
         return ;
     }
 
@@ -310,10 +325,10 @@ JackDriver::initialise(bool reinitialise)
     }
 
     // Now set up the default connections, if configured to do so
-    QSettings settings;
     settings.beginGroup(SequencerOptionsConfigGroup);
     bool connectDefaultOutputs = settings.value("connect_default_jack_outputs", true).toBool();
     bool connectDefaultInputs = settings.value("connect_default_jack_inputs", true).toBool();
+    settings.endGroup();
 
     const char **ports = jack_get_ports(m_client, NULL, NULL,
             JackPortIsPhysical | JackPortIsInput);
@@ -768,6 +783,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
         return jackProcessEmpty(nframes);
     }
 
+    // synchronize MIDI and audio by adjusting MIDI playback rate
     if (m_alsaDriver->areClocksRunning()) {
         m_alsaDriver->checkTimerSync(m_framesProcessed);
     } else {
@@ -780,19 +796,16 @@ JackDriver::jackProcess(jack_nframes_t nframes)
     bool asyncAudio = m_haveAsyncAudioEvent;
 
 #ifdef DEBUG_JACK_PROCESS
-
     Profiler profiler("jackProcess", true);
 #else
-#ifdef DEBUG_JACK_XRUN
-
+  #ifdef DEBUG_JACK_XRUN
     Profiler profiler("jackProcess", false);
-#endif
+  #endif
 #endif
 
     if (lowLatencyMode) {
         if (clocksRunning) {
             if (playing || asyncAudio) {
-
                 if (m_instrumentMixer->tryLock() == 0) {
                     m_instrumentMixer->kick(false);
                     m_instrumentMixer->releaseLock();
@@ -823,10 +836,9 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 #ifdef DEBUG_JACK_PROCESS
     Profiler profiler2("jackProcess post mix", true);
 #else
-#ifdef DEBUG_JACK_XRUN
-
+  #ifdef DEBUG_JACK_XRUN
     Profiler profiler2("jackProcess post mix", false);
-#endif
+  #endif
 #endif
 
     jack_position_t position;
@@ -842,11 +854,9 @@ JackDriver::jackProcess(jack_nframes_t nframes)
     m_alsaDriver->getAudioInstrumentNumbers(audioInstrumentBase, audioInstruments);
 
     if (m_jackTransportEnabled) {
-
         state = jack_transport_query(m_client, &position);
 
 #ifdef DEBUG_JACK_PROCESS
-
         std::cerr << "JackDriver::jackProcess: JACK transport state is " << state << std::endl;
 #endif
 
@@ -859,11 +869,10 @@ JackDriver::jackProcess(jack_nframes_t nframes)
                     std::cerr << "JackDriver::jackProcess: JACK transport stopped externally at " << position.frame << std::endl;
 #endif
 
-                    m_waitingToken =
-                        transport->transportJump
-                        (ExternalTransport::TransportStopAtTime,
-                         RealTime::frame2RealTime(position.frame,
-                                                  position.frame_rate));
+                    m_waitingToken = transport->transportJump(
+                            ExternalTransport::TransportStopAtTime,
+                            RealTime::frame2RealTime(position.frame,
+                                                     position.frame_rate));
                 }
             } else if (clocksRunning) {
                 if (!asyncAudio) {
@@ -904,7 +913,6 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 #ifdef DEBUG_JACK_TRANSPORT
                 std::cerr << "JackDriver::jackProcess: transport rolling, but we're ignoring it (count = " << ignoreCount << ")" << std::endl;
 #endif
-
             } else {
 #ifdef DEBUG_JACK_TRANSPORT
                 std::cerr << "JackDriver::jackProcess: transport rolling, telling ALSA driver to go!" << std::endl;
@@ -958,10 +966,9 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 #ifdef DEBUG_JACK_PROCESS
     Profiler profiler3("jackProcess post transport", true);
 #else
-#ifdef DEBUG_JACK_XRUN
-
+  #ifdef DEBUG_JACK_XRUN
     Profiler profiler3("jackProcess post transport", false);
-#endif
+  #endif
 #endif
 
     InstrumentId synthInstrumentBase;
@@ -971,27 +978,25 @@ JackDriver::jackProcess(jack_nframes_t nframes)
     // We always have the master out
 
     sample_t *master[2] = {
-                              static_cast<sample_t *>
-                              (jack_port_get_buffer(m_outputMasters[0], nframes)),
-                              static_cast<sample_t *>
-                              (jack_port_get_buffer(m_outputMasters[1], nframes))
-                          };
+        static_cast<sample_t *>(jack_port_get_buffer(m_outputMasters[0], nframes)),
+        static_cast<sample_t *>(jack_port_get_buffer(m_outputMasters[1], nframes))
+    };
 
     memset(master[0], 0, nframes * sizeof(sample_t));
     memset(master[1], 0, nframes * sizeof(sample_t));
 
     // Reset monitor outs (if present) here prior to mixing
 
-    if (m_outputMonitors.size() > 0) {
-        sample_t *buffer = static_cast<sample_t *>
-                           (jack_port_get_buffer(m_outputMonitors[0], nframes));
+    if (!m_outputMonitors.empty()) {
+        sample_t *buffer =
+            static_cast<sample_t *>(jack_port_get_buffer(m_outputMonitors[0], nframes));
         if (buffer)
             memset(buffer, 0, nframes * sizeof(sample_t));
     }
 
     if (m_outputMonitors.size() > 1) {
-        sample_t *buffer = static_cast<sample_t *>
-                           (jack_port_get_buffer(m_outputMonitors[1], nframes));
+        sample_t *buffer =
+            static_cast<sample_t *>(jack_port_get_buffer(m_outputMonitors[1], nframes));
         if (buffer)
             memset(buffer, 0, nframes * sizeof(sample_t));
     }
@@ -1008,10 +1013,10 @@ JackDriver::jackProcess(jack_nframes_t nframes)
         sample_t peak[2] = { 0.0, 0.0 };
 
         if ((int)m_outputSubmasters.size() > buss * 2 + 1) {
-            submaster[0] = static_cast<sample_t *>
-                           (jack_port_get_buffer(m_outputSubmasters[buss * 2], nframes));
-            submaster[1] = static_cast<sample_t *>
-                           (jack_port_get_buffer(m_outputSubmasters[buss * 2 + 1], nframes));
+            submaster[0] =
+                static_cast<sample_t *>(jack_port_get_buffer(m_outputSubmasters[buss * 2], nframes));
+            submaster[1] =
+                static_cast<sample_t *>(jack_port_get_buffer(m_outputSubmasters[buss * 2 + 1], nframes));
         }
 
         if (!submaster[0])
@@ -1043,13 +1048,13 @@ JackDriver::jackProcess(jack_nframes_t nframes)
             }
         }
 
-	LevelInfo info;
-	info.level = AudioLevel::multiplier_to_fader
-		(peak[0], 127, AudioLevel::LongFader);
-	info.levelRight = AudioLevel::multiplier_to_fader
-		(peak[1], 127, AudioLevel::LongFader);
+        LevelInfo info;
+        info.level = AudioLevel::multiplier_to_fader(
+                peak[0], 127, AudioLevel::LongFader);
+        info.levelRight = AudioLevel::multiplier_to_fader(
+                peak[1], 127, AudioLevel::LongFader);
 
-	SequencerDataBlock::getInstance()->setSubmasterLevel(buss, info);
+        SequencerDataBlock::getInstance()->setSubmasterLevel(buss, info);
 
         for (InstrumentId id = audioInstrumentBase;
                 id < audioInstrumentBase + audioInstruments; ++id) {
@@ -1081,10 +1086,10 @@ JackDriver::jackProcess(jack_nframes_t nframes)
         sample_t peak[2] = { 0.0, 0.0 };
 
         if (int(m_outputInstruments.size()) > i * 2 + 1) {
-            instrument[0] = static_cast<sample_t *>
-                            (jack_port_get_buffer(m_outputInstruments[i * 2], nframes));
-            instrument[1] = static_cast<sample_t *>
-                            (jack_port_get_buffer(m_outputInstruments[i * 2 + 1], nframes));
+            instrument[0] =
+                static_cast<sample_t *>(jack_port_get_buffer(m_outputInstruments[i * 2], nframes));
+            instrument[1] =
+                static_cast<sample_t *>(jack_port_get_buffer(m_outputInstruments[i * 2 + 1], nframes));
         }
 
         if (!instrument[0])
@@ -1146,11 +1151,10 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 #endif
 
                 if (actual < nframes) {
-
                     std::cerr << "JackDriver::jackProcess: read " << actual << " of " << nframes << " frames for " << id << " ch " << ch << " (pl " << playing << ", cl " << clocksRunning << ", aa " << asyncAudio << ")" << std::endl;
-
                     reportFailure(MappedEvent::FailureMixUnderrun);
                 }
+
                 for (size_t f = 0; f < nframes; ++f) {
                     sample_t sample = instrument[ch][f];
                     if (sample > peak[ch])
@@ -1170,13 +1174,13 @@ JackDriver::jackProcess(jack_nframes_t nframes)
             }
         }
 
-	LevelInfo info;
-	info.level = AudioLevel::multiplier_to_fader
-		(peak[0], 127, AudioLevel::LongFader);
-	info.levelRight = AudioLevel::multiplier_to_fader
-		(peak[1], 127, AudioLevel::LongFader);
+        LevelInfo info;
+        info.level = AudioLevel::multiplier_to_fader(
+                peak[0], 127, AudioLevel::LongFader);
+        info.levelRight = AudioLevel::multiplier_to_fader(
+                peak[1], 127, AudioLevel::LongFader);
 
-	SequencerDataBlock::getInstance()->setInstrumentLevel(id, info);
+        SequencerDataBlock::getInstance()->setInstrumentLevel(id, info);
     }
 
     if (asyncAudio) {
@@ -1206,10 +1210,10 @@ JackDriver::jackProcess(jack_nframes_t nframes)
     }
 
     LevelInfo info;
-    info.level = AudioLevel::multiplier_to_fader
-	    (masterPeak[0], 127, AudioLevel::LongFader);
-    info.levelRight = AudioLevel::multiplier_to_fader
-	    (masterPeak[1], 127, AudioLevel::LongFader);
+    info.level = AudioLevel::multiplier_to_fader(
+            masterPeak[0], 127, AudioLevel::LongFader);
+    info.levelRight = AudioLevel::multiplier_to_fader(
+            masterPeak[1], 127, AudioLevel::LongFader);
 
     SequencerDataBlock::getInstance()->setMasterLevel(info);
 
@@ -1237,11 +1241,10 @@ JackDriver::jackProcess(jack_nframes_t nframes)
     m_framesProcessed += nframes;
 
 #if (defined(DEBUG_JACK_DRIVER) || defined(DEBUG_JACK_PROCESS) || defined(DEBUG_JACK_TRANSPORT))
-
     framesThisPlay += nframes; //!!!
 #endif
-#ifdef DEBUG_JACK_PROCESS
 
+#ifdef DEBUG_JACK_PROCESS
     std::cerr << "JackDriver::jackProcess: " << nframes << " frames, " << framesThisPlay << " this play, " << m_framesProcessed << " total" << std::endl;
 #endif
 
@@ -1403,7 +1406,7 @@ JackDriver::jackProcessRecord(InstrumentId id,
                 m_tempOutBuffer[i] = sample;
             }
 
-            if (m_outputMonitors.size() > 0) {
+            if (!m_outputMonitors.empty()) {
                 sample_t *buf =
                     static_cast<sample_t *>
                     (jack_port_get_buffer(m_outputMonitors[0], nframes));
@@ -1454,7 +1457,7 @@ JackDriver::jackProcessRecord(InstrumentId id,
         if (inputBufferLeft) {
 
             sample_t *buf = 0;
-            if (m_outputMonitors.size() > 0) {
+            if (!m_outputMonitors.empty()) {
                 buf = static_cast<sample_t *>
                     (jack_port_get_buffer(m_outputMonitors[0], nframes));
             }
@@ -2097,7 +2100,7 @@ JackDriver::updateAudioData()
             }
         } else if (!empty) {
             pluginLatency +=
-                m_instrumentMixer->getPluginLatency((unsigned int) * connections.begin());
+                m_instrumentMixer->getPluginLatency((unsigned int) * connections.begin() - 1);
         }
 
         if (empty) {

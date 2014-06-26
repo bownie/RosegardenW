@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_LILYPONDOPTIONSDIALOG_H_
-#define _RG_LILYPONDOPTIONSDIALOG_H_
+#ifndef RG_LILYPONDOPTIONSDIALOG_H
+#define RG_LILYPONDOPTIONSDIALOG_H
 
 #include <QDialog>
 #include <QString>
@@ -41,7 +41,9 @@ public:
     LilyPondOptionsDialog(QWidget *parent,
 			  RosegardenDocument *doc,
                           QString windowCaption = "",
-                          QString heading = "");
+                          QString heading = "",
+                          bool createdFromNotationEditor = false
+                         );
 
     static void setDefaultLilyPondVersion(QString version);
 
@@ -61,6 +63,8 @@ protected:
     QComboBox *m_lilyExportLyrics;
     QCheckBox *m_lilyPaperLandscape;
     QCheckBox *m_lilyRaggedBottom;
+    QCheckBox *m_useShortNames;
+    QCheckBox *m_lilyExportEmptyStaves;
     QCheckBox *m_lilyChordNamesMode;
     QCheckBox *m_lilyExportBeams;
     QCheckBox *m_lilyExportStaffGroup;
@@ -69,7 +73,13 @@ protected:
     QCheckBox *m_lilyRepeatMode;
     QCheckBox *m_lilyDrawBarAtVolta;
     QCheckBox *m_cancelAccidentals;
+    QCheckBox *m_fingeringsInStaff;
     HeadersConfigurationPage *m_headersPage;
+
+    // Used to add the "edited segments" option when the dialog is opened
+    // from the notation editor
+    bool m_createdFromNotationEditor;
+    int m_editedSegmentsIndex;
 
     void populateDefaultValues();
 

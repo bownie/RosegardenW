@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[RosegardenMainViewWidget]"
 
 #include "RosegardenMainViewWidget.h"
 
@@ -147,29 +148,29 @@ RosegardenMainViewWidget::RosegardenMainViewWidget(bool showTrackLabels,
             SIGNAL(editSegment(Segment*)),
             SLOT(slotEditSegment(Segment*)));
 
-    connect(m_trackEditor->getCompositionView(),
-            SIGNAL(editSegmentNotation(Segment*)),
-            SLOT(slotEditSegmentNotation(Segment*)));
+    //connect(m_trackEditor->getCompositionView(),
+    //        SIGNAL(editSegmentNotation(Segment*)),
+    //        SLOT(slotEditSegmentNotation(Segment*)));
 
-    connect(m_trackEditor->getCompositionView(),
-            SIGNAL(editSegmentPitchView(Segment*)),
-            SLOT(slotEditSegmentPitchView(Segment*)));
+    //connect(m_trackEditor->getCompositionView(),
+    //        SIGNAL(editSegmentPitchView(Segment*)),
+    //        SLOT(slotEditSegmentPitchView(Segment*)));
 
-    connect(m_trackEditor->getCompositionView(),
-            SIGNAL(editSegmentMatrix(Segment*)),
-            SLOT(slotEditSegmentMatrix(Segment*)));
+    //connect(m_trackEditor->getCompositionView(),
+    //        SIGNAL(editSegmentMatrix(Segment*)),
+    //        SLOT(slotEditSegmentMatrix(Segment*)));
 
-    connect(m_trackEditor->getCompositionView(),
-            SIGNAL(editSegmentAudio(Segment*)),
-            SLOT(slotEditSegmentAudio(Segment*)));
+    //connect(m_trackEditor->getCompositionView(),
+    //        SIGNAL(editSegmentAudio(Segment*)),
+    //        SLOT(slotEditSegmentAudio(Segment*)));
 
-    connect(m_trackEditor->getCompositionView(),
-            SIGNAL(audioSegmentAutoSplit(Segment*)),
-            SLOT(slotSegmentAutoSplit(Segment*)));
+    //connect(m_trackEditor->getCompositionView(),
+    //        SIGNAL(audioSegmentAutoSplit(Segment*)),
+    //        SLOT(slotSegmentAutoSplit(Segment*)));
 
-    connect(m_trackEditor->getCompositionView(),
-            SIGNAL(editSegmentEventList(Segment*)),
-            SLOT(slotEditSegmentEventList(Segment*)));
+    //connect(m_trackEditor->getCompositionView(),
+    //        SIGNAL(editSegmentEventList(Segment*)),
+    //        SLOT(slotEditSegmentEventList(Segment*)));
 
     connect(m_trackEditor->getCompositionView(),
             SIGNAL(editRepeat(Segment*, timeT)),
@@ -227,7 +228,7 @@ RosegardenMainViewWidget::RosegardenMainViewWidget(bool showTrackLabels,
 
         QObject::connect
         (CommandHistory::getInstance(), SIGNAL(commandExecuted()),
-         m_trackEditor->getCompositionView(), SLOT(slotUpdateSegmentsDrawBuffer()));
+         m_trackEditor->getCompositionView(), SLOT(slotUpdateAll()));
     }
 }
 
@@ -245,7 +246,7 @@ RosegardenMainViewWidget::getDocument() const
 
 void RosegardenMainViewWidget::selectTool(QString toolName)
 {
-    m_trackEditor->getCompositionView()->slotSetTool(toolName);
+    m_trackEditor->getCompositionView()->setTool(toolName);
 }
 
 bool
@@ -465,12 +466,12 @@ RosegardenMainViewWidget::createNotationView(std::vector<Segment *> segmentsToEd
     connect(notationView, SIGNAL(editTriggerSegment(int)),
             this, SLOT(slotEditTriggerSegment(int)));
     // No such signal comes from NotationView
-//    connect(notationView, SIGNAL(staffLabelChanged(TrackId, QString)),
-//            this, SLOT(slotChangeTrackLabel(TrackId, QString)));
+    //connect(notationView, SIGNAL(staffLabelChanged(TrackId, QString)),
+    //        this, SLOT(slotChangeTrackLabel(TrackId, QString)));
     connect(notationView, SIGNAL(toggleSolo(bool)),
             RosegardenMainWindow::self(), SLOT(slotToggleSolo(bool)));
-    connect(notationView, SIGNAL(editTimeSignature(timeT)),
-            RosegardenMainWindow::self(), SLOT(slotEditTempos(timeT)));
+    //connect(notationView, SIGNAL(editTimeSignature(timeT)),
+    //        RosegardenMainWindow::self(), SLOT(slotEditTempos(timeT)));
 
     SequenceManager *sM = getDocument()->getSequenceManager();
 
@@ -489,16 +490,18 @@ RosegardenMainViewWidget::createNotationView(std::vector<Segment *> segmentsToEd
             notationView, SLOT(slotCompositionStateUpdate()));
 
     // Encourage the notation view window to open to the same
-    // interval as the current segment view
-    if (m_trackEditor->getCompositionView()->horizontalScrollBar()->value() > 1) { // don't scroll unless we need to
-        // first find the time at the center of the visible segment canvas
-        int centerX = (int)(m_trackEditor->getCompositionView()->contentsX() +
-                            m_trackEditor->getCompositionView()->visibleWidth() / 2);
-        timeT centerSegmentView = m_trackEditor->getRulerScale()->getTimeForX(centerX);
-        // then scroll the notation view to that time, "localized" for the current segment
-//!!!        notationView->scrollToTime(centerSegmentView);
-//!!!        notationView->updateView();
-    }
+    // interval as the current segment view.  Since scrollToTime is
+    // commented out (what bug?), it made no sense to leave the
+    // support code in.
+//     if (m_trackEditor->getCompositionView()->horizontalScrollBar()->value() > 1) { // don't scroll unless we need to
+//         // first find the time at the center of the visible segment canvas
+//         int centerX = (int)(m_trackEditor->getCompositionView()->contentsX() +
+//                             m_trackEditor->getCompositionView()->visibleWidth() / 2);
+//         timeT centerSegmentView = m_trackEditor->getRulerScale()->getTimeForX(centerX);
+//         // then scroll the notation view to that time, "localized" for the current segment
+// //!!!        notationView->scrollToTime(centerSegmentView);
+// //!!!        notationView->updateView();
+//     }
 
     return notationView;
 }
@@ -638,12 +641,12 @@ RosegardenMainViewWidget::createPitchTrackerView(std::vector<Segment *> segments
     connect(pitchTrackerView, SIGNAL(editTriggerSegment(int)),
             this, SLOT(slotEditTriggerSegment(int)));
     // No such signal comes from PitchTrackerView
-//    connect(pitchTrackerView, SIGNAL(staffLabelChanged(TrackId, QString)),
-//            this, SLOT(slotChangeTrackLabel(TrackId, QString)));
+    //connect(pitchTrackerView, SIGNAL(staffLabelChanged(TrackId, QString)),
+    //        this, SLOT(slotChangeTrackLabel(TrackId, QString)));
     connect(pitchTrackerView, SIGNAL(toggleSolo(bool)),
             RosegardenMainWindow::self(), SLOT(slotToggleSolo(bool)));
-    connect(pitchTrackerView, SIGNAL(editTimeSignature(timeT)),
-            RosegardenMainWindow::self(), SLOT(slotEditTempos(timeT)));
+    //connect(pitchTrackerView, SIGNAL(editTimeSignature(timeT)),
+    //        RosegardenMainWindow::self(), SLOT(slotEditTempos(timeT)));
 
     SequenceManager *sM = getDocument()->getSequenceManager();
 
@@ -662,16 +665,18 @@ RosegardenMainViewWidget::createPitchTrackerView(std::vector<Segment *> segments
             pitchTrackerView, SLOT(slotCompositionStateUpdate()));
 
     // Encourage the notation view window to open to the same
-    // interval as the current segment view
-    if (m_trackEditor->getCompositionView()->horizontalScrollBar()->value() > 1) { // don't scroll unless we need to
-        // first find the time at the center of the visible segment canvas
-        int centerX = (int)(m_trackEditor->getCompositionView()->contentsX() +
-                            m_trackEditor->getCompositionView()->visibleWidth() / 2);
-        timeT centerSegmentView = m_trackEditor->getRulerScale()->getTimeForX(centerX);
-        // then scroll the notation view to that time, "localized" for the current segment
-//!!!        pitchTrackerView->scrollToTime(centerSegmentView);
-//!!!        pitchTrackerView->updateView();
-    }
+    // interval as the current segment view.  Since scrollToTime is
+    // commented out (what bug?), it made no sense to leave the
+    // support code in.
+//     if (m_trackEditor->getCompositionView()->horizontalScrollBar()->value() > 1) { // don't scroll unless we need to
+//         // first find the time at the center of the visible segment canvas
+//         int centerX = (int)(m_trackEditor->getCompositionView()->contentsX() +
+//                             m_trackEditor->getCompositionView()->visibleWidth() / 2);
+//         timeT centerSegmentView = m_trackEditor->getRulerScale()->getTimeForX(centerX);
+//         // then scroll the notation view to that time, "localized" for the current segment
+// //!!!        pitchTrackerView->scrollToTime(centerSegmentView);
+// //!!!        pitchTrackerView->updateView();
+//     }
 
     return pitchTrackerView;
 }
@@ -845,8 +850,8 @@ RosegardenMainViewWidget::createMatrixView(std::vector<Segment *> segmentsToEdit
             this, SLOT(slotEditTriggerSegment(int)));
     connect(matrixView, SIGNAL(toggleSolo(bool)),
             RosegardenMainWindow::self(), SLOT(slotToggleSolo(bool)));
-    connect(matrixView, SIGNAL(editTimeSignature(timeT)),
-            RosegardenMainWindow::self(), SLOT(slotEditTempos(timeT)));
+    //connect(matrixView, SIGNAL(editTimeSignature(timeT)),
+    //        RosegardenMainWindow::self(), SLOT(slotEditTempos(timeT)));
 
     SequenceManager *sM = getDocument()->getSequenceManager();
 
@@ -865,17 +870,19 @@ RosegardenMainViewWidget::createMatrixView(std::vector<Segment *> segmentsToEdit
             matrixView, SLOT(slotCompositionStateUpdate()));
 
     // Encourage the matrix view window to open to the same
-    // interval as the current segment view
-    if (m_trackEditor->getCompositionView()->horizontalScrollBar()->value() > 1) { // don't scroll unless we need to
-        // first find the time at the center of the visible segment canvas
-        int centerX = (int)(m_trackEditor->getCompositionView()->contentsX());
-        // Seems to work better for matrix view to scroll to left side
-        // + m_trackEditor->getCompositionView()->visibleWidth() / 2);
-        timeT centerSegmentView = m_trackEditor->getRulerScale()->getTimeForX(centerX);
-        // then scroll the view to that time, "localized" for the current segment
-//!!!        matrixView->scrollToTime(centerSegmentView);
-//!!!        matrixView->updateView();
-    }
+    // interval as the current segment view.   Since scrollToTime is
+    // commented out (what bug?), it made no sense to leave the
+    // support code in.
+//     if (m_trackEditor->getCompositionView()->horizontalScrollBar()->value() > 1) { // don't scroll unless we need to
+//         // first find the time at the center of the visible segment canvas
+//         int centerX = (int)(m_trackEditor->getCompositionView()->contentsX());
+//         // Seems to work better for matrix view to scroll to left side
+//         // + m_trackEditor->getCompositionView()->visibleWidth() / 2);
+//         timeT centerSegmentView = m_trackEditor->getRulerScale()->getTimeForX(centerX);
+//         // then scroll the view to that time, "localized" for the current segment
+// //!!!        matrixView->scrollToTime(centerSegmentView);
+// //!!!        matrixView->updateView();
+//     }
 
     return matrixView;
 }
@@ -1061,7 +1068,7 @@ void RosegardenMainViewWidget::setZoomSize(double size)
 
     compositionView->clearSegmentRectsCache(true);
     compositionView->slotUpdateSize();
-    compositionView->slotUpdateSegmentsDrawBuffer();
+    compositionView->slotUpdateAll();
 
     // At this point, the scroll bar's range has been updated.
     // We can now safely modify it.
@@ -1206,7 +1213,7 @@ void RosegardenMainViewWidget::slotPropagateSegmentSelection(const SegmentSelect
     // Send the segment list even if it's empty as we
     // use that to clear any current selection
     //
-    m_trackEditor->getCompositionView()->slotSelectSegments(segments);
+    m_trackEditor->getCompositionView()->selectSegments(segments);
 
     // update the segment parameter box
     m_segmentParameterBox->useSegments(segments);
@@ -1259,7 +1266,7 @@ void RosegardenMainViewWidget::slotSelectAllSegments()
     // Send the segment list even if it's empty as we
     // use that to clear any current selection
     //
-    m_trackEditor->getCompositionView()->slotSelectSegments(segments);
+    m_trackEditor->getCompositionView()->selectSegments(segments);
 
     // update the segment parameter box
     m_segmentParameterBox->useSegments(segments);
@@ -1292,9 +1299,9 @@ void RosegardenMainViewWidget::slotUpdateInstrumentParameterBox(int id)
 {
     Studio &studio = getDocument()->getStudio();
     Instrument *instrument = studio.getInstrumentById(id);
-    Composition &comp = getDocument()->getComposition();
+    // Composition &comp = getDocument()->getComposition();
 
-    Track *track = comp.getTrackById(comp.getSelectedTrack());
+    // Track *track = comp.getTrackById(comp.getSelectedTrack());
 
     // Reset the instrument
     //
@@ -1569,13 +1576,13 @@ void RosegardenMainViewWidget::slotShowChordNameRuler(bool v)
 void RosegardenMainViewWidget::slotShowPreviews(bool v)
 {
     m_trackEditor->getCompositionView()->setShowPreviews(v);
-    m_trackEditor->getCompositionView()->slotUpdateSegmentsDrawBuffer();
+    m_trackEditor->getCompositionView()->slotUpdateAll();
 }
 
 void RosegardenMainViewWidget::slotShowSegmentLabels(bool v)
 {
     m_trackEditor->getCompositionView()->setShowSegmentLabels(v);
-    m_trackEditor->getCompositionView()->slotUpdateSegmentsDrawBuffer();
+    m_trackEditor->getCompositionView()->slotUpdateAll();
 }
 
 void RosegardenMainViewWidget::slotAddTracks(unsigned int nbTracks,
@@ -1771,7 +1778,7 @@ RosegardenMainViewWidget::slotDroppedNewAudio(QString audioDesc)
 
     std::cerr << "RosegardenMainViewWidget::slotDroppedNewAudio: url " << url << ", trackId " << trackId << ", time " << time << std::endl;
 
-    RosegardenMainWindow *mainWindow = RosegardenMainWindow::self();
+    // RosegardenMainWindow *mainWindow = RosegardenMainWindow::self();
     AudioFileManager &aFM = getDocument()->getAudioFileManager();
 
     AudioFileId audioFileId = 0;
@@ -1788,7 +1795,7 @@ RosegardenMainViewWidget::slotDroppedNewAudio(QString audioDesc)
 
     // from qt4-doc : " don't use a (modal) QProgressDialog inside a paintEvent() !"
 
-    //cc 20120508: because ProgressDialog has WA_DeleteOnClose set, it
+    //cc 20140508: because ProgressDialog has WA_DeleteOnClose set, it
     // is destroyed if the user closes it during event processing --
     // use a QPointer to avoid dereferencing it afterwards
     QPointer<ProgressDialog> progressDlg =
@@ -1915,10 +1922,10 @@ RosegardenMainViewWidget::slotSetRecord(InstrumentId id, bool value)
         //
         m_instrumentParameterBox->setRecord(value);
     */
+#ifdef NOT_DEFINED
     Composition &comp = getDocument()->getComposition();
     Composition::trackcontainer &tracks = comp.getTracks();
     Composition::trackiterator it;
-#ifdef NOT_DEFINED
 
     for (it = tracks.begin(); it != tracks.end(); ++it) {
         if (comp.getSelectedTrack() == (*it).second->getId()) {
@@ -1929,8 +1936,8 @@ RosegardenMainViewWidget::slotSetRecord(InstrumentId id, bool value)
         }
     }
 #endif
-    Studio &studio = getDocument()->getStudio();
-    Instrument *instr = studio.getInstrumentById(id);
+    // Studio &studio = getDocument()->getStudio();
+    // Instrument *instr = studio.getInstrumentById(id);
 }
 
 void
@@ -2118,7 +2125,7 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e, cons
         return ;
     }
 
-    unsigned int channel = e->getRecordedChannel();
+    // unsigned int channel = e->getRecordedChannel();
     MidiByte controller = e->getData1();
     MidiByte value = e->getData2();
 

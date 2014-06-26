@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_METRONOMEMAPPER_H_
-#define _RG_METRONOMEMAPPER_H_
+#ifndef RG_METRONOMEMAPPER_H
+#define RG_METRONOMEMAPPER_H
 
 #include "base/Event.h"
 #include "base/MidiProgram.h"
@@ -49,6 +49,11 @@ class MetronomeMapper : public MappedEventBuffer
     virtual void doInsert(MappedInserterBase &inserter, MappedEvent &evt,
                          RealTime start, bool firstOutput);
 
+    virtual void makeReady(MappedInserterBase &inserter, RealTime time);
+
+    
+    // Return whether the event should be played.
+    virtual bool shouldPlay(MappedEvent *evt, RealTime startTime);
  protected:
     MetronomeMapper(RosegardenDocument *doc);
 
@@ -57,8 +62,10 @@ class MetronomeMapper : public MappedEventBuffer
     void sortTicks();
 
     // override from SegmentMapper
-    virtual void dump();
+    virtual void fillBuffer();
 
+    // Whether the metronome is muted regarding this event.
+    bool mutedEtc(MappedEvent *evt);
     
     //--------------- Data members ---------------------------------
     typedef std::pair<timeT, int> Tick;

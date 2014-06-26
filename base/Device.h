@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _DEVICE_H_
-#define _DEVICE_H_
+#ifndef RG_DEVICE_H
+#define RG_DEVICE_H
 
 #include "XmlExportable.h"
 #include "Instrument.h"
@@ -114,4 +114,4 @@ protected:
 
 }
 
-#endif // _DEVICE_H_
+#endif // RG_DEVICE_H

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -34,7 +34,7 @@ namespace Rosegarden
 
 FloatEdit::FloatEdit(QWidget *parent,
                      const QString &title,
-                     const QString &text,
+                     const QString &/*text*/,
                      float min,
                      float max,
                      float value,
@@ -56,7 +56,8 @@ FloatEdit::FloatEdit(QWidget *parent,
     double calDP = log10(step);
     int dps = 0;
     if (calDP < 0.0)
-        dps = int( -calDP);
+//      dps = int( -calDP);
+        dps = static_cast<int>(ceil(-calDP));
     //std::cout << "CAL DP = " << calDP << ", dps = " << dps << std::endl;
 
     m_spin = new QDoubleSpinBox(groupBox);

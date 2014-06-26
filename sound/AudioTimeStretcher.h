@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -30,13 +30,13 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _AUDIO_TIME_STRETCHER_H_
-#define _AUDIO_TIME_STRETCHER_H_
+#ifndef RG_AUDIO_TIME_STRETCHER_H
+#define RG_AUDIO_TIME_STRETCHER_H
 
 #include "SampleWindow.h"
 #include "RingBuffer.h"
 
-//#include <fftw3.h>
+#include <fftw3.h>
 #include <pthread.h>
 #include <list>
 
@@ -196,9 +196,9 @@ protected:
 
     float *m_tempbuf;
     float **m_time;
-    //fftwf_complex **m_freq;
-    //fftwf_plan *m_plan;
-   // fftwf_plan *m_iplan;
+    fftwf_complex **m_freq;
+    fftwf_plan *m_plan;
+    fftwf_plan *m_iplan;
     
     RingBuffer<float> **m_inbuf;
     RingBuffer<float> **m_outbuf;

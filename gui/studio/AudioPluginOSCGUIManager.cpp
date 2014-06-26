@@ -4,10 +4,10 @@
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
     Copyright 2000-2010 the Rosegarden development team.
- 
+
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
- 
+
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
@@ -45,12 +45,12 @@ namespace Rosegarden
 static void osc_error(int num, const char *msg, const char *path)
 {
     std::cerr << "Rosegarden: ERROR: liblo server error " << num
-	      << " in path " << path << ": " << msg << std::endl;
+          << " in path " << path << ": " << msg << std::endl;
 }
 
 /*
 static int osc_message_handler(const char *path, const char *types, lo_arg **argv,
-			       int argc, lo_message, void *user_data)
+                   int argc, lo_message, void *user_data)
 {
     AudioPluginOSCGUIManager *manager = (AudioPluginOSCGUIManager *)user_data;
 
@@ -59,7 +59,7 @@ static int osc_message_handler(const char *path, const char *types, lo_arg **arg
     QString method;
 
     if (!manager->parseOSCPath(path, instrument, position, method)) {
-	return 1;
+    return 1;
     }
 
     OSCMessage *message = new OSCMessage();
@@ -69,8 +69,8 @@ static int osc_message_handler(const char *path, const char *types, lo_arg **arg
 
     int arg = 0;
     while (types && arg < argc && types[arg]) {
-	message->addArg(types[arg], argv[arg]);
-	++arg;
+    message->addArg(types[arg], argv[arg]);
+    ++arg;
     }
 
     manager->postMessage(message);

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_RENAMETRACKCOMMAND_H_
-#define _RG_RENAMETRACKCOMMAND_H_
+#ifndef RG_RENAMETRACKCOMMAND_H
+#define RG_RENAMETRACKCOMMAND_H
 
 #include "base/Track.h"
 #include <string>
@@ -41,7 +41,8 @@ class RenameTrackCommand : public NamedCommand
 public:
     RenameTrackCommand(Composition *composition,
                        TrackId track, 
-                       std::string name);
+                       QString longName,
+                       QString shortName);
     virtual ~RenameTrackCommand();
 
     static QString getGlobalName() { return tr("Rename Track"); }
@@ -52,8 +53,10 @@ public:
 protected:
     Composition *m_composition;
     TrackId      m_trackId;
-    std::string              m_oldName;
-    std::string              m_newName;
+    QString      m_oldLongName;
+    QString      m_oldShortName;             
+    QString      m_newLongName;
+    QString      m_newShortName;
 };
 
 

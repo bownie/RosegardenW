@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -594,7 +594,8 @@ NotePixmapFactory::drawNoteAux(const NotePixmapParameters &params,
         (charName,
          params.m_highlighted ? HighlightedColour :
          params.m_quantized ? QuantizedColour :
-         params.m_trigger ? TriggerColour :
+         (params.m_trigger == NotePixmapParameters::triggerYes) ? TriggerColour :
+         (params.m_trigger == NotePixmapParameters::triggerSkip) ? TriggerSkipColour :
          params.m_inRange ? PlainColour : OutRangeColour,
          inverted);
 
@@ -1617,6 +1618,13 @@ NotePixmapFactory::drawTuplingLine(const NotePixmapParameters &params)
         drawShallowLine(startX, startY, endX, endY, thickness);
     }
 
+    // fix bug #1405: the tuplet numbers never displayed correctly when selected
+    // or grayed, because this code snippet was always missing, I suspect
+    if (m_selected) m_p->painter().setPen(GUIPalette::getColour(
+                                            GUIPalette::SelectedElement));
+    else if (m_shaded) m_p->painter().setPen(QColor(Qt::gray));
+    else m_p->painter().setPen(QColor(Qt::black));
+
     m_p->painter().setFont(m_tupletCountFont);
 //    if (!m_inPrinterMethod)
 //        m_p->maskPainter().setFont(m_tupletCountFont);
@@ -1686,7 +1694,7 @@ NotePixmapFactory::makeRest(const NotePixmapParameters &params)
         charName = m_style->getRestCharName(params.m_noteType,
                                             !params.m_restOutsideStave);
 
-    bool encache = false;
+    // bool encache = false;
 
     if (params.m_tupletCount == 0 && !m_selected && !m_shaded &&
         !params.m_restOutsideStave) {
@@ -1850,6 +1858,11 @@ NotePixmapFactory::makeClef(const Clef &clef, const ColourType colourType)
             break;
 
         case PlainColour:
+        case QuantizedColour:
+        case HighlightedColour:
+        case TriggerColour:
+        case TriggerSkipColour:
+        case OutRangeColour:
         default:
             // fix bug with ottava marks not reflecting invisibility properly
             QColor plain = (m_shaded ? Qt::gray : Qt::black);
@@ -2090,7 +2103,13 @@ NotePixmapFactory::makeClefDisplayPixmap(const Clef &clef,
     case PlainColourLight:
         lines = Qt::white;    
         break;
+    case ConflictColour:
+    case HighlightedColour:
+    case OutRangeColour:
     case PlainColour:
+    case QuantizedColour:
+    case TriggerColour:
+    case TriggerSkipColour:
     default:
         lines = Qt::black;
     }
@@ -2152,7 +2171,13 @@ NotePixmapFactory::makeKeyDisplayPixmap(const Key &key, const Clef &clef,
     case PlainColourLight:
         kuller = Qt::white;    
         break;
+    case ConflictColour:
+    case HighlightedColour:
+    case OutRangeColour:
     case PlainColour:
+    case QuantizedColour:
+    case TriggerColour:
+    case TriggerSkipColour:
     default:
         kuller = Qt::black;
     }
@@ -2280,15 +2305,18 @@ NotePixmapFactory::makePitchDisplayPixmap(int p, const Clef &clef,
     case PlainColourLight:
         kuller = Qt::white;    
         break;
+    case ConflictColour:
+    case HighlightedColour:
+    case OutRangeColour:
     case PlainColour:
+    case QuantizedColour:
+    case TriggerColour:
+    case TriggerSkipColour:
     default:
         kuller = Qt::black;
     }
     int hue, saturation, value;
     kuller.getHsv(&hue, &saturation, &value);
-
-    m_p->painter().setPen(kuller);
-    m_p->painter().setBrush(kuller);
 
     // I can't think of any real use for the ability to draw all notation in
     // white, and given the complexity of adding that ability to all the various
@@ -2310,6 +2338,9 @@ NotePixmapFactory::makePitchDisplayPixmap(int p, const Clef &clef,
     }
 
     createPixmap(width, pixmapHeight);
+
+    m_p->painter().setPen(kuller);
+    m_p->painter().setBrush(kuller);
 
     int x =
         getClefWidth(Clef::Bass) + 5 * getNoteBodyWidth() -
@@ -2377,15 +2408,18 @@ NotePixmapFactory::makePitchDisplayPixmap(int p, const Clef &clef,
     case PlainColourLight:
         kuller = Qt::white;    
         break;
+    case ConflictColour:
+    case HighlightedColour:
+    case OutRangeColour:
     case PlainColour:
+    case QuantizedColour:
+    case TriggerColour:
+    case TriggerSkipColour:
     default:
         kuller = Qt::black;
     }
     int hue, saturation, value;
     kuller.getHsv(&hue, &saturation, &value);
-
-    m_p->painter().setPen(kuller);
-    m_p->painter().setBrush(kuller);
 
     //!!! NOTE: I started this white on gray notation for dialogs thing on a
     // whim, and I tore it down bit by bit doing everything else before arriving
@@ -2399,6 +2433,8 @@ NotePixmapFactory::makePitchDisplayPixmap(int p, const Clef &clef,
     // problems of making notation displayed in dialog contexts draw itself in
     // white.  Now that I can see the forest for the trees, this annoys me, and
     // I vow to fix all of this one day soon.  But not today.
+    //
+    // Years later, and still not today!  dmm
     //!!!
 
     // I can't think of any real use for the ability to draw all notation in
@@ -2420,6 +2456,9 @@ NotePixmapFactory::makePitchDisplayPixmap(int p, const Clef &clef,
     }
 
     createPixmap(width, pixmapHeight);
+    m_p->painter().setPen(kuller);
+    m_p->painter().setBrush(kuller);
+
 
     int x =
         getClefWidth(Clef::Bass) + 5 * getNoteBodyWidth() -
@@ -3527,6 +3566,13 @@ NotePixmapFactory::getCharacter(CharName name, NoteCharacter &ch,
             (name,
              GUIPalette::TriggerNoteHue,
              GUIPalette::TriggerNoteMinValue,
+             ch, charType, inverted);
+
+    case TriggerSkipColour:
+        return font->getCharacterColoured
+            (name,
+             GUIPalette::TriggerSkipHue,
+             GUIPalette::TriggerSkipMinValue,
              ch, charType, inverted);
 
     case OutRangeColour:

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -585,6 +585,19 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
     layout->addWidget(m_hideRedundantClefKey, row, 2);
     ++row;
 
+    layout->addWidget
+        (new QLabel
+         (tr("Distribute verses among repeated segments"), frame),
+         row, 0, 1, 2);
+    m_distributeVerses = new QCheckBox(frame);
+    connect(m_distributeVerses, SIGNAL(stateChanged(int)),
+            this, SLOT(slotModified()));
+    bool defaultDistributeVerses =
+        qStrToBool(settings.value("distributeverses", "true")) ;
+    m_distributeVerses->setChecked(defaultDistributeVerses);
+    layout->addWidget(m_distributeVerses, row, 2);
+    ++row;
+
 
     layout->setRowStretch(row, 10);
     frame->setLayout(layout);
@@ -629,6 +642,7 @@ NotationConfigurationPage::slotPopulateFontCombo(bool rescan)
 
     QString defaultFont = settings.value
         ("notefont", NoteFontFactory::getDefaultFontName()).toString();
+    settings.endGroup();
 
     try {
         (void)NoteFontFactory::getFont
@@ -677,6 +691,7 @@ NotationConfigurationPage::slotFontComboChanged(int index)
         (m_multiStaffSize, fontStr,
          settings.value("multistaffnotesize",
                         NoteFontFactory::getDefaultMultiSize(fontStr)).toInt());
+    settings.endGroup();
 
     try {
         NoteFont *noteFont = NoteFontFactory::getFont
@@ -753,6 +768,8 @@ NotationConfigurationPage::apply()
     settings.setValue("editrepeated", m_editRepeated->isChecked());
     settings.setValue("hideredundantclefkey",
                        m_hideRedundantClefKey->isChecked());
+    settings.setValue("distributeverses",
+                       m_distributeVerses->isChecked());
 
     settings.endGroup();
 }

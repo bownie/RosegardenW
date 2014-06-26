@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_EVENTVIEW_H_
-#define _RG_EVENTVIEW_H_
+#ifndef RG_EVENTVIEW_H
+#define RG_EVENTVIEW_H
 
 #include "base/MidiTypes.h"
 #include "base/NotationTypes.h"
@@ -70,7 +70,9 @@ class EventView : public ListEditView, public SegmentObserver
         ChannelPressure    = 0x0080,
         KeyPressure        = 0x0100,
         Indication         = 0x0200,
-        Other              = 0x0400
+        Other              = 0x0400,
+        GeneratedRegion    = 0x0800,
+        SegmentID          = 0x1000,
     };
 
 public:
@@ -116,7 +118,6 @@ public slots:
     void slotEditEvent();
     void slotEditEventAdvanced();
 
-    void slotFilterSelection();
     void slotSelectAll();
     void slotClearSelection();
 
@@ -195,6 +196,8 @@ protected:
     QCheckBox   *m_keyPressureCheckBox;
     QCheckBox   *m_channelPressureCheckBox;
     QCheckBox   *m_indicationCheckBox;
+    QCheckBox   *m_generatedRegionCheckBox;
+    QCheckBox   *m_segmentIDCheckBox;
     QCheckBox   *m_otherCheckBox;
 
     std::vector<int> m_listSelection;

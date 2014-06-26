@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file from Sonic Visualiser, copyright 2006 Chris Cannam.
 
@@ -14,8 +14,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_RECENT_FILES_H_
-#define _RG_RECENT_FILES_H_
+#ifndef RG_RECENT_FILES_H
+#define RG_RECENT_FILES_H
 
 #include <QObject>
 #include <QString>

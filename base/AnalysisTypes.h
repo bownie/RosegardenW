@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file is Copyright 2002
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _ANALYSISTYPES_H_
-#define _ANALYSISTYPES_H_
+#ifndef RG_ANALYSISTYPES_H
+#define RG_ANALYSISTYPES_H
 
 #include <string>
 #include <map>
@@ -110,7 +110,6 @@ private:
 
     typedef std::multimap<int, ChordData> ChordMap;
     static ChordMap m_chordMap;
-    
 };
 
 ///////////////////////////////////////////////////////////////////////////

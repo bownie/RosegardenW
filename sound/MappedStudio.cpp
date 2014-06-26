@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -12,6 +12,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[MappedStudio]"
 
 #include <iostream>
 
@@ -28,27 +30,31 @@
 namespace Rosegarden
 {
 
-static pthread_mutex_t _mappedObjectContainerLock;
+static pthread_mutex_t mappedObjectContainerLock;
 
 #ifdef DEBUG_MAPPEDSTUDIO
-static int _approxLockCount = 0;
+static int approxLockCount = 0;
 #endif
 
 static inline void getLock(const char *file, int line)
 {
 #ifdef DEBUG_MAPPEDSTUDIO
-    std::cerr << "Acquiring MappedStudio container lock at " << file << ":" << line << ": count " << _approxLockCount++ << std::endl;
+    std::cerr << "Acquiring MappedStudio container lock at " << file << ":" << line << ": count " << approxLockCount++ << std::endl;
+#else
+    (void)file; (void)line;
 #endif
 
-    pthread_mutex_lock(&_mappedObjectContainerLock);
+    pthread_mutex_lock(&mappedObjectContainerLock);
 }
 
 static inline void releaseLock(const char *file, int line)
 {
-    pthread_mutex_unlock(&_mappedObjectContainerLock);
+    pthread_mutex_unlock(&mappedObjectContainerLock);
 #ifdef DEBUG_MAPPEDSTUDIO
 
-    std::cerr << "Released container lock at " << file << ":" << line << ": count " << --_approxLockCount << std::endl;
+    std::cerr << "Released container lock at " << file << ":" << line << ": count " << --approxLockCount << std::endl;
+#else
+    (void)file; (void)line;
 #endif
 }
 
@@ -62,10 +68,10 @@ static inline void releaseLock(const char *file, int line)
 QDataStream& operator>>(QDataStream& s, MappedObjectIdList& v)
 {
     v.clear();
-    Q_UINT32 c;
+    quint32 c;
     s >> c;
     v.resize(c);
-    for (Q_UINT32 i = 0; i < c; ++i) {
+    for (quint32 i = 0; i < c; ++i) {
         MappedObjectId t;
         s >> t;
         v[i] = t;
@@ -75,7 +81,7 @@ QDataStream& operator>>(QDataStream& s, MappedObjectIdList& v)
 
 QDataStream& operator<<(QDataStream& s, const MappedObjectIdList& v)
 {
-    s << (Q_UINT32)v.size();
+    s << (quint32)v.size();
     MappedObjectIdList::const_iterator it = v.begin();
     for ( ; it != v.end(); ++it )
         s << *it;
@@ -85,10 +91,10 @@ QDataStream& operator<<(QDataStream& s, const MappedObjectIdList& v)
 QDataStream& operator>>(QDataStream& s, MappedObjectPropertyList& v)
 {
     v.clear();
-    Q_UINT32 c;
+    quint32 c;
     s >> c;
     v.resize(c);
-    for (Q_UINT32 i = 0; i < c; ++i) {
+    for (quint32 i = 0; i < c; ++i) {
         MappedObjectProperty t;
         s >> t;
         v[i] = t;
@@ -98,7 +104,7 @@ QDataStream& operator>>(QDataStream& s, MappedObjectPropertyList& v)
 
 QDataStream& operator<<(QDataStream& s, const MappedObjectPropertyList& v)
 {
-    s << (Q_UINT32)v.size();
+    s << (quint32)v.size();
     MappedObjectPropertyList::const_iterator it = v.begin();
     for ( ; it != v.end(); ++it )
         s << *it;
@@ -108,10 +114,10 @@ QDataStream& operator<<(QDataStream& s, const MappedObjectPropertyList& v)
 QDataStream& operator>>(QDataStream& s, MappedObjectValueList& v)
 {
     v.clear();
-    Q_UINT32 c;
+    quint32 c;
     s >> c;
     v.resize(c);
-    for (Q_UINT32 i = 0; i < c; ++i) {
+    for (quint32 i = 0; i < c; ++i) {
         MappedObjectValue t;
         s >> t;
         v[i] = t;
@@ -121,7 +127,7 @@ QDataStream& operator>>(QDataStream& s, MappedObjectValueList& v)
 
 QDataStream& operator<<(QDataStream& s, const MappedObjectValueList& v)
 {
-    s << (Q_UINT32)v.size();
+    s << (quint32)v.size();
     MappedObjectValueList::const_iterator it = v.begin();
     for ( ; it != v.end(); ++it )
         s << *it;
@@ -182,7 +188,7 @@ void
 MappedObject::addChild(MappedObject *object)
 {
     std::vector<MappedObject*>::iterator it = m_children.begin();
-    for (; it != m_children.end(); it++)
+    for (; it != m_children.end(); ++it)
         if ((*it) == object)
             return ;
 
@@ -193,7 +199,7 @@ void
 MappedObject::removeChild(MappedObject *object)
 {
     std::vector<MappedObject*>::iterator it = m_children.begin();
-    for (; it != m_children.end(); it++) {
+    for (; it != m_children.end(); ++it) {
         if ((*it) == object) {
             m_children.erase(it);
             return ;
@@ -208,7 +214,7 @@ MappedObject::getChildren()
 {
     MappedObjectPropertyList list;
     std::vector<MappedObject*>::iterator it = m_children.begin();
-    for (; it != m_children.end(); it++)
+    for (; it != m_children.end(); ++it)
         list.push_back(QString("%1").arg((*it)->getId()));
 
     return list;
@@ -222,7 +228,7 @@ MappedObject::getChildren(MappedObjectType type)
 {
     MappedObjectPropertyList list;
     std::vector<MappedObject*>::iterator it = m_children.begin();
-    for (; it != m_children.end(); it++) {
+    for (; it != m_children.end(); ++it) {
         if ((*it)->getType() == type)
             list.push_back(QString("%1").arg((*it)->getId()));
     }
@@ -244,7 +250,7 @@ MappedObject::destroyChildren()
     m_children.clear();
 
     std::vector<MappedObject *>::iterator it = children.begin();
-    for (; it != children.end(); it++)
+    for (; it != children.end(); ++it)
         (*it)->destroy(); // remove from studio and destroy
 }
 
@@ -271,7 +277,7 @@ MappedObject::destroy()
     m_children.clear();
 
     std::vector<MappedObject *>::iterator it = children.begin();
-    for (; it != children.end(); it++) {
+    for (; it != children.end(); ++it) {
         (*it)->destroy();
     }
 
@@ -305,7 +311,7 @@ MappedStudio::MappedStudio() :
 #endif
 #endif
 
-    pthread_mutex_init(&_mappedObjectContainerLock, &attr);
+    pthread_mutex_init(&mappedObjectContainerLock, &attr);
 }
 
 MappedStudio::~MappedStudio()
@@ -1519,7 +1525,7 @@ MappedPluginSlot::setPort(unsigned long portNumber, float value)
     std::vector<MappedObject*>::iterator it = ports.begin();
     MappedPluginPort *port = 0;
 
-    for (; it != ports.end(); it++) {
+    for (; it != ports.end(); ++it) {
         port = dynamic_cast<MappedPluginPort *>(*it);
         if (port && (unsigned long)port->getPortNumber() == portNumber) {
             port->setValue(value);
@@ -1534,7 +1540,7 @@ MappedPluginSlot::getPort(unsigned long portNumber)
     std::vector<MappedObject*>::iterator it = ports.begin();
     MappedPluginPort *port = 0;
 
-    for (; it != ports.end(); it++) {
+    for (; it != ports.end(); ++it) {
         port = dynamic_cast<MappedPluginPort *>(*it);
         if (port && (unsigned long)port->getPortNumber() == portNumber) {
             return port->getValue();

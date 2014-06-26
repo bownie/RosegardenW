@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[ColourConfigurationPage]"
 
 #include "ColourConfigurationPage.h"
 
@@ -100,7 +101,7 @@ ColourConfigurationPage::ColourConfigurationPage(RosegardenDocument *doc, QWidge
 void
 ColourConfigurationPage::slotTextChanged(unsigned int index, QString string)
 {
-    m_map.modifyNameByIndex(m_listmap[index], std::string(string.toAscii()));
+    m_map.modifyNameByIndex(m_listmap[index], std::string(string.toLatin1()));
     m_colourtable->populate_table(m_map, m_listmap);
 }
 
@@ -132,7 +133,8 @@ ColourConfigurationPage::slotAddNew()
                                            tr("Enter new name"), LineEdit::Normal,
                                            tr("New"),
                                            &ok, 0);
-    
+
+    // !!! This is very suspicious
     bool c_ok;
     
     if ((ok == true) && (!newName.isEmpty())) {
@@ -140,7 +142,7 @@ ColourConfigurationPage::slotAddNew()
 
         //int result = box.getColor( temp );
         //QColor col = QColorDialog::getColor();
-        QRgb rgba = QColorDialog::getRgba( 0xFFFFFFFF, &c_ok, 0 );    // 0 == parent
+        // QRgb rgba = QColorDialog::getRgba( 0xFFFFFFFF, &c_ok, 0 );    // 0 == parent
         
         if ( c_ok ) {
             Colour temp2 = GUIPalette::convertColour(temp);

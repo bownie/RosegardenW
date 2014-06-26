@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -57,8 +57,8 @@ MatrixSelector::MatrixSelector(MatrixWidget *widget) :
     m_justSelectedBar(false),
     m_selectionToMerge(0)
 {
-    connect(m_widget, SIGNAL(usedSelection()),
-            this, SLOT(slotHideSelection()));
+    //connect(m_widget, SIGNAL(usedSelection()),
+    //        this, SLOT(slotHideSelection()));
 
     createAction("resize", SLOT(slotResizeSelected()));
     createAction("draw", SLOT(slotDrawSelected()));
@@ -429,7 +429,7 @@ MatrixSelector::slotHideSelection()
 }
 
 void
-MatrixSelector::slotMatrixScrolled(int newX, int newY)
+MatrixSelector::slotMatrixScrolled(int /* newX */, int /* newY */)
 {
 /*!!!
     if (m_updateRect) {

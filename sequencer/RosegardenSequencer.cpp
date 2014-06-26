@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -17,22 +17,14 @@
 
 #include "RosegardenSequencer.h"
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+//#include <sys/types.h>
+//#include <sys/stat.h>
+//#include <fcntl.h>
 //#include <sys/mman.h>
-#include <unistd.h>
-#include <errno.h>
+//#include <unistd.h>
+//#include <errno.h>
 
-#include <iostream>
-
-#include <QDateTime>
-#include <QString>
-#include <QDir>
-#include <QBuffer>
 #include <QVector>
-#include <QMutex>
-#include <QDir>
 
 #include "misc/Debug.h"
 #include "misc/Strings.h"
@@ -44,8 +36,8 @@
 #include "base/Profiler.h"
 #include "sound/PluginFactory.h"
 
-#include "gui/application/RosegardenApplication.h" 
-#include "gui/application/RosegardenMainWindow.h" 
+#include "gui/application/RosegardenApplication.h"
+#include "gui/application/RosegardenMainWindow.h"
 
 // #define DEBUG_ROSEGARDEN_SEQUENCER
 
@@ -58,9 +50,9 @@ RosegardenSequencer::m_instance = 0;
 QMutex
 RosegardenSequencer::m_instanceMutex;
 
-//#define LOCKED QMutexLocker _locker(&m_mutex); SEQUENCER_DEBUG << "Locked in " << __PRETTY_FUNCTION__ << " at " << __LINE__
+//#define LOCKED QMutexLocker rgseq_locker(&m_mutex); SEQUENCER_DEBUG << "Locked in " << __PRETTY_FUNCTION__ << " at " << __LINE__
 
-#define LOCKED QMutexLocker _locker(&m_mutex)
+#define LOCKED QMutexLocker rgseq_locker(&m_mutex)
 
 // The default latency and read-ahead values are actually sent
 // down from the GUI every time playback or recording starts
@@ -448,10 +440,7 @@ RosegardenSequencer::getSoundDriverStatus(const QString &guiVersion)
     LOCKED;
 
     unsigned int driverStatus = m_driver->getStatus();
-    QString version;
-    version = VERSION;
-
-    if (guiVersion == version)
+    if (guiVersion == VERSION)
         driverStatus |= VERSION_OK;
     else {
         SEQUENCER_DEBUG << "WARNING: RosegardenSequencer::getSoundDriverStatus: "
@@ -1058,6 +1047,10 @@ RosegardenSequencer::segmentModified(MappedEventBuffer *mapper)
    SEQUENCER_DEBUG << "RosegardenSequencer::segmentModified(" << mapper << ")\n";
 #endif
    LOCKED;
+   /* We don't force an immediate rewind while recording.  It would be
+      "the right thing" soundwise, but historically we haven't,
+      there's been no demand and nobody knows what subtle problems
+      might be introduced. */
    bool immediate = (m_transportStatus == PLAYING);
    m_metaIterator.resetIteratorForSegment(mapper, immediate);
 }
@@ -1145,10 +1138,9 @@ RosegardenSequencer::pullAsynchronousMidiQueue()
 
 
 
-// Get a slice of events from the GUI
-//
+// Get a slice of events from the composition into a MappedEventList.
 void
-RosegardenSequencer::fetchEvents(MappedEventList &composition,
+RosegardenSequencer::fetchEvents(MappedEventList &mappedEventList,
                                     const RealTime &start,
                                     const RealTime &end,
                                     bool firstFetch)
@@ -1158,13 +1150,13 @@ RosegardenSequencer::fetchEvents(MappedEventList &composition,
     if ( m_transportStatus == STOPPED || m_transportStatus == STOPPING )
         return ;
 
-    getSlice(composition, start, end, firstFetch);
-    applyLatencyCompensation(composition);
+    getSlice(mappedEventList, start, end, firstFetch);
+    applyLatencyCompensation(mappedEventList);
 }
 
 
 void
-RosegardenSequencer::getSlice(MappedEventList &composition,
+RosegardenSequencer::getSlice(MappedEventList &mappedEventList,
                                  const RealTime &start,
                                  const RealTime &end,
                                  bool firstFetch)
@@ -1178,27 +1170,27 @@ RosegardenSequencer::getSlice(MappedEventList &composition,
         m_metaIterator.jumpToTime(start);
     }
 
-    MappedEventInserter inserter(composition);
+    MappedEventInserter inserter(mappedEventList);
 
-    (void)m_metaIterator.fillCompositionWithEventsUntil
-        (firstFetch, inserter, start, end);
+    m_metaIterator.fetchEvents(inserter, start, end);
 
-    //     setEndOfCompReached(eventsRemaining); // don't do that, it breaks recording because
+    // don't do this, it breaks recording because
     // playing stops right after it starts.
+//  m_isEndOfCompReached = eventsRemaining;
 
     m_lastStartTime = start;
 }
 
 
 void
-RosegardenSequencer::applyLatencyCompensation(MappedEventList &composition)
+RosegardenSequencer::applyLatencyCompensation(MappedEventList &mappedEventList)
 {
     RealTime maxLatency = m_driver->getMaximumPlayLatency();
     if (maxLatency == RealTime::zeroTime)
         return ;
 
-    for (MappedEventList::iterator i = composition.begin();
-            i != composition.end(); ++i) {
+    for (MappedEventList::iterator i = mappedEventList.begin();
+            i != mappedEventList.end(); ++i) {
 
         RealTime instrumentLatency =
             m_driver->getInstrumentPlayLatency((*i)->getInstrument());
@@ -1218,8 +1210,7 @@ RosegardenSequencer::applyLatencyCompensation(MappedEventList &composition)
 bool
 RosegardenSequencer::startPlaying()
 {
-    // Fetch up to m_readHead microseconds worth of events
-    //
+    // Fetch up to m_readAhead microseconds worth of events
     m_lastFetchSongPosition = m_songPosition + m_readAhead;
 
     // This will reset the Sequencer's internal clock
@@ -1231,23 +1222,21 @@ RosegardenSequencer::startPlaying()
 
     // process whether we need to or not as this also processes
     // the audio queue for us
-    //
     m_driver->processEventsOut(c, m_songPosition, m_songPosition + m_readAhead);
 
     std::vector<MappedEvent> audioEvents;
     m_metaIterator.getAudioEvents(audioEvents);
     m_driver->initialiseAudioQueue(audioEvents);
 
-    //    SEQUENCER_DEBUG << "RosegardenSequencer::startPlaying: pausing to simulate high-load environment" << endl;
-    //    ::sleep(2);
+    //SEQUENCER_DEBUG << "RosegardenSequencer::startPlaying: pausing to simulate high-load environment" << endl;
+    //::sleep(2);
 
     // and only now do we signal to start the clock
-    //
     m_driver->startClocks();
 
     incrementTransportToken();
 
-    return true; // !isEndOfCompReached();
+    return true; // !m_isEndOfCompReached;
 }
 
 bool
@@ -1274,7 +1263,7 @@ RosegardenSequencer::keepPlaying()
         m_lastFetchSongPosition = fetchEnd;
     }
 
-    return true; // !isEndOfCompReached(); - until we sort this out, we don't stop at end of comp.
+    return true; // !m_isEndOfCompReached; - until we sort this out, we don't stop at end of comp.
 }
 
 // Return current Sequencer time in GUI compatible terms
@@ -1343,32 +1332,43 @@ RosegardenSequencer::sleep(const RealTime &rt)
     m_driver->sleep(rt);
 }
 
-
-// Send the last recorded MIDI block
-//
 void
 RosegardenSequencer::processRecordedMidi()
 {
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER
     SEQUENCER_DEBUG << "RosegardenSequencer::processRecordedMidi";
 #endif
-    MappedEventList mC;
-    m_driver->getMappedEventList(mC);
 
-    if (mC.empty()) return;
+    MappedEventList recordList;
+
+    // Get the MIDI events from the ALSA driver
+    m_driver->getMappedEventList(recordList);
+
+    if (recordList.empty()) return;
+
+    // Handle "thru" first to reduce latency.
+
+    if (ControlBlock::getInstance()->isMidiRoutingEnabled()) {
+        // Make a copy so we don't mess up the list for recording.
+        MappedEventList thruList = recordList;
+
+        // Remove events that match the thru filter
+        applyFiltering(&thruList, ControlBlock::getInstance()->getThruFilter(), true);
+
+        // Route the MIDI thru events to MIDI out.  Use the instrument and
+        // track information from each event.
+        routeEvents(&thruList, false);
+    }
 
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER
     SEQUENCER_DEBUG << "RosegardenSequencer::processRecordedMidi: have " << mC.size() << " events";
 #endif
-    applyFiltering(&mC, ControlBlock::getInstance()->getRecordFilter(), false);
 
-    SequencerDataBlock::getInstance()->addRecordedEvents(&mC);
+    // Remove events that match the record filter
+    applyFiltering(&recordList, ControlBlock::getInstance()->getRecordFilter(), false);
 
-    if (ControlBlock::getInstance()->isMidiRoutingEnabled()) {
-        applyFiltering(&mC, ControlBlock::getInstance()->getThruFilter(), true);
-
-        routeEvents(&mC, false);
-    }
+    // Store the events
+    SequencerDataBlock::getInstance()->addRecordedEvents(&recordList);
 }
 
 void
@@ -1407,11 +1407,6 @@ RosegardenSequencer::processRecordedAudio()
     // in the sequencer mapper as a normal case.
 }
 
-
-// This method is called during STOPPED or PLAYING operations
-// to mop up any async (unexpected) incoming MIDI or Audio events
-// and forward them to the GUI for display
-//
 void
 RosegardenSequencer::processAsynchronousEvents()
 {
@@ -1443,6 +1438,8 @@ RosegardenSequencer::processAsynchronousEvents()
         m_asyncQueueMutex.unlock();
         if (ControlBlock::getInstance()->isMidiRoutingEnabled()) {
             applyFiltering(&mC, ControlBlock::getInstance()->getThruFilter(), true);
+            // Send the incoming events back out using the instrument and
+            // track for the selected track.
             routeEvents(&mC, true);
         }
     }
@@ -1453,22 +1450,27 @@ RosegardenSequencer::processAsynchronousEvents()
     m_driver->processPending();
 }
 
-
 void
 RosegardenSequencer::applyFiltering(MappedEventList *mC,
                                        MidiFilter filter,
                                        bool filterControlDevice)
 {
+    // For each event in the list
     for (MappedEventList::iterator i = mC->begin();
-            i != mC->end(); ) { // increment in loop
+         i != mC->end();
+         /* increment in loop */) {
+
+        // Hold on to the current event for processing.
         MappedEventList::iterator j = i;
-        ++j;
-        if (((*i)->getType() & filter) ||
-                (filterControlDevice && ((*i)->getRecordedDevice() ==
+        // Move to the next in case the current is erased.
+        ++i;
+
+        // If this event matches the filter, erase it from the list
+        if (((*j)->getType() & filter) ||
+                (filterControlDevice && ((*j)->getRecordedDevice() ==
                                          Device::CONTROL_DEVICE))) {
-            mC->erase(i);
+            mC->erase(j);
         }
-        i = j;
     }
 }
 
@@ -1567,4 +1569,3 @@ RosegardenSequencer::incrementTransportToken()
 }
 
 }
-

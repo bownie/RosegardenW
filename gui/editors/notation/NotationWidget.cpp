@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,6 +16,7 @@
 */
 
 #include "NotationWidget.h"
+#define RG_NO_DEBUG_PRINT 1
 
 #include "NotationScene.h"
 #include "NotationToolBox.h"
@@ -121,11 +122,11 @@ NotationWidget::NotationWidget() :
     m_chordMode(false),
     m_tupletMode(false),
     m_graceMode(false),
+    m_tupledCount(2),
+    m_untupledCount(3),
     m_updatesSuspended(false),
     m_hSliderHacked(false),
-    m_vSliderHacked(false),
-    m_tupledCount(2),
-    m_untupledCount(3) {
+    m_vSliderHacked(false) {
     m_layout = new QGridLayout;
     setLayout(m_layout);
 
@@ -378,12 +379,20 @@ NotationWidget::NotationWidget() :
 }
 
 NotationWidget::~NotationWidget()
+{ clearAll(); }
+
+// Safe to call this more than once.
+void
+NotationWidget::clearAll(void)
 {
     delete m_scene;
+    m_scene = 0;
     delete m_headersScene;
+    m_headersScene = 0;
     delete m_referenceScale;
+    m_referenceScale = 0;
 }
-
+    
 void
 NotationWidget::setSegments(RosegardenDocument *document,
                             std::vector<Segment *> segments)
@@ -439,11 +448,14 @@ NotationWidget::setSegments(RosegardenDocument *document,
     connect(m_scene, SIGNAL(sceneNeedsRebuilding()),
             this, SIGNAL(sceneNeedsRebuilding()), Qt::QueuedConnection);
 
-    connect(m_scene, SIGNAL(currentStaffChanged()),
-            this, SLOT(slotUpdatePointerPosition()));
+    // To fix this, create a new slot called slotCurrentStaffChanged() and
+    // have it call slotUpdatePointerPosition(true).
+    //connect(m_scene, SIGNAL(currentStaffChanged()),
+    //        this, SLOT(slotUpdatePointerPosition(true)));
 
-    connect(m_scene, SIGNAL(selectionChanged()),
-            m_view, SLOT(updateScene()));
+    // There is a Panner::updateScene(), but it's not a slot.
+    //connect(m_scene, SIGNAL(selectionChanged()),
+    //        m_view, SLOT(updateScene()));
 
     m_view->setScene(m_scene);
 
@@ -469,8 +481,10 @@ NotationWidget::setSegments(RosegardenDocument *document,
     connect(m_view, SIGNAL(pannedRectChanged(QRectF)),
             m_controlsWidget, SLOT(slotSetPannedRect(QRectF)));
 
-    connect(m_controlsWidget, SIGNAL(dragScroll(timeT)),
-            this, SLOT(slotEnsureTimeVisible(timeT)));
+    // There's a slotEnsureTimeVisible in MatrixWidget.  Maybe this was
+    // copied from there?
+    //connect(m_controlsWidget, SIGNAL(dragScroll(timeT)),
+    //        this, SLOT(slotEnsureTimeVisible(timeT)));
 
     connect(m_scene, SIGNAL(layoutUpdated(timeT,timeT)),
             m_controlsWidget, SLOT(slotUpdateRulers(timeT,timeT)));
@@ -561,6 +575,14 @@ NotationWidget::setSegments(RosegardenDocument *document,
     // position.
     if (m_referenceScale) m_referenceScale->setXZoomFactor(m_hZoomFactor);
     slotHScroll();
+
+    // This call lets scene do setup and layout that didn't happen
+    // while updates were suspended.  We need this now so that scene
+    // calculates position correctly for slotPointerPositionChanged.
+    resumeLayoutUpdates();
+
+    slotPointerPositionChanged(m_document->getComposition().getPosition(),
+                               true);
 }
 
 void
@@ -709,7 +731,7 @@ NotationWidget::slotSetFontSize(int size)
     // Force standard rulers and pointer pointer to refresh -- otherwise
     m_bottomStandardRuler->updateStandardRuler();
     m_topStandardRuler->updateStandardRuler();
-    slotUpdatePointerPosition();
+    slotUpdatePointerPosition(false);
 }
 
 NotationTool *
@@ -739,6 +761,12 @@ void
 NotationWidget::slotSetSelectTool()
 {
     slotSetTool(NotationSelector::ToolName);
+}
+
+void
+NotationWidget::slotSetSelectNoTiesTool()
+{
+    slotSetTool(NotationSelectorNoTies::ToolName);
 }
 
 void
@@ -832,10 +860,10 @@ NotationWidget::slotTogglePlayTracking()
 }
 
 void
-NotationWidget::slotUpdatePointerPosition()
+NotationWidget::slotUpdatePointerPosition(bool moveView)
 {
-    // Update pointer position, but don't scroll
-    slotPointerPositionChanged(m_document->getComposition().getPosition(), false);
+    slotPointerPositionChanged(m_document->getComposition().getPosition(),
+                               moveView);
 }
 
 void
@@ -844,7 +872,7 @@ NotationWidget::slotPointerPositionChanged(timeT t, bool moveView)
     QObject *s = sender();
     bool fromDocument = (s == m_document);
 
-    NOTATION_DEBUG << "NotationWidget::slotPointerPositionChanged to " << t << endl;
+    RG_DEBUG << "slotPointerPositionChanged to " << t << endl;
 
     if (!m_scene) return;
 
@@ -857,7 +885,7 @@ NotationWidget::slotPointerPositionChanged(timeT t, bool moveView)
         rolling = true;
     }
 
-    NOTATION_DEBUG << "NotationWidget::slotPointerPositionChanged(" << t << "): rolling = " << rolling << endl;
+    RG_DEBUG << "slotPointerPositionChanged(" << t << "): rolling = " << rolling << endl;
 
     QLineF p = cc.currentStaff;
     if (rolling) p = cc.allStaffs;
@@ -925,10 +953,13 @@ NotationWidget::slotDispatchMouseMove(const NotationMouseEvent *e)
     }
 
     if (e->staff) {
-	QString s = e->staff->getNoteNameAtSceneCoords(e->sceneX, e->sceneY);
+        QString s = e->staff->getNoteNameAtSceneCoords(e->sceneX, e->sceneY);
         emit hoveredOverNoteChanged(s);
     }
 
+    // NOTE: when you click the ruler and try to drag the loop/range selection
+    // thing in notation and matrix, it stops at the right edge and won't go.  I
+    // think the following blurb may be what made that work:
     /*!!!
 if (getCanvasView()->isTimeForSmoothScroll()) {
 

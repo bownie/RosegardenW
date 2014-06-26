@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_ROSEGARDENGUIAPP_H_
-#define _RG_ROSEGARDENGUIAPP_H_
+#ifndef RG_ROSEGARDENMAINWINDOW_H
+#define RG_ROSEGARDENMAINWINDOW_H
 
 #include "base/MidiProgram.h"
 #include "gui/dialogs/TempoDialog.h"
@@ -384,7 +384,7 @@ protected:
     /**
      * Create document from Hydrogen drum machine file
      */
-    RosegardenDocument* createDocumentFromHydrogenFile(QString filePath);
+//    RosegardenDocument* createDocumentFromHydrogenFile(QString filePath);
 
     /**
      * Create document from MusicXML file
@@ -625,7 +625,7 @@ public slots:
     /**
      * Select a Hydrogen drum machine file for import
      */
-    void slotImportHydrogen();
+//    void slotImportHydrogen();
 
     /**
      * Let the user select a MusicXML file for import
@@ -650,7 +650,7 @@ public slots:
     /**
      * Select a Hydrogen drum machine file for merge
      */
-    void slotMergeHydrogen();
+//    void slotMergeHydrogen();
 
     /**
      * Let the user select a MusicXML file for merge
@@ -853,6 +853,11 @@ public slots:
      */
     void slotExpandFiguration();
 
+    /**
+     * Update existing figurations
+     */
+    void slotUpdateFigurations(void);
+    
     /**
      * Tempo to Segment length
      */
@@ -1703,6 +1708,7 @@ private:
     TempoView             *m_tempoView;
     TriggerSegmentManager *m_triggerSegmentManager;
     std::set<ControlEditorDialog *> m_controlEditors;
+    /// List of plugin dialogs to make sure we don't launch more than one.
     std::map<int, AudioPluginDialog*> m_pluginDialogs;
     AudioPluginOSCGUIManager *m_pluginGUIManager;
 

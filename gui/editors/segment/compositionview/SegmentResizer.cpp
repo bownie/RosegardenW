@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[SegmentResizer]"
 
 #include "SegmentResizer.h"
 
@@ -32,7 +33,7 @@
 #include "commands/segment/SegmentResizeFromStartCommand.h"
 #include "commands/segment/SegmentLinkToCopyCommand.h"
 #include "CompositionItemHelper.h"
-#include "CompositionModel.h"
+#include "CompositionModelImpl.h"
 #include "CompositionView.h"
 #include "document/RosegardenDocument.h"
 #include "gui/general/BaseTool.h"
@@ -64,15 +65,15 @@ SegmentResizer::SegmentResizer(CompositionView *c, RosegardenDocument *d,
 void SegmentResizer::ready()
 {
     m_canvas->viewport()->setCursor(Qt::SizeHorCursor);
-    connect(m_canvas, SIGNAL(contentsMoving (int, int)),
-            this, SLOT(slotCanvasScrolled(int, int)));
+    //connect(m_canvas, SIGNAL(contentsMoving (int, int)),
+    //        this, SLOT(slotCanvasScrolled(int, int)));
     setBasicContextHelp(false);
 }
 
 void SegmentResizer::stow()
 {
-    disconnect(m_canvas, SIGNAL(contentsMoving (int, int)),
-               this, SLOT(slotCanvasScrolled(int, int)));
+    //disconnect(m_canvas, SIGNAL(contentsMoving (int, int)),
+    //           this, SLOT(slotCanvasScrolled(int, int)));
 }
 
 void SegmentResizer::slotCanvasScrolled(int newX, int newY)
@@ -87,7 +88,7 @@ void SegmentResizer::handleMouseButtonPress(QMouseEvent *e)
 {
     RG_DEBUG << "SegmentResizer::handleMouseButtonPress" << endl;
 
-    CompositionItem item = m_canvas->getFirstItemAt(e->pos());
+    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
 
     if (item) {
         RG_DEBUG << "SegmentResizer::handleMouseButtonPress - got item" << endl;
@@ -101,8 +102,8 @@ void SegmentResizer::handleMouseButtonPress(QMouseEvent *e)
         }
 
         m_canvas->getModel()->startChange(item, 
-            m_resizeStart ? CompositionModel::ChangeResizeFromStart :
-                            CompositionModel::ChangeResizeFromEnd);
+            m_resizeStart ? CompositionModelImpl::ChangeResizeFromStart :
+                            CompositionModelImpl::ChangeResizeFromEnd);
 
     }
 }
@@ -122,7 +123,7 @@ void SegmentResizer::handleMouseButtonRelease(QMouseEvent *e)
         timeT oldStartTime, oldEndTime;
         
         oldStartTime = segment->getStartTime();
-        oldEndTime = segment->getEndMarkerTime(FALSE);
+        oldEndTime = segment->getEndMarkerTime(false);
 
         timeT newStartTime, newEndTime;
 
@@ -164,7 +165,7 @@ void SegmentResizer::handleMouseButtonRelease(QMouseEvent *e)
                         new AudioSegmentRescaleCommand(m_doc, segment, ratio,
                                                        newStartTime, newEndTime);
 
-                    //cc 20120508: avoid dereferencing self-deleted
+                    //cc 20140508: avoid dereferencing self-deleted
                     //progress dialog after user has closed it, by
                     //using a QPointer
                     QPointer<ProgressDialog> progressDlg = new ProgressDialog(
@@ -227,13 +228,14 @@ void SegmentResizer::handleMouseButtonRelease(QMouseEvent *e)
 
                 } else {
 
+                    Composition &comp = m_doc->getComposition();
+
                     SegmentReconfigureCommand *command =
-                        new SegmentReconfigureCommand("Resize Segment");
+                        new SegmentReconfigureCommand(tr("Resize Segment"), &comp);
 
                     int trackPos = CompositionItemHelper::getTrackPos
                         (m_currentIndex, m_canvas->grid());
 
-                    Composition &comp = m_doc->getComposition();
                     Track *track = comp.getTrackByPosition(trackPos);
 
                     command->addSegment(segment,
@@ -251,7 +253,7 @@ void SegmentResizer::handleMouseButtonRelease(QMouseEvent *e)
     m_canvas->update();
     
     setChangeMade(false);
-    m_currentIndex = CompositionItem();
+    m_currentIndex = CompositionItemPtr();
     setBasicContextHelp();
 }
 
@@ -276,7 +278,7 @@ int SegmentResizer::handleMouseMove(QMouseEvent *e)
         if (!m_canvas->isFineGrain()) {
             setContextHelp(tr("Hold Shift to avoid snapping to beat grid; hold Ctrl as well to rescale contents"));
         } else {
-            setContextHelp("Hold Ctrl to rescale contents");
+            setContextHelp(tr("Hold Ctrl to rescale contents"));
         }
     }
 
@@ -287,7 +289,7 @@ int SegmentResizer::handleMouseMove(QMouseEvent *e)
     /*!!!
         if (segment->getType() == Segment::Audio)
         {
-            m_currentIndex = CompositionItem();
+            m_currentIndex = CompositionItemPtr();
             QMessageBox::information(m_canvas,
                     tr("You can't yet resize an audio segment!"));
             return RosegardenScrollView::NoFollow;
@@ -368,12 +370,12 @@ int SegmentResizer::handleMouseMove(QMouseEvent *e)
     }
 
     // Redraw the canvas
-    m_canvas->slotUpdateSegmentsDrawBuffer(m_currentIndex->rect() | oldRect);
+    m_canvas->slotUpdateAll(m_currentIndex->rect() | oldRect);
 
     return RosegardenScrollView::FollowHorizontal;
 }
 
-bool SegmentResizer::cursorIsCloseEnoughToEdge(const CompositionItem& p, const QPoint &coord,
+bool SegmentResizer::cursorIsCloseEnoughToEdge(CompositionItemPtr p, const QPoint &coord,
         int edgeThreshold, bool &start)
 {
     if (abs(p->rect().x() + p->rect().width() - coord.x()) < edgeThreshold) {

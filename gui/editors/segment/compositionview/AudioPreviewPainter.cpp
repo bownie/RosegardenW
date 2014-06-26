@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[AudioPreviewPainter]"
 
 #include "AudioPreviewPainter.h"
 
@@ -34,7 +36,7 @@
 namespace Rosegarden {
 
 AudioPreviewPainter::AudioPreviewPainter(CompositionModelImpl& model,
-					 CompositionModel::AudioPreviewData* apData,
+					 CompositionModelImpl::AudioPreviewData* apData,
 					 const Composition &composition,
 					 const Segment* segment)
     : m_model(model),
@@ -64,7 +66,8 @@ int AudioPreviewPainter::tileWidth()
 
 void AudioPreviewPainter::paintPreviewImage()
 {
-    const std::vector<float>& values = m_apData->getValues();
+    const CompositionModelImpl::AudioPreviewData::Values &values =
+            m_apData->values;
 
     if (values.empty())
         return;
@@ -84,8 +87,10 @@ void AudioPreviewPainter::paintPreviewImage()
         }
     }
 
-    bool showMinima = m_apData->showsMinima();
-    unsigned int channels = m_apData->getChannels();
+    // This was always false.
+    bool showMinima = false;  //m_apData->showsMinima();
+
+    unsigned int channels = m_apData->channels;
     if (channels == 0) {
         RG_DEBUG << "AudioPreviewPainter::paintPreviewImage : problem with audio file for segment "
                  << m_segment->getLabel().c_str() << endl;
@@ -105,8 +110,8 @@ void AudioPreviewPainter::paintPreviewImage()
 
     RG_DEBUG << "AudioPreviewPainter::paintPreviewImage: channels = " << channels << ", gain left = " << gain[0] << ", right = " << gain[1] << endl;
 
-    double audioDuration = double(m_segment->getAudioEndTime().sec) +
-	double(m_segment->getAudioEndTime().nsec) / 1000000000.0;
+    // double audioDuration = double(m_segment->getAudioEndTime().sec) +
+    //     double(m_segment->getAudioEndTime().nsec) / 1000000000.0;
 
     // We need to take each pixel value and map it onto a point within
     // the preview.  We have samplePoints preview points in a known
@@ -213,7 +218,7 @@ void AudioPreviewPainter::paintPreviewImage()
 	l1 *= gain[0];
 	l2 *= gain[1];
 
-        int width = 1;
+        // int width = 1;
 	int pixel;
 
         // h1 left, h2 right
@@ -285,8 +290,8 @@ void AudioPreviewPainter::initializeNewSlice()
     // transparent background
     m_image.setColor(0, qRgba(255, 255, 255, 0));
 
-    // foreground from computeSegmentPreviewColor
-    QColor c = m_model.computeSegmentPreviewColor(m_segment);
+    // foreground from getPreviewColour()
+    QColor c = m_segment->getPreviewColour();
     QRgb rgba = qRgba(c.red(), c.green(), c.blue(), 255);
     m_image.setColor(1, rgba);
 

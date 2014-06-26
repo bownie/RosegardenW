@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_COMPOSITIONLENGTHDIALOG_H_
-#define _RG_COMPOSITIONLENGTHDIALOG_H_
+#ifndef RG_COMPOSITIONLENGTHDIALOG_H
+#define RG_COMPOSITIONLENGTHDIALOG_H
 
 #include <QDialog>
 #include "base/Event.h"
@@ -25,6 +25,7 @@
 
 class QWidget;
 class QSpinBox;
+class QCheckBox;
 
 
 namespace Rosegarden
@@ -42,11 +43,13 @@ public:
 
     timeT getStartMarker();
     timeT getEndMarker();
+    bool autoExpandEnabled();
 
 protected:
 
     QSpinBox                *m_startMarkerSpinBox;
     QSpinBox                *m_endMarkerSpinBox;
+    QCheckBox               *m_autoExpandCheckBox;
     Composition *m_composition;
 };
 

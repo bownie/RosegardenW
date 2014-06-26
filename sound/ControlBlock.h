@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _CONTROLBLOCK_H_
-#define _CONTROLBLOCK_H_
+#ifndef RG_CONTROLBLOCK_H
+#define RG_CONTROLBLOCK_H
 
 #include "base/MidiProgram.h"
 #include "base/Track.h"
@@ -23,21 +23,21 @@ namespace Rosegarden
 {
 
 class RosegardenDocument;
- class Studio;
+class Studio;
  
 class InstrumentAndChannel
 {
- public:
- InstrumentAndChannel(InstrumentId id, int channel) :
-    m_id(id),
+public:
+    InstrumentAndChannel(InstrumentId id, int channel) :
+        m_id(id),
         m_channel(channel)
-        {};
+    { }
 
     // Default to an invalid value.
- InstrumentAndChannel(void) :
-    m_id(0),
+    InstrumentAndChannel(void) :
+        m_id(0),
         m_channel(-1)
-        {};
+    { }
     
     InstrumentId m_id;
     int          m_channel;
@@ -52,31 +52,42 @@ struct TrackInfo
     void conform(Studio &studio);
     void releaseThruChannel(Studio &studio);
     void makeChannelReady(Studio &studio);
+    void instrumentChangedFixity(Studio &studio);
 private:
     void allocateThruChannel(Studio &studio);
 
 public:
-    bool deleted;
-    bool muted;
-    bool armed;
-    char channelFilter;
-    DeviceId deviceFilter;
-    InstrumentId instrumentId;
-    // The channel to play thru MIDI events on, if any.  For unarmed
-    // unselected tracks, this will be an invalid channel.
-    int thruChannel;
-    // Whether the thru channel is ready - the right program has been
-    // sent, etc.
-    bool isThruChannelReady;
-    // Whether we have allocated a thru channel.
-    bool hasThruChannel;
-    // This duplicates information in ControlBlock.  It exists so that
-    // we can check if we need a thru channel using just this class.
-    bool selected;
+    bool m_deleted;
+    bool m_muted;
+    bool m_armed;
+    char m_channelFilter;
+    DeviceId m_deviceFilter;
+    InstrumentId m_instrumentId;
+    /// The channel to play thru MIDI events on, if any.
+    /**
+     * For unarmed unselected tracks, this will be an invalid channel.  For
+     * fixed-channel instruments, this is the instrument's fixed channel.
+     */
+    int m_thruChannel;
+    /// Whether the thru channel is ready - the right program has been sent, etc.
+    bool m_isThruChannelReady;
+    /// Whether we have allocated a thru channel.
+    bool m_hasThruChannel;
+    /**
+     * This duplicates information in ControlBlock.  It exists so that
+     * we can check if we need a thru channel using just this class.
+     */
+    bool m_selected;
+    /**
+     * This is usually the same as Instrument's fixedness, but can
+     * disagree briefly when fixedness changes.  Meaningless if no channel.
+     */
+    bool m_useFixedChannel;
 };
 
 #define CONTROLBLOCK_MAX_NB_TRACKS 1024 // can't be a symbol
 
+/// Control data passed from GUI thread to sequencer thread.
 /**
  * This class contains data that is being passed from GUI threads to
  * sequencer threads.  It used to be mapped into a shared memory
@@ -84,6 +95,8 @@ public:
  * internal pointers).  The design reflects that history to an extent,
  * though nowadays it is a simple singleton class with no such
  * constraint.
+ *
+ * @see SequencerDataBlock
  */
 class ControlBlock
 {
@@ -116,11 +129,13 @@ public:
     bool isInstrumentMuted(InstrumentId instrumentId) const;
     bool isInstrumentUnused(InstrumentId instrumentId) const;
 
-    void setInstrumentForMetronome(InstrumentId instId) { m_metronomeInfo.instrumentId = instId; }
-    InstrumentId getInstrumentForMetronome() const      { return m_metronomeInfo.instrumentId; }
+    void setInstrumentForMetronome(InstrumentId instId)
+    { m_metronomeInfo.m_instrumentId = instId; }
+    InstrumentId getInstrumentForMetronome() const
+    { return m_metronomeInfo.m_instrumentId; }
 
-    void setMetronomeMuted(bool mute) { m_metronomeInfo.muted = mute; }
-    bool isMetronomeMuted() const     { return m_metronomeInfo.muted; }
+    void setMetronomeMuted(bool mute) { m_metronomeInfo.m_muted = mute; }
+    bool isMetronomeMuted() const     { return m_metronomeInfo.m_muted; }
 
     bool isSolo() const      { return m_solo; }
     void setSolo(bool value) { m_solo = value; }
@@ -153,6 +168,7 @@ public:
 
     void vacateThruChannel(int channel);
     void instrumentChangedProgram(InstrumentId instrumentId);
+    void instrumentChangedFixity(InstrumentId instrumentId);
     
 protected:
     ControlBlock();

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -42,7 +42,8 @@ PasteSegmentsCommand::PasteSegmentsCommand(Composition *composition,
         m_pasteTime(pasteTime),
         m_baseTrack(baseTrack),
         m_exactTracks(useExactTracks),
-        m_detached(false)
+        m_detached(false),
+        m_oldEndTime(m_composition->getEndMarker())
 {
     // nothing else
 }
@@ -61,7 +62,7 @@ PasteSegmentsCommand::~PasteSegmentsCommand()
 void
 PasteSegmentsCommand::execute()
 {
-    if (m_addedSegments.size() > 0) {
+    if (!m_addedSegments.empty()) {
         // been here before
         for (size_t i = 0; i < m_addedSegments.size(); ++i) {
             m_composition->addSegment(m_addedSegments[i]);
@@ -81,6 +82,8 @@ PasteSegmentsCommand::execute()
     timeT latestEndTime = 0;
     int lowestTrackPos = -1;
 
+    // For each segment in the clipboard, compute the lowest track
+    // position and the latest end time.
     for (Clipboard::iterator i = m_clipboard->begin();
             i != m_clipboard->end(); ++i) {
 
@@ -103,6 +106,7 @@ PasteSegmentsCommand::execute()
     int baseTrackPos = m_composition->getTrackPositionById(m_baseTrack);
     int trackOffset = baseTrackPos - lowestTrackPos;
 
+    // For each segment in the clipboard, paste it into the composition
     for (Clipboard::iterator i = m_clipboard->begin();
             i != m_clipboard->end(); ++i) {
  
@@ -138,14 +142,16 @@ PasteSegmentsCommand::execute()
         m_addedSegments.push_back(segment);
     }
 
-    // User preference? Update song pointer position on paste
-    // ??? This needs to refresh the display so the user can see the change.
-    //   RosegardenDocument::pointerPositionChanged() appears to be the
-    //   signal to send, but we have no visibility to RosegardenDocument.
-    //   Removing this for now as it is confusing.
-//    m_composition->setPosition(latestEndTime
-//                               + m_pasteTime
-//                               - earliestStartTime);
+    timeT pasteEndTime = m_pasteTime + (latestEndTime - earliestStartTime);
+
+    m_composition->setPosition(pasteEndTime);
+
+    if (m_composition->autoExpandEnabled()) {
+        // If the composition needs expanding, do so...
+        if (pasteEndTime > m_composition->getEndMarker())
+            m_composition->setEndMarker(
+                    m_composition->getBarEndForTime(pasteEndTime));
+    }
 
     m_detached = false;
 }
@@ -157,6 +163,9 @@ PasteSegmentsCommand::unexecute()
         m_composition->detachSegment(m_addedSegments[i]);
     }
     m_detached = true;
+
+    // Restore the original composition end in case it was changed
+    m_composition->setEndMarker(m_oldEndTime);
 }
 
 }

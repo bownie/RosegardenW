@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[MarkerRuler]"
 
 #include "MarkerRuler.h"
 
@@ -245,9 +246,7 @@ MarkerRuler::getMarkerAtClickPosition()
     timeT end = comp.getBarEnd(lastBar);
 
     // need these to calculate the visible extents of a marker tag
-    QPainter painter(this);
-    painter.setFont(*m_barFont);
-    QFontMetrics metrics = painter.fontMetrics();
+    QFontMetrics metrics(*m_barFont);
 
     for (Composition::markerconstiterator i = markers.begin();
             i != markers.end(); ++i) {

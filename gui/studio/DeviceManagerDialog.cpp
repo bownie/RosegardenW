@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,6 +18,7 @@
 
  */
 
+#define RG_MODULE_STRING "[DeviceManagerDialog]"
 
 #include "DeviceManagerDialog.h"
 
@@ -223,7 +224,7 @@ DeviceManagerDialog::slotRecordDeviceSelected()
 
 
 void
-DeviceManagerDialog::slotOutputPortClicked(QTreeWidgetItem *twItem, int column)
+DeviceManagerDialog::slotOutputPortClicked(QTreeWidgetItem *twItem, int /* column */)
 {
     RG_DEBUG << "DeviceManagerDialog::slotOutputPortClicked(...)" << endl;
 
@@ -263,7 +264,7 @@ DeviceManagerDialog::slotOutputPortClicked(QTreeWidgetItem *twItem, int column)
 
 void
 DeviceManagerDialog::slotInputPortClicked(QTreeWidgetItem *
-                                                   twItem, int column)
+                                                   twItem, int /* column */)
 {
     RG_DEBUG << "DeviceManagerDialog::slotInputPortClicked(...)" << endl;
 
@@ -657,8 +658,8 @@ DeviceManagerDialog::connectMidiDeviceToPort(MidiDevice *mdev,
         //return;
     }
     
-    RosegardenSequencer *seq;
-    seq = RosegardenSequencer::getInstance();
+    // RosegardenSequencer *seq;
+    // seq = RosegardenSequencer::getInstance();
     
     QString outPort = RosegardenSequencer::getInstance()->getConnection(mdev->getId());
 
@@ -930,7 +931,7 @@ DeviceManagerDialog::slotEdit(QTreeWidgetItem * item, int)
 
 void
 DeviceManagerDialog::slotDeviceItemChanged(QTreeWidgetItem * twItem,
-                                         int column)
+                                         int /* column */)
 {
     RG_DEBUG << "DeviceManagerDialog::slotDeviceItemChanged(...)" << endl;
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_RINGINGPARAMETERPATTERN_H_
-#define _RG_RINGINGPARAMETERPATTERN_H_
+#ifndef RG_RINGINGPARAMETERPATTERN_H
+#define RG_RINGINGPARAMETERPATTERN_H
 
 #include "ParameterPattern.h"
 
@@ -32,7 +32,7 @@ class RingingParameterPattern : public ParameterPattern
     // Make as many sliders as we need.  EventParameterDialog will
     // truncate or pad as needed.
     virtual SliderSpecVector
-        getSliderSpec(const Situation *situation) const;
+        getSliderSpec(const SelectionSituation *situation) const;
 
     // Set the properties of events from begin to end.
     virtual void

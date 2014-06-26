@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _MARKER_H_
-#define _MARKER_H_
+#ifndef RG_MARKER_H
+#define RG_MARKER_H
 
 #include <string>
 
@@ -42,7 +42,13 @@ public:
     Marker(timeT time, const std::string &name,
            const std::string &description):
         m_time(time), m_name(name), m_description(description) { m_id = nextSeqVal(); }
-
+    Marker(const Marker &other, timeT time) :
+        m_id(other.m_id),
+        m_time(time),
+        m_name(other.m_name),
+        m_description(other.m_description)
+            {}
+        
     int getID() const { return m_id; }
     timeT getTime() const { return m_time; }
     std::string getName() const { return m_name; }
@@ -69,4 +75,4 @@ private:
 
 }
 
-#endif // _CONTROLPARAMETER_H_
+#endif // RG_MARKER_H

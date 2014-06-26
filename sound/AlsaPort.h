@@ -2,7 +2,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2011 the Rosegarden development team.
+  Copyright 2000-2014 the Rosegarden development team.
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -16,8 +16,8 @@
 #include "base/Instrument.h"
 #include "MappedCommon.h"
 
-#ifndef _ALSAPORT_H_
-#define _ALSAPORT_H_
+#ifndef RG_ALSAPORT_H
+#define RG_ALSAPORT_H
 
 #ifdef HAVE_ALSA
 #include <alsa/asoundlib.h> // ALSA
@@ -75,5 +75,5 @@ struct AlsaPortCmp
 
 #endif // HAVE_ALSA
 
-#endif // _RG_ALSA_PORT_H_
+#endif // RG_ALSAPORT_H
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _JACKDRIVER_H_
-#define _JACKDRIVER_H_
+#ifndef RG_JACKDRIVER_H
+#define RG_JACKDRIVER_H
 
 #ifdef HAVE_ALSA
 #ifdef HAVE_LIBJACK
@@ -206,17 +206,18 @@ protected:
     // static JACK transport callbacks
     static int   jackSyncCallback(jack_transport_state_t,
                                   jack_position_t *, void *);
-    static int   jackTimebaseCallback(jack_transport_state_t,
-                                      jack_nframes_t,
-                                      jack_position_t *,
-                                      int,
-                                      void *);
+//    static int   jackTimebaseCallback(jack_transport_state_t,
+//                                      jack_nframes_t,
+//                                      jack_position_t *,
+//                                      int,
+//                                      void *);
 
     // jackProcessStatic delegates to this
     int          jackProcess(jack_nframes_t nframes);
     int          jackProcessRecord(InstrumentId id,
                                    jack_nframes_t nframes,
                                    sample_t *, sample_t *, bool);
+    // write silence to all ports
     int          jackProcessEmpty(jack_nframes_t nframes);
 
     // other helper methods:
@@ -232,6 +233,7 @@ protected:
 
     // data members:
 
+    // Client handle from jack_client_open()
     jack_client_t               *m_client;
 
     std::vector<jack_port_t *>   m_inputPorts;
@@ -278,6 +280,8 @@ protected:
 
     time_t                       m_kickedOutAt;
     size_t                       m_framesProcessed;
+
+    // initialise() has completed successfully, and there are no other issues
     bool                         m_ok;
 };
 

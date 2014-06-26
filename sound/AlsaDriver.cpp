@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2011 the Rosegarden development team.
+  Copyright 2000-2014 the Rosegarden development team.
   See the AUTHORS file for more details.
  
   This program is free software; you can redistribute it and/or
@@ -41,12 +41,13 @@
 #include "ExternalTransport.h"
 
 #include <QRegExp>
+#include <QMutex>
 
 #include <pthread.h>
 
 
-//#define DEBUG_ALSA 1
-//#define DEBUG_PROCESS_MIDI_OUT 1
+// #define DEBUG_ALSA 1
+// #define DEBUG_PROCESS_MIDI_OUT 1
 //#define DEBUG_PROCESS_SOFT_SYNTH_OUT 1
 //#define MTC_DEBUG 1
 
@@ -56,18 +57,23 @@
 using std::cerr;
 using std::endl;
 
-static size_t _debug_jack_frame_count = 0;
-
 #define AUTO_TIMER_NAME "(auto)"
+#define LOCKED QMutexLocker rg_alsa_locker(&m_mutex)
 
+// Rosegarden does not handle note-off velocity.  The MIDI spec recommends
+// using 64 in that case.  One user has reported problems with 0 which
+// was being used previously.  See Bug #1426.
+#define NOTE_OFF_VELOCITY 64
 
 namespace Rosegarden
 {
 
+static size_t debug_jack_frame_count = 0;
+
 #define FAILURE_REPORT_COUNT 256
-static MappedEvent::FailureCode _failureReports[FAILURE_REPORT_COUNT];
-static int _failureReportWriteIndex = 0;
-static int _failureReportReadIndex = 0;
+static MappedEvent::FailureCode failureReports[FAILURE_REPORT_COUNT];
+static int failureReportWriteIndex = 0;
+static int failureReportReadIndex = 0;
 
 AlsaDriver::AlsaDriver(MappedStudio *studio):
     SoundDriver(studio,
@@ -78,6 +84,7 @@ AlsaDriver::AlsaDriver(MappedStudio *studio):
                 std::string(", kernel version ") +
                 getKernelVersionString() +
                 "]"),
+    m_midiHandle(0),
     m_client( -1),
     m_inputPort( -1),
     m_syncOutputPort( -1),
@@ -899,7 +906,7 @@ AlsaDriver::renameDevice(DeviceId id, QString name)
     snd_seq_get_port_info(m_midiHandle, i->second, pinfo);
 
     QString oldName = snd_seq_port_info_get_name(pinfo);
-    int sep = oldName.find(" - ");
+    int sep = oldName.indexOf(" - ");
 
     QString newName;
     if (sep < 0) {
@@ -1170,19 +1177,19 @@ AlsaDriver::setPlausibleConnection(DeviceId id, QString idealConnection, bool re
 
     if (idealConnection != "") {
 
-        int colon = idealConnection.find(":");
+        int colon = idealConnection.indexOf(":");
         if (colon >= 0) {
             client = idealConnection.left(colon).toInt();
         }
 
         if (client > 0) {
             QString remainder = idealConnection.mid(colon + 1);
-            int space = remainder.find(" ");
+            int space = remainder.indexOf(" ");
             if (space >= 0) portNo = remainder.left(space).toInt();
         }
     
-        int firstSpace = idealConnection.find(" ");
-        int endOfText = idealConnection.find(QRegExp("[^\\w ]"), firstSpace);
+        int firstSpace = idealConnection.indexOf(" ");
+        int endOfText = idealConnection.indexOf(QRegExp("[^\\w ]"), firstSpace);
 
         if (endOfText < 2) {
             text = idealConnection.mid(firstSpace + 1);
@@ -1196,7 +1203,7 @@ AlsaDriver::setPlausibleConnection(DeviceId id, QString idealConnection, bool re
 
     // Try to find one viable hardware and one viable software port, if
     // possible.  Use software preferentially.  Iterate through everything until
-    // we've exausted all possibilities for colleting one of each, then sort it
+    // we've exausted all possibilities for collecting one of each, then sort it
     // out afterwards.
     for (int testUsed = 1; testUsed >= 0; --testUsed) {
 
@@ -1818,6 +1825,10 @@ AlsaDriver::initialisePlayback(const RealTime &position)
         m_needJackStart = NeedJackStart;
     }
 #endif
+
+    // Erase recent noteoffs.  There shouldn't be any, but let's be
+    // extra careful.
+    m_recentNoteOffs.clear();
 }
 
 
@@ -1883,7 +1894,7 @@ AlsaDriver::punchOut()
     std::cerr << "AlsaDriver::punchOut" << std::endl;
 #endif
 
-    // Flush any incomplete System Exclusive recieved from ALSA devices
+    // Flush any incomplete System Exclusive received from ALSA devices
     clearPendSysExcMap();
 
 #ifdef HAVE_LIBJACK
@@ -1966,7 +1977,7 @@ AlsaDriver::resetPlayback(const RealTime &oldPosition, const RealTime &position)
         unsigned char locateDataArr[7] = {
             0x06,
             0x01,
-            0x60 + t_hrs,    // (30fps flag) + hh
+            (unsigned char)(0x60 + t_hrs),    // (30fps flag) + hh
             t_min,         // mm
             t_sec,         // ss
             t_frm,         // frames
@@ -2093,7 +2104,7 @@ AlsaDriver::clearPendSysExcMap()
                   << m_pendSysExcMap->size() << " incomplete system exclusive message(s). "
                   << std::endl;
         DeviceEventMap::iterator pendIt = m_pendSysExcMap->begin();
-        for(; pendIt != m_pendSysExcMap->end(); pendIt++) {
+        for(; pendIt != m_pendSysExcMap->end(); ++pendIt) {
             delete pendIt->second.first;
             m_pendSysExcMap->erase(pendIt->first);
         }
@@ -2116,13 +2127,14 @@ AlsaDriver::pushRecentNoteOffs()
     m_recentNoteOffs.clear();
 }
 
+// Remove recent noteoffs that are before time t
 void
 AlsaDriver::cropRecentNoteOffs(const RealTime &t)
 {
     while (!m_recentNoteOffs.empty()) {
         NoteOffEvent *ev = *m_recentNoteOffs.begin();
 #ifdef DEBUG_PROCESS_MIDI_OUT
-        std::cerr << "AlsaDriver::cropRecentNoteOffs: " << ev->getRealTime() << " vs " << t << std::endl;
+        std::cout << "AlsaDriver::cropRecentNoteOffs: " << ev->getRealTime() << " vs " << t << std::endl;
 #endif
         if (ev->getRealTime() >= t) break;
         delete ev;
@@ -2184,7 +2196,7 @@ AlsaDriver::allNotesOff()
         snd_seq_ev_set_noteoff(&event,
                                (*it)->getChannel(),
                                (*it)->getPitch(),
-                               127);
+                               NOTE_OFF_VELOCITY);
 
         //snd_seq_event_output(m_midiHandle, &event);
         int error = snd_seq_event_output_direct(m_midiHandle, &event);
@@ -2218,13 +2230,10 @@ AlsaDriver::processNotesOff(const RealTime &time, bool now, bool everything)
         return;
     }
 
-    snd_seq_event_t event;
-
-    ClientPortPair outputDevice;
-    RealTime offTime;
+    snd_seq_event_t alsaEvent;
 
     // prepare the event
-    snd_seq_ev_clear(&event);
+    snd_seq_ev_clear(&alsaEvent);
 
     RealTime alsaTime = getAlsaTime();
 
@@ -2232,73 +2241,74 @@ AlsaDriver::processNotesOff(const RealTime &time, bool now, bool everything)
     std::cerr << "AlsaDriver::processNotesOff(" << time << "): alsaTime = " << alsaTime << ", now = " << now << std::endl;
 #endif
 
+    // For each note-off event in the note-off queue
     while (m_noteOffQueue.begin() != m_noteOffQueue.end()) {
 
-        NoteOffEvent *ev = *m_noteOffQueue.begin();
+        NoteOffEvent *noteOff = *m_noteOffQueue.begin();
 
-        if (ev->getRealTime() > time) {
+        if (noteOff->getRealTime() > time) {
 #ifdef DEBUG_PROCESS_MIDI_OUT
-            std::cerr << "Note off time " << ev->getRealTime() << " is beyond current time " << time << std::endl;
+            std::cerr << "Note off time " << noteOff->getRealTime() << " is beyond current time " << time << std::endl;
 #endif
             if (!everything) break;
         }
 
 #ifdef DEBUG_PROCESS_MIDI_OUT
-        std::cerr << "AlsaDriver::processNotesOff(" << time << "): found event at " << ev->getRealTime() << ", instr " << ev->getInstrument() << ", channel " << int(ev->getChannel()) << ", pitch " << int(ev->getPitch()) << std::endl;
+        std::cerr << "AlsaDriver::processNotesOff(" << time << "): found event at " << noteOff->getRealTime() << ", instr " << noteOff->getInstrument() << ", channel " << int(noteOff->getChannel()) << ", pitch " << int(noteOff->getPitch()) << std::endl;
 #endif
 
-        bool isSoftSynth = (ev->getInstrument() >= SoftSynthInstrumentBase);
-
-        offTime = ev->getRealTime();
+        RealTime offTime = noteOff->getRealTime();
         if (offTime < RealTime::zeroTime) offTime = RealTime::zeroTime;
         bool scheduled = (offTime > alsaTime) && !now;
         if (!scheduled) offTime = RealTime::zeroTime;
 
-        snd_seq_real_time_t alsaOffTime = { offTime.sec,
-                                            offTime.nsec };
+        snd_seq_real_time_t alsaOffTime = { (unsigned int)offTime.sec,
+                                            (unsigned int)offTime.nsec };
 
-        snd_seq_ev_set_noteoff(&event,
-                               ev->getChannel(),
-                               ev->getPitch(),
-                               127);
+        snd_seq_ev_set_noteoff(&alsaEvent,
+                               noteOff->getChannel(),
+                               noteOff->getPitch(),
+                               NOTE_OFF_VELOCITY);
+
+        bool isSoftSynth = (noteOff->getInstrument() >= SoftSynthInstrumentBase);
 
         if (!isSoftSynth) {
 
-            snd_seq_ev_set_subs(&event);
+            snd_seq_ev_set_subs(&alsaEvent);
 
             // Set source according to instrument
             //
-            int src = getOutputPortForMappedInstrument(ev->getInstrument());
+            int src = getOutputPortForMappedInstrument(noteOff->getInstrument());
             if (src < 0) {
-                std::cerr << "note off has no output port (instr = " << ev->getInstrument() << ")" << std::endl;
-                delete ev;
+                std::cerr << "note off has no output port (instr = " << noteOff->getInstrument() << ")" << std::endl;
+                delete noteOff;
                 m_noteOffQueue.erase(m_noteOffQueue.begin());
                 continue;
             }
 
-            snd_seq_ev_set_source(&event, src);
+            snd_seq_ev_set_source(&alsaEvent, src);
 
-            snd_seq_ev_set_subs(&event);
+            snd_seq_ev_set_subs(&alsaEvent);
 
-            snd_seq_ev_schedule_real(&event, m_queue, 0, &alsaOffTime);
+            snd_seq_ev_schedule_real(&alsaEvent, m_queue, 0, &alsaOffTime);
 
             if (scheduled) {
-                snd_seq_event_output(m_midiHandle, &event);
+                snd_seq_event_output(m_midiHandle, &alsaEvent);
             } else {
-                snd_seq_event_output_direct(m_midiHandle, &event);
+                snd_seq_event_output_direct(m_midiHandle, &alsaEvent);
             }
 
         } else {
 
-            event.time.time = alsaOffTime;
+            alsaEvent.time.time = alsaOffTime;
 
-            processSoftSynthEventOut(ev->getInstrument(), &event, now);
+            processSoftSynthEventOut(noteOff->getInstrument(), &alsaEvent, now);
         }
 
         if (!now) {
-            m_recentNoteOffs.insert(ev);
+            m_recentNoteOffs.insert(noteOff);
         } else {
-            delete ev;
+            delete noteOff;
         }
         m_noteOffQueue.erase(m_noteOffQueue.begin());
     }
@@ -2360,22 +2370,22 @@ AlsaDriver::getAlsaTime()
 //
 //
 bool
-AlsaDriver::getMappedEventList(MappedEventList &composition)
+AlsaDriver::getMappedEventList(MappedEventList &mappedEventList)
 {
-    while (_failureReportReadIndex != _failureReportWriteIndex) {
-        MappedEvent::FailureCode code = _failureReports[_failureReportReadIndex];
+    while (failureReportReadIndex != failureReportWriteIndex) {
+        MappedEvent::FailureCode code = failureReports[failureReportReadIndex];
         //    std::cerr << "AlsaDriver::reportFailure(" << code << ")" << std::endl;
         MappedEvent *mE = new MappedEvent
             (0, MappedEvent::SystemFailure, code, 0);
         m_returnComposition.insert(mE);
-        _failureReportReadIndex =
-            (_failureReportReadIndex + 1) % FAILURE_REPORT_COUNT;
+        failureReportReadIndex =
+            (failureReportReadIndex + 1) % FAILURE_REPORT_COUNT;
     }
 
     if (!m_returnComposition.empty()) {
         for (MappedEventList::iterator i = m_returnComposition.begin();
              i != m_returnComposition.end(); ++i) {
-            composition.insert(new MappedEvent(**i));
+            mappedEventList.insert(new MappedEvent(**i));
         }
         m_returnComposition.clear();
     }
@@ -2392,12 +2402,25 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
 
     snd_seq_event_t *event;
 
+    // The ALSA documentation indicates that snd_seq_event_input() "returns
+    // the byte size of remaining events on the input buffer if an event is
+    // successfully received."  This is not true.  snd_seq_event_input()
+    // typically returns 1.  Not sure if this is "success" or the number of
+    // events read, or something else.  But the point is that although this
+    // code appears to be wrong per the ALSA docs, it is actually correct.
+
+    // While there's an event available...
     while (snd_seq_event_input(m_midiHandle, &event) > 0) {
         //        std::cerr << "AlsaDriver::getMappedEventList: found something" << std::endl;
 
         unsigned int channel = (unsigned int)event->data.note.channel;
         unsigned int chanNoteKey = ( channel << 8 ) +
             (unsigned int) event->data.note.note;
+#ifdef DEBUG_ALSA
+        std::cerr << "Got note " << chanNoteKey
+                  << " on channel " << channel
+                  << std::endl;
+#endif
 
         bool fromController = false;
 
@@ -2440,10 +2463,13 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
         switch (event->type) {
         case SND_SEQ_EVENT_NOTE:
         case SND_SEQ_EVENT_NOTEON:
+            //RG_DEBUG << "AD::gMEL()  NOTEON channel:" << channel << " pitch:" << event->data.note.note << " velocity:" << event->data.note.velocity;
+
             if (fromController)
                 continue;
             if (event->data.note.velocity > 0) {
                 MappedEvent *mE = new MappedEvent();
+                mE->setType(MappedEvent::MidiNote);
                 mE->setPitch(event->data.note.note);
                 mE->setVelocity(event->data.note.velocity);
                 mE->setEventTime(eventTime);
@@ -2463,47 +2489,68 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
                 // We shake out the two NOTE Ons after we've recorded
                 // them.
                 //
-                composition.insert(new MappedEvent(mE));
+                mappedEventList.insert(new MappedEvent(mE));
                 m_noteOnMap[deviceId].insert(std::pair<unsigned int, MappedEvent*>(chanNoteKey, mE));
 
                 break;
             }
 
+            // FALLTHROUGH:  NOTEON with velocity 0 is treated as a NOTEOFF
+
         case SND_SEQ_EVENT_NOTEOFF: {
+            //RG_DEBUG << "AD::gMEL()  NOTEOFF channel:" << channel << " pitch:" << event->data.note.note;
+
             if (fromController)
                 continue;
 
             // Check the note on map for any note on events to close.
-//            std::map<unsigned int, std::multimap<unsigned int, MappedEvent*> >::iterator noteOnMapIt = m_noteOnMap.find(deviceId);
-            std::multimap<unsigned int, MappedEvent*>::iterator noteOnIt = m_noteOnMap[deviceId].find(chanNoteKey);
-            
+            // find() prevents inadvertently adding an entry to the map.
+            // Since this is commented out, that must not have been an
+            // issue.
+            //NoteOnMap::iterator noteOnMapIt = m_noteOnMap.find(deviceId);
+            ChannelNoteOnMap::iterator noteOnIt = m_noteOnMap[deviceId].find(chanNoteKey);
+
+            // If a corresponding note on was found
             if (noteOnIt != m_noteOnMap[deviceId].end()) {
 
-                // Set duration correctly on the NOTE OFF
-                //
+                // Work with the MappedEvent in the map.  We will transform
+                // it into a note off and insert it into the mapped event
+                // list.
                 MappedEvent *mE = noteOnIt->second;
+
+                // Compute correct duration for the NOTE OFF
                 RealTime duration = eventTime - mE->getEventTime();
 
 #ifdef DEBUG_ALSA
                 std::cerr << "NOTE OFF: found NOTE ON at " << mE->getEventTime() << std::endl;
 #endif
 
+                // Fix zero duration record bug.
                 if (duration <= RealTime::zeroTime) {
-                    duration = RealTime::fromMilliseconds(1); // Fix zero duration record bug.
+                    duration = RealTime::fromMilliseconds(1);
+
+                    // ??? It seems odd that we only set the event time for
+                    //     the note off in this case.  Otherwise it gets the
+                    //     event time of the matching note on.  That seems
+                    //     pretty misleading.  I guess a note-off's event time
+                    //     plus duration is its event time.  But if we see the
+                    //     duration is one millisecond, the eventTime will be
+                    //     the actual note-off event time.
                     mE->setEventTime(eventTime);
                 }
 
-                // Velocity 0 - NOTE OFF.  Set duration correctly
-                // for recovery later.
-                //
+                // Transform the note-on in the map to a note-off by setting
+                // the velocity to 0.
                 mE->setVelocity(0);
+
+                // Set duration correctly for recovery later.
                 mE->setDuration(duration);
 
-                // force shut off of note
-                composition.insert(mE);
+                // Insert this note-off into the mapped event list.
+                mappedEventList.insert(mE);
 
                 // reset the reference
-                //
+                // Remove the MappedEvent from the note on map.
                 m_noteOnMap[deviceId].erase(noteOnIt);
 
             }
@@ -2523,7 +2570,7 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
             mE->setData2(event->data.note.velocity);
             mE->setRecordedChannel(channel);
             mE->setRecordedDevice(deviceId);
-            composition.insert(mE);
+            mappedEventList.insert(mE);
         }
             break;
 
@@ -2535,7 +2582,7 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
             mE->setData2(event->data.control.value);
             mE->setRecordedChannel(channel);
             mE->setRecordedDevice(deviceId);
-            composition.insert(mE);
+            mappedEventList.insert(mE);
         }
             break;
 
@@ -2546,7 +2593,7 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
             mE->setData1(event->data.control.value);
             mE->setRecordedChannel(channel);
             mE->setRecordedDevice(deviceId);
-            composition.insert(mE);
+            mappedEventList.insert(mE);
 
         }
             break;
@@ -2567,7 +2614,7 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
             mE->setData2(d2);
             mE->setRecordedChannel(channel);
             mE->setRecordedDevice(deviceId);
-            composition.insert(mE);
+            mappedEventList.insert(mE);
         }
             break;
 
@@ -2584,7 +2631,7 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
             mE->setData1(s);
             mE->setRecordedChannel(channel);
             mE->setRecordedDevice(deviceId);
-            composition.insert(mE);
+            mappedEventList.insert(mE);
         }
             break;
 
@@ -2620,8 +2667,8 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
 
                 // Thank you to Christoph Eckert for pointing out via
                 // Pedro Lopez-Cabanillas aseqmm code that we need to pool
-                // alsa system execlusive messages since they may be broken
-                // across several ALSA mesages.
+                // alsa system exclusive messages since they may be broken
+                // across several ALSA messages.
             
                 // Unfortunately, pooling these messages get very complicated
                 // since it creates many corner cases during this realtime
@@ -2689,9 +2736,9 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
                                       << std::endl  << "This is probably a bad transmission"
                                       << std::endl;
 
-                            // Push previous (incomplete) message to composition
+                            // Push previous (incomplete) message to mapped event list
                             DataBlockRepository::setDataBlockForEvent(sysExcEvent, sysExcData);
-                            composition.insert(sysExcEvent);
+                            mappedEventList.insert(sysExcEvent);
                         } else {
                             // Previous message has no meaningful data.
                             std::cerr << "AlsaDriver::getMappedEventList - "
@@ -2724,9 +2771,9 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
                         // Remove (EOX). RG doesn't use it. 
                         data.erase(lastChar);
 
-                        // Push message to composition
+                        // Push message to mapped event list
                         DataBlockRepository::setDataBlockForEvent(sysExcEvent, data);
-                        composition.insert(sysExcEvent);
+                        mappedEventList.insert(sysExcEvent);
                     } else {
 
                         pushOnMap = true;
@@ -2750,10 +2797,10 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
                                                            std::make_pair(sysExcEvent, data)));
 
                     if (beginNewMessage) { 
-                        // Let user know about pooling on first recieved event.
+                        // Let user know about pooling on first received event.
 
                         // Yes, standard output.
-                        // It is used elswhere in this file as well.
+                        // It is used elsewhere in this file as well.
                         std::cout << "AlsaDriver::getMappedEventList - "
                                   << "Encountered long System Exclusive Message "
                                   << "(pooling message until transmission complete)"
@@ -2884,6 +2931,7 @@ AlsaDriver::getMappedEventList(MappedEventList &composition)
     return true;
 }
 
+// This should probably be a non-static private member.
 static int lock_count = 0;
 
 void
@@ -3078,7 +3126,8 @@ AlsaDriver::insertMTCFullFrame(RealTime time)
     m_mtcFrames = (unsigned)m_mtcEncodedTime.nsec / 40000000U;
 
     time = time + m_alsaPlayStartTime - m_playStartPosition;
-    snd_seq_real_time_t atime = { time.sec, time.nsec };
+    snd_seq_real_time_t atime =
+        { (unsigned int)time.sec, (unsigned int)time.nsec };
 
     unsigned char data[10] =
         { MIDI_SYSTEM_EXCLUSIVE,
@@ -3183,7 +3232,9 @@ AlsaDriver::insertMTCQFrames(RealTime sliceStart, RealTime sliceEnd)
         }
 
         RealTime scheduleTime = t + m_alsaPlayStartTime - m_playStartPosition;
-        snd_seq_real_time_t atime = { scheduleTime.sec, scheduleTime.nsec };
+        snd_seq_real_time_t atime =
+            { (unsigned int)scheduleTime.sec,
+              (unsigned int)scheduleTime.nsec };
 
         event.type = SND_SEQ_EVENT_QFRAME;
         event.data.control.value = c;
@@ -3442,15 +3493,15 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
                            const RealTime &sliceStart,
                            const RealTime &sliceEnd)
 {
-    RealTime outputTime;
-    RealTime outputStopTime;
-    MappedInstrument *instrument;
-    ClientPortPair outputDevice;
-    MidiByte channel;
-    snd_seq_event_t event;
+    LOCKED;
 
     // special case for unqueued events
     bool now = (sliceStart == RealTime::zeroTime && sliceEnd == RealTime::zeroTime);
+
+#ifdef DEBUG_PROCESS_MIDI_OUT
+    std::cout << "AlsaDriver::processMidiOut(" << sliceStart << "," << sliceEnd
+              << "), " << mC.size() << " events, now is " << now << std::endl;
+#endif
 
     if (!now) {
         // This 0.5 sec is arbitrary, but it must be larger than the
@@ -3462,37 +3513,35 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
 
     // These won't change in this slice
     //
-    snd_seq_ev_clear(&event);
-
     if ((mC.begin() != mC.end())) {
         SequencerDataBlock::getInstance()->setVisual(*mC.begin());
     }
 
-#ifdef DEBUG_PROCESS_MIDI_OUT
-    std::cerr << "AlsaDriver::processMidiOut(" << sliceStart << "," << sliceEnd
-              << "), " << mC.size() << " events, now is " << now << std::endl;
-#endif
-
     // NB the MappedEventList is implicitly ordered by time (std::multiset)
 
+    // For each event
     for (MappedEventList::const_iterator i = mC.begin(); i != mC.end(); ++i) {
+        // Skip all non-MIDI events.
         if ((*i)->getType() >= MappedEvent::Audio)
             continue;
 
+        snd_seq_event_t event;
+        snd_seq_ev_clear(&event);
+    
         bool isControllerOut = ((*i)->getRecordedDevice() ==
                                 Device::CONTROL_DEVICE);
 
         bool isSoftSynth = (!isControllerOut &&
                             ((*i)->getInstrument() >= SoftSynthInstrumentBase));
 
-        outputTime = (*i)->getEventTime() - m_playStartPosition +
+        RealTime outputTime = (*i)->getEventTime() - m_playStartPosition +
             m_alsaPlayStartTime;
 
         if (now && !m_playing && m_queueRunning) {
             // stop queue to ensure exact timing and make sure the
             // event gets through right now
 #ifdef DEBUG_PROCESS_MIDI_OUT
-            std::cerr << "processMidiOut: stopping queue for now-event" << std::endl;
+            std::cout << "processMidiOut: stopping queue for now-event" << std::endl;
 #endif
 
             checkAlsaError(snd_seq_stop_queue(m_midiHandle, m_queue, NULL), "processMidiOut(): stop queue");
@@ -3505,12 +3554,15 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
             if (!m_playing) {
                 outputTime = alsaTimeNow;
             } else if (outputTime < alsaTimeNow) {
-                outputTime = alsaTimeNow + RealTime(0, 10000000);
+                // This isn't really necessary as ALSA will immediately
+                // send out events that are prior to the current time.
+                // And that's what we want anyway.
+                outputTime = alsaTimeNow;
             }
         }
 
 #ifdef DEBUG_PROCESS_MIDI_OUT
-        std::cerr << "processMidiOut[" << now << "]: event is at " << outputTime << " (" << outputTime - alsaTimeNow << " ahead of queue time), type " << int((*i)->getType()) << ", duration " << (*i)->getDuration() << std::endl;
+        std::cout << "processMidiOut[" << now << "]: event is at " << outputTime << " (" << outputTime - alsaTimeNow << " ahead of queue time), type " << int((*i)->getType()) << ", duration " << (*i)->getDuration() << std::endl;
 #endif
 
         if (!m_queueRunning && outputTime < alsaTimeNow) {
@@ -3518,20 +3570,20 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
             if ((*i)->getDuration() > RealTime::zeroTime) {
                 if ((*i)->getDuration() <= adjust) {
 #ifdef DEBUG_PROCESS_MIDI_OUT
-                    std::cerr << "processMidiOut[" << now << "]: too late for this event, abandoning it" << std::endl;
+                    std::cout << "processMidiOut[" << now << "]: too late for this event, abandoning it" << std::endl;
 #endif
 
                     continue;
                 } else {
 #ifdef DEBUG_PROCESS_MIDI_OUT
-                    std::cerr << "processMidiOut[" << now << "]: pushing event forward and reducing duration by " << adjust << std::endl;
+                    std::cout << "processMidiOut[" << now << "]: pushing event forward and reducing duration by " << adjust << std::endl;
 #endif
 
                     (*i)->setDuration((*i)->getDuration() - adjust);
                 }
             } else {
 #ifdef DEBUG_PROCESS_MIDI_OUT
-                std::cerr << "processMidiOut[" << now << "]: pushing zero-duration event forward by " << adjust << std::endl;
+                std::cout << "processMidiOut[" << now << "]: pushing zero-duration event forward by " << adjust << std::endl;
 #endif
 
             }
@@ -3543,18 +3595,19 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) {
             size_t frameCount = m_jackDriver->getFramesProcessed();
-            size_t elapsed = frameCount - _debug_jack_frame_count;
+            size_t elapsed = frameCount - debug_jack_frame_count;
             RealTime rt = RealTime::frame2RealTime(elapsed, m_jackDriver->getSampleRate());
             rt = rt - getAlsaTime();
 #ifdef DEBUG_PROCESS_MIDI_OUT
-            std::cerr << "processMidiOut[" << now << "]: JACK time is " << rt << " ahead of ALSA time" << std::endl;
+            std::cout << "processMidiOut[" << now << "]: JACK time is " << rt << " ahead of ALSA time" << std::endl;
 #endif
         }
 #endif
 
         // Second and nanoseconds for ALSA
         //
-        snd_seq_real_time_t time = { outputTime.sec, outputTime.nsec };
+        snd_seq_real_time_t time =
+            { (unsigned int)outputTime.sec, (unsigned int)outputTime.nsec };
 
         if (!isSoftSynth) {
 
@@ -3584,31 +3637,40 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
             event.time.time = time;
         }
 
-        instrument = getMappedInstrument((*i)->getInstrument());
+        MappedInstrument *instrument = getMappedInstrument((*i)->getInstrument());
 
         // set the stop time for Note Off
         //
-        outputStopTime = outputTime + (*i)->getDuration()
+        RealTime outputStopTime = outputTime + (*i)->getDuration()
             - RealTime(0, 1); // notch it back 1nsec just to ensure
         // correct ordering against any other
         // note-ons at the same nominal time
         bool needNoteOff = false;
 
+        MidiByte channel = 0;
+
         if (isControllerOut) {
             channel = (*i)->getRecordedChannel();
 #ifdef DEBUG_ALSA
-            std::cerr << "processMidiOut() - Event of type " << (int)((*i)->getType()) << " (data1 " << (int)(*i)->getData1() << ", data2 " << (int)(*i)->getData2() << ") for external controller channel " << (int)channel << std::endl;
+            std::cout << "processMidiOut() - Event of type " << (int)((*i)->getType()) << " (data1 " << (int)(*i)->getData1() << ", data2 " << (int)(*i)->getData2() << ") for external controller channel " << (int)channel << std::endl;
 #endif
         } else if (instrument != 0) {
-            channel = instrument->getChannel();
+            channel = (*i)->getRecordedChannel();
+#ifdef DEBUG_ALSA
+            std::cout << "processMidiOut() - Non-controller Event of type " << (int)((*i)->getType()) << " (data1 " << (int)(*i)->getData1() << ", data2 " << (int)(*i)->getData2() << ") for channel "
+                      << (int)(*i)->getRecordedChannel() << std::endl;
+#endif
         } else {
 #ifdef DEBUG_ALSA
-            std::cerr << "processMidiOut() - No instrument for event of type "
+            std::cout << "processMidiOut() - No instrument for event of type "
                       << (int)(*i)->getType() << " at " << (*i)->getEventTime()
                       << std::endl;
 #endif
             channel = 0;
         }
+
+        // channel is a MidiByte which is unsigned.  This will never be true.
+        //if (channel < 0) { continue; }
 
         switch ((*i)->getType()) {
 
@@ -3658,7 +3720,7 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
                 snd_seq_ev_set_noteoff(&event,
                                        channel,
                                        (*i)->getPitch(),
-                                       (*i)->getVelocity());
+                                       NOTE_OFF_VELOCITY);
             }
 
             break;
@@ -3721,7 +3783,7 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
                     RealTime(time.tv_sec, time.tv_nsec);
 
                 /*
-                  std::cerr << "AlsaDriver::processMidiOut - "
+                  std::cout << "AlsaDriver::processMidiOut - "
                   << "send clock @ " << rt << std::endl;
                 */
 
@@ -3748,6 +3810,8 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
                                       (*i)->getData2());
             break;
 
+            // These types do nothing here, so go on to the
+            // next iteration.
         case MappedEvent::Audio:
         case MappedEvent::AudioCancel:
         case MappedEvent::AudioLevel:
@@ -3757,7 +3821,19 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
         case MappedEvent::SystemMMCTransport:
         case MappedEvent::SystemMIDIClock:
         case MappedEvent::SystemMIDISyncAuto:
-            break;
+        case MappedEvent::AudioGeneratePreview:
+        case MappedEvent::Marker:
+        case MappedEvent::Panic:
+        case MappedEvent::SystemAudioFileFormat:
+        case MappedEvent::SystemAudioPortCounts:
+        case MappedEvent::SystemAudioPorts:
+        case MappedEvent::SystemFailure:
+        case MappedEvent::SystemMetronomeDevice:
+        case MappedEvent::SystemMTCTransport:
+        case MappedEvent::TimeSignature:
+        case MappedEvent::Tempo:
+        case MappedEvent::Text:
+             continue;
 
         default:
         case MappedEvent::InvalidMappedEvent:
@@ -3783,7 +3859,7 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
                 if (m_queueRunning && !m_playing) {
                     // restart queue
 #ifdef DEBUG_PROCESS_MIDI_OUT
-                    std::cerr << "processMidiOut: restarting queue after now-event" << std::endl;
+                    std::cout << "processMidiOut: restarting queue after now-event" << std::endl;
 #endif
 
                     checkAlsaError(snd_seq_continue_queue(m_midiHandle, m_queue, NULL), "processMidiOut(): continue queue");
@@ -3802,7 +3878,7 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
                                  (*i)->getInstrument());
 
 #ifdef DEBUG_ALSA
-            std::cerr << "Adding NOTE OFF at " << outputStopTime
+            std::cout << "Adding NOTE OFF at " << outputStopTime
                       << std::endl;
 #endif
 
@@ -3821,14 +3897,14 @@ AlsaDriver::processMidiOut(const MappedEventList &mC,
         if (now && !m_playing) {
             // just to be sure
 #ifdef DEBUG_PROCESS_MIDI_OUT
-            std::cerr << "processMidiOut: restarting queue after all now-events" << std::endl;
+            std::cout << "processMidiOut: restarting queue after all now-events" << std::endl;
 #endif
 
             checkAlsaError(snd_seq_continue_queue(m_midiHandle, m_queue, NULL), "processMidiOut(): continue queue");
         }
 
 #ifdef DEBUG_PROCESS_MIDI_OUT 
-        //    std::cerr << "processMidiOut: m_queueRunning " << m_queueRunning
+        //    std::cout << "processMidiOut: m_queueRunning " << m_queueRunning
         //          << ", now " << now << std::endl;
 #endif
         checkAlsaError(snd_seq_drain_output(m_midiHandle), "processMidiOut(): draining");
@@ -3934,7 +4010,7 @@ AlsaDriver::startClocks()
                     std::cerr << "AlsaDriver::startClocks: Waiting for startClocksApproved" << std::endl;
 #endif
                     // need to wait for transport sync
-                    _debug_jack_frame_count = m_jackDriver->getFramesProcessed();
+                    debug_jack_frame_count = m_jackDriver->getFramesProcessed();
                     return ;
                 }
             }
@@ -3959,7 +4035,7 @@ AlsaDriver::startClocks()
 #ifdef HAVE_LIBJACK
 
     if (m_jackDriver) {
-        _debug_jack_frame_count = m_jackDriver->getFramesProcessed();
+        debug_jack_frame_count = m_jackDriver->getFramesProcessed();
     }
 #endif
 
@@ -3970,6 +4046,7 @@ AlsaDriver::startClocks()
 void
 AlsaDriver::startClocksApproved()
 {
+    LOCKED;
 #ifdef DEBUG_ALSA
     std::cerr << "AlsaDriver::startClocks: startClocksApproved" << std::endl;
 #endif
@@ -4065,7 +4142,7 @@ AlsaDriver::processEventsOut(const MappedEventList &mC,
     AudioFile *audioFile = 0;
     bool haveNewAudio = false;
 
-    // insert audio events if we find them
+    // For each incoming event, insert audio events if we find them
     for (MappedEventList::const_iterator i = mC.begin(); i != mC.end(); ++i) {
 #ifdef HAVE_LIBJACK
 
@@ -4370,9 +4447,9 @@ AlsaDriver::processEventsOut(const MappedEventList &mC,
             }
         }
 
-        if ((*i)->getType() == MappedEvent::SystemAudioPortCounts) {
+        //if ((*i)->getType() == MappedEvent::SystemAudioPortCounts) {
             // never actually used, I think?
-        }
+        //}
 
         if ((*i)->getType() == MappedEvent::SystemAudioPorts) {
 #ifdef HAVE_LIBJACK
@@ -4695,7 +4772,7 @@ bool
 AlsaDriver::checkForNewClients()
 {
     Audit audit;
-    bool madeChange = false;
+    // bool madeChange = false; 
 
 #ifdef DEBUG_ALSA
     std::cerr << "AlsaDriver::checkForNewClients" << std::endl;
@@ -4762,7 +4839,7 @@ AlsaDriver::checkForNewClients()
                 if (j != m_devicePortMap.end()) {
                     j->second = ClientPortPair( -1, -1);
                     setConnectionToDevice(**i, "");
-                    madeChange = true;
+                    // madeChange = true;
                 }
             } else {
                 for (AlsaPortList::iterator k = m_alsaPorts.begin();
@@ -4771,7 +4848,7 @@ AlsaDriver::checkForNewClients()
                         (*k)->m_port == firstOther.second) {
                         m_devicePortMap[(*i)->getId()] = firstOther;
                         setConnectionToDevice(**i, (*k)->m_name.c_str(), firstOther);
-                        madeChange = true;
+                        // madeChange = true;
                         break;
                     }
                 }
@@ -4908,7 +4985,7 @@ AlsaDriver::unsetRecordDevices()
     tmp_addr.client = m_client;
     tmp_addr.port = m_inputPort;
 
-    // Unsubsribe any existing connections
+    // Unsubscribe any existing connections
     //
     snd_seq_query_subscribe_set_type(qSubs, SND_SEQ_QUERY_SUBS_WRITE);
     snd_seq_query_subscribe_set_index(qSubs, 0);
@@ -5024,7 +5101,8 @@ AlsaDriver::sendSystemQueued(MidiByte command,
     snd_seq_ev_set_source(&event, m_syncOutputPort);
     snd_seq_ev_set_subs(&event);
 
-    snd_seq_real_time_t sendTime = { time.sec, time.nsec };
+    snd_seq_real_time_t sendTime =
+        { (unsigned int)time.sec, (unsigned int)time.nsec };
 
     // Schedule the command
     //
@@ -5083,7 +5161,6 @@ AlsaDriver::getStatusLog()
 {
     return strtoqstr(Audit::getAudit());
 }
-
 
 void
 AlsaDriver::sleep(const RealTime &rt)
@@ -5162,15 +5239,15 @@ AlsaDriver::reportFailure(MappedEvent::FailureCode code)
 #endif
 
     // Ignore consecutive duplicates
-    if (_failureReportWriteIndex > 0 &&
-        _failureReportWriteIndex != _failureReportReadIndex) {
-        if (code == _failureReports[_failureReportWriteIndex - 1])
+    if (failureReportWriteIndex > 0 &&
+        failureReportWriteIndex != failureReportReadIndex) {
+        if (code == failureReports[failureReportWriteIndex - 1])
             return ;
     }
 
-    _failureReports[_failureReportWriteIndex] = code;
-    _failureReportWriteIndex =
-        (_failureReportWriteIndex + 1) % FAILURE_REPORT_COUNT;
+    failureReports[failureReportWriteIndex] = code;
+    failureReportWriteIndex =
+        (failureReportWriteIndex + 1) % FAILURE_REPORT_COUNT;
 }
 
 std::string

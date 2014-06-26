@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,13 +19,15 @@
 
 #include "base/BaseProperties.h"
 #include "base/Controllable.h"
+#include "base/Instrument.h"
 #include "base/MidiTypes.h"
 #include "base/Profiler.h"
 #include "base/Segment.h"
 #include "gui/rulers/ControllerEventAdapter.h"
-#include "gui/seqmanager/InternalSegmentMapper.h"
 #include "misc/Debug.h"
-#include <assert.h>
+
+#include <QtGlobal>
+
 #include <limits>
 
 // #define DEBUG_CONTROLLER_CONTEXT 1
@@ -36,11 +38,9 @@ namespace Rosegarden
     /*** ControllerSearch ***/
 ControllerSearch::
 ControllerSearch(const std::string eventType,
-                 int controllerId,
-                 InternalSegmentMapper *mapper) :
+                 int controllerId) :
     m_eventType(eventType),
-    m_controllerId(controllerId),
-    m_instrument(mapper->getInstrument())
+    m_controllerId(controllerId)
 {}
 
 // Return the last value of controller before noLaterThan in segment s.
@@ -76,20 +76,22 @@ searchSegment(const Segment *s, timeT noEarlierThan, timeT noLaterThan) const
     return Maybe(false, ControllerSearchValue(0,0));
 }
 
+// Search Segments A and B for the latest controller value. Search A
+// first.  B may be NULL but A must exist.
 ControllerSearch::Maybe
 ControllerSearch::
-search(InternalSegmentMapper *mapper, timeT noLaterThan) const
+doubleSearch(Segment *a, Segment *b, timeT noLaterThan) const
 {
-    Profiler profiler("ControllerSearch::search", false);
+    Profiler profiler("ControllerSearch::doubleSearch", false);
     ControllerSearch::Maybe runningResult =
-        searchSegment(mapper->m_segment, std::numeric_limits<int>::min(),
+        searchSegment(a, std::numeric_limits<int>::min(),
                noLaterThan);
-    {
+    if (b) {
         timeT noEarlierThan = runningResult.first ?
             runningResult.second.m_when :
             std::numeric_limits<int>::min();
         ControllerSearch::Maybe result2 =
-            searchSegment(mapper->m_triggeredEvents, noEarlierThan,
+            searchSegment(b, noEarlierThan,
                           noLaterThan);
         if (result2.first)
             { runningResult = result2; }
@@ -111,35 +113,36 @@ matches(Event *e) const
           e->get <Int>(Controller::NUMBER) == m_controllerId));
 }
 
-// Get the static value for the controller and mapper we are
-// searching about.
+// Get the static value for the controller we are searching about.
 // @author Tom Breton (Tehom)
 int
 ControllerContextMap::
-getStaticValue(InternalSegmentMapper *mapper,
+getStaticValue(Instrument *instrument,
                const std::string eventType,
                int controllerId) 
 {
     if (eventType == Controller::EventType)
-        { return mapper->getInstrument()->getControllerValue(controllerId); }
+        { return instrument->getControllerValue(controllerId); }
     else
         // Neutral pitch-bend value
         { return 8192; }
 }
 
-// Get the value for controller controllerId at time t for mapper.
+// Get the value for controller controllerId at time t
 // @author Tom Breton (Tehom)
 int
 ControllerContextMap::
-getControllerValue(InternalSegmentMapper *mapper,
+getControllerValue(Instrument *instrument, Segment *a, Segment *b, 
                    timeT searchTime, const std::string eventType,
                    int controllerId)
 {
     Profiler profiler("ControllerContextMap::getControllerValue", false);
 
     // Should only get these two types.
-    assert((eventType == Controller::EventType) ||
-           (eventType == PitchBend::EventType));
+    Q_ASSERT_X((eventType == Controller::EventType) ||
+               (eventType == PitchBend::EventType),
+               "getControllerValue",
+               "got an unexpected event type");
     
     // We have cached the latest value of all controllers we've
     // inserted.  Find the relevant cache.
@@ -155,20 +158,21 @@ getControllerValue(InternalSegmentMapper *mapper,
         lastValue   = &m_PitchBendLatestValue.second;
     }
 
-    // If cache don'es have that controller, then no such controller
+    // If cache doesn't have that controller, then no such controller
     // is in this segment, so use the static value.
     if (!valueExists) {
-        return getStaticValue(mapper, eventType, controllerId);
+        return getStaticValue(instrument, eventType, controllerId);
     }
 
     // If we are servicing a repeating segment, the segment may repeat
     // many times but we only have to search it once.  Figure out what
     // time we really should look at; mutate searchTime accordingly.
+    // Segment A governs timing and repitition.
     bool firstRepeat;
-    if (mapper->getSegmentRepeatCount() > 0) {
-        Segment *s = mapper->m_segment;
-        timeT segmentStartTime = s->getStartTime();
-        timeT segmentEndTime   = s->getEndMarkerTime();
+    // 
+    if (a->isRepeating()) {
+        timeT segmentStartTime = a->getStartTime();
+        timeT segmentEndTime   = a->getEndMarkerTime();
         timeT segmentDuration = segmentEndTime - segmentStartTime;
 
         if (searchTime >= segmentEndTime) {
@@ -193,10 +197,10 @@ getControllerValue(InternalSegmentMapper *mapper,
 
     // Some non-static values exist for this controller but the last
     // value isn't it, so search.
-    const ControllerSearch params(eventType, controllerId, mapper);
-    Maybe foundInEvents = params.search(mapper, searchTime);
+    const ControllerSearch params(eventType, controllerId);
+    Maybe foundInEvents = params.doubleSearch(a, b, searchTime);
 
-    // Found it, done.
+    // Found it so we're done.
     if (foundInEvents.first)
         { return foundInEvents.second.value(); } 
 
@@ -208,20 +212,20 @@ getControllerValue(InternalSegmentMapper *mapper,
 
     // Search time is before all controller events, so the static
     // value is it.
-    return getStaticValue(mapper, eventType, controllerId);
+    return getStaticValue(instrument, eventType, controllerId);
 }
 
 // Get the respective control parameter.
 // @author Tom Breton (Tehom)
 const ControlParameter *
 ControllerContextMap::
-getControlParameter(InternalSegmentMapper *mapper,
+getControlParameter(Instrument *instrument,
                     const std::string eventType,
                     const int controllerId)
 {
-    Device * device = mapper->getInstrument()->getDevice();
+    Device * device = instrument->getDevice();
     const Controllable *c = device->getControllable();
-    assert(c);
+    Q_CHECK_PTR(c);
     return c->getControlParameter(eventType, controllerId);
 }
 
@@ -241,31 +245,38 @@ makeAbsolute(const ControlParameter * controlParameter, int value) const
 }
 
 // Transform e's controller value from relative to absolute.
-// @param at the time at which to look.  This is typically not e's time.
+// @param at
+// The time at which to look.  This is not neccessarily e's time.
+// @param A
+// A segment to search if the cached value doesn't fit (is later than at).
+// @param B
+// An optional second segment to search
 // @author Tom Breton (Tehom)
 void
 ControllerContextMap::
-makeControlValueAbsolute(InternalSegmentMapper *mapper, Event *e, timeT at)
+makeControlValueAbsolute(Instrument *instrument, Segment *a,
+                         Segment *b, Event *e, timeT at)
 {
     Profiler profiler("ControllerContextMap::makeControlValueAbsolute", false);
     const std::string eventType = e->getType();
     const int controllerId =
         e->has(Controller::NUMBER) ?
         e->get <Int>(Controller::NUMBER) : 0;
-    const ControllerSearch params(eventType, controllerId, mapper);
-    ControllerSearch::Maybe result = params.search(mapper, at);
+    const ControllerSearch params(eventType, controllerId);
+    ControllerSearch::Maybe result =
+        params.doubleSearch(a, b, at);
     int baseline;
     if (result.first)
         { baseline = result.second.value(); }
     else
-        { baseline = getStaticValue(mapper, eventType, controllerId); }
+        { baseline = getStaticValue(instrument, eventType, controllerId); }
     ControllerEventAdapter adapter(e);
     long oldValue;
     adapter.getValue(oldValue);
-    const ControlParameter * m_controlParameter =
-        getControlParameter(mapper, eventType, controllerId);
+    const ControlParameter * controlParameter =
+        getControlParameter(instrument, eventType, controllerId);
     long newValue =
-        makeAbsolute(m_controlParameter, oldValue + baseline);
+        makeAbsolute(controlParameter, oldValue + baseline);
     adapter.setValue(newValue);
 #ifdef DEBUG_CONTROLLER_CONTEXT
     SEQMAN_DEBUG << "ControllerContextMap::makeControlValueAbsolute"
@@ -301,7 +312,9 @@ storeLatestValue(Event *e)
         m_latestValues[controllerId] = toCache;
     } else {
         // We are only expecting these two types.
-        assert(eventType == PitchBend::EventType);
+        Q_ASSERT_X(eventType == PitchBend::EventType,
+                   "storeLatestValue",
+                   "got an unexpected event type");
         // Set it.
         m_PitchBendLatestValue = Maybe(true, toCache);
     } 

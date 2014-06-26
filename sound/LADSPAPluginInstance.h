@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -18,8 +18,8 @@
 #include <QString>
 #include "base/Instrument.h"
 
-#ifndef _LADSPAPLUGININSTANCE_H_
-#define _LADSPAPLUGININSTANCE_H_
+#ifndef RG_LADSPAPLUGININSTANCE_H
+#define RG_LADSPAPLUGININSTANCE_H
 
 //#include <ladspa.h>
 #include "RunnablePluginInstance.h"
@@ -36,7 +36,7 @@ class LADSPAPluginInstance : public RunnablePluginInstance
 public:
     virtual ~LADSPAPluginInstance();
 
-    //virtual bool isOK() const { return m_instanceHandles.size() != 0; }
+    //virtual bool isOK() const { return !m_instanceHandles.empty(); }
 
     InstrumentId getInstrument() const { return m_instrument; }
     virtual QString getIdentifier() const { return m_identifier; }
@@ -74,7 +74,7 @@ protected:
                          unsigned long sampleRate,
                          size_t blockSize,
                          int idealChannelCount
-                         /*const LADSPA_Descriptor* descriptor*/);
+                         /* const LADSPA_Descriptor* descriptor */);
 
     // Constructor that uses shared buffers
     // 
@@ -86,7 +86,7 @@ protected:
                          size_t blockSize,
                          sample_t **inputBuffers,
                          sample_t **outputBuffers
-                         /*const LADSPA_Descriptor* descriptor*/);
+                         /* const LADSPA_Descriptor* descriptor */);
 
     void init(int idealChannelCount = 0);
     void instantiate(unsigned long sampleRate);
@@ -102,10 +102,10 @@ protected:
     int                        m_position;
     //std::vector<LADSPA_Handle> m_instanceHandles;
     size_t                     m_instanceCount;
-   // const LADSPA_Descriptor   *m_descriptor;
+    //const LADSPA_Descriptor   *m_descriptor;
 
-  //  std::vector<std::pair<unsigned long, LADSPA_Data*> > m_controlPortsIn;
-  //  std::vector<std::pair<unsigned long, LADSPA_Data*> > m_controlPortsOut;
+    //std::vector<std::pair<unsigned long, LADSPA_Data*> > m_controlPortsIn;
+    //std::vector<std::pair<unsigned long, LADSPA_Data*> > m_controlPortsOut;
 
     std::vector<int>          m_audioPortsIn;
     std::vector<int>          m_audioPortsOut;
@@ -123,5 +123,5 @@ protected:
 
 }
 
-#endif // _LADSPAPLUGININSTANCE_H_
+#endif // RG_LADSPAPLUGININSTANCE_H
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -12,8 +12,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _SOUNDFILE_H_
-#define _SOUNDFILE_H_
+#ifndef RG_SOUNDFILE_H
+#define RG_SOUNDFILE_H
 
 // SoundFile is an abstract base class defining behaviour for both
 // MidiFiles and AudioFiles.  The getBytes routine is buffered into
@@ -148,6 +148,6 @@ protected:
 }
 
 
-#endif // _SOUNDFILE_H_
+#endif // RG_SOUNDFILE_H
 
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[EditViewBase]"
 
 #include "EditViewBase.h"
 
@@ -186,7 +188,7 @@ EditViewBase::slotOpenInPitchTracker()
     emit slotOpenInPitchTracker(m_segments);
 }
 
-void EditViewBase::closeEvent(QCloseEvent* e)
+void EditViewBase::closeEvent(QCloseEvent* /* e */)
 {
     RG_DEBUG << "EditViewBase::closeEvent()\n";
 /*!!!
@@ -266,14 +268,18 @@ EditViewBase::slotToggleSolo()
 
     bool newSoloState = toggleSoloAction->isChecked();
 
-    RG_DEBUG << "EditViewBase::slotToggleSolo() : solo action is "
-             << (toggleSoloAction->isCheckable() ? "" : "NOT")
-             << " checkable." << endl;
+    //RG_DEBUG << "EditViewBase::slotToggleSolo() : solo action is " << (toggleSoloAction->isCheckable() ? "" : "NOT") << " checkable.";
+    //RG_DEBUG << "EditViewBase::slotToggleSolo() : solo  = " << newSoloState;
 
-    RG_DEBUG << "EditViewBase::slotToggleSolo() : solo  = " << newSoloState << endl;
     emit toggleSolo(newSoloState);
 
     if (newSoloState) {
+        getDocument()->getComposition().setSelectedTrack(
+                getCurrentSegment()->getTrack());
+        getDocument()->getComposition().notifyTrackSelectionChanged(
+                getCurrentSegment()->getTrack());
+
+        // Old notification mechanism.
         emit selectTrack(getCurrentSegment()->getTrack());
     }
 }
@@ -292,7 +298,8 @@ EditViewBase::slotSetSegmentStartTime()
     if (dialog.exec() == QDialog::Accepted) {
 
         SegmentReconfigureCommand *command =
-            new SegmentReconfigureCommand(tr("Set Segment Start Time"));
+            new SegmentReconfigureCommand(tr("Set Segment Start Time"),
+                    &getDocument()->getComposition());
 
         command->addSegment
         (s, dialog.getTime(),
@@ -319,7 +326,8 @@ EditViewBase::slotSetSegmentDuration()
     if (dialog.exec() == QDialog::Accepted) {
 
         SegmentReconfigureCommand *command =
-            new SegmentReconfigureCommand(tr("Set Segment Duration"));
+            new SegmentReconfigureCommand(tr("Set Segment Duration"),
+                    &getDocument()->getComposition());
 
         command->addSegment
         (s, s->getStartTime(),
@@ -348,7 +356,7 @@ EditViewBase::slotCompositionStateUpdate()
 }
 
 void
-EditViewBase::windowActivationChange(bool oldState)
+EditViewBase::windowActivationChange(bool /* oldState */)
 {
     if (isActiveWindow()) {
         emit windowActivated();
@@ -356,7 +364,7 @@ EditViewBase::windowActivationChange(bool oldState)
 }
 
 void
-EditViewBase::handleEventRemoved(Event *event)
+EditViewBase::handleEventRemoved(Event */* event */)
 {
 }
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,9 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[ControlRulerWidget]"
+
 #include "ControlRulerWidget.h"
 
 #include "ControlRuler.h"
@@ -26,14 +29,16 @@
 #include "gui/editors/matrix/MatrixScene.h"
 
 #include "document/RosegardenDocument.h"
-#include "base/Controllable.h"
+#include "base/BaseProperties.h"
 #include "base/ControlParameter.h"
+#include "base/Controllable.h"
+#include "base/Event.h"
 #include "base/MidiDevice.h"
 #include "base/PropertyName.h"
-#include "base/BaseProperties.h"
-#include "base/Event.h"
 #include "base/RulerScale.h"
 #include "base/Selection.h"
+#include "base/SoftSynthDevice.h"
+#include "base/parameterpattern/SelectionSituation.h"
 
 #include "misc/Debug.h"
 
@@ -100,11 +105,16 @@ ControlRulerWidget::setSegments(RosegardenDocument *document, std::vector<Segmen
         getInstrumentById(track->getInstrument());
 
     if (instr) {
+        Device *device = instr->getDevice();
 
-        MidiDevice *device = dynamic_cast <MidiDevice*> (instr->getDevice());
+        // Cast to a Controllable if possible, otherwise leave c NULL.
+        Controllable *c =
+            dynamic_cast<MidiDevice *>(device);
+        if (!c)
+            { c = dynamic_cast<SoftSynthDevice *>(device); }
 
-        if (device) {
-            m_controlList = &(device->getControlParameters());
+        if (c) {
+            m_controlList = &(c->getControlParameters());
         }
     }
 
@@ -382,7 +392,7 @@ ControlRulerWidget::slotSelectionChanged(EventSelection *s)
 }
 
 void
-ControlRulerWidget::slotHoveredOverNoteChanged(int evPitch, bool haveEvent, timeT evTime)
+ControlRulerWidget::slotHoveredOverNoteChanged(int /* evPitch */, bool /* haveEvent */, timeT /* evTime */)
 {
     slotHoveredOverNoteChanged();
 }
@@ -416,6 +426,7 @@ ControlRulerWidget::slotSetToolName(const QString &toolname)
     QString rulertoolname = toolname;
     // Translate Notation tool names
     if (toolname == "notationselector") rulertoolname = "selector";
+    if (toolname == "notationselectornoties") rulertoolname = "selector";
     if (toolname == "noterestinserter") rulertoolname = "painter";
     if (toolname == "notationeraser") rulertoolname = "eraser";
     
@@ -439,6 +450,56 @@ bool
 ControlRulerWidget::isAnyRulerVisible()
 {
     return m_controlRulerList.size();
+}
+
+ControllerEventsRuler *
+ControlRulerWidget::getActiveRuler(void)
+{
+    QWidget * widget = m_stackedWidget->currentWidget ();
+    if (!widget) { return 0; }
+    return dynamic_cast <ControllerEventsRuler *> (widget);
+}
+
+bool
+ControlRulerWidget::hasSelection(void)
+{
+    ControllerEventsRuler *ruler = getActiveRuler();
+    if (!ruler) { return false; }
+    return ruler->getEventSelection() ? true : false;
+}
+
+// Return the active ruler's event selection, or NULL if none.
+// @author Tom Breton (Tehom)
+EventSelection *
+ControlRulerWidget::getSelection(void)
+{
+    ControllerEventsRuler *ruler = getActiveRuler();
+    if (!ruler) { return 0; }
+    return ruler->getEventSelection();
+}
+
+ControlParameter *
+ControlRulerWidget::getControlParameter(void)
+{
+    ControllerEventsRuler *ruler = getActiveRuler();
+    if (!ruler) { return 0; }
+    return ruler->getControlParameter();
+}
+
+// @return the active ruler's parameter situation, or NULL if none.
+// Return is owned by caller.
+// @author Tom Breton (Tehom)
+SelectionSituation *
+ControlRulerWidget::getSituation(void)
+{
+    ControllerEventsRuler *ruler = getActiveRuler();
+    if (!ruler) { return 0; }
+    EventSelection * selection = ruler->getEventSelection();
+    if (!selection) { return 0; }
+    ControlParameter * cp = ruler->getControlParameter();
+    if (!cp) { return 0; }
+    return
+        new SelectionSituation(cp->getType(), selection);
 }
 
 }

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[ControlItem]"
 
 #include "ControlItem.h"
 #include "ControlRuler.h"
@@ -58,7 +60,7 @@ void ControlItem::updateFromValue()
 {
 }
 
-void ControlItem::draw(QPainter &painter)
+void ControlItem::draw(QPainter &/* painter */)
 {
 }
 
@@ -70,7 +72,7 @@ void ControlItem::handleMouseButtonRelease(QMouseEvent*)
 {
 }
 
-void ControlItem::handleMouseMove(QMouseEvent*, int /*deltaX*/, int deltaY)
+void ControlItem::handleMouseMove(QMouseEvent*, int /*deltaX*/, int /* deltaY */)
 {
 }
 
@@ -96,11 +98,11 @@ void ControlItem::reconfigure()
     m_lastxstart = m_xstart;
 }
 
-void ControlItem::setX(int x)
+void ControlItem::setX(int /* x */)
 {
 }
 
-void ControlItem::setWidth(int width)
+void ControlItem::setWidth(int /* width */)
 {
 }
 

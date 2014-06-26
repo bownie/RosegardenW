@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_TEMPORULER_H_
-#define _RG_TEMPORULER_H_
+#ifndef RG_TEMPORULER_H
+#define RG_TEMPORULER_H
 
 #include "gui/dialogs/TempoDialog.h"
 #include "gui/general/ActionFileClient.h"
@@ -68,7 +68,7 @@ public:
                QMainWindow *parentMainWindow,
                double xorigin = 0.0,
                int height = 0,
-               bool smallTR = false,
+               bool small = false,
                bool Thorn = true);
 
     ~TempoRuler();

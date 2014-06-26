@@ -16,8 +16,8 @@
   <Menu name="edit">
     <text>&amp;Edit</text>
     <!-- JAS 'Undo' and 'Redo' use dynamic text.  Put default text for new project in. -->
-    <Action name="edit_undo" text="&amp;Nothing to undo" icon="undo" shortcut="Ctrl+Z" />
-    <Action name="edit_redo" text="N&amp;othing to redo" icon="redo" shortcut="Ctrl+Shift+Z" />
+    <Action name="edit_undo" text="&amp;Nothing to Undo" icon="undo" shortcut="Ctrl+Z" />
+    <Action name="edit_redo" text="N&amp;othing to Redo" icon="redo" shortcut="Ctrl+Shift+Z" />
   <Separator/>
     <!-- JAS use multiple shorcuts found in QT reference for gnome/KDE -->
     <Action name="edit_cut" text="Cu&amp;t" icon="editcut" shortcut="Ctrl+X, F20, Shift+Del" />
@@ -28,16 +28,22 @@
     <Action name="general_paste" text="Pa&amp;ste..." shortcut="Alt+Shift+V" />
     <Action name="delete" text="De&amp;lete" shortcut="Delete" />
   <Separator/>
-    <Action name="move_events_up_staff" text="&amp;Move to Staff Above" />
-    <Action name="move_events_down_staff" text="Move to Staff &amp;Below" />
+    <Action name="move_events_up_staff" 
+            text="&amp;Move to Staff Above" />
+    <Action name="general_move_events_up_staff" 
+            text="&amp;Move to Staff Above..." />
+    <Action name="move_events_down_staff" 
+            text="Move to Staff &amp;Below" />
+    <Action name="general_move_events_down_staff" 
+            text="Move to Staff &amp;Below..." />
   <Separator/>
     <Action name="select_from_start" text="Select from Sta&amp;rt" />
     <Action name="select_to_end" text="Select to &amp;End" />
     <Action name="select_whole_staff" text="Select Whole St&amp;aff" shortcut="Ctrl+A" />
     <Action name="clear_selection" text="Clear Select&amp;ion" shortcut="Escape" />
+<!--    <Action name="search_select" text="Search and Selec&amp;t" icon="search" shortcut="Ctrl+K" /> -->
     <Action name="filter_selection" text="&amp;Filter Selection" icon="filter" shortcut="Ctrl+F" />
-  <Separator/>
-    <Action name="pitch_bend_sequence" text="Insert Pitch &amp;Bend Sequence..." />
+    <Action name="select_evenly_spaced_notes" text="&amp;Guess Beats" />
   <Separator/>
     <Action name="options_configure" text="&amp;Preferences..." icon="configure" />
   </Menu>
@@ -94,6 +100,7 @@
       <Action name="show_layer_toolbar" text="Show La&amp;yer Toolbar" checked="true" append="show_merge" />
       <Action name="show_rulers_toolbar" text="Show &amp;Rulers Toolbar" checked="true" append="show_merge" />
       <Action name="show_duration_toolbar" text="Show &amp;Duration Toolbar" checked="true" append="show_merge" />
+      <Action name="show_interpret_toolbar" text="Show &amp;Interpret Toolbar" checked="true" append="show_merge" />
       <Action name="options_show_statusbar" text="Show St&amp;atusbar" checked="true" append="show_merge" />
     </Menu>
     <Menu name="rulers" append="show_merge">
@@ -137,11 +144,11 @@
     </Menu>
   <Separator/>
     <Action name="add_clef" text="Add Cle&amp;f Change..." />
-    <Action name="add_clef_this_link_only" text="Add Clef Change in this link only..." />
+    <Action name="add_clef_this_link_only" text="Add Clef Change in This Link Only..." />
     <Action name="add_key_signature" text="Add &amp;Key Change..." />
   <Separator/>
-    <Action name="add_sustain_down" text="Add Pedal &amp;Press" />
-    <Action name="add_sustain_up" text="Add Pedal &amp;Release" />
+    <Action name="add_sustain_down" text="Add Pedal &amp;Press" icon="notation-pedal-down" />
+    <Action name="add_sustain_up" text="Add Pedal &amp;Release" icon="notation-pedal-up" />
   <Separator/>
     <Action name="set_segment_start" text="Set Start &amp;Time..." />
     <Action name="set_segment_duration" text="Set &amp;Duration..." />
@@ -150,6 +157,8 @@
     <Action name="switch_preset" text="&amp;Convert Notation for..." />
   <Separator/>
     <Action name="add_layer" text="Add &amp;Layer" icon="add-layer" shortcut="Ctrl+Alt++" />
+  <Separator/>
+    <Action name="unadopt_segment" text="Unadopt an Adopted Segment" />
   </Menu>
 
   <Menu name="Notes">
@@ -188,6 +197,11 @@
       <Action name="use_ornament" text="Trigger &amp;Ornament..." />
       <Action name="remove_ornament" text="&amp;Remove Ornament..." />
       <Action name="make_ornament" text="Ma&amp;ke Ornament..." />
+      <Action name="edit_ornament_inline" text="&amp;Edit Ornament as Notation" />
+      <Action name="show_ornament_expansion" text="&amp;Show Expansion of Ornament" />
+      <Action name="mask_ornament" text="Skip This Part of Ornament (&amp;Mask Tied Note)" />
+      <Action name="unmask_ornament" text="Don't Skip This Part (&amp;Unmask Tied Note)" />
+      
       <!-- JAS No text in menus for 'ornament_actionmenu' action name. -->
       <Action name="ornament_actionmenu" />
     </Menu>
@@ -301,6 +315,7 @@
       <text>&amp;Figuration</text>
       <Action name="parameter_chord" text="Make &amp;Parameter Chord" />
       <Action name="figuration" text="Mark Selection as &amp;Figuration" />
+      <Action name="generated" text="Mark Selection as Auto-Generated" />
     </Menu>
   </Menu>
 
@@ -396,7 +411,16 @@
       <Action name="make_visible" text="Make &amp;Visible" />
     </Menu>
   </Menu>
-
+  <Menu name="controllers">
+    <text>Co&amp;ntrollers</text>
+    <Action name="cut_controllers" text="Cut Controller Events (&amp;X)" />
+    <Action name="copy_controllers" text="&amp;Copy Controller Events" />
+    <Action name="set_controllers" text="&amp;Set Controller Values" />
+    <Action name="place_controllers" text="&amp;Place a Controller for Each Note" />
+    <Action name="expression_sequence" text="Insert &amp;Expression Controller Sequence..." />
+    <Action name="pitch_bend_sequence" text="Insert Pitch &amp;Bend Sequence..." />
+    <Action name="controller_sequence" text="Insert C&amp;ontroller  Sequence..." />
+  </Menu>
   <Menu name="Move">
     <text>&amp;Move</text>
       <Action name="extend_selection_backward" text="Cursor back and Se&amp;lect" icon="select-backward" shortcut="Shift+Left" />
@@ -420,6 +444,7 @@
       <Action name="playback_pointer_forward_bar" text="&amp;Fast Forward" icon="transport-ffwd" shortcut="Ctrl+Right" /> 
       <Action name="playback_pointer_start" text="Rewind to &amp;Beginning" tooltip="Rewind to Beginning" icon="transport-rewind-end" />
       <Action name="playback_pointer_end" text="Fast Forward to &amp;End" tooltip="Fast Forward to End" icon="transport-ffwd-end" />
+      <Action name="jump_to_quick_marker" text="&amp;Jump to Quick Marker" shortcut="Ctrl+M" />
       <Action name="toggle_solo" text="S&amp;olo" tooltip="Solo the Active Track" icon="transport-solo" checked="false" />
       <Action name="toggle_tracking" text="Scro&amp;ll to Follow Playback" tooltip="Scroll to Follow Playback" icon="transport-tracking" shortcut="Pause" checked="true" />
       <Action name="panic" text="P&amp;anic" icon="transport-panic" tooltip="Panic! (Ctrl+Alt+P)" shortcut="Alt+Ctrl+P" />
@@ -429,6 +454,7 @@
     <text>&amp;Tools</text>
     <!-- JAS Other tools in group are not selectable from menu -->
     <Action name="select" text="&amp;Select and Edit" icon="select" shortcut="F2" group="tools_note" checked="true" />
+    <Action name="selectnoties" text="Select but Don't Follow Ties" group="tools_note" checked="false" />
     <Action name="draw" text="Draw &amp;Notes and Rests" icon="pencil" shortcut="F3" group="tools_note" checked="false"/>
     <Action name="erase" text="&amp;Erase" icon="eraser" shortcut="F4" group="tools_note" checked="false" />
     <!-- <Menu noMerge="1" name="NoteTools"> -->
@@ -461,7 +487,7 @@
   <Separator/>
     <Menu noMerge="1" name="DurationTools">
       <text>&amp;Durations</text>
-	    <!-- Reference names, but with _ instead of - -->
+            <!-- Reference names, but with _ instead of - -->
       <Action name="duration_breve" text="&amp;Double Whole Note" icon="breve" shortcut="5" checked="false" group="duration_shortcut" />
       <Action name="duration_semibreve" text="&amp;Whole Note" icon="semibreve" shortcut="1" checked="false" group="duration_shortcut" />
       <Action name="duration_minim" text="&amp;Half Note" icon="minim" shortcut="2" checked="false" group="duration_shortcut" />
@@ -479,10 +505,10 @@
       <Action name="duration_dotted_demisemi" text="Dotted Thirt&amp;y-Second Note" icon="dotted-demisemi" checked="false" group="duration_shortcut" />
     <Separator/>
       <!-- Yes these share the same shortcut, only one of each will be visible at a time -->
-      <Action name="switch_to_notes" text="Switch To &amp;Notes" icon="switch-to-notes" shortcut="Y" />
-      <Action name="switch_to_rests" text="Switch To &amp;Rests" icon="switch-to-rests" shortcut="Y" />
-      <Action name="switch_dots_on" text="To&amp;ggle Dot On" icon="switch-dots-on" shortcut="." />
-      <Action name="switch_dots_off" text="To&amp;ggle Dot Off" icon="switch-dots-off" shortcut="." />
+      <Action name="switch_to_notes" text="Switch to &amp;Notes" icon="switch-to-notes" shortcut="Y" />
+      <Action name="switch_to_rests" text="Switch to &amp;Rests" icon="switch-to-rests" shortcut="Y" />
+      <Action name="switch_dots_on" text="To&amp;ggle Dot on" icon="switch-dots-on" shortcut="." />
+      <Action name="switch_dots_off" text="To&amp;ggle Dot off" icon="switch-dots-off" shortcut="." />
     </Menu>
 
 
@@ -584,7 +610,7 @@
     <text>&amp;Help</text>
     <Action name="manual" text="Rosegarden &amp;Manual" icon="wiki" shortcut="F1" />
   <Separator/>
-    <Action name="tutorial" text="&amp;Rosegarden tutorial" />
+    <Action name="tutorial" text="&amp;Rosegarden Tutorial" />
     <Action name="guidelines" text="&amp;Bug Reporting Guidelines" />
   <Separator/>
     <Action name="help_about_app" text="&amp;About Rosegarden" icon="rg-rwb-rose3-16x16" />
@@ -618,6 +644,7 @@
   <Action name="guitarchord" />
   <Separator/>
   <Action name="toggle_step_by_step" />
+<!--  <Action name="search_select" /> -->
   <Action name="filter_selection" />
   <Action name="quantize" />
 </ToolBar>
@@ -761,6 +788,9 @@
 <Separator/>
   <Action name="add_dot" />
   <Action name="cycle_slashes" />
+<Separator/>
+  <Action name="add_sustain_down" />
+  <Action name="add_sustain_up" />
 </ToolBar>
 
 <ToolBar name="Layout Toolbar" hidden="false">
@@ -781,6 +811,16 @@
   <Action name="toggle_velocity_ruler" />
   <Action name="toggle_pitchbend_ruler" />
   <Action name="add_control_ruler" />
+</ToolBar>
+
+<ToolBar name="Interpret Toolbar">
+  <text>Interpret Toolbar</text>
+  <Action name="interpret_activate" text="&amp;Interpret Active Segment" icon="interpret-activate" />
+<Separator/>
+  <Action name="interpret_text_dynamics" text="Interpret &amp;Text Dynamics" icon="interpret-text-dynamics" checked="true" tooltip="Adjust velocity to follow text dynamics (f, p, mf...)" />
+  <Action name="interpret_hairpins" text="Interpret &amp;Hairpins" icon="interpret-hairpins" checked="true" tooltip="Adjust velocity to follow hairpin dynamics" />
+  <Action name="interpret_slurs" text="Interpret &amp;Slurs and Marks" icon="interpret-slurs" checked="true" tooltip="Articulate slurs, staccato, tenuto, etc." />
+  <Action name="interpret_beats" text="Interpret &amp;Beats" icon="interpret-beats" checked="true" tooltip="Place accents on certain beats according to the time signature" />
 </ToolBar>
 
 <State name="note_rest_tool_current">
@@ -820,6 +860,8 @@
     <Action name="make_visible"/>
     <Action name="move_events_up_staff"/>
     <Action name="move_events_down_staff"/>
+    <Action name="general_move_events_up_staff"/>
+    <Action name="general_move_events_down_staff"/>
   </enable>
 </State>
 
@@ -831,6 +873,9 @@
     <Action name="add_text_mark"/>
     <Action name="normalize_rests"/> 
     <Action name="collapse_rests_aggressively"/>
+    <Action name="expression_sequence"/>
+    <Action name="pitch_bend_sequence"/>
+    <Action name="controller_sequence"/>
     <Menu name="Adjust"/>
   </enable>
 </State>
@@ -898,6 +943,7 @@
     <Action name="trill_line"/> <!-- the new indication version -->
     <Action name="parameter_chord"/>
     <Action name="figuration"/>
+    <Action name="generated"/>
     <Action name="add_turn"/>
     <Action name="add_pause"/>
     <Action name="add_up-bow"/>
@@ -911,6 +957,10 @@
     <Action name="make_ornament"/>
     <Action name="remove_ornament"/>
     <Action name="use_ornament"/>
+    <Action name="edit_ornament_inline"/>
+    <Action name="show_ornament_expansion"/>
+    <Action name="mask_ornament"/>
+    <Action name="unmask_ornament"/>
     <Action name="collapse_notes"/>
     <Action name="tie_notes"/>
     <Action name="untie_notes"/>
@@ -936,7 +986,10 @@
     <Action name="velocity_up"/>
     <Action name="velocity_down"/>
     <Action name="set_velocities"/>
+    <Action name="expression_sequence"/>
     <Action name="pitch_bend_sequence"/>
+    <Action name="controller_sequence"/>
+    <Action name="place_controllers"/>
     <Menu name="Stems"/>
     <Menu name="Slashes"/>
     <Menu name="Transpose"/>
@@ -962,6 +1015,23 @@
   </enable>
 </State>
 
+<State name="have_controller_selection">
+  <enable>
+    <Action name="cut_controllers"/>
+    <Action name="copy_controllers"/>
+    <Action name="set_controllers"/>
+  </enable>
+</State>
+
+<State name="have_control_ruler">
+  <enable>
+    <Action name="cut_controllers" />
+    <Action name="copy_controllers" />
+    <Action name="set_controllers" />
+    <Action name="place_controllers" />
+  </enable>
+</State>
+
 <State name="have_clipboard_single_segment">
   <enable>
     <Action name="edit_paste"/>
@@ -977,6 +1047,13 @@
     <Action name="cursor_next_segment"/>
     <Action name="move_events_up_staff"/>
     <Action name="move_events_down_staff"/>
+    <Action name="general_move_events_up_staff"/>
+    <Action name="general_move_events_down_staff"/>
+  </enable>
+</State>
+<State name="focus_adopted_segment">
+  <enable>
+    <Action name="unadopt_segment"/>
   </enable>
 </State>
 

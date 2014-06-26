@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -95,19 +95,18 @@ void
 AudioPropertiesPage::calculateStats()
 {
 #ifdef WIN32
-    /*
-    ULARGE_INTEGER available, total, totalFree;
-    if (GetDiskFreeSpaceExA(m_path->text().toLocal8Bit().data(),
-                            &available, &total, &totalFree)) {
-        __int64 a = available.QuadPart;
-        __int64 t = total.QuadPart;
-        __int64 u = 0;
-        if (t > a) u = t - a;
-        slotFoundMountPoint(m_path->text(), t / 1024, u / 1024, a / 1024);
-    } else {
-        std::cerr << "WARNING: GetDiskFreeSpaceEx failed: error code "
-                  << GetLastError() << std::endl;
-    }*/
+    int available, total, totalFree;
+//    if (GetDiskFreeSpaceExA(m_path->text().toLocal8Bit().data(),
+//                           &available, &total, &totalFree)) {
+//        __int64 a = available.QuadPart;
+//        __int64 t = total.QuadPart;
+//        __int64 u = 0;
+//        if (t > a) u = t - a;
+//        slotFoundMountPoint(m_path->text(), t / 1024, u / 1024, a / 1024);
+//    } else {
+//        std::cerr << "WARNING: GetDiskFreeSpaceEx failed: error code "
+ //                 << GetLastError() << std::endl;
+//    }
 #else
     struct statvfs buf;
     if (!statvfs(m_path->text().toLocal8Bit().data(), &buf)) {
@@ -139,7 +138,7 @@ AudioPropertiesPage::slotFoundMountPoint(const QString&,
                           .arg(100 - (int)(100.0 * kBAvail / kBSize) ));
 
 
-    AudioPluginManager *apm = m_doc->getPluginManager();
+    // AudioPluginManager *apm = m_doc->getPluginManager();
 
     int sampleRate = RosegardenSequencer::getInstance()->getSampleRate();
 

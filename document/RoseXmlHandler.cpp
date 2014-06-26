@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[RoseXmlHandler]"
 
 #include "RoseXmlHandler.h"
 
@@ -703,6 +704,23 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
             getComposition().setEndMarker(endMarkerStr.toInt());
         }
 
+        QString autoExpand = atts.value("autoExpand");
+        if (!autoExpand.isEmpty()) {
+            if (autoExpand.toInt() == 1)
+                getComposition().setAutoExpand(true);
+            else
+                getComposition().setAutoExpand(false);
+        }
+
+        QString panLawStr = atts.value("panlaw");
+        if (!panLawStr.isEmpty()) {
+            int panLaw = panLawStr.toInt();
+            AudioLevel::setPanLaw(panLaw);
+        } else {
+            // Since no "panlaw" was found in this tag, apply the default.
+            AudioLevel::setPanLaw(0);
+        }
+
     } else if (lcName == "track") {
 
         if (m_section != InComposition) {
@@ -749,6 +767,11 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                                  position,
                                  label,
                                  muted);
+
+        QString shortLabelStr = atts.value("shortLabel");
+        if (!shortLabelStr.isEmpty()) {
+            track->setShortLabel(shortLabelStr.toStdString());
+        }
 
         // track properties affecting newly created segments are initialized
         // to default values in the ctor, so they don't need to be initialized
@@ -1544,8 +1567,11 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                                  colour.toInt(),
                                  ipbPosition.toInt());
 
+            // !!! Not clear whether this should propagate to
+            // instruments.  Conservatively keeping the original
+            // semantics, which may not be right.
             dynamic_cast<MidiDevice*>(m_device)->
-            addControlParameter(con);
+                addControlParameter(con, true);
         }
 
     } else if (lcName == "reverb") { // deprecated but we still read 'em

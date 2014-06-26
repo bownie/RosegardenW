@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_STUDIOCONTROL_H_
-#define _RG_STUDIOCONTROL_H_
+#ifndef RG_STUDIOCONTROL_H
+#define RG_STUDIOCONTROL_H
 
 #include "base/MidiProgram.h"
 #include "sound/MappedCommon.h"
@@ -130,6 +130,9 @@ public:
                                 bool oneshot = true);
 
     static void sendChannelSetup(Instrument *instrument, int channel);
+    static void sendController(const Instrument *instrument, int channel,
+                               MidiByte controller, MidiByte value);
+
  private:
     static ImmediateNote *getFiller(void);
 

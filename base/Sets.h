@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _SETS_H_
-#define _SETS_H_
+#ifndef RG_SETS_H
+#define RG_SETS_H
 
 #include <vector>
 #include <algorithm>
@@ -257,33 +257,6 @@ class GlobalChord : public GenericChord<Event, CompositionTimeSliceAdapter, fals
         : GenericChord<Element, Container, singleStaff>
               (c, elementInChord, quantizer, stemUpProperty)
         { initialise(); }
-};
-
-/// Class to describe a chord whose notes might not start at the same
-/// time
-/// @class ChordFromCounterpoint
-/// @author Tom Breton (Tehom)
-class ChordFromCounterpoint : public GenericChord<Event, Segment, false>
-{
-    typedef Event    Element;
-    typedef Segment  Container;
-    static const bool singleStaff = false;
-
-public:
-    ChordFromCounterpoint(Container &c,
-                      Iterator elementInChord,
-                      const Quantizer *quantizer,
-                      timeT preDuration)
-        : GenericChord<Element, Container, singleStaff>
-              (c, elementInChord, quantizer),
-          m_preDuration(preDuration)
-          { initialise(); }
-
-protected:
-    virtual bool     test(const Iterator &i);
-    virtual bool     sample(const Iterator &i, bool goingForwards);
-    // The longest duration we expect a preceding note to have.
-    timeT    m_preDuration;
 };
 
 ///

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _MIDIDEVICE_H_
-#define _MIDIDEVICE_H_
+#ifndef RG_MIDIDEVICE_H
+#define RG_MIDIDEVICE_H
 
 #include <string>
 #include <vector>
@@ -158,8 +158,10 @@ public:
 
     // Modify ControlParameters
     //
-    void addControlParameter(const ControlParameter &con);
-    void addControlParameter(const ControlParameter &con, int index);
+    void addControlParameter(const ControlParameter &con,
+                             bool propagateToInstruments);
+    void addControlParameter(const ControlParameter &con, int index,
+                             bool propagateToInstruments);
     bool removeControlParameter(int index);
     bool modifyControlParameter(const ControlParameter &con, int index);
 
@@ -242,4 +244,4 @@ protected:
 
 }
 
-#endif // _MIDIDEVICE_H_
+#endif // RG_MIDIDEVICE_H

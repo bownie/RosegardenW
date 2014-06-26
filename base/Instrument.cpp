@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -30,6 +30,7 @@
 
 #include <QString>
 #include <QCoreApplication>
+#include <QtGlobal>
 
 namespace Rosegarden
 {
@@ -144,7 +145,7 @@ Instrument::Instrument(InstrumentId id,
     m_audioInputChannel(0),
     m_audioOutput(0)
 {
-    assert(m_id >= AudioInstrumentBase);//!DEVPUSH
+    Q_ASSERT(m_id >= AudioInstrumentBase);//!DEVPUSH
 
     if (it == Audio || it == SoftSynth)
     {
@@ -192,7 +193,7 @@ Instrument::Instrument(InstrumentId id,
     m_audioInputChannel(0),
     m_audioOutput(0)
 {
-    assert(m_id >= AudioInstrumentBase);//!DEVPUSH
+    Q_ASSERT(m_id >= AudioInstrumentBase);//!DEVPUSH
 
     // Add a number of plugin place holders (unassigned)
     //
@@ -603,6 +604,10 @@ Instrument::setControllerValue(MidiByte controller, MidiByte value)
         {
             it->second = value;
             emit changedChannelSetup();
+            if (hasFixedChannel()) {
+                StudioControl::sendController(this, m_channel,
+                                              controller, value);
+                }
             return;
         }
     }
@@ -672,6 +677,7 @@ setFixedChannel(void)
         m_fixed = true;
         emit channelBecomesFixed();
         StudioControl::sendChannelSetup(this, m_channel);
+        ControlBlock::getInstance()->instrumentChangedFixity(getId());
     }
 }
 
@@ -690,6 +696,7 @@ releaseFixedChannel(void)
 
     m_fixed = false;
     emit channelBecomesUnfixed();
+    ControlBlock::getInstance()->instrumentChangedFixity(getId());
 }
 
 

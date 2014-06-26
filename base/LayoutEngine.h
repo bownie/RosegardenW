@@ -2,7 +2,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,8 +14,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _LAYOUT_ENGINE_2_H_
-#define _LAYOUT_ENGINE_2_H_
+#ifndef RG_LAYOUT_ENGINE_H
+#define RG_LAYOUT_ENGINE_H
 
 #include "RulerScale.h"
 

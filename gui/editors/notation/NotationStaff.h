@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_NOTATIONSTAFF_H_
-#define _RG_NOTATIONSTAFF_H_
+#ifndef RG_NOTATIONSTAFF_H
+#define RG_NOTATIONSTAFF_H
 
 #include "base/ViewSegment.h"
 #include "base/ViewElement.h"
@@ -76,11 +76,11 @@ public:
         m_barNumbersEvery = barNumbersEvery;
     }
 
-    StaffLayout::setPageMode;
-    StaffLayout::setPageWidth;
-    StaffLayout::setRowsPerPage;
-    StaffLayout::setRowSpacing;
-    StaffLayout::setConnectingLineLength;
+    using StaffLayout::setPageMode;
+    using StaffLayout::setPageWidth;
+    using StaffLayout::setRowsPerPage;
+    using StaffLayout::setRowSpacing;
+    using StaffLayout::setConnectingLineLength;
 
     SegmentRefreshStatus &getRefreshStatus() const;
     void resetRefreshStatus();
@@ -282,6 +282,8 @@ public:
      */
     timeT getTimeAtSceneCoords(double x, int y) const;
 
+    bool includesTime(timeT t);
+    
 protected:
 
     virtual ViewElement* makeViewElement(Event*);
@@ -399,6 +401,7 @@ protected:
     bool m_showRanges;
     bool m_showCollisions;
     bool m_hideRedundance;
+    bool m_distributeVerses;
     int m_keySigCancelMode;
 
     QPainter *m_printPainter;

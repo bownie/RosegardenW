@@ -2,7 +2,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -35,7 +35,7 @@ class SqueezedLabelPrivate
 {
 public:
 
-    void _k_copyFullText()
+    void k_copyFullText()
     {
         QMimeData* data = new QMimeData;
         data->setText(fullText);
@@ -168,7 +168,7 @@ void SqueezedLabel::contextMenuEvent(QContextMenuEvent* ev)
         QMenu menu(this);
 
         QAction* act = new QAction(tr("&Copy Full Text"), this);
-        connect(act, SIGNAL(triggered()), this, SLOT(_k_copyFullText()));
+        connect(act, SIGNAL(triggered()), this, SLOT(k_copyFullText()));
         menu.addAction(act);
 
         ev->accept();

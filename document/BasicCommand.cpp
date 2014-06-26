@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,11 +15,13 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_NO_DEBUG_PRINT 1
+#define RG_MODULE_STRING "[BasicCommand]"
 
 #include "BasicCommand.h"
 
 #include "base/Segment.h"
-
+#include "misc/Debug.h"
 #include <QString>
 
 
@@ -42,6 +44,23 @@ BasicCommand::BasicCommand(const QString &name, Segment &segment,
         m_redoEvents = new Segment(segment.getType(), m_startTime);
     }
 }
+
+// Variant ctor to be used when events to insert are known when
+// the command is cted.  Implies brute force redo.
+BasicCommand::BasicCommand(const QString &name,
+                           Segment &segment,
+                           Segment *redoEvents) :
+    NamedCommand(name),
+    m_startTime(calculateStartTime(redoEvents->getStartTime(), *redoEvents)),
+    m_endTime(calculateEndTime(redoEvents->getEndTime(), *redoEvents)),
+    m_segment(segment),
+    m_savedEvents(segment.getType(), m_startTime),
+    m_doBruteForceRedo(true),
+    m_redoEvents(redoEvents)
+{
+    if (m_endTime == m_startTime) { ++m_endTime; }
+}
+
 
 BasicCommand::~BasicCommand()
 {
@@ -140,8 +159,10 @@ BasicCommand::copyTo(Rosegarden::Segment *events)
 
     for (Segment::iterator i = from; i != m_segment.end() && i != to; ++i) {
 
-// RG_DEBUG << "Found event of type " << (*i)->getType() << 
-//   " and duration " << (*i)->getDuration() << endl;
+        RG_DEBUG << "Found event of type " << (*i)->getType()
+                 << " and duration " << (*i)->getDuration()
+                 << "at time "  << (*i)->getAbsoluteTime()
+                 << endl;
 
        events->insert(new Event(**i));
     }
@@ -159,8 +180,10 @@ BasicCommand::copyFrom(Rosegarden::Segment *events)
 
     for (Segment::iterator i = events->begin(); i != events->end(); ++i) {
 
-// RG_DEBUG << "Found event of type " << (*i)->getType() << 
-//   " and duration " << (*i)->getDuration() << endl;
+        RG_DEBUG << "Found event of type " << (*i)->getType()
+                 << " and duration " << (*i)->getDuration()
+                 << "at time "  << (*i)->getAbsoluteTime()
+                 << endl;
 
         m_segment.insert(new Event(**i));
     }

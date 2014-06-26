@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -14,8 +14,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _SEGMENT_NOTATION_HELPER_H_
-#define _SEGMENT_NOTATION_HELPER_H_
+#ifndef RG_SEGMENT_NOTATION_HELPER_H
+#define RG_SEGMENT_NOTATION_HELPER_H
 
 #include "base/Segment.h"
 
@@ -28,7 +28,7 @@ public:
     SegmentNotationHelper(Segment &t) : SegmentHelper(t) { }
     virtual ~SegmentNotationHelper();
 
-    SegmentHelper::segment;
+    using SegmentHelper::segment;
 
     /**
      * Set the NOTE_TYPE and NOTE_DOTS properties on the events
@@ -509,8 +509,9 @@ public:
     /**
      * Locate the given event and, if it's a note, collapse it with
      * any following adjacent note of the same pitch, so long as its
-     * start time is before the the given limit.  Does not care
-     * whether the resulting note is viable.
+     * start time is before the the given limit and both notes behave
+     * the same way in ornament expansion.  Does not care whether the
+     * resulting note is viable.
      *
      * Returns an iterator pointing to the event that replaced the
      * original one if a collapse happened, segment.end() if no

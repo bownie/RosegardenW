@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,57 +16,63 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_SEGMENTRECONFIGURECOMMAND_H_
-#define _RG_SEGMENTRECONFIGURECOMMAND_H_
+#ifndef RG_SEGMENTRECONFIGURECOMMAND_H
+#define RG_SEGMENTRECONFIGURECOMMAND_H
 
-#include "base/Track.h"
 #include "document/Command.h"
-#include <QString>
-#include <vector>
+#include "base/Track.h"
 #include "base/Event.h"
 
-
-
+#include <QString>
+#include <vector>
 
 namespace Rosegarden
 {
 
+
+class Composition;
 class Segment;
 
-
-/**
- * SegmentReconfigureCommand is a general-purpose command for
- * moving, resizing or changing the track of one or more segments
- */
+/// Move or resize segments, or change their tracks.
 class SegmentReconfigureCommand : public NamedCommand
 {
 public:
-    SegmentReconfigureCommand(QString name);
+    SegmentReconfigureCommand(QString name, Composition *composition);
     virtual ~SegmentReconfigureCommand();
 
-    struct SegmentRec {
-        Segment *segment;
-        timeT startTime;
-        timeT endMarkerTime;
-        TrackId track;
-    };
-    typedef std::vector<SegmentRec> SegmentRecSet;
-
+    // rename: addChange()
     void addSegment(Segment *segment,
-                    timeT startTime,
-                    timeT endMarkerTime,
-                    TrackId track);
+                    timeT newStartTime,
+                    timeT newEndMarkerTime,
+                    TrackId newTrack);
 
-    void addSegments(const SegmentRecSet &records);
+private:
+    Composition *m_composition;
+    timeT m_oldEndTime;
 
+    struct Change {
+        Segment *segment;
+        timeT newStartTime;
+        timeT newEndMarkerTime;
+        TrackId newTrack;
+    };
+    typedef std::vector<Change> ChangeSet;
+
+    // Before execute(), this contains the changes to be made.  After
+    // execute(), this contains the original values for unexecute().
+    ChangeSet m_changeSet;
+
+    // Does the actual work of swapping the changes into the segments.
+    timeT swap();
+    
+    // Command overrides
     void execute();
     void unexecute();
 
-private:
-    void swap();
-    
-    SegmentRecSet m_records; 
+    // unused
+//    void addSegments(const ChangeSet &changes);
 };
+
 
 }
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Parts of the configuration classes are taken from KMail.
     Copyright (C) 2000 The KMail Development Team.
@@ -18,8 +18,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_CONFIGURATIONPAGE_H_
-#define _RG_CONFIGURATIONPAGE_H_
+#ifndef RG_CONFIGURATIONPAGE_H
+#define RG_CONFIGURATIONPAGE_H
 
 #include <QWidget>
 

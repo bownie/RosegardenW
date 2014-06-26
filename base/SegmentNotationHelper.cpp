@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -717,7 +717,7 @@ SegmentNotationHelper::makeThisNoteViable(iterator noteItr, bool splitAtBars)
 
         if (!splits.first || !splits.second) {
             cerr
-                    << "WARNING: SegmentNotationHelper::makeNoteViable(): No valid split for event of duration "
+                    << "WARNING: SegmentNotationHelper::makeThisNoteViable(): No valid split for event of duration "
                     << e->getDuration() << " at " << e->getAbsoluteTime()
                     << " (split duration " << *dli << "), ignoring remainder\n";
             cerr << "WARNING: This is probably a bug; fix required"
@@ -729,18 +729,31 @@ SegmentNotationHelper::makeThisNoteViable(iterator noteItr, bool splitAtBars)
             // is longer than the event duration.  The following check will
             // make sure the notation duration is truncated to the event
             // duration thus preventing the endless loop.
+            
+            // Bug #1419
+            //
+            // The above referenced check obviously didn't work correctly.  The
+            // following code block used to be inside a test to see if
+            // performance and notation duration were the same, which is
+            // antithetical to the above stated goal of the following code
+            // block.  Without doing any thinking on the greater picture here, I
+            // decided to try removing the test entirely.  The thought was if
+            // we're in this "no valid split" code block anyway, then let's just
+            // hit it with a hammer in every case and try to avoid infinite
+            // loops!
+            //
+            // It successfully addresses the infinite loop in #1419 with no
+            // immediately obvious consequences, although I'm sure there are
+            // hidden consequences.
 
-            // If the event and notation times are the same.
-            if (e->getAbsoluteTime() == e->getNotationAbsoluteTime()) {
-                // Create a new event with the notation abs time and duration
-                // set to the event abs time and duration.
-                Event *e1 = new Event(*e,
-                        e->getAbsoluteTime(), e->getDuration(),   // event
-                        e->getSubOrdering(),
-                        e->getAbsoluteTime(), e->getDuration());  // notation
-                toInsert.push_back(e1);
-                break;
-            }
+            // Create a new event with the notation abs time and duration
+            // set to the event abs time and duration.
+            Event *e1 = new Event(*e,
+                    e->getAbsoluteTime(), e->getDuration(),   // event
+                    e->getSubOrdering(),
+                    e->getAbsoluteTime(), e->getDuration());  // notation
+            toInsert.push_back(e1);
+            break;
 
             // Add in the remaining time.
             toInsert.push_back(e);
@@ -1521,10 +1534,13 @@ SegmentNotationHelper::autoBeam(iterator from, iterator to, string type)
 
     Composition *comp = segment().getComposition();
 
+    // Get bar range for selection.  Since this is inclusive, we subtract 1 from
+    // the "to" time to ensure we don't get an additional bar (bug #703).
+
     int fromBar = comp->getBarNumber((*from)->getAbsoluteTime());
     int toBar = comp->getBarNumber(segment().isBeforeEndMarker(to) ?
-				   (*to)->getAbsoluteTime() :
-				   segment().getEndMarkerTime());
+				   (*to)->getAbsoluteTime() - 1 :
+				   segment().getEndMarkerTime() - 1);
 
     for (int barNo = fromBar; barNo <= toBar; ++barNo) {
 
@@ -1985,8 +2001,15 @@ SegmentNotationHelper::collapseNoteAggressively(Event *note,
     if (i == end()) return end();
 
     iterator j = getNextAdjacentNote(i, true, true);
-    if (j == end() || (*j)->getAbsoluteTime() >= rangeEnd) return end();
 
+    if (j == end() || (*j)->getAbsoluteTime() >= rangeEnd) return end();
+    if ((*i)->maskedInTrigger() != (*j)->maskedInTrigger()) {
+        // They should be just tied, just not merged.
+        (*i)->set<Bool>(TIED_FORWARD, true);
+        (*j)->set<Bool>(TIED_BACKWARD, true);
+        return end();
+    }
+    
     timeT iEnd = (*i)->getAbsoluteTime() + (*i)->getDuration();
     timeT jEnd = (*j)->getAbsoluteTime() + (*j)->getDuration();
 
@@ -2021,7 +2044,7 @@ SegmentNotationHelper::splitPreservingPerformanceTimes(Event *e, timeT q1)
     timeT u1 = (qt + q1) - ut;
     timeT u2 = (ut + ud) - (qt + q1);
 
-    //cerr << "splitPreservingPerformanceTimes: (ut,ud) (" << ut << "," << ud << "), (qt,qd) (" << qt << "," << qd << ") q1 " << q1 << ", u1 " << u1 << ", u2 " << u2 << endl;
+    cerr << "splitPreservingPerformanceTimes: (ut,ud) (" << ut << "," << ud << "), (qt,qd) (" << qt << "," << qd << ") q1 " << q1 << ", u1 " << u1 << ", u2 " << u2 << endl;
 
     if (u1 <= 0 || u2 <= 0) { // can't do a meaningful split
         return std::pair<Event *, Event *>(0, 0);

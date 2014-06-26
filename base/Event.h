@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -14,8 +14,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _EVENT_H_
-#define _EVENT_H_
+#ifndef RG_EVENT_H
+#define RG_EVENT_H
 
 #include "PropertyMap.h"
 #include "Exception.h"
@@ -294,6 +294,13 @@ public:
     timeT getNotationAbsoluteTime() const { return m_data->getNotationTime(); }
     timeT getNotationDuration() const { return m_data->getNotationDuration(); }
 
+    /**
+     * Return whether this event's section of a triggered ornament
+     * is masked, for use when the event is part of a multiple-tied-note
+     * ornament trigger.
+     **/
+    bool maskedInTrigger(void) const;
+    
     typedef std::vector<PropertyName> PropertyNames;
     PropertyNames getPropertyNames() const;
     PropertyNames getPersistentPropertyNames() const;
@@ -303,6 +310,13 @@ public:
      * Destroy the all the non persistent properties/data
      */
     void clearNonPersistentProperties();
+
+    // Move Event in time without any ancillary co-ordination.
+    /**
+     * UNSAFE.  Don't call this unless you know exactly what you're
+     * doing.
+     */
+    void unsafeChangeTime(timeT offset);
 
     /**
      * Comparator structure used when creating sets and multisets of

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[AudioInstrumentParameterPanel]"
 
 #include "AudioInstrumentParameterPanel.h"
 
@@ -78,7 +79,8 @@ AudioInstrumentParameterPanel::AudioInstrumentParameterPanel(RosegardenDocument*
     m_aliasButton = new InstrumentAliasButton(this, 0);
     m_aliasButton->setFixedSize(10, 6); // golden rectangle
     m_aliasButton->setToolTip(tr("Click to rename this instrument"));
-    connect (m_aliasButton, SIGNAL(changed()), this, SLOT(updateAllBoxes()));
+    // ??? updateAllBoxes() is not a slot, it is a signal.
+//    connect (m_aliasButton, SIGNAL(changed()), this, SLOT(updateAllBoxes()));
     // cheat on the layout, both this and the label at 0, 0; this all the way
     // left, the label centered.
     gridLayout->addWidget(m_aliasButton, 0, 0, 1, 2, Qt::AlignLeft);
@@ -346,11 +348,11 @@ AudioInstrumentParameterPanel::setupForInstrument(Instrument* instrument)
 
     RG_DEBUG << "AudioInstrumentParameterPanel[" << this << "]::setupForInstrument(" << instrument << ")" << endl;
 
-    m_selectedInstrument = instrument;
-
     QString l = QString::fromStdString(instrument->getAlias());
     if (l.isEmpty()) l = instrument->getLocalizedPresentationName();
-    m_instrumentLabel->setText(l);
+
+    setSelectedInstrument(instrument, l);
+
     m_aliasButton->setInstrument(instrument);
 
     m_audioFader->m_recordFader->setFader(instrument->getRecordLevel());

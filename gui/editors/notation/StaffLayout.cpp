@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,19 +15,22 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[StaffLayout]"
+#define RG_NO_DEBUG_PRINT 1
 
 #include "StaffLayout.h"
 
-#include "misc/Debug.h"
 #include "base/Event.h"
 #include "base/LayoutEngine.h"
 #include "base/NotationTypes.h"
 #include "base/Profiler.h"
-#include "base/ViewSegment.h"
 #include "base/SnapGrid.h"
 #include "base/ViewElement.h"
+#include "base/ViewSegment.h"
+#include "gui/editors/notation/BarLineItem.h"
 #include "gui/general/GUIPalette.h"
-#include "BarLineItem.h"
+#include "misc/Debug.h"
+
 #include <QColor>
 #include <QFont>
 #include <QFontMetrics>
@@ -39,6 +42,8 @@
 #include <QGraphicsLineItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsSimpleTextItem>
+#include <QtGlobal>
+
 #include <algorithm>
 
 
@@ -317,8 +322,8 @@ StaffLayout::getSceneYForHeight(int h, double baseX, int baseY) const
 {
     int y;
 
-    //    NOTATION_DEBUG << "StaffLayout::getSceneYForHeight(" << h << "," << baseY
-    //		   << ")" << endl;
+    //    RG_DEBUG << "getSceneYForHeight(" << h << "," << baseY
+    //             << ")" << endl;
 
     if (baseX < 0)
         baseX = getX() + getMargin();
@@ -347,7 +352,7 @@ StaffLayout::getLayoutYForHeight(int h) const
 int
 StaffLayout::getWeightedHeightAtSceneCoords(int originalHeight, double x, int y)
 {
-    NOTATION_DEBUG << "StaffLayout::getWeightedHeightAtSceneCoords: originalHeight: "
+    RG_DEBUG << "getWeightedHeightAtSceneCoords: originalHeight: "
                    << originalHeight << " non-weighted height: "
                    << getHeightAtSceneCoords(x, y)
                    << endl;
@@ -363,8 +368,8 @@ StaffLayout::getWeightedHeightAtSceneCoords(int originalHeight, double x, int y)
     int approximateHeight = (y - getSceneYForTopLine(row)) * getHeightPerLine() / getLineSpacing();
     approximateHeight = getTopLineHeight() - approximateHeight;
 
-    std::cout << "approximateHeight: " << approximateHeight
-              << " originalHeight: " << originalHeight << std::endl;
+    RG_DEBUG << "approximateHeight: " << approximateHeight
+                   << " originalHeight: " << originalHeight;
 
     int difference = approximateHeight - originalHeight;
     if (difference < 0) difference *= -1;
@@ -438,7 +443,7 @@ StaffLayout::getBarExtents(double x, int y) const
 {
     int row = getRowForSceneCoords(x, y);
 
-    NOTATION_DEBUG << "StaffLayout::getBarExtents(" << x << "," << y << "), row " << row << ", have " << m_barLines.size() << " bar records" << endl;
+    RG_DEBUG << "getBarExtents(" << x << "," << y << "), row " << row << ", have " << m_barLines.size() << " bar records" << endl;
 
     for (BarLineList::const_iterator i = m_barLines.begin();
          i != m_barLines.end(); ++i) {
@@ -448,7 +453,7 @@ StaffLayout::getBarExtents(double x, int y) const
         double layoutX = line->getLayoutX();
         int barRow = getRowForLayoutX(layoutX);
 
-        NOTATION_DEBUG << "bar layoutX " << layoutX << ", row " << barRow << ", page mode " << m_pageMode << ", x " << line->x() << endl;
+        RG_DEBUG << "bar layoutX " << layoutX << ", row " << barRow << ", page mode " << m_pageMode << ", x " << line->x() << endl;
 
         if (m_pageMode != LinearMode && (barRow < row)) continue;
 
@@ -463,7 +468,7 @@ StaffLayout::getBarExtents(double x, int y) const
                         getSceneYForTopOfStaff(barRow),
                         int(line->x() - prevline->x()),
                         getHeightOfRow());
-        NOTATION_DEBUG << "Returning rect " << r << endl;
+        RG_DEBUG << "Returning rect " << r << endl;
         return r;
     }
 
@@ -675,7 +680,7 @@ StaffLayout::insertBar(double layoutX, double width, bool isCorrect,
                       const TimeSignature &timeSig,
                       int barNo, bool showBarNo)
 {
-//    NOTATION_DEBUG << "insertBar: " << layoutX << ", " << width
+//    RG_DEBUG << "insertBar: " << layoutX << ", " << width
 //                   << ", " << isCorrect << endl;
 
     int barThickness = m_lineThickness * 5 / 4;
@@ -920,7 +925,7 @@ StaffLayout::resizeStaffLines()
              << " (startLayoutX " << m_startLayoutX
              << ", endLayoutX " << m_endLayoutX << ")" << endl;
 
-    assert(lastRow >= firstRow);
+    Q_ASSERT(lastRow >= firstRow);
 
     int i;
     while ((int)m_staffLines.size() <= lastRow) {
@@ -979,17 +984,17 @@ StaffLayout::resizeStaffLineRow(int row, double x, double length)
     Profiler profiler("StaffLayout::resizeStaffLineRow");
 
     //    RG_DEBUG << "StaffLayout::resizeStaffLineRow: row "
-    //	     << row << ", x " << x << ", length "
-    //	     << length << endl;
+    //       << row << ", x " << x << ", length "
+    //       << length << endl;
 
 
     // If the resolution is 8 or less, we want to reduce the blackness
     // of the staff lines somewhat to make them less intrusive
 
     int level = 0;
-    int z = 2;
+    // int z = 2;
     if (m_resolution < 6) {
-        z = -1;
+        // z = -1;
         level = (9 - m_resolution) * 32;
         if (level > 200)
             level = 200;

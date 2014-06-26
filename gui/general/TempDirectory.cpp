@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file originally from Sonic Visualiser, copyright 2006 Chris
     Cannam.
@@ -24,7 +24,6 @@
 #include <QSettings>
 
 #include <iostream>
-#include <cassert>
 
 #include <signal.h>
 
@@ -82,7 +81,7 @@ QString
 TempDirectory::getPath()
 {
     QMutexLocker locker(&m_mutex);
-
+    
     if (m_tmpdir != "") return m_tmpdir;
 
     QSettings settings;
@@ -126,15 +125,15 @@ TempDirectory::createTempDirectoryIn(QString dir)
     QString suffix;
     int padlen = 6, attempts = 100;
     //unsigned int r = time(0) ^ getpid();
-
+    unsigned r = 1;
     for (int i = 0; i < padlen; ++i) {
         suffix += "X";
     }
-    /*
+    
     for (int j = 0; j < attempts; ++j) {
 
         unsigned int v = r;
-
+        
         for (int i = 0; i < padlen; ++i) {
             suffix[i] = chars[v % 62];
             v /= 62;
@@ -164,7 +163,7 @@ TempDirectory::createTempDirectoryIn(QString dir)
     } else {
         pidfile.close();
     }
-*/
+
     return m_tmpdir;
 }
 
@@ -172,7 +171,7 @@ QString
 TempDirectory::getSubDirectoryPath(QString subdir)
 {
     QString tmpdirpath = getPath();
-
+    
     QMutexLocker locker(&m_mutex);
 
     QDir tmpdir(tmpdirpath);
@@ -234,14 +233,14 @@ TempDirectory::cleanupDirectory(QString tmpdir)
         if (!dir.cdUp()) {
             std::cerr << "WARNING: TempDirectory::cleanup: "
                       << "Failed to cd to parent directory of "
-                                        << qstrtostr(tmpdir) << std::endl;
+					<< qstrtostr(tmpdir) << std::endl;
             return;
         }
         if (!dir.rmdir(dirname)) {
             std::cerr << "WARNING: TempDirectory::cleanup: "
                       << "Failed to remove directory "
-                                        << qstrtostr(dirname) << std::endl;
-        }
+					<< qstrtostr(dirname) << std::endl;
+        } 
     }
 
     if (isRoot) {
@@ -256,7 +255,7 @@ TempDirectory::cleanupAbandonedDirectories(QString rgDir)
     QDir dir(rgDir, "rg_*", QDir::Name, QDir::Dirs);
 
     for (unsigned int i = 0; i < dir.count(); ++i) {
-
+        
         QDir subdir(dir.filePath(dir[i]), "*.pid", QDir::Name, QDir::Files);
 
         for (unsigned int j = 0; j < subdir.count(); ++j) {
@@ -264,12 +263,13 @@ TempDirectory::cleanupAbandonedDirectories(QString rgDir)
             bool ok = false;
             int pid = QFileInfo(subdir[j]).baseName().toInt(&ok);
             if (!ok) continue;
-/*
+
+            /*
             if (kill(getpid(), 0) == 0 && kill(pid, 0) != 0) {
                 std::cerr << "INFO: Found abandoned temporary directory from "
                           << "a previous, defunct process\n(pid=" << pid
                           << ", directory=\""
-                                                << qstrtostr( dir.filePath(dir[i]) )
+						<< qstrtostr( dir.filePath(dir[i]) )
                           << "\").  Removing it..." << std::endl;
                 cleanupDirectory(dir.filePath(dir[i]));
                 std::cerr << "...done." << std::endl;
@@ -282,4 +282,4 @@ TempDirectory::cleanupAbandonedDirectories(QString rgDir)
 }
 
 
-
+       

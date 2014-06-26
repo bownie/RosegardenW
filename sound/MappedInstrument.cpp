@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2012 the Rosegarden development team.
+  Copyright 2000-2014 the Rosegarden development team.
  
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -27,7 +27,7 @@ MappedInstrument::MappedInstrument():
 {}
 
 MappedInstrument::MappedInstrument(Instrument::InstrumentType type,
-                                   MidiByte channel,
+                                   MidiByte /*channel*/,
                                    InstrumentId id):
         m_type(type),
         m_id(id),
@@ -36,7 +36,7 @@ MappedInstrument::MappedInstrument(Instrument::InstrumentType type,
 {}
 
 MappedInstrument::MappedInstrument(Instrument::InstrumentType type,
-                                   MidiByte channel,
+                                   MidiByte /*channel*/,
                                    InstrumentId id,
                                    const std::string &name,
                                    DeviceId device):

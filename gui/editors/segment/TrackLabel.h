@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,8 +16,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_TRACKLABEL_H_
-#define _RG_TRACKLABEL_H_
+#ifndef RG_TRACKLABEL_H
+#define RG_TRACKLABEL_H
 
 #include "base/Track.h"
 #include <QString>
@@ -54,6 +54,7 @@ public:
      * @see getTrackName()
      */
     void setTrackName(const QString &text)  { m_trackName = text; }
+    void setShortName(const QString &text)  { m_shortName = text; }
     /// Gets the track name (e.g. "Wicked Solo").  See setTrackName().
     QString getTrackName() const  { return m_trackName; }
 
@@ -147,7 +148,7 @@ signals:
     /**
      * Connected to TrackButtons::slotRenameTrack().
      */
-    void renameTrack(QString name, TrackId trackId);
+    void renameTrack(QString longLabel, QString shortLabel, TrackId trackId);
 
     /// Sent on right-click to launch the instrument popup menu.
     /**
@@ -165,6 +166,8 @@ private:
 
     /// The track name selected by the user (e.g. "Wicked Solo")
     QString              m_trackName;
+    /// The short name selected by the user (e.g. "Wkd Slo")
+    QString              m_shortName;
     /// Instrument Presentation Name (e.g. "General MIDI Device  #1")
     QString              m_presentationName;
     /// Instrument Program Change Name (e.g. "Acoustic Grand Piano")

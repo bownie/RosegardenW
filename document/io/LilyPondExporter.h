@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     This file is Copyright 2002
         Hans Kieserman      <hkieserman@mail.com>
@@ -26,8 +26,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RG_LILYPONDEXPORTER_H_
-#define _RG_LILYPONDEXPORTER_H_
+#ifndef RG_LILYPONDEXPORTER_H
+#define RG_LILYPONDEXPORTER_H
 
 #include "base/Event.h"
 #include "base/PropertyName.h"
@@ -42,6 +42,7 @@
 
 
 class QObject;
+class QString;
 
 
 namespace Rosegarden
@@ -78,7 +79,7 @@ class LilyPondExporter : public ProgressReporter
 {
     //Q_OBJECT
 public:
-    typedef std::multiset<Event*, Event::EventCmp> eventstartlist;
+    typedef EventContainer eventstartlist;
     typedef std::multiset<Event*, Event::EventEndCmp> eventendlist;
 
 public:
@@ -86,7 +87,17 @@ public:
     LilyPondExporter(NotationView *parent, RosegardenDocument *, std::string fileName);
     ~LilyPondExporter();
 
+   /**
+    * Write the LilyPond score into the specified file.
+    * @return true if successfull, false otherwise.
+    */
     bool write();
+
+   /**
+    * @return an explanatory message on what goes wrong on the last
+    * call to write().
+    */
+    QString getMessage() { return m_warningMessage; }
 
 protected:
     RosegardenMainViewWidget *m_view;
@@ -209,11 +220,14 @@ private:
     static const unsigned int EXPORT_NONMUTED_TRACKS = 1;
     static const unsigned int EXPORT_SELECTED_TRACK = 2;
     static const unsigned int EXPORT_SELECTED_SEGMENTS = 3;
+    static const unsigned int EXPORT_EDITED_SEGMENTS = 4;
 
     bool m_exportBeams;
     bool m_exportStaffGroup;
 
     bool m_raggedBottom;
+    bool m_exportEmptyStaves;
+    bool m_useShortNames;
 
     unsigned int m_exportMarkerMode;
 
@@ -234,6 +248,7 @@ private:
         LILYPOND_VERSION_2_8,
         LILYPOND_VERSION_2_10,
         LILYPOND_VERSION_2_12,
+        LILYPOND_VERSION_2_14
     };
 
     int m_repeatMode;
@@ -244,8 +259,9 @@ private:
     };
 
     bool m_voltaBar;
-
     bool m_cancelAccidentals;
+    bool m_fingeringsInStaff;
+    QString m_warningMessage;
 
     std::pair<int,int> fractionSum(std::pair<int,int> x,std::pair<int,int> y) {
 	std::pair<int,int> z(
@@ -288,4 +304,3 @@ private:
 }
 
 #endif
-

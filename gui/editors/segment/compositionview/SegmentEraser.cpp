@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,13 +15,14 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[SegmentEraser]"
 
 #include "SegmentEraser.h"
 
 #include "misc/Debug.h"
 #include "commands/segment/SegmentEraseCommand.h"
 #include "CompositionView.h"
-#include "CompositionItemImpl.h"
+#include "CompositionItem.h"
 #include "document/RosegardenDocument.h"
 #include "gui/general/BaseTool.h"
 #include "gui/general/RosegardenScrollView.h"
@@ -56,12 +57,12 @@ void SegmentEraser::handleMouseButtonRelease(QMouseEvent*)
 {
     if (m_currentIndex) {
         // no need to test the result, we know it's good (see handleMouseButtonPress)
-        CompositionItemImpl* item = dynamic_cast<CompositionItemImpl*>((_CompositionItem*)m_currentIndex);
+        CompositionItem* item = m_currentIndex;
 
         addCommandToHistory(new SegmentEraseCommand(item->getSegment()));
     }
 
-    setCurrentIndex(CompositionItem());
+    setCurrentIndex(CompositionItemPtr());
 }
 
 int SegmentEraser::handleMouseMove(QMouseEvent*)

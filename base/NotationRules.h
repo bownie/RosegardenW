@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -14,8 +14,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _NOTATION_RULES_H_
-#define _NOTATION_RULES_H_
+#ifndef RG_NOTATION_RULES_H
+#define RG_NOTATION_RULES_H
 
 
 /**
@@ -67,14 +67,14 @@ public:
         // this class is used by that class, and so on.  So let's use them all
         // one time for something totally pointless, just to shut up these
         // compiler warnings once and for all.
-        int foo = scale_Cmajor[0];
-        foo = scale_Cminor[0];
-        foo = scale_Cminor_harmonic[0];
-        foo = steps_Cmajor[0];
-        foo = steps_Cminor[0];
-        foo = steps_Cminor_harmonic[0];
-        foo = steps_Cmajor_with_sharps[0];
-        foo = steps_Cmajor_with_flats[0];    
+        (void)scale_Cmajor[0];
+        (void)scale_Cminor[0];
+        (void)scale_Cminor_harmonic[0];
+        (void)steps_Cmajor[0];
+        (void)steps_Cminor[0];
+        (void)steps_Cminor_harmonic[0];
+        (void)steps_Cmajor_with_sharps[0];
+        (void)steps_Cmajor_with_flats[0];
     };
     ~NotationRules() { };
 

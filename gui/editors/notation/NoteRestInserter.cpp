@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -92,8 +92,8 @@ NoteRestInserter::NoteRestInserter(NotationWidget* widget) :
     createAction("switch_to_notes", SLOT(slotRestsSelected()));
     createAction("switch_to_rests", SLOT(slotNotesSelected()));
 
-    connect(m_widget, SIGNAL(changeAccidental(Accidental, bool)),
-            this, SLOT(slotSetAccidental(Accidental, bool)));
+    //connect(m_widget, SIGNAL(changeAccidental(Accidental, bool)),
+    //        this, SLOT(slotSetAccidental(Accidental, bool)));
 
     // Push down the default RadioAction on Accidentals.
     invokeInParentView("no_accidental");
@@ -113,8 +113,8 @@ NoteRestInserter::NoteRestInserter(QString rcFileName, QString menuName,
     m_isaRestInserter(false)
 
 {
-    connect(m_widget, SIGNAL(changeAccidental(Accidental, bool)),
-            this, SLOT(slotSetAccidental(Accidental, bool)));
+    //connect(m_widget, SIGNAL(changeAccidental(Accidental, bool)),
+    //        this, SLOT(slotSetAccidental(Accidental, bool)));
 
     // Push down the default RadioAction on Accidentals.
     invokeInParentView("no_accidental");

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[EventView]"
 
 #include "EventView.h"
 #include "EventViewItem.h"
@@ -30,6 +32,8 @@
 #include "base/Selection.h"
 #include "base/Track.h"
 #include "base/TriggerSegment.h"
+#include "base/figuration/GeneratedRegion.h"
+#include "base/figuration/SegmentID.h"
 #include "commands/edit/CopyCommand.h"
 #include "commands/edit/CutCommand.h"
 #include "commands/edit/EraseCommand.h"
@@ -44,7 +48,6 @@
 #include "misc/ConfigGroups.h"
 #include "document/RosegardenDocument.h"
 #include "gui/dialogs/EventEditDialog.h"
-#include "gui/dialogs/EventFilterDialog.h"
 #include "gui/dialogs/PitchDialog.h"
 #include "gui/dialogs/SimpleEventEditDialog.h"
 #include "gui/dialogs/AboutDialog.h"
@@ -92,7 +95,8 @@ EventView::EventView(RosegardenDocument *doc,
                      QWidget *parent):
         ListEditView(doc, segments, 2, parent),
         m_eventFilter(Note | Text | SystemExclusive | Controller |
-                      ProgramChange | PitchBend | Indication | Other),
+                      ProgramChange | PitchBend | Indication | Other |
+                      GeneratedRegion | SegmentID),
         m_menu(0)
 {
     setAttribute(Qt::WA_DeleteOnClose);
@@ -128,6 +132,8 @@ EventView::EventView(RosegardenDocument *doc,
     m_restCheckBox = new QCheckBox(tr("Rest"), m_filterGroup);
     m_indicationCheckBox = new QCheckBox(tr("Indication"), m_filterGroup);
     m_textCheckBox = new QCheckBox(tr("Text"), m_filterGroup);
+    m_generatedRegionCheckBox = new QCheckBox(tr("Generated regions"), m_filterGroup);
+    m_segmentIDCheckBox = new QCheckBox(tr("Segment ID"), m_filterGroup);
     m_otherCheckBox = new QCheckBox(tr("Other"), m_filterGroup);
 
     filterGroupLayout->addWidget(m_noteCheckBox);
@@ -140,6 +146,8 @@ EventView::EventView(RosegardenDocument *doc,
     filterGroupLayout->addWidget(m_restCheckBox);
     filterGroupLayout->addWidget(m_indicationCheckBox);
     filterGroupLayout->addWidget(m_textCheckBox);
+    filterGroupLayout->addWidget(m_generatedRegionCheckBox);
+    filterGroupLayout->addWidget(m_segmentIDCheckBox);
     filterGroupLayout->addWidget(m_otherCheckBox);
     m_filterGroup->setLayout(filterGroupLayout);
 
@@ -281,6 +289,8 @@ EventView::EventView(RosegardenDocument *doc,
     connect(m_restCheckBox, SIGNAL(stateChanged(int)), SLOT(slotModifyFilter()));
     connect(m_indicationCheckBox, SIGNAL(stateChanged(int)), SLOT(slotModifyFilter()));
     connect(m_textCheckBox, SIGNAL(stateChanged(int)), SLOT(slotModifyFilter()));
+    connect(m_generatedRegionCheckBox, SIGNAL(stateChanged(int)), SLOT(slotModifyFilter()));
+    connect(m_segmentIDCheckBox, SIGNAL(stateChanged(int)), SLOT(slotModifyFilter()));
     connect(m_otherCheckBox, SIGNAL(stateChanged(int)), SLOT(slotModifyFilter()));
 
     makeInitialSelection(doc->getComposition().getPosition());
@@ -431,6 +441,14 @@ EventView::applyLayout(int /*staffNo*/)
                 if (!(m_eventFilter & Text))
                     continue;
 
+            } else if ((*it)->isa(GeneratedRegion::EventType)) {
+                if (!(m_eventFilter & GeneratedRegion))
+                    continue;
+
+            } else if ((*it)->isa(SegmentID::EventType)) {
+                if (!(m_eventFilter & SegmentID))
+                    continue;
+
             } else {
                 if (!(m_eventFilter & Other))
                     continue;
@@ -490,6 +508,14 @@ EventView::applyLayout(int /*staffNo*/)
                            arg(strtoqstr((*it)->get
                                          <String>
                                          (BaseProperties::BEAMED_GROUP_TYPE)));
+            } else if ((*it)->has(GeneratedRegion::FigurationPropertyName)) {
+                data1Str = QString("%1  ").
+                           arg((*it)->get
+                               <Int>(GeneratedRegion::FigurationPropertyName));
+            } else if ((*it)->has(SegmentID::IDPropertyName)) {
+                data1Str = QString("%1  ").
+                           arg((*it)->get
+                               <Int>(SegmentID::IDPropertyName));
             }
 
             if ((*it)->has(Controller::VALUE)) {
@@ -516,6 +542,15 @@ EventView::applyLayout(int /*staffNo*/)
                 data2Str = tr("(group %1)  ")
                            .arg((*it)->get
                                <Int>(BaseProperties::BEAMED_GROUP_ID));
+            } else if ((*it)->has(GeneratedRegion::ChordPropertyName)) {
+                data2Str = QString("%1  ").
+                           arg((*it)->get
+                               <Int>(GeneratedRegion::ChordPropertyName));
+            } else if ((*it)->has(SegmentID::SubtypePropertyName)) {
+                data2Str = QString("%1  ").
+                    arg(strtoqstr((*it)->get
+                                  <String>
+                                  (SegmentID::SubtypePropertyName)));
             }
 
             if ((*it)->has(ProgramChange::PROGRAM)) {
@@ -1164,43 +1199,6 @@ EventView::slotClearSelection()
 }
 
 void
-EventView::slotFilterSelection()
-{
-    m_listSelection.clear();
-    QList<QTreeWidgetItem*> selection = m_eventList->selectedItems();
-    if (selection.count() == 0)
-        return ;
-
-    EventFilterDialog dialog(this);
-    if (dialog.exec() == QDialog::Accepted) {
-
-//         QPtrListIterator<QTreeWidgetItem> it(selection);
-        QTreeWidgetItem *listItem;
-
-//         while ((listItem = it.current()) != 0) {
-        for( int i=0; i< selection.size(); i++ ){
-            listItem = selection.at(i);
-
-//             EventViewItem * item = dynamic_cast<EventViewItem*>(*it);
-            EventViewItem * item = dynamic_cast<EventViewItem*>(listItem);
-            if (!item) {
-//                 ++it;
-                continue;
-            }
-
-            if (!dialog.keepEvent(item->getEvent())) {
-                //m_listSelection.push_back(m_eventList->itemIndex(*it));
-                m_listSelection.push_back(m_eventList->indexOfTopLevelItem(listItem));
-                //m_eventList->setSelected(item, false);
-                m_eventList->setCurrentItem(item);
-            }
-
-//             ++it;
-        }
-    }
-}
-
-void
 EventView::setupActions()
 {
     ListEditView::setupActions("eventlist.rc");
@@ -1209,7 +1207,6 @@ EventView::setupActions()
     createAction("delete", SLOT(slotEditDelete()));
     createAction("edit_simple", SLOT(slotEditEvent()));
     createAction("edit_advanced", SLOT(slotEditEventAdvanced()));
-    createAction("filter_selection", SLOT(slotFilterSelection()));
     createAction("select_all", SLOT(slotSelectAll()));
     createAction("clear_selection", SLOT(slotClearSelection()));
     createAction("event_help", SLOT(slotHelpRequested()));
@@ -1245,30 +1242,11 @@ EventView::initStatusBar()
 {
     QStatusBar* sb = statusBar();
 
-    /*
-    m_hoveredOverNoteName      = new QLabel(sb);
-    m_hoveredOverAbsoluteTime  = new QLabel(sb);
-
-    m_hoveredOverNoteName->setMinimumWidth(32);
-    m_hoveredOverAbsoluteTime->setMinimumWidth(160);
-
-    sb->addWidget(m_hoveredOverAbsoluteTime);
-    sb->addWidget(m_hoveredOverNoteName);
-    */
-
     // qt4 note:
     // addItem becomes addWidget (left aligned) or addPremanentWidget (right aligned)
     // or showMessage
     //    
     sb->showMessage( TmpStatusMsg::getDefaultMsg() );
-    
-//     sb->setItem(TmpStatusMsg::getDefaultMsg(),
-//                 TmpStatusMsg::getDefaultId(), 1);
-//     sb->setItemAlignment(TmpStatusMsg::getDefaultId(),
-//                          Qt::AlignLeft | Qt::AlignVCenter);
-
-    //m_selectionCounter = new QLabel(sb);
-    //sb->addWidget(m_selectionCounter);
 }
 
 QSize
@@ -1344,6 +1322,10 @@ EventView::slotModifyFilter()
 
     if (m_textCheckBox->isChecked()) m_eventFilter |= EventView::Text;
 
+    if (m_generatedRegionCheckBox->isChecked()) m_eventFilter |= EventView::GeneratedRegion;
+    
+    if (m_segmentIDCheckBox->isChecked()) m_eventFilter |= EventView::SegmentID;
+    
     if (m_otherCheckBox->isChecked()) m_eventFilter |= EventView::Other;
 
     applyLayout(0);
@@ -1362,6 +1344,8 @@ EventView::setButtonsToFilter()
     m_channelPressureCheckBox->setChecked(m_eventFilter & ChannelPressure);
     m_keyPressureCheckBox->setChecked    (m_eventFilter & KeyPressure);
     m_indicationCheckBox->setChecked     (m_eventFilter & Indication);
+    m_generatedRegionCheckBox->setChecked(m_eventFilter & GeneratedRegion);
+    m_segmentIDCheckBox->setChecked      (m_eventFilter & SegmentID);
     m_otherCheckBox->setChecked          (m_eventFilter & Other);
 }
 

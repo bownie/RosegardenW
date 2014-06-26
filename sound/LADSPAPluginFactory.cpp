@@ -5,7 +5,7 @@
     A sequencer and musical notation editor.
     Copyright 2000-2010 the Rosegarden development team.
     See the AUTHORS file for more details.
- 
+
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
@@ -136,13 +136,13 @@ LADSPAPluginFactory::populatePluginSlot(QString identifier, MappedPluginSlot &sl
                 m_taxonomy[descriptor->UniqueID] != "") {
             //		std::cerr << "LADSPAPluginFactory: cat for " << identifier<< " found in taxonomy as " << m_taxonomy[descriptor->UniqueID] << std::endl;
             slot.setStringProperty(MappedPluginSlot::Category,
-				   m_taxonomy[descriptor->UniqueID]);
+                   m_taxonomy[descriptor->UniqueID]);
 
         } else if (m_fallbackCategories.find(identifier) !=
                    m_fallbackCategories.end()) {
             //		std::cerr << "LADSPAPluginFactory: cat for " << identifier  <<" found in fallbacks as " << m_fallbackCategories[identifier] << std::endl;
             slot.setStringProperty(MappedPluginSlot::Category,
-				   m_fallbackCategories[identifier]);
+                   m_fallbackCategories[identifier]);
 
         } else {
             //		std::cerr << "LADSPAPluginFactory: cat for " << identifier << " not found (despite having " << m_fallbackCategories.size() << " fallbacks)" << std::endl;
@@ -171,7 +171,7 @@ LADSPAPluginFactory::populatePluginSlot(QString identifier, MappedPluginSlot &sl
 
                 port->setProperty(MappedPluginPort::PortNumber, i);
                 port->setStringProperty(MappedPluginPort::Name,
-					descriptor->PortNames[i]);
+                    descriptor->PortNames[i]);
                 port->setProperty(MappedPluginPort::Maximum,
                                   getPortMaximum(descriptor, i));
                 port->setProperty(MappedPluginPort::Minimum,
@@ -231,13 +231,13 @@ LADSPAPluginFactory::getPortMaximum(const LADSPA_Descriptor *descriptor, int por
         maximum = ub;
     } else {
         MappedObjectValue lb = descriptor->PortRangeHints[port].LowerBound;
-	if (LADSPA_IS_HINT_LOGARITHMIC(d)) {
-	    if (lb == 0.f) lb = 1.f;
-	    maximum = lb * 100.f;
-	} else {
-	    if (lb == 1.f) maximum = 10.f;
-	    else maximum = lb + 10;
-	}
+    if (LADSPA_IS_HINT_LOGARITHMIC(d)) {
+        if (lb == 0.f) lb = 1.f;
+        maximum = lb * 100.f;
+    } else {
+        if (lb == 1.f) maximum = 10.f;
+        else maximum = lb + 10;
+    }
     }
 
     if (LADSPA_IS_HINT_SAMPLE_RATE(d)) {
@@ -264,7 +264,7 @@ LADSPAPluginFactory::getPortDefault(const LADSPA_Descriptor *descriptor, int por
     if (m_portDefaults.find(descriptor->UniqueID) !=
             m_portDefaults.end()) {
         if (m_portDefaults[descriptor->UniqueID].find(port) !=
-	    m_portDefaults[descriptor->UniqueID].end()) {
+        m_portDefaults[descriptor->UniqueID].end()) {
 
             deft = m_portDefaults[descriptor->UniqueID][port];
             if (deft < minimum) deft = minimum;
@@ -294,59 +294,59 @@ LADSPAPluginFactory::getPortDefault(const LADSPA_Descriptor *descriptor, int por
 
     } else if (LADSPA_IS_HINT_DEFAULT_MINIMUM(d)) {
 
-	// See comment for DEFAULT_MAXIMUM below
-	if (!LADSPA_IS_HINT_BOUNDED_BELOW(d)) {
-	    deft = descriptor->PortRangeHints[port].LowerBound;
-	    if (LADSPA_IS_HINT_SAMPLE_RATE(d)) {
-		deft *= m_sampleRate;
-	    }
+    // See comment for DEFAULT_MAXIMUM below
+    if (!LADSPA_IS_HINT_BOUNDED_BELOW(d)) {
+        deft = descriptor->PortRangeHints[port].LowerBound;
+        if (LADSPA_IS_HINT_SAMPLE_RATE(d)) {
+        deft *= m_sampleRate;
+        }
 //	    std::cerr << "default-minimum: " << deft << std::endl;
-	    if (deft < minimum || deft > maximum) deft = minimum;
+        if (deft < minimum || deft > maximum) deft = minimum;
 //	    std::cerr << "default-minimum: " << deft << std::endl;
-	} else {
-	    deft = minimum;
-	}
+    } else {
+        deft = minimum;
+    }
 
     } else if (LADSPA_IS_HINT_DEFAULT_LOW(d)) {
-	
-	if (logarithmic) {
-	    deft = powf(10, logmin * 0.75 + logmax * 0.25);
-	} else {
-	    deft = minimum * 0.75 + maximum * 0.25;
-	}
-	
+
+    if (logarithmic) {
+        deft = powf(10, logmin * 0.75 + logmax * 0.25);
+    } else {
+        deft = minimum * 0.75 + maximum * 0.25;
+    }
+
     } else if (LADSPA_IS_HINT_DEFAULT_MIDDLE(d)) {
-	
-	if (logarithmic) {
-	    deft = powf(10, logmin * 0.5 + logmax * 0.5);
-	} else {
-	    deft = minimum * 0.5 + maximum * 0.5;
-	}
-	
+
+    if (logarithmic) {
+        deft = powf(10, logmin * 0.5 + logmax * 0.5);
+    } else {
+        deft = minimum * 0.5 + maximum * 0.5;
+    }
+
     } else if (LADSPA_IS_HINT_DEFAULT_HIGH(d)) {
-	
-	if (logarithmic) {
-	    deft = powf(10, logmin * 0.25 + logmax * 0.75);
-	} else {
-	    deft = minimum * 0.25 + maximum * 0.75;
-	}
+
+    if (logarithmic) {
+        deft = powf(10, logmin * 0.25 + logmax * 0.75);
+    } else {
+        deft = minimum * 0.25 + maximum * 0.75;
+    }
 
     } else if (LADSPA_IS_HINT_DEFAULT_MAXIMUM(d)) {
 
-	// CMT plugins employ this grossness (setting DEFAULT_MAXIMUM
-	// without BOUNDED_ABOVE and then using the UPPER_BOUND as the
-	// port default)
-	if (!LADSPA_IS_HINT_BOUNDED_ABOVE(d)) {
-	    deft = descriptor->PortRangeHints[port].UpperBound;
-	    if (LADSPA_IS_HINT_SAMPLE_RATE(d)) {
-		deft *= m_sampleRate;
-	    }
+    // CMT plugins employ this grossness (setting DEFAULT_MAXIMUM
+    // without BOUNDED_ABOVE and then using the UPPER_BOUND as the
+    // port default)
+    if (!LADSPA_IS_HINT_BOUNDED_ABOVE(d)) {
+        deft = descriptor->PortRangeHints[port].UpperBound;
+        if (LADSPA_IS_HINT_SAMPLE_RATE(d)) {
+        deft *= m_sampleRate;
+        }
 //	    std::cerr << "default-maximum: " << deft << std::endl;
-	    if (deft < minimum || deft > maximum) deft = maximum;
+        if (deft < minimum || deft > maximum) deft = maximum;
 //	    std::cerr << "default-maximum: " << deft << std::endl;
-	} else {
-	    deft = maximum;
-	}
+    } else {
+        deft = maximum;
+    }
 
     } else if (LADSPA_IS_HINT_DEFAULT_0(d)) {
 
@@ -607,7 +607,7 @@ LADSPAPluginFactory::discoverPlugins()
     std::vector<QString> pathList = getPluginPath();
 
     std::cerr << "LADSPAPluginFactory::discoverPlugins - "
-    	      << "discovering plugins; path is ";
+              << "discovering plugins; path is ";
     for (std::vector<QString>::iterator i = pathList.begin();
             i != pathList.end(); ++i) {
         std::cerr << "[" << *i << "] ";
@@ -630,7 +630,7 @@ LADSPAPluginFactory::discoverPlugins()
     for (size_t i = 0; i < lrdfPaths.size(); ++i) {
         QDir dir(lrdfPaths[i], "*.rdf;*.rdfs");
         for (unsigned int j = 0; j < dir.count(); ++j) {
-	    QByteArray ba = QString("file:" + lrdfPaths[i] + "/" + dir[j]).toLocal8Bit();
+        QByteArray ba = QString("file:" + lrdfPaths[i] + "/" + dir[j]).toLocal8Bit();
 //	    if (!lrdf_read_file(ba.data())) {
                 //		std::cerr << "LADSPAPluginFactory: read RDF file " << (lrdfPaths[i] + "/" + dir[j]) << std::endl;
       //          haveSomething = true;
@@ -780,15 +780,15 @@ LADSPAPluginFactory::generateFallbackCategories()
                 QTextStream stream(&file);
                 QString line;
 
-				line = stream.readLine();
-				while ( !(stream.atEnd() || line.isNull()) ) {	// note: atEnd() does not work with stdin, use line.isNull() instead
+                line = stream.readLine();
+                while ( !(stream.atEnd() || line.isNull()) ) {	// note: atEnd() does not work with stdin, use line.isNull() instead
                     //		    std::cerr << "line is: \"" << line << "\"" << std::endl;
                     QString id = line.section("::", 0, 0);
                     QString cat = line.section("::", 1, 1);
                     m_fallbackCategories[id] = cat;
 //                    		    std::cerr << "set id \"" << id << "\" to cat \"" << cat << "\"" << std::endl;
-					line = stream.readLine();
-				}
+                    line = stream.readLine();
+                }
             }
         }
     }
@@ -815,7 +815,7 @@ LADSPAPluginFactory::generateTaxonomy(QString uri, QString base)
             char *label = lrdf_get_label(uris->items[i]);
             generateTaxonomy(uris->items[i],
                              base + QString(base.length() > 0 ? " > " : "")
-			     + QString(label));
+                 + QString(label));
         }
         lrdf_free_uris(uris);
     }*/

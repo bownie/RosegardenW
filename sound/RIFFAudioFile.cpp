@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -560,7 +560,7 @@ AudioFileType
 RIFFAudioFile::identifySubType(const QString &filename)
 {
     std::ifstream *testFile =
-        new std::ifstream(filename, std::ios::in | std::ios::binary);
+        new std::ifstream(filename.toLocal8Bit(), std::ios::in | std::ios::binary);
 
     if (!(*testFile))
         return UNKNOWN;

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -43,7 +43,7 @@ NotePixmapParameters::NotePixmapParameters(Note::Type noteType,
         m_selected(false),
         m_highlighted(false),
         m_quantized(false),
-        m_trigger(false),
+        m_trigger(triggerNone),
         m_onLine(false),
         m_safeVertDistance(0),
         m_restOutsideStave(false),

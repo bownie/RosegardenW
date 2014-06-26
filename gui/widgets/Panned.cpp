@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[Panned]"
 
 #include "Panned.h"
 
@@ -162,7 +164,7 @@ Panned::slotEnsurePositionPointerInView(bool page)
 
     double leftThreshold = left + ws * leftDist;
     double rightThreshold = right - ws * rightDist;
-    double delta = x - leftThreshold;
+    // double delta = x - leftThreshold;
 
     // Is x inside the scene? If not do nothing.
     if ((x < x1) || (x > x2)) return;
@@ -174,7 +176,9 @@ Panned::slotEnsurePositionPointerInView(bool page)
 //    std::cerr << "x = " << x << ", left = " << left << ", leftThreshold = " << leftThreshold << ", right = " << right << ", rightThreshold = " << rightThreshold << std::endl;
 
     // Is x inside the view?
-    if (x < leftThreshold || (x > rightThreshold && x < right && page)) {
+//  if (x < leftThreshold || (x > rightThreshold && x < right && page)) {
+    // Allow a little room for x to overshoot the left threshold when the scrollbar is updated.
+    if (x < leftThreshold - 100 || (x > rightThreshold && x < right && page)) {
 //        std::cerr << "big scroll (x is off left, or paging)" << std::endl;
         // scroll to have the left of the view, plus threshold, at x
         value = hMin + (((x - ws * leftDist) - x1) * (hMax - hMin)) / (length - ws);

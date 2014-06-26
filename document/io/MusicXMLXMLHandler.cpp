@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[MusicXMLXMLHandler]"
 
 #include "MusicXMLImportHelper.h"
 #include "MusicXMLXMLHandler.h"
@@ -33,7 +34,7 @@
 #include "base/Track.h"
 
 #include <QString>
-#include <assert.h>
+#include <QtGlobal>
 
 namespace Rosegarden
 
@@ -300,7 +301,7 @@ MusicXMLXMLHandler::endDocument()
 
 bool
 MusicXMLXMLHandler::startHeader(const QString& qName,
-                                const QXmlAttributes& atts)
+                                const QXmlAttributes& /* atts */)
 {
     // Handle all elements lowercase.
     m_currentElement = qName.toLower();
@@ -368,6 +369,9 @@ MusicXMLXMLHandler::startPartList(const QString& qName,
         // These elements get ignored
     } else if (m_currentElement == "midi-instrument") {
         ret = getAttributeString(atts, "id", m_midiInstrument);
+    } else if ((m_currentElement == "volume") ||
+              (m_currentElement == "pan")) {
+        //  Probably could be supported, but far easier to ignore
     } else if ((m_currentElement == "part-name") ||
             (m_currentElement == "midi-channel") ||
             (m_currentElement == "midi-program") ||
@@ -376,7 +380,18 @@ MusicXMLXMLHandler::startPartList(const QString& qName,
         // processed via endElement().
     } else {
         // For debugging
-        assert(0);
+        RG_DEBUG << "MusicXMLXMLHandler::startPartList: cannot process element \'"
+                 << m_currentElement
+                 << "\'"
+                 << endl;
+        // I did a test in a clean bash environment (no extra environment
+        // variables)  with a clean release build, and Rosegarden crashed on
+        // this assert.  I added -DQT_NO_DEBUG_OUTPUT and -dQT_NO_WARNING_OUTPUT
+        // to configure.ac, did another clean release build, and Rosegarden
+        // continued to crash on this assert.  According to the Qt API docs that
+        // should not be, but it is.  Plainly it is not safe to use Q_ASSERT in
+        // production code.
+        //Q_ASSERT(0);
     }
     
     return ret;
@@ -398,13 +413,13 @@ MusicXMLXMLHandler::endPartList(const QString& qName)
             if (m_brace == 0) {
                 m_brace = m_number;
             } else {
-                cerrWarning("Overlapping braces are not support, this brace is ignored!");
+                cerrWarning("Overlapping braces are not supported, this brace is ignored!");
             }
         } else if (m_characters.toLower() == "bracket") {
             if (m_bracket == 0) {
                 m_bracket = m_number;
             } else {
-                cerrWarning("Overlapping brackets are not support, this bracket is ignored!");
+                cerrWarning("Overlapping brackets are not supported, this bracket is ignored!");
             }
         } else {
             cerrWarning(QString("group-symbol \"%1\" not supported, ignored.").arg(m_characters));
@@ -768,7 +783,7 @@ MusicXMLXMLHandler::endNoteData(const QString& qName)
         if (m_accidental != Accidentals::NoAccidental)
             m_event->set<String>(ACCIDENTAL, m_accidental);
     } else if (m_currentElement == "step") {
-        m_step = m_characters.toUpper().at(0).toAscii();
+        m_step = m_characters.toUpper().at(0).toLatin1();
     } else if (m_currentElement == "alter") {
         // Although a floating point value is acceptable, the only
         // valid non-integer values are -1.5, -0.5, 0.5, 1.5.  So some
@@ -1101,7 +1116,7 @@ MusicXMLXMLHandler::endNoteData(const QString& qName)
 
 bool
 MusicXMLXMLHandler::startBackupData(const QString& qName,
-                                   const QXmlAttributes& atts)
+                                   const QXmlAttributes& /* atts */)
 {
     // Handle all elements lowercase.
     m_currentElement = qName.toLower();
@@ -1238,6 +1253,10 @@ MusicXMLXMLHandler::endDirectionData(const QString& qName)
             m_parts[m_partId]->endIndication(m_indicationEnd, m_number, m_duration);
             break;
 
+            // Do-nothing cases to satisfy the compiler.
+        case NotActive:
+        default:
+            break;
         }
     } else if (m_currentElement == "direction-type") {
         //
@@ -1464,7 +1483,7 @@ MusicXMLXMLHandler::endAttributesData(const QString& qName)
 
 bool
 MusicXMLXMLHandler::startBarlineData(const QString& qName,
-                                   const QXmlAttributes& atts)
+                                   const QXmlAttributes& /* atts */)
 {
     // Handle all elements lowercase.
     m_currentElement = qName.toLower();

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -79,7 +79,8 @@ NotationScene::NotationScene() :
     m_finished(false),
     m_sceneIsEmpty(false),
     m_showRepeated(false),
-    m_editRepeated(false)
+    m_editRepeated(false),
+    m_haveInittedCurrentStaff(false)
 {
     QString prefix(QString("NotationScene%1::").arg(instanceCount++));
     m_properties = new NotationProperties(qstrtostr(prefix));
@@ -278,6 +279,7 @@ NotationScene::setStaffs(RosegardenDocument *document,
 
     m_document = document;
     m_externalSegments = segments;
+    Composition * composition = &m_document->getComposition();
 
 
     /// Look for repeating segments
@@ -298,20 +300,19 @@ NotationScene::setStaffs(RosegardenDocument *document,
     }
 
 
-    m_document->getComposition().addObserver(this);
+    composition->addObserver(this);
 
-    m_compositionRefreshStatusId =
-        document->getComposition().getNewRefreshStatusId();
+    m_compositionRefreshStatusId = composition->getNewRefreshStatusId();
 
     delete m_hlayout;
     delete m_vlayout;
 
-    m_hlayout = new NotationHLayout(&m_document->getComposition(),
+    m_hlayout = new NotationHLayout(composition,
                                     m_notePixmapFactory,
                                     *m_properties,
                                     this);
 
-    m_vlayout = new NotationVLayout(&m_document->getComposition(),
+    m_vlayout = new NotationVLayout(composition,
                                     m_notePixmapFactory,
                                     *m_properties,
                                     this);
@@ -344,6 +345,13 @@ NotationScene::setStaffs(RosegardenDocument *document,
     m_visibleStaffs = trackIds.size();
 
     m_clefKeyContext->setSegments(this);
+    
+    // Remember the names of the tracks
+    for (std::set<TrackId>::iterator i = trackIds.begin();
+         i != trackIds.end(); ++i) {
+        Track *track = composition->getTrackById(*i);
+        m_trackLabels[*i] = track->getLabel();
+    }
 
     // ClefKeyContext doesn't keep any segments list. So notation scene
     // has to maintain segment observer connections for it.
@@ -351,9 +359,15 @@ NotationScene::setStaffs(RosegardenDocument *document,
         m_segments[i]->addObserver(m_clefKeyContext);
     }
 
+    // We don't know a good current staff now.  This is correct even
+    // if we are resetting an existing NotationScene because the old
+    // current staff may not even exist.
+    m_haveInittedCurrentStaff = false;
+
     if (!m_updatesSuspended) {
         positionStaffs();
         layoutAll();
+        initCurrentStaffIndex();
     }
 
 
@@ -365,6 +379,9 @@ NotationScene::setStaffs(RosegardenDocument *document,
 void
 NotationScene::createClonesFromRepeatedSegments()
 {
+    const Segment::Participation participation = 
+        m_editRepeated ? Segment::editableClone : Segment::justForShow;
+    
     // Create clones (if needed)
     for (std::vector<Segment *>::iterator it = m_externalSegments.begin();
         it != m_externalSegments.end(); ++it) {
@@ -374,6 +391,7 @@ NotationScene::createClonesFromRepeatedSegments()
             timeT repeatEnd = (*it)->getRepeatEndTime();
             timeT targetDuration = targetEnd - targetStart;
             TrackId track = (*it)->getTrack();
+            int verse = (*it)->getVerse();
 //             std::cerr << "Creating clones   track=" << track
 //                       << " targetStart=" << targetStart
 //                       << " targetEnd=" << targetEnd
@@ -385,9 +403,10 @@ NotationScene::createClonesFromRepeatedSegments()
 
                 /// Segment *s = (*it)->clone();
                 Segment *s = SegmentLinker::createLinkedSegment(*it);
-
                 s->setStartTime(ts);
                 s->setTrack(track);
+                s->setVerse(++verse);
+                s->setParticipation(participation);
                 s->setTmp();  // To avoid crash related to composition
                               // being undefined and to get notation
                               // with grey color
@@ -425,6 +444,7 @@ NotationScene::resumeLayoutUpdates()
     // happened while updates were suspended
     positionStaffs();
     layoutAll();
+    initCurrentStaffIndex();
 }
 
 NotationStaff *
@@ -445,17 +465,7 @@ NotationScene::getStaffForSceneCoords(double x, int y) const
 
         timeT t = m_hlayout->getTimeForX(coords.first);
 
-	// In order to find the correct starting and ending bar of the
-	// segment, make infinitesimal shifts (+1 and -1) towards its
-	// center.
-
-	timeT t0 = m_document->getComposition().getBarStartForTime
-            (m_staffs[m_currentStaff]->getSegment().getClippedStartTime() + 1);
-
-	timeT t1 = m_document->getComposition().getBarEndForTime
-            (m_staffs[m_currentStaff]->getSegment().getEndMarkerTime() - 1);
-
-        if (t >= t0 && t < t1) {
+        if (m_staffs[m_currentStaff]->includesTime(t)) {
             return m_staffs[m_currentStaff];
         }
     }
@@ -478,16 +488,7 @@ NotationScene::getStaffForSceneCoords(double x, int y) const
 
 	    timeT t = m_hlayout->getTimeForX(coords.first);
 
-	    // In order to find the correct starting and ending bar of
-	    // the segment, make infinitesimal shifts (+1 and -1)
-	    // towards its center.
-
-	    timeT t0 = m_document->getComposition().getBarStartForTime
-                (m_staffs[i]->getSegment().getClippedStartTime() + 1);
-	    timeT t1 = m_document->getComposition().getBarEndForTime
-                (m_staffs[i]->getSegment().getEndMarkerTime() - 1);
-
-	    if (t >= t0 && t < t1) {
+	    if (m_staffs[i]->includesTime(t)) {
                 return m_staffs[i];
             }
         }
@@ -497,15 +498,15 @@ NotationScene::getStaffForSceneCoords(double x, int y) const
 }
 
 NotationStaff *
-NotationScene::getStaffAbove()
+NotationScene::getStaffAbove(timeT t)
 {
-    return getNextStaffVertically(-1);
+    return getNextStaffVertically(-1, t);
 }
 
 NotationStaff *
-NotationScene::getStaffBelow()
+NotationScene::getStaffBelow(timeT t)
 {
-    return getNextStaffVertically(1);
+    return getNextStaffVertically(1, t);
 }
 
 NotationStaff *
@@ -521,9 +522,39 @@ NotationScene::getNextStaffOnTrack()
 }
 
 NotationStaff *
-NotationScene::getNextStaffVertically(int direction)
+NotationScene::getStaffbyTrackAndTime(const Track *track, timeT targetTime)
 {
-    if (m_staffs.size() < 2 || m_currentStaff >= m_staffs.size()) return 0;
+    // Prepare a fallback: If this is the right track but no staff
+    // includes time t, we'll return the fallback instead.  We
+    // don't try to find the best fallback.
+    bool haveFallback = false;
+    NotationStaff * fallback = 0;
+    for (unsigned int i = 0; i < m_staffs.size(); ++i) {
+        if (m_staffs[i]->getSegment().getTrack() == track->getId()) {
+            if(m_staffs[i]->includesTime(targetTime)) {
+                return m_staffs[i];
+            } else {
+                haveFallback = true;
+                fallback = m_staffs[i];
+            }
+        }
+    }
+    // We found segments on the track, but none that include time
+    // t.  In this circumstance, we still want to return a staff
+    // so return the fallback.
+    if (haveFallback) { return fallback; }
+    
+    return 0;
+}
+
+// @params
+// direction is 1 if higher-numbered tracks are wanted, -1 if
+// lower-numbered ones are.
+// t is a time that the found staff should contain if possible.
+NotationStaff *
+NotationScene::getNextStaffVertically(int direction, timeT t)
+{
+    if (m_staffs.size() < 2 || m_currentStaff >= (int)m_staffs.size()) return 0;
 
     NotationStaff *current = m_staffs[m_currentStaff];
     Composition *composition = &m_document->getComposition();
@@ -534,11 +565,8 @@ NotationScene::getNextStaffVertically(int direction)
     Track *newTrack = 0;
 
     while ((newTrack = composition->getTrackByPosition(position + direction))) {
-        for (unsigned int i = 0; i < m_staffs.size(); ++i) {
-            if (m_staffs[i]->getSegment().getTrack() == newTrack->getId()) {
-                return m_staffs[i];
-            }
-        }
+        NotationStaff * staff = getStaffbyTrackAndTime(newTrack, t);
+        if (staff) { return staff; }
         position += direction;
     }
 
@@ -548,7 +576,7 @@ NotationScene::getNextStaffVertically(int direction)
 NotationStaff *
 NotationScene::getNextStaffHorizontally(int direction, bool cycle)
 {
-    if (m_staffs.size() < 2 || m_currentStaff >= m_staffs.size()) return 0;
+    if (m_staffs.size() < 2 || m_currentStaff >= (int)m_staffs.size()) return 0;
 
     NotationStaff *current = m_staffs[m_currentStaff];
     //Composition *composition = &m_document->getComposition();
@@ -585,6 +613,51 @@ NotationScene::getNextStaffHorizontally(int direction, bool cycle)
 
     return i.value();
 }
+
+// Initialize which staff is current.  We try to choose one containing
+// the playback pointer.
+void
+NotationScene::initCurrentStaffIndex(void)
+{
+    // Only do this if we haven't done it before since the last reset,
+    // otherwise we'll annoy the user.
+    if (m_haveInittedCurrentStaff) { return; }
+    m_haveInittedCurrentStaff = true;
+    
+    // Can't do much if we have no staffs.
+    if (m_staffs.empty()) { return; }
+
+    Composition &composition = m_document->getComposition();
+    timeT targetTime = composition.getPosition();
+    
+    // Try the globally selected track (which we may not even include
+    // any segments from)
+    {
+        const Track *track = composition.getTrackById(composition.getSelectedTrack());
+        NotationStaff *staff = getStaffbyTrackAndTime(track, targetTime);
+        if (staff) {
+            setCurrentStaff(staff);
+            return;
+        }
+    }
+
+    // Try m_minTrack, which we surely include some segment from.
+    {
+        // Careful, m_minTrack is an int indicating position, not a
+        // TrackId, and must be converted.
+        const Track *track = 
+            composition.getTrackByPosition(m_minTrack);
+        NotationStaff *staff = getStaffbyTrackAndTime(track, targetTime);
+        if (staff) {
+            setCurrentStaff(staff);
+            return;
+        }
+    }
+    
+    // We shouldn't reach here.
+    std::cerr << "Argh! Failed to find a staff!" << std::endl;
+}
+
 
 Segment *
 NotationScene::getCurrentSegment()
@@ -1215,6 +1288,41 @@ NotationScene::segmentEndMarkerChanged(const Composition *c, Segment *s, bool)
 }
 
 void
+NotationScene::trackChanged(const Composition *c, Track *t)
+{
+    if (!m_document || !c || (c != &m_document->getComposition())) return;
+
+    // Signal must be emitted only once (or the same scene will be recreated
+    // several time which may be very time consuming).
+    if (m_finished) return;
+
+    TrackId trackId = t->getId();   // Id of changed track
+
+    for (std::vector<Segment *>::iterator i = m_externalSegments.begin();
+         i != m_externalSegments.end(); ++i) {
+
+        // Is the segment part of the changed track ?
+        if ((*i)->getTrack() == trackId) {
+
+            // The scene needs a rebuild only if what has changed is the 
+            // name of the track
+            if (t->getLabel() == m_trackLabels[trackId]) break;
+
+            // The whole scene is going to be deleted then restored
+            // (from NotationView). To continue processing at best is
+            // useless and at worst may cause a crash related to deleted clones.
+            disconnect(CommandHistory::getInstance(), SIGNAL(commandExecuted()),
+                       this, SLOT(slotCommandExecuted()));
+            suspendLayoutUpdates();
+            m_finished = true;    // Stop further processing from this scene
+
+            emit sceneNeedsRebuilding();
+            break;
+        }
+   }
+}
+
+void
 NotationScene::positionStaffs()
 {
     NOTATION_DEBUG << "NotationView::positionStaffs" << endl;
@@ -1814,50 +1922,17 @@ NotationScene::clearPreviewNote(NotationStaff *staff)
     }
 }
 
-static bool
-canPreviewAnotherNote()
-{
-    static time_t lastCutOff = 0;
-    static int sinceLastCutOff = 0;
-
-    time_t now = time(0);
-    ++sinceLastCutOff;
-
-    if ((now - lastCutOff) > 0) {
-        sinceLastCutOff = 0;
-        lastCutOff = now;
-    } else {
-        if (sinceLastCutOff >= 20) {
-            // don't permit more than 20 notes per second or so, to
-            // avoid gungeing up the sound drivers
-            return false;
-        }
-    }
-
-    return true;
-}
-
 void
 NotationScene::playNote(Segment &segment, int pitch, int velocity)
 {
     if (!m_document) return;
 
     Instrument *instrument = m_document->getStudio().getInstrumentFor(&segment);
-    if (!instrument) return;
 
-    if (!canPreviewAnotherNote()) return;
-
-    if (velocity < 0) velocity = 100;
-
-    MappedEvent mE(instrument->getId(),
-                   MappedEvent::MidiNoteOneShot,
-                   pitch + segment.getTranspose(),
-                   velocity,
-                   RealTime::zeroTime,
-                   RealTime(0, 250000000),
-                   RealTime::zeroTime);
-
-    StudioControl::sendMappedEvent(mE);
+    StudioControl::playPreviewNote(instrument,
+                                   pitch + segment.getTranspose(),
+                                   velocity,
+                                   250000000);
 }
 
 bool
@@ -1892,7 +1967,7 @@ NotationScene::constrainToSegmentArea(QPointF &scenePos)
 }
 
 bool
-NotationScene::isEventRedundant(Event *ev, Segment &seg)
+NotationScene::isEventRedundant(Event *ev, Segment &seg) const
 {
     if (ev->isa(Clef::EventType)) {
         Clef clef = Clef(*ev);
@@ -1921,7 +1996,7 @@ NotationScene::isEventRedundant(Event *ev, Segment &seg)
 }
 
 bool
-NotationScene::isEventRedundant(Clef &clef, timeT time, Segment &seg)
+NotationScene::isEventRedundant(Clef &clef, timeT time, Segment &seg) const
 {
     TrackId track = seg.getTrack();
     Clef previousClef = m_clefKeyContext->getClefFromContext(track, time);
@@ -1935,7 +2010,7 @@ NotationScene::isEventRedundant(Clef &clef, timeT time, Segment &seg)
 }
 
 bool
-NotationScene::isEventRedundant(Key &key, timeT time, Segment &seg)
+NotationScene::isEventRedundant(Key &key, timeT time, Segment &seg) const
 {
     TrackId track = seg.getTrack();
     Key previousKey = m_clefKeyContext->getKeyFromContext(track, time);

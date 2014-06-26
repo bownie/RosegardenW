@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2014 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _FAST_VECTOR_H_
-#define _FAST_VECTOR_H_
+#ifndef RG_FAST_VECTOR_H
+#define RG_FAST_VECTOR_H
 
 #include <iterator>
 #include <cstdlib> /* for malloc, realloc, free */
