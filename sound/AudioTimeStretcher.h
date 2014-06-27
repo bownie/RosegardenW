@@ -36,7 +36,7 @@
 #include "SampleWindow.h"
 #include "RingBuffer.h"
 
-#include <fftw3.h>
+//#include <fftw3.h>
 #include <pthread.h>
 #include <list>
 
@@ -196,9 +196,9 @@ protected:
 
     float *m_tempbuf;
     float **m_time;
-    fftwf_complex **m_freq;
-    fftwf_plan *m_plan;
-    fftwf_plan *m_iplan;
+    //fftwf_complex **m_freq;
+    //fftwf_plan *m_plan;
+    //fftwf_plan *m_iplan;
     
     RingBuffer<float> **m_inbuf;
     RingBuffer<float> **m_outbuf;

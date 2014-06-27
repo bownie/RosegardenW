@@ -260,7 +260,7 @@ GeneralConfigurationPage::GeneralConfigurationPage(RosegardenDocument *doc,
     connect(m_Thorn, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
     layout->addWidget(m_Thorn, row, 1, 1, 3);
     m_Thorn->setToolTip(tr("<qt>When checked, Rosegarden will use the Thorn look and feel, otherwise default system preferences will be used the next time Rosegarden starts.</qt>"));
-    m_Thorn->setChecked(settings.value("use_thorn_style", true).toBool());
+    m_Thorn->setChecked(settings.value("use_thorn_style", false).toBool());  // default to false
     ++row;
 
     layout->addWidget(new QLabel(tr("Note name style"),

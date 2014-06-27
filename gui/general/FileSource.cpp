@@ -300,7 +300,7 @@ FileSource::init()
 
         if (m_localFilename == "") {
             // QUrl may have mishandled the scheme (e.g. in a DOS path)
-            m_localFilename = m_rawFileOrUrl;
+            m_localFilename = m_url.toString();;
 #ifdef DEBUG_FILE_SOURCE
             std::cerr << "FileSource::init: Trying literal local filename \""
                       << m_localFilename << "\"" << std::endl;

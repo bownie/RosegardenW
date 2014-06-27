@@ -10,7 +10,7 @@ QT += core gui xml network widgets printsupport
 
 # Remove QT3 compatibility
 #
-CONFIG += qt
+CONFIG += qt embed_manifest_exe
 #qt3support
 
 OTHER_FILES += \
@@ -88,12 +88,12 @@ TRANSLATIONS =      data/locale/ca.ts \
 
 
 INCLUDEPATH += "C:/devel/zlib/include" \
-               "C:/devel/pthreads/Pre-built.2/include" \
-               "C:/devel/mman" \
-               "C:/devel/fftw" \
-               "C:/devel/jack" \
-               "C:/devel/ladspa" \
-               "C:/devel/dlfcn/include"
+               "C:/devel/pthreads/Pre-built.2/include"
+ #              "C:/devel/mman" \
+ #              "C:/devel/fftw" \
+ #              "C:/devel/jack" \
+ #              "C:/devel/ladspa" \
+ #              "C:/devel/dlfcn/include"
  #              "C:/devel/lrdf/"
 
 # For Performance Counters
@@ -103,12 +103,12 @@ INCLUDEPATH += "C:/devel/zlib/include" \
 #               "C:/Program Files/Microsoft Visual Studio 8/VC/Include"
 
 QMAKE_LIBDIR += "C:/devel/pthreads/Pre-built.2/lib" \
-                "C:/devel/zlib/lib" \
-                "C:/devel/mman" \
-                "C:/devel/fftw" \
-                "C:/devel/jack" \
-                "C:/devel/ladspa" \
-                "C:/devel/dlfcn/lib"
+                "C:/devel/zlib/lib"
+#                "C:/devel/mman" \
+#                "C:/devel/fftw" \
+#                "C:/devel/jack" \
+#                "C:/devel/ladspa" \
+#                "C:/devel/dlfcn/lib"
  #               "C:/devel/lrdf/"
 
 LIBS += -lpthread -lzlib -lwinmm

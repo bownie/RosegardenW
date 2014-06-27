@@ -2,7 +2,7 @@
 ; Rosegarden NSIS Installer
 ;
 ; Richard Bown
-; September 2012
+; June 2014
 ;-------------------------------
 !include FontReg.nsh
 !include FontName.nsh
@@ -17,15 +17,15 @@ RequestExecutionLevel admin
 !include "MUI.nsh"
 
 ; The name of the installer
-Name "RG-win32-alpha-3"
-Caption "Rosegarden Windows32 Alpha Build 3"
+Name "RG-win32-alpha-4"
+Caption "Rosegarden Windows32 Alpha Build 4"
 
 !define icon "icon.ico"
 !define COMPANY "Xylgo"
 !define SOFTWARE "Rosegarden"
 
 ; The file to write
-OutFile "rosegarden-win32-alpha-3.exe"
+OutFile "rosegarden-win32-alpha-4.exe"
 
 ; The default installation directory
 ;
@@ -83,40 +83,11 @@ Section "Rosegarden"
     File "..\resources\zlib1.dll"
     File "..\resources\pthreadGC2.dll"
 
-        ; More resources
-        ;
-    ;File "data\rc\application.rc"
+    ; More resources
+    ;
     File "data\pixmaps\icons\rg-rwb-rose3-128x128.ico"
 
-        ; Styles
-        ;
-        ;File "data\rosegarden.qss"
-
-        ; Translations
-        ;
-        ;File "data\locale\ca.qm"
-        ;File "data\locale\cs.qm"
-        ;File "data\locale\cy.qm"
-        ;File "data\locale\de.qm"
-        ;File "data\locale\en.qm"
-        ;File "data\locale\en_GB.qm"
-        ;File "data\locale\en_US.qm"
-        ;File "data\locale\es.qm"
-        ;File "data\locale\et.qm"
-        ;File "data\locale\eu.qm"
-        ;File "data\locale\fi.qm"
-        ;File "data\locale\fr.qm"
-        ;File "data\locale\id.qm"
-        ;File "data\locale\it.qm"
-        ;File "data\locale\ja.qm"
-        ;File "data\locale\nl.qm"
-        ;File "data\locale\pl.qm"
-        ;File "data\locale\rosegarden.qm"
-        ;File "data\locale\ru.qm"
-        ;File "data\locale\sv.qm"
-        ;File "data\locale\zh_CN.qm"
-
-        File /r "data"
+    File /r "data"
 
     ; Write the installation path into the registry
     WriteRegStr HKLM "Software\${COMPANY}\${SOFTWARE}" "Install_Dir" "$INSTDIR"
@@ -143,9 +114,9 @@ Section "Fonts"
 
     ; Remove and then install fonts
     ;
-        !insertmacro RemoveTTFFont "GNU-LilyPond-feta-design20.ttf"
-        !insertmacro RemoveTTFFont "GNU-LilyPond-feta-nummer-10.ttf"
-        !insertmacro RemoveTTFFont "GNU-LilyPond-parmesan-20.ttf"
+    !insertmacro RemoveTTFFont "GNU-LilyPond-feta-design20.ttf"
+    !insertmacro RemoveTTFFont "GNU-LilyPond-feta-nummer-10.ttf"
+    !insertmacro RemoveTTFFont "GNU-LilyPond-parmesan-20.ttf"
 
     !insertmacro InstallTTFFont "data\fonts\GNU-LilyPond-feta-design20.ttf"
     !insertmacro InstallTTFFont "data\fonts\GNU-LilyPond-feta-nummer-10.ttf"
@@ -154,6 +125,7 @@ Section "Fonts"
     ; Complete font registration without reboot
     ;
     SendMessage ${HWND_BROADCAST} ${WM_FONTCHANGE} 0 0 /TIMEOUT=5000
+
 SectionEnd
 
 
@@ -174,7 +146,7 @@ SectionEnd
 Section "Uninstall"
 
     ; Remove registry keys
-        ;
+    ;
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Rosegarden"
     DeleteRegKey HKLM "Software\${COMPANY}\${SOFTWARE}"
 
@@ -203,12 +175,13 @@ Section "Uninstall"
     Delete "$SMPROGRAMS\Rosegarden\*.*"
     Delete "$INSTDIR\Rosegarden\*.*"
 
-        ; Remove the data directory and subdirs
-        ;
-        RMDir /r "$INSTDIR\data"
-        Delete "$INSTDIR\data"
+    ; Remove the data directory and subdirs
+    ;
+    RMDir /r "$INSTDIR\data"
+    Delete "$INSTDIR\data"
 
     ; Remove directories used
+    ;
     RMDir "$SMPROGRAMS\Rosegarden"
     RMDir "$INSTDIR"
 

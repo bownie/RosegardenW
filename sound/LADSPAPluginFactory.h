@@ -17,7 +17,7 @@
 #define RG_LADSPA_PLUGIN_FACTORY_H
 
 #include "PluginFactory.h"
-#include <ladspa.h>
+//#include <ladspa.h>
 
 #include <vector>
 #include <map>
@@ -49,10 +49,10 @@ public:
                                                       unsigned int blockSize,
                                                       unsigned int channels);
 
-    MappedObjectValue getPortMinimum(const LADSPA_Descriptor *, int port);
-    MappedObjectValue getPortMaximum(const LADSPA_Descriptor *, int port);
-    MappedObjectValue getPortDefault(const LADSPA_Descriptor *, int port);
-    int getPortDisplayHint(const LADSPA_Descriptor *, int port);
+    //MappedObjectValue getPortMinimum(const LADSPA_Descriptor *, int port);
+    //MappedObjectValue getPortMaximum(const LADSPA_Descriptor *, int port);
+    //MappedObjectValue getPortDefault(const LADSPA_Descriptor *, int port);
+    //int getPortDisplayHint(const LADSPA_Descriptor *, int port);
 
 protected:
     LADSPAPluginFactory();

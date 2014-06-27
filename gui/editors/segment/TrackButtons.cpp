@@ -1128,7 +1128,11 @@ TrackButtons::trackSelectionChanged(const Composition *, TrackId trackId)
 {
     //RG_DEBUG << "TrackButtons::trackSelectionChanged()" << trackId;
     Track *track = m_doc->getComposition().getTrackById(trackId);
-    selectTrack(track->getPosition());
+
+    if (track)
+    {
+        selectTrack(track->getPosition());
+    }
 }
 
 void

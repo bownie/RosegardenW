@@ -85,9 +85,11 @@ ResourceFinder::getUserResourcePrefix()
 {
     static const char *homepath = ".local/share";
     static const char *appname = "rosegarden";
-    char *home = getenv("HOME");
+    QString home = getenv("HOMEDRIVE");
+    home += getenv("HOMEPATH");;
 
-    if (home) {
+    if (! home.isEmpty()) {
+        //std::cout << "Got home directory = " << home << std::endl;
         return QString("%1/%2/%3").arg(home).arg(homepath).arg(appname);
     } else {
         std::cerr << "ResourceFinder::getUserResourcePrefix: ERROR: No home directory available?" << std::endl;

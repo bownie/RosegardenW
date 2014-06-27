@@ -21,7 +21,7 @@
 
 #include <math.h>
 #include <complex>
-#include <fftw3.h>
+//#include <fftw3.h>
 #include <fstream>
 
 #include <QString>
@@ -138,8 +138,8 @@ private:
     int m_sampleRate;
 
     Method m_method;
-    fftwf_complex *m_ft1, *m_ft2, *m_cepstralOut;
-    fftwf_plan m_p1, m_p2, m_pc;
+    //fftwf_complex *m_ft1, *m_ft2, *m_cepstralOut;
+    //fftwf_plan m_p1, m_p2, m_pc;
 
 };
 
