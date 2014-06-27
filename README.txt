@@ -1,12 +1,16 @@
-Rosegarden 12.04.99 "WinFreedom" Alpha 3 Release for Windows
-============================================================
+Rosegarden 14.02.XX "Kaleidoscope" Alpha 4 Release for Windows
+==============================================================
 
-I'm pleased to finally announce the availability of the next Alpha release of Rosegarden for Windows.
+Rosegarden for Windows is a port of the Linux application "Rosegarden" - a notation editor
+and MIDI and audio sequencer.   This port has slightly more limited functionality that the
+Linux version - no audio support, limited MIDI support - but should offer a working platform
+for composition, layout and printing and some MIDI usage.
 
-This is a working release of Rosegarden for Windows - it's still called an Alpha release because it may
-well be buggy and audio file support or audio sequencing is still not supported in any way.  The code base has
-been merged with the latest Rosegarden trunk changes ("Freedom") as per 7th July 2012 but also:
+This release is a long overdue catch up of features plus a port to Qt5 and offers no new working
+MIDI or audio functionality above the previous Rosegarden for Windows release.  However you will
+benefit from all the latest Rosegarden trunk features.
 
+As of previous release the MIDI subsystem was as follows:
 
   - MIDI Playback devices are now assignable (create new Midi Device and assign tracks)
 
@@ -20,50 +24,37 @@ been merged with the latest Rosegarden trunk changes ("Freedom") as per 7th July
 
 
 Rosegarden for Windows is a packaged installation for 32-bit Windows which will work on 32-bit or 64-bit
-Windows platforms and has been tested on Windows XP and Windows 7.  Rosegarden for Windows packages Lilypond
-printing and print-previewing out of the box.
+Windows platforms however the build is *** not completely working yet **
 
-You can download Rosegarden for Windows from here (*):
+The windows binary will be delivered as soon as I've worked out the problems with 32-bit builds on Windows 8.1.
+In the meantime this git repository holds the merged code which should build on Windows with a little patience!
 
-
-  https://bitbucket.org/bownie/rosegarden-for-windows/downloads
-
-
-Rosegarden for Windows Alpha 2 has had over 5000 downloads in the last nine or so months but so far feedback
-has been limited - hopefully that can change a bit with this latest, more functional release.  It would be great
-to hear any feedback - good, bad or indifferent - just to work out if I should spend any more time adding features
-no matter how slowly!
-
-Please give it a try and provide me or the rosegarden-devel mailing list with any feedback.  Thanks goes of course
-to all the core developers on the Rosegarden team who are pumping out the actual features and improvements and
-hopefully this version can continue to do them some justice.
 
 Regards,
 Richard Bown (@xyglo)
-September 2012
-
-(* - Sourceforge file upload didn't want to work for some reason but perhaps the files/links could also be updated there )
+June 2014
 
 
 Websites
 ========
 
-The main Rosegarden website is still at:
+The main Rosegarden website with details of the latest functionality can be found here:
 
   http://www.rosegardenmusic.com
 
-There is also a page here with latest Rosegarden for Windows specific information:
+There is also a page here with latest Rosegarden for Windows specific information here:
 
-  http://www.xyglo.com/rosegarden-for-windows/
-
+  http://www.xyglo.com/rosegarden/
 
 Repository Notes
 ================
 
-Rosegarden for Windows code is now in a mercurial repository at BitBucket:
+The trunk repository for Rosegarden (Linux) can be found here:
 
-  https://bitbucket.org/bownie/rosegarden-for-windows
+  http://www.sf.net/projects/rosegarden
 
-The old branch in SourceForge is now trailing and can be deleted if required:
+Rosegarden for Windows respository is hosted on github for two reasons - I prefer git and the directory
+structure is different for Rosegarden for Windows:
 
-  http://rosegarden.svn.sourceforge.net/viewvc/rosegarden/branches/win32-mingw-rtmidi/
+  https://github.com/bownie/RosegardenW/
+
