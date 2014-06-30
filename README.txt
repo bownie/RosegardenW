@@ -1,10 +1,10 @@
 Rosegarden 14.02.XX "Kaleidoscope" Alpha 4 Release for Windows
 ==============================================================
 
-Rosegarden for Windows is a port of the Linux application "Rosegarden" - a notation editor
-and MIDI and audio sequencer.   This port has slightly more limited functionality that the
-Linux version - no audio support, limited MIDI support - but should offer a working platform
-for composition, layout and printing and some MIDI usage.
+Rosegarden for Windows is a port of the Linux application "Rosegarden" - a notation editor and
+MIDI and audio sequencer.   This port has slightly more limited functionality that the Linux
+version - no audio support, limited MIDI support - but should offer a working platform for
+composition, layout and printing and some MIDI usage.
 
 This release is a long overdue catch up of features plus a port to Qt5 and offers no new working
 MIDI or audio functionality above the previous Rosegarden for Windows release.  However you will
@@ -44,7 +44,7 @@ The main Rosegarden website with details of the latest functionality can be foun
 
 There is also a page here with latest Rosegarden for Windows specific information here:
 
-  http://www.xyglo.com/rosegarden/
+  http://www.xyglo.com/rosegarden-for-windows/
 
 Repository Notes
 ================
