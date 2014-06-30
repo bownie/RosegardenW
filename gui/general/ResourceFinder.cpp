@@ -20,6 +20,7 @@
 #include <QFileInfo>
 #include <QStringList>
 #include <QProcess>
+#include <QSettings>
 
 #include "misc/Debug.h"
 #include "misc/Strings.h"
@@ -69,12 +70,36 @@ ResourceFinder::getSystemResourcePrefixList()
     static const char *appname = "rosegarden";
     char *rosegarden = getenv("ROSEGARDEN");
 
+
     if (rosegarden) {
         list << rosegarden;
     } else {
         for (size_t i = 0; i < sizeof(prefixes)/sizeof(prefixes[0]); ++i) {
             list << QString("%1/%2").arg(prefixes[i]).arg(appname);
         }
+
+        // Try normal registry
+        //
+        QSettings settings("HKEY_LOCAL_MACHINE\\SOFTWARE\\Xyglo\\Rosegarden", QSettings::NativeFormat);
+        QString value = settings.value("Install_Dir").toString() + "\\data";
+
+        if (!value.isEmpty())
+        {
+            list << value;
+        }
+        else
+        {
+            QSettings settings("HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Xyglo\\Rosegarden", QSettings::NativeFormat);
+            value = settings.value("Install_Dir").toString() + "\\data";
+
+            if (!value.isEmpty())
+            {
+                list << value;
+            }
+        }
+
+        //std::cerr << "FROM REGISTRY GOT STRING " << value << std::endl;
+
     }
 
     return list;

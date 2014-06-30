@@ -21,7 +21,7 @@ Name "RG-win32-alpha-4"
 Caption "Rosegarden Windows32 Alpha Build 4"
 
 !define icon "icon.ico"
-!define COMPANY "Xylgo"
+!define COMPANY "Xyglo"
 !define SOFTWARE "Rosegarden"
 
 ; The file to write
@@ -38,7 +38,7 @@ InstallDirRegKey HKLM "Software\${COMPANY}\${SOFTWARE}" "Install_Dir"
 
 ; Application icon
 ;
-Icon "data\pixmaps\icons\rg-rwb-rose3-128x128.ico"
+Icon "rg-rwb-rose3-128x128.ico"
 
 ; MUI stuff
 ;
@@ -73,21 +73,41 @@ Section "Rosegarden"
 
     ; The files we are building into the package
     ;
-    File "release\rosegarden.exe"
-    File "..\resources\libgcc_s_dw2-1.dll"
-    File "..\resources\mingwm10.dll"
-    File "..\resources\QtCore4.dll"
-    File "..\resources\QtGui4.dll"
-    File "..\resources\QtNetwork4.dll"
-    File "..\resources\QtXml4.dll"
-    File "..\resources\zlib1.dll"
-    File "..\resources\pthreadGC2.dll"
+    File "rosegarden.exe"
+    File "icudt52.dll"
+    File "icuin52.dll"
+    File "icuuc52.dll"
+    File "libgcc_s_dw2-1.dll"
+    File "libstdc++-6.dll"
+    File "libwinpthread-1.dll"
+    File "Qt5Core.dll"
+    File "Qt5Gui.dll"
+    File "Qt5Network.dll"
+    File "Qt5PrintSupport.dll"
+    File "Qt5Svg.dll"
+    File "Qt5Widgets.dll"
+    File "Qt5Xml.dll"
+    File "qt_cs.qm"
+    File "qt_de.qm"
+    File "qt_fi.qm"
+    File "qt_hu.qm"
+    File "qt_it.qm"
+    File "qt_ja.qm"
+    File "qt_ru.qm"
+    File "qt_sk.qm"
+    File "qt_uk.qm"
+    File "zlib1.dll"
+
+    File /r "accessible"
+    File /r "bearer"
+    File /r "iconengines"
+    File /r "imageformats"
+    File /r "platforms"
+    File /r "printsupport"
 
     ; More resources
     ;
-    File "data\pixmaps\icons\rg-rwb-rose3-128x128.ico"
-
-    File /r "data"
+    File "rg-rwb-rose3-128x128.ico"
 
     ; Write the installation path into the registry
     WriteRegStr HKLM "Software\${COMPANY}\${SOFTWARE}" "Install_Dir" "$INSTDIR"
@@ -118,9 +138,9 @@ Section "Fonts"
     !insertmacro RemoveTTFFont "GNU-LilyPond-feta-nummer-10.ttf"
     !insertmacro RemoveTTFFont "GNU-LilyPond-parmesan-20.ttf"
 
-    !insertmacro InstallTTFFont "data\fonts\GNU-LilyPond-feta-design20.ttf"
-    !insertmacro InstallTTFFont "data\fonts\GNU-LilyPond-feta-nummer-10.ttf"
-    !insertmacro InstallTTFFont "data\fonts\GNU-LilyPond-parmesan-20.ttf"
+    !insertmacro InstallTTFFont "fonts\GNU-LilyPond-feta-design20.ttf"
+    !insertmacro InstallTTFFont "fonts\GNU-LilyPond-feta-nummer-10.ttf"
+    !insertmacro InstallTTFFont "fonts\GNU-LilyPond-parmesan-20.ttf"
 
     ; Complete font registration without reboot
     ;
@@ -157,7 +177,7 @@ Section "Uninstall"
 
     ; Remove files and uninstaller
     ;
-    Delete $INSTDIR\uninstall.exe
+    Delete $INSTDIR\*uninstall.exe
     Delete "$INSTDIR\rosegarden.exe"
     Delete "$INSTDIR\libgcc_s_dw2-1.dll"
     Delete "$INSTDIR\mingwm10.dll"
@@ -168,6 +188,31 @@ Section "Uninstall"
     Delete "$INSTDIR\zlib1.dll"
     Delete "$INSTDIR\pthreadGC2.dll"
 
+    Delete "$INSTDIR\rosegarden.exe"
+    Delete "$INSTDIR\icudt52.dll"
+    Delete "$INSTDIR\icuin52.dll"
+    Delete "$INSTDIR\icuuc52.dll"
+    Delete "$INSTDIR\libgcc_s_dw2-1.dll"
+    Delete "$INSTDIR\libstdc++-6.dll"
+    Delete "$INSTDIR\libwinpthread-1.dll"
+    Delete "$INSTDIR\Qt5Core.dll"
+    Delete "$INSTDIR\Qt5Gui.dll"
+    Delete "$INSTDIR\Qt5Network.dll"
+    Delete "$INSTDIR\Qt5PrintSupport.dll"
+    Delete "$INSTDIR\Qt5Svg.dll"
+    Delete "$INSTDIR\Qt5Widgets.dll"
+    Delete "$INSTDIR\Qt5Xml.dll"
+    Delete "$INSTDIR\qt_cs.qm"
+    Delete "$INSTDIR\qt_de.qm"
+    Delete "$INSTDIR\qt_fi.qm"
+    Delete "$INSTDIR\qt_hu.qm"
+    Delete "$INSTDIR\qt_it.qm"
+    Delete "$INSTDIR\qt_ja.qm"
+    Delete "$INSTDIR\qt_ru.qm"
+    Delete "$INSTDIR\qt_sk.qm"
+    Delete "$INSTDIR\qt_uk.qm"
+    Delete "$INSTDIR\zlib1.dll"
+
     Delete "$INSTDIR\application.rc"
     Delete "$INSTDIR\rg-rwb-rose3-128x128.ico"
 
@@ -177,8 +222,19 @@ Section "Uninstall"
 
     ; Remove the data directory and subdirs
     ;
-    RMDir /r "$INSTDIR\data"
-    Delete "$INSTDIR\data"
+    RMDir /r "$INSTDIR\accessible"
+    RMDir /r "$INSTDIR\bearer"
+    RMDir /r "$INSTDIR\iconengines"
+    RMDir /r "$INSTDIR\imageformats"
+    RMDir /r "$INSTDIR\platforms"
+    RMDir /r "$INSTDIR\printsupport"
+
+    Delete "$INSTDIR\accessible"
+    Delete "$INSTDIR\bearer"
+    Delete "$INSTDIR\iconengines"
+    Delete "$INSTDIR\imageformats"
+    Delete "$INSTDIR\platforms"
+    Delete "$INSTDIR\printsupport"
 
     ; Remove directories used
     ;
