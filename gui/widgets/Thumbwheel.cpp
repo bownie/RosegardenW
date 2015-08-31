@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     This file originally from Sonic Visualiser, copyright 2007 Queen
     Mary, University of London.
@@ -36,7 +36,7 @@ namespace Rosegarden
 
 Thumbwheel::Thumbwheel(Qt::Orientation orientation,
                        bool useRed,
-		       QWidget *parent) :
+                       QWidget *parent) :
     QWidget(parent),
     m_min(0),
     m_max(100),
@@ -182,9 +182,9 @@ Thumbwheel::scroll(bool up)
     if (step == 0) step = 1;
 
     if (up) {
-	setValue(m_value + step);
+        setValue(m_value + step);
     } else {
-	setValue(m_value - step);
+        setValue(m_value - step);
     }
     
     emit valueChanged(getValue());
@@ -272,6 +272,8 @@ Thumbwheel::mouseDoubleClickEvent(QMouseEvent *mouseEvent)
     
     if (ok) {
         setValue(newValue);
+        // Let everyone know.
+        emit valueChanged(getValue());
     }
 }
 
@@ -319,9 +321,9 @@ Thumbwheel::wheelEvent(QWheelEvent *e)
     if (step == 0) step = 1;
 
     if (e->delta() > 0) {
-	setValue(m_value + step);
+        setValue(m_value + step);
     } else {
-	setValue(m_value - step);
+        setValue(m_value - step);
     }
     
     emit valueChanged(getValue());
@@ -492,5 +494,5 @@ Thumbwheel::setBright(const bool v)
 
 }
 
-#include "moc_Thumbwheel.cpp"
+#include "Thumbwheel.moc"
 

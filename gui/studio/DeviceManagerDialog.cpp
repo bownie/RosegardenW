@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -31,7 +31,6 @@
 #include "base/MidiTypes.h"
 #include "base/Studio.h"
 #include "commands/studio/CreateOrDeleteDeviceCommand.h"
-#include "commands/studio/ModifyDeviceCommand.h"
 #include "commands/studio/ReconnectDeviceCommand.h"
 #include "commands/studio/RenameDeviceCommand.h"
 #include "document/CommandHistory.h"
@@ -122,23 +121,14 @@ DeviceManagerDialog::show()
 }
 
 void
-DeviceManagerDialog::closeEvent(QCloseEvent *e)
+DeviceManagerDialog::slotCloseButtonPress()
 {
-    emit closing();
-    QMainWindow::closeEvent(e);
-}
-
-void
-DeviceManagerDialog::slotClose()
-{
-    RG_DEBUG << "DeviceManagerDialog::slotClose()" << endl;
     /*
        if (m_doc) {
        //CommandHistory::getInstance()->detachView(actionCollection());    //&&&
        m_doc = 0;
        }
      */
-    emit closing();
     close();
 }
 
@@ -807,6 +797,12 @@ DeviceManagerDialog::slotAddPlaybackDevice()
 
     //     updatePlaybackDevicesList();
     slotRefreshOutputPorts();
+
+    // Try to find the new one and select it.
+    QList<QTreeWidgetItem *> newDeviceItems =
+            m_treeWidget_playbackDevices->findItems(tr("New Device"), Qt::MatchExactly);
+    if (newDeviceItems.size() == 1)
+        m_treeWidget_playbackDevices->setCurrentItem(newDeviceItems.first());
 }
 
 void
@@ -955,7 +951,7 @@ DeviceManagerDialog::slotDeviceItemChanged(QTreeWidgetItem * twItem,
             (new RenameDeviceCommand(m_studio, mdev->getId(),
                                      qstrtostr(devName)));
         emit deviceNameChanged(mdev->getId());
-    RG_DEBUG << "DeviceManagerDialog::slotDeviceItemChanged emitting deviceNamesChanged()" << endl;
+        RG_DEBUG << "DeviceManagerDialog::slotDeviceItemChanged emitting deviceNamesChanged()" << endl;
         emit deviceNamesChanged();
     }
 }
@@ -1051,7 +1047,7 @@ DeviceManagerDialog::connectSignalsToSlots()
     // connect close button
     QPushButton *pbClose;
     pbClose = bbox->button(QDialogButtonBox::Close);
-    connect(pbClose, SIGNAL(clicked()), this, SLOT(slotClose()));
+    connect(pbClose, SIGNAL(clicked()), this, SLOT(slotCloseButtonPress()));
 
     // buttons
     connect(pushButton_newPlaybackDevice, SIGNAL(clicked()), this,
@@ -1073,4 +1069,4 @@ DeviceManagerDialog::connectSignalsToSlots()
 
 } // namespace Rosegarden
 
-#include "moc_DeviceManagerDialog.cpp"
+#include "DeviceManagerDialog.moc"

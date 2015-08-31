@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -260,7 +260,7 @@ GeneralConfigurationPage::GeneralConfigurationPage(RosegardenDocument *doc,
     connect(m_Thorn, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
     layout->addWidget(m_Thorn, row, 1, 1, 3);
     m_Thorn->setToolTip(tr("<qt>When checked, Rosegarden will use the Thorn look and feel, otherwise default system preferences will be used the next time Rosegarden starts.</qt>"));
-    m_Thorn->setChecked(settings.value("use_thorn_style", false).toBool());  // default to false
+    m_Thorn->setChecked(settings.value("use_thorn_style", true).toBool());
     ++row;
 
     layout->addWidget(new QLabel(tr("Note name style"),
@@ -348,6 +348,7 @@ GeneralConfigurationPage::GeneralConfigurationPage(RosegardenDocument *doc,
     m_pdfViewer->addItem(tr("Adobe Acrobat Reader (non-free)"));
     m_pdfViewer->addItem(tr("MuPDF"));
     m_pdfViewer->addItem(tr("ePDFView"));
+    m_pdfViewer->addItem(tr("xdg-open (recommended)"));
     m_pdfViewer->setToolTip(tr("Used to preview generated LilyPond output"));
 
     layout->addWidget(m_pdfViewer, row, 1, 1, 3);
@@ -368,7 +369,7 @@ GeneralConfigurationPage::GeneralConfigurationPage(RosegardenDocument *doc,
     ++row;
 
     settings.beginGroup(ExternalApplicationsConfigGroup);
-    m_pdfViewer->setCurrentIndex(settings.value("pdfviewer", Okular).toUInt());
+    m_pdfViewer->setCurrentIndex(settings.value("pdfviewer", xdgOpen).toUInt());
 
     // now that I'm actually on KDE 4.2, I see no more KPrinter.  I'll default
     // to Lpr instead.
@@ -563,4 +564,4 @@ void GeneralConfigurationPage::apply()
 
 
 }
-#include "moc_GeneralConfigurationPage.cpp"
+#include "GeneralConfigurationPage.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -460,7 +460,11 @@ ControllerEventsRuler::addControlLine(float x1, float y1, float x2, float y2, bo
                                                     *ei,
                                                     collapseRests));
        }
+    }
 
+    if (macro->haveCommands()) {
+        CommandHistory::getInstance()->addCommand(macro);
+        macro = new MacroCommand(tr("Insert Line of Controllers"));
     }
 
     for (float i = originTime; i <= destinationTime; i += step) {

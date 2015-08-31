@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -32,6 +32,7 @@
 #include "base/Composition.h"
 #include "base/Device.h"
 #include "base/Instrument.h"
+#include "base/InstrumentStaticSignals.h"
 #include "base/MidiProgram.h"
 #include "base/Studio.h"
 #include "document/RosegardenDocument.h"
@@ -195,6 +196,14 @@ AudioMixerWindow::AudioMixerWindow(QWidget *parent,
     // returned to normal after I implemented Rosegarden::PluginPushButton.  Oh
     // well.)
     populate();
+
+    // Hold on to this to make sure it stays around as long as we do.
+    m_instrumentStaticSignals = Instrument::getStaticSignals();
+
+    connect(m_instrumentStaticSignals.data(),
+            SIGNAL(changed(Instrument *)),
+            this,
+            SLOT(slotInstrumentChanged(Instrument *)));
 }
 
 AudioMixerWindow::~AudioMixerWindow()
@@ -433,14 +442,6 @@ AudioMixerWindow::populate()
         updateStereoButton((*i)->getId());
         updatePluginButtons((*i)->getId());
 
-        if (rec.m_input) {
-            connect(rec.m_input, SIGNAL(changed()),
-                    this, SLOT(slotInputChanged()));
-        }
-
-        connect(rec.m_output, SIGNAL(changed()),
-                this, SLOT(slotOutputChanged()));
-
         connect(rec.m_fader, SIGNAL(faderChanged(float)),
                 this, SLOT(slotFaderLevelChanged(float)));
 
@@ -605,9 +606,14 @@ AudioMixerWindow::slotTrackAssignmentsChanged()
 }
 
 void
-AudioMixerWindow::slotUpdateInstrument(InstrumentId id)
+AudioMixerWindow::slotInstrumentChanged(Instrument *instrument)
 {
-    RG_DEBUG << "AudioMixerWindow::slotUpdateInstrument(" << id << ")" << endl;
+    if (!instrument)
+        return;
+
+    InstrumentId id = instrument->getId();
+
+    RG_DEBUG << "AudioMixerWindow::slotInstrumentChanged(): id = " << id;
 
     blockSignals(true);
 
@@ -652,7 +658,7 @@ AudioMixerWindow::slotPluginSelected(InstrumentId id,
             //!!! Hacky.  We still rely on the old "colour" property to figure
             // out the state, instead of doing something far more pleasant and
             // intelligible three years from now.  (Remember this when you wince
-            // in 2014.  Kind of like that photo of you wearing nothing but a
+            // in 2015.  Kind of like that photo of you wearing nothing but a
             // sock and an electric guitar, drunk off your ass, innit?)
             QColor pluginBgColour = Qt::blue;  // anything random will do
 
@@ -948,32 +954,6 @@ AudioMixerWindow::slotSelectPlugin()
 }
 
 void
-AudioMixerWindow::slotInputChanged()
-{
-    const QObject *s = sender();
-
-    for (FaderMap::iterator i = m_faders.begin();
-            i != m_faders.end(); ++i) {
-
-        if (i->second.m_input == s)
-            emit instrumentParametersChanged(i->first);
-    }
-}
-
-void
-AudioMixerWindow::slotOutputChanged()
-{
-    const QObject *s = sender();
-
-    for (FaderMap::iterator i = m_faders.begin();
-            i != m_faders.end(); ++i) {
-
-        if (i->second.m_output == s)
-            emit instrumentParametersChanged(i->first);
-    }
-}
-
-void
 AudioMixerWindow::sendControllerRefresh()
 {
     //!!! really want some notification of whether we have an external controller!
@@ -1065,12 +1045,12 @@ AudioMixerWindow::slotFaderLevelChanged(float dB)
                 m_studio->getInstrumentById(i->first);
 
             if (instrument) {
-                StudioControl::setStudioObjectProperty
-                (MappedObjectId
-                 (instrument->getMappedId()),
-                 MappedAudioFader::FaderLevel,
-                 MappedObjectValue(dB));
+                StudioControl::setStudioObjectProperty(
+                        MappedObjectId(instrument->getMappedId()),
+                        MappedAudioFader::FaderLevel,
+                        MappedObjectValue(dB));
                 instrument->setLevel(dB);
+                instrument->changed();
             }
 
             // send out to external controllers as well.
@@ -1086,8 +1066,6 @@ AudioMixerWindow::slotFaderLevelChanged(float dB)
                 mE.setRecordedDevice(Device::CONTROL_DEVICE);
                 StudioControl::sendMappedEvent(mE);
             }
-
-            emit instrumentParametersChanged(i->first);
         }
 
         ++controllerChannel;
@@ -1131,11 +1109,12 @@ AudioMixerWindow::slotPanChanged(float pan)
                 m_studio->getInstrumentById(i->first);
 
             if (instrument) {
-                StudioControl::setStudioObjectProperty
-                (instrument->getMappedId(),
-                 MappedAudioFader::Pan,
-                 MappedObjectValue(pan));
+                StudioControl::setStudioObjectProperty(
+                        instrument->getMappedId(),
+                        MappedAudioFader::Pan,
+                        MappedObjectValue(pan));
                 instrument->setPan(MidiByte(pan + 100.0));
+                instrument->changed();
             }
 
             // send out to external controllers as well.
@@ -1154,8 +1133,6 @@ AudioMixerWindow::slotPanChanged(float pan)
                 mE.setRecordedDevice(Device::CONTROL_DEVICE);
                 StudioControl::sendMappedEvent(mE);
             }
-
-            emit instrumentParametersChanged(i->first);
         }
 
         ++controllerChannel;
@@ -1181,12 +1158,12 @@ AudioMixerWindow::slotChannelsChanged()
                 m_studio->getInstrumentById(i->first);
 
             if (instrument) {
-                instrument->setAudioChannels
-                ((instrument->getAudioChannels() > 1) ? 1 : 2);
+                instrument->setAudioChannels(
+                        (instrument->getAudioChannels() > 1) ? 1 : 2);
                 updateStereoButton(instrument->getId());
                 updateRouteButtons(instrument->getId());
 
-                emit instrumentParametersChanged(i->first);
+                instrument->changed();
 
                 return ;
             }
@@ -1337,8 +1314,10 @@ AudioMixerWindow::slotControllerDeviceEventReceived(MappedEvent *e,
         const void *preferredCustomer)
 {
     if (preferredCustomer != this)
-        return ;
-    RG_DEBUG << "AudioMixerWindow::slotControllerDeviceEventReceived: this one's for me" << endl;
+        return;
+
+    RG_DEBUG << "slotControllerDeviceEventReceived(): this one's for me";
+
     raise();
 
     // get channel number n from event
@@ -1394,8 +1373,9 @@ AudioMixerWindow::slotControllerDeviceEventReceived(MappedEvent *e,
             break;
         }
 
-        slotUpdateInstrument(i->first);
-        emit instrumentParametersChanged(i->first);
+        // Inform everyone of the change.  Note that this will also call
+        // slotInstrumentChanged() to update the fader.
+        instrument->changed();
 
         break;
     }
@@ -1791,4 +1771,4 @@ AudioMixerWindow::setRewFFwdToAutoRepeat()
 
 
 }
-#include "moc_AudioMixerWindow.cpp"
+#include "AudioMixerWindow.moc"

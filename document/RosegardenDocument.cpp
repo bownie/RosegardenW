@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -594,7 +594,7 @@ bool RosegardenDocument::openDocument(const QString& filename,
         return false;
     }
 
-    //cc 20140508: avoid dereferencing self-deleted progress dialog
+    //cc 20150508: avoid dereferencing self-deleted progress dialog
     //after user has closed it, by using a QPointer
     QPointer<ProgressDialog> progressDlg = 0;
    
@@ -885,9 +885,11 @@ void RosegardenDocument::initialiseStudio()
         recordIns[i]->setMappedId(mappedId);
     }
 
+    // For each instrument
     for (; it != list.end(); ++it) {
         if ((*it)->getType() == Instrument::Audio ||
                 (*it)->getType() == Instrument::SoftSynth) {
+
             MappedObjectId mappedId =
                 StudioControl::createStudioObject(
                     MappedObject::AudioFader);
@@ -977,16 +979,31 @@ void RosegardenDocument::initialiseStudio()
             pluginContainers.push_back(*it);
 
             audioCount++;
+
+        } else if ((*it)->getType() == Instrument::Midi) {
+            // Call Instrument::sendChannelSetup() to make sure the program
+            // change for this track has been sent out.
+            // The test case (MIPP #35) for this is a bit esoteric:
+            //   1. Load a composition and play it.
+            //   2. Load a different composition, DO NOT play it.
+            //   3. Select tracks in the new composition and play the MIDI
+            //      input keyboard.
+            //   4. Verify that you hear the programs for the new composition.
+            // Without the following, you'll hear the programs for the old
+            // composition.
+            (*it)->sendChannelSetup();
         }
     }
 
     RG_DEBUG << "RosegardenDocument::initialiseStudio: Have " << pluginContainers.size() << " plugin container(s)" << endl;
 
+    // For each plugin container
     for (std::vector<PluginContainer *>::iterator pci =
              pluginContainers.begin(); pci != pluginContainers.end(); ++pci) {
 
         // Initialise all the plugins for this Instrument or Buss
 
+        // For each plugin
         for (PluginInstanceIterator pli = (*pci)->beginPlugins();
                 pli != (*pci)->endPlugins(); ++pli) {
 
@@ -1186,8 +1203,15 @@ bool RosegardenDocument::saveDocument(const QString& filename,
                                     QString& errMsg,
                                     bool autosave)
 {
-    if (!QFileInfo(filename).exists()) { // safe to write directly
+    QFileInfo fileInfo(filename);
+
+    if (!fileInfo.exists()) { // safe to write directly
         return saveDocumentActual(filename, errMsg, autosave);
+    }
+
+    if (fileInfo.exists()  &&  !fileInfo.isWritable()) {
+        errMsg = tr("'%1' is read-only.  Please save to a different file.").arg(filename);
+        return false;
     }
 
     QTemporaryFile temp(filename + ".");
@@ -3055,4 +3079,4 @@ RosegardenDocument::checkAudioPath(Track *track)
 }
 
 }
-#include "moc_RosegardenDocument.cpp"
+#include "RosegardenDocument.moc"

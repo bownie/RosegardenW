@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -60,16 +60,16 @@ FitToBeatsCommand::changeAllTempi(TempoMap newTempi)
 // @remarks Change from using oldSegments to newSegments
 // @author Tom Breton (Tehom)
 void
-FitToBeatsCommand::changeSegments(segmentcontainer oldSegments,
-                                  segmentcontainer newSegments)
+FitToBeatsCommand::changeSegments(SegmentMultiSet oldSegments,
+                                  SegmentMultiSet newSegments)
 {
-    for (segmentcontainer::iterator i = oldSegments.begin();
+    for (SegmentMultiSet::iterator i = oldSegments.begin();
          i != oldSegments.end();
          ++i) {
         m_composition->detachSegment(*i);
     }
 
-    for (segmentcontainer::iterator i = newSegments.begin();
+    for (SegmentMultiSet::iterator i = newSegments.begin();
          i != newSegments.end();
          ++i) {
         m_composition->addSegment(*i);
@@ -172,7 +172,7 @@ FitToBeatsCommand::initialise(Segment *s)
     // Copy all the events to scratchComposition.  The copies will be
     // at the same realtime but not the same timeT.  Even events in
     // the groove segment get copied.
-    segmentcontainer &origSegments = m_composition->getSegments();
+    SegmentMultiSet &origSegments = m_composition->getSegments();
     for (Composition::iterator i = origSegments.begin();
          i != origSegments.end();
          ++i) {
@@ -235,7 +235,7 @@ FitToBeatsCommand::initialise(Segment *s)
     // Detach the segments before scratchComposition goes out of
     // scope.  m_newSegments contains exactly the segments that need
     // to be detached.
-    for (segmentcontainer::iterator i = m_newSegments.begin();
+    for (SegmentMultiSet::iterator i = m_newSegments.begin();
          i != m_newSegments.end();
          ++i) {
         scratchComposition.weakDetachSegment(*i);

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,6 +22,7 @@
 #include "document/Command.h"
 #include "base/Event.h"
 #include "base/NotationTypes.h"
+#include "base/Selection.h"
 #include "document/CommandHistory.h"
 
 #include <QCoreApplication>
@@ -31,7 +32,6 @@ namespace Rosegarden
 {
 
 class Segment;
-class SegmentSelection;
 
 
 class SegmentSyncClefCommand : public MacroCommand

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -25,6 +25,7 @@
 #include "gui/widgets/PluginPushButton.h"
 
 #include <QPixmap>
+#include <QSharedPointer>
 
 #include <vector>
 #include <map>
@@ -46,6 +47,8 @@ class Fader;
 class AudioVUMeter;
 class AudioRouteMenu;
 class PluginPushButton;
+class Instrument;
+class InstrumentStaticSignals;
 
 
 class AudioMixerWindow : public MixerWindow, public ActionFileClient
@@ -60,8 +63,13 @@ public:
     void updateMonitorMeters();
 
 public slots:
+    /// Handle events from the external controller port.
+    /**
+     * @see RosegardenMainViewWidget::slotControllerDeviceEventReceived()
+     * @see MidiMixerWindow::slotControllerDeviceEventReceived()
+     */
     void slotControllerDeviceEventReceived(MappedEvent *,
-                                           const void *);
+                                           const void *preferredCustomer);
 
 signals:
     void selectPlugin(QWidget *, InstrumentId id, int index);
@@ -75,14 +83,9 @@ signals:
     void record();
     void panic();
 
-    // to be redirected to the instrument parameter box if necessary
-    void instrumentParametersChanged(InstrumentId);
-
 protected slots:
     void slotFaderLevelChanged(float level);
     void slotPanChanged(float value);
-    void slotInputChanged();
-    void slotOutputChanged();
     void slotChannelsChanged();
     void slotSoloChanged();
     void slotMuteChanged();
@@ -91,7 +94,7 @@ protected slots:
     void slotRepopulate();
     
     // to be called if something changes in an instrument parameter box
-    void slotUpdateInstrument(InstrumentId);
+    void slotInstrumentChanged(Instrument *);
 
     void slotTrackAssignmentsChanged();
 
@@ -183,6 +186,8 @@ private:
     QPixmap m_stereoPixmap;
 
     void setRewFFwdToAutoRepeat();
+
+    QSharedPointer<InstrumentStaticSignals> m_instrumentStaticSignals;
 };
 
 

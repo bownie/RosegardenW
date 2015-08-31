@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 #include "MidiProgram.h"
 
 #include <QString>
+#include <QSharedPointer>
 #include <QCoreApplication>
 
 // An Instrument connects a Track (which itself contains
@@ -65,6 +66,8 @@ typedef unsigned int BussId;
 // Predeclare Device
 //
 class Device;
+
+class InstrumentStaticSignals;
 
 class PluginContainer
 {
@@ -117,11 +120,9 @@ public:
                MidiByte channel,
                Device *device);
 
-
-    // Copy constructor and assignment
+    // Copy constructor
     //
     Instrument(const Instrument &);
-    Instrument &operator=(const Instrument &);
 
     ~Instrument();
 
@@ -187,6 +188,8 @@ public:
 
     void setProgram(const MidiProgram &program);
     const MidiProgram &getProgram() const { return m_program; }
+    /// Checks the bank and program change against the Device.
+    bool isProgramValid() const;
 
     void setSendBankSelect(bool value) {
         m_sendBankSelect = value;
@@ -228,6 +231,9 @@ public:
 
     void setLSB(MidiByte msb);
     MidiByte getLSB() const;
+
+    /// Pick the first valid program in the connected Device.
+    void pickFirstProgram(bool percussion);
 
     void setPercussion(bool percussion);
     bool isPercussion() const;
@@ -285,6 +291,22 @@ public:
     void sendWholeDeviceDestroyed(void)
     { emit wholeDeviceDestroyed(); }
 
+    /// Send out program changes, etc..., for fixed channels.
+    /**
+     * See StudioControl::sendChannelSetup().
+     */
+    void sendChannelSetup();
+
+    /// For connecting to Instrument's static signals.
+    /**
+     * It's a good idea to hold on to a copy of this QSharedPointer in
+     * a member variable to make sure the InstrumentStaticSignals
+     * instance is still around when your object is destroyed.
+     */
+    static QSharedPointer<InstrumentStaticSignals> getStaticSignals();
+    /// Emit InstrumentStaticSignals::changed().
+    void changed();
+
  signals:
     // Like QObject::destroyed, but implies that the whole device is
     // being destroyed so we needn't bother freeing channels on it.
@@ -302,6 +324,15 @@ public:
     void channelBecomesUnfixed(void);
 
 private:
+    // ??? Hiding because, fortunately, this is never used.
+    //     As it was implemented, it is not an assignment operator.  It
+    //     does not copy the m_fixed field.  As such, it should be given
+    //     a name other than "=" to differentiate its effect from that
+    //     of a proper operator=.  E.g. partialCopy().  It should then
+    //     be implemented using the default operator=() which should be
+    //     made private.  However, that can't be done until C++11.
+    Instrument &operator=(const Instrument &);
+
     InstrumentId    m_id;
     std::string     m_name;
     std::string     m_alias;

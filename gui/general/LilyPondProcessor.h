@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2011 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _LILYPOND_PROCESSOR_H_
-#define _LILYPOND_PROCESSOR_H_
+#ifndef RG_LILYPOND_PROCESSOR_H
+#define RG_LILYPOND_PROCESSOR_H
 
 #include "gui/widgets/ProgressBar.h"
 
@@ -76,9 +76,6 @@ public:
                       QString filename);
     ~LilyPondProcessor() { };
 
-    // Tidy up
-    void removeTempFiles();
-
 protected:
     int           m_mode;
     QString       m_filename;
@@ -86,7 +83,6 @@ protected:
     ProgressBar  *m_progress;
     QLabel       *m_info;
     QProcess     *m_process;
-    QString       m_outFile;
 
 protected slots:
     /**

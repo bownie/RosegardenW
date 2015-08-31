@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -145,7 +145,7 @@ void AudioListView::dragEnterEvent(QDragEnterEvent *e){
     QStringList uriList;
     QString text;
 
-    if (e->mimeData()->hasFormat("text/uri-list") || e->mimeData()->hasFormat("text/plain")) {
+    if (e->mimeData()->hasUrls() || e->mimeData()->hasText()) {
 
         if (uriList.empty() && text == "") {
             RG_DEBUG << "AudioListView::dragEnterEvent: Drop Empty ! " << endl;
@@ -159,16 +159,16 @@ void AudioListView::dragEnterEvent(QDragEnterEvent *e){
 
     }
 
-    
 }
 
 
 void AudioListView::dropEvent(QDropEvent* e)
 {
+    QList<QUrl> uList;
     QStringList uriList;
     QString text;
-    
-    if (e->mimeData()->hasFormat("text/uri-list") || e->mimeData()->hasFormat("text/plain")) {
+
+    if (e->mimeData()->hasUrls() || e->mimeData()->hasText()) {
         
         if( e->source() ){
             RG_DEBUG << "AudioListView::dropEvent() - objectName : " << e->source()->objectName() << endl;
@@ -188,12 +188,15 @@ void AudioListView::dropEvent(QDropEvent* e)
             e->accept();
         }
 
-        if (e->mimeData()->hasFormat("text/uri-list")) {
-            uriList = QString::fromLocal8Bit(
-                        e->mimeData()->data("text/uri-list")
-                    ).split( QRegExp("[\\r\\n]+"), QString::SkipEmptyParts );
-        } else {
-            text = QString::fromLocal8Bit(e->mimeData()->data("text/plain"));
+        if (e->mimeData()->hasUrls()) {
+            uList = e->mimeData()->urls();
+            if (!uList.isEmpty()) {
+                for (int i = 0; i < uList.size(); ++i)  {
+                    uriList.append(QString::fromLocal8Bit(uList.value(i).toEncoded().data()));
+               }
+            }
+        } else {  // text/plain
+            text = e->mimeData()->text();
         }
     } else {
         e->ignore();
@@ -221,6 +224,6 @@ void AudioListView::dropEvent(QDropEvent* e)
 
 
 }
-#include "moc_AudioListView.cpp"
+#include "AudioListView.moc"
 
 

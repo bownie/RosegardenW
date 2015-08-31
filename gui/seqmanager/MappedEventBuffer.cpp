@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -111,7 +111,7 @@ MappedEventBuffer::reserve(int newSize)
     MappedEvent *newBuffer = new MappedEvent[newSize];
 
     if (oldBuffer) {
-        for (int i = 0; i < m_size; ++i) {
+        for (int i = 0; i < m_size.fetchAndAddRelaxed(0); ++i) {
             newBuffer[i] = m_buffer[i];
         }
     }

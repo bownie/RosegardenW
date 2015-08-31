@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -59,16 +59,16 @@ public:
            bool logarithmic = false); // extents are logs, exp for display
     ~Rotary();
 
-    void setMinimum(float min) { m_minimum = min; }
+    void setMinimum(float min);
     float getMinValue() const { return m_minimum; }
 
-    void setMaximum(float max) { m_maximum = max; }
+    void setMaximum(float max);
     float getMaxValue() const { return m_maximum; }
 
-    void setStep(float step) { m_step = step; }
+    void setStep(float step);
     float getStep() const { return m_step; }
 
-    void setPageStep(float step) { m_pageStep = step; }
+    void setPageStep(float step);
     float getPageStep() const { return m_pageStep; }
 
     int getSize() const { return m_size; }
@@ -83,10 +83,19 @@ public:
     void setKnobColour(const QColor &colour);
     QColor getKnobColour() const { return m_knobColour; }
     
-    // Centered status
-    //
+    /// Set "distance from center" mode.
+    /**
+     * In centered mode, the rotary shows the distance from the
+     * center (12 o'clock) around the outside.  This is useful for
+     * pan and eq controls where the 12 o'clock position is the default.
+     *
+     * When not in centered mode, the distance from minimum is shown
+     * around the outside of the rotary.  This is appropriate for
+     * volume.
+     */
+    void setCentered(bool centred);
+    /// Are we in "distance from center" mode?
     bool getCentered() const { return m_centred; }
-    void setCentered(bool centred) { m_centred = centred; }
 
 signals:
     void valueChanged(float);

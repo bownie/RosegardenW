@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -82,7 +82,7 @@ CsoundExporter::write()
         str << ";; on Track: \""
         << m_composition->getTrackById((*i)->getTrack())->getLabel()
         << "\"\n";
-        str << ";;\n;; Inst\tTime\tDur\tPitch\tVely\n"
+        str << ";;\n;; Inst\tStart\tDur\tAmp\tPch\n"
         << ";; ----\t----\t---\t-----\t----\n";
 
         for (Segment::iterator j = (*i)->begin(); j != (*i)->end(); ++j) {
@@ -98,12 +98,12 @@ CsoundExporter::write()
                 <Int>(BaseProperties::VELOCITY, velocity);
 
                 str << "   i"
-                << (*i)->getTrack() << "\t"
+                << ((*i)->getTrack() + 1)<< "\t"
                 << convertTime((*j)->getAbsoluteTime()) << "\t"
                 << convertTime((*j)->getDuration()) << "\t"
+                << velocity << "\t"
                 << 3 + (pitch / 12) << ((pitch % 12) < 10 ? ".0" : ".")
-                << pitch % 12 << "\t"
-                << velocity << "\t\n";
+                << pitch % 12 << "\t\n";
 
             } else {
                 str << ";; Event type: " << (*j)->getType() << std::endl;

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -35,9 +35,8 @@ class EventSelection;
 class Clipboard
 {
 public:
-    typedef std::multiset<Segment *, Segment::SegmentCmp> segmentcontainer;
-    typedef segmentcontainer::iterator iterator;
-    typedef segmentcontainer::const_iterator const_iterator;
+    typedef SegmentMultiSet::iterator iterator;
+    typedef SegmentMultiSet::const_iterator const_iterator;
 
     Clipboard();
     Clipboard(const Clipboard &);
@@ -184,7 +183,7 @@ public:
     void removeAudioSegments();
 
 private:
-    segmentcontainer m_segments;
+    SegmentMultiSet m_segments;
     bool m_partial;
 
     TimeSignatureSelection m_timeSigSelection;

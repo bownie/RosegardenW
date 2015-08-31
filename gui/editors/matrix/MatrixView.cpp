@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical matrix editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,6 +19,7 @@
 
 #include "MatrixView.h"
 
+#include "MatrixCommandRegistry.h"
 #include "MatrixWidget.h"
 #include "MatrixElement.h"
 #include "MatrixViewSegment.h"
@@ -132,6 +133,9 @@ MatrixView::MatrixView(RosegardenDocument *doc,
     m_matrixWidget = new MatrixWidget(m_drumMode);
     setCentralWidget(m_matrixWidget);
     m_matrixWidget->setSegments(doc, segments);
+       
+    // Many actions are created here
+    m_commandRegistry = new MatrixCommandRegistry(this);
     
     setupActions();
     
@@ -2336,4 +2340,4 @@ MatrixView::setRewFFwdToAutoRepeat()
 
 
 }
-#include "moc_MatrixView.cpp"
+#include "MatrixView.moc"

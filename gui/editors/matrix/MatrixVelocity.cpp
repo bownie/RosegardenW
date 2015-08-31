@@ -263,4 +263,4 @@ MatrixVelocity::setBasicContextHelp()
 const QString MatrixVelocity::ToolName = "velocity";
 
 }
-#include "moc_MatrixVelocity.cpp"
+#include "MatrixVelocity.moc"

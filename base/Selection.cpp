@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -459,18 +459,6 @@ EventSelection::dump() const
     RG_DEBUG << "  m_beginTime: " << m_beginTime;
     RG_DEBUG << "  m_endTime: " << m_endTime;
     RG_DEBUG << "  m_haveRealStartTime: " << m_haveRealStartTime;
-}
-
-
-/** SegmentSelection **/
-
-bool SegmentSelection::hasNonAudioSegment() const
-{
-    for (const_iterator i = begin(); i != end(); ++i) {
-        if ((*i)->getType() == Segment::Internal)
-            return true;
-    }
-    return false;
 }
 
 

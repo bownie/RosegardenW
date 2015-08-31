@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -48,33 +48,14 @@ public:
     virtual void ready();
     virtual void stow();
 
-    virtual void handleMouseButtonPress(QMouseEvent*);
-    virtual void handleMouseButtonRelease(QMouseEvent*);
-    virtual int  handleMouseMove(QMouseEvent*);
-
-    // These two alter the behaviour of the selection mode
-    //
-    // - SegmentAdd (usually when Qt::SHIFT is held down) allows
-    //   multiple selections of Segments.
-    //
-    // - SegmentCopy (usually CONTROL) allows draw and drop
-    //   copying of Segments - it's a quick shortcut
-    //
-    void setSegmentAdd(const bool &value)  { m_segmentAddMode = value; }
-    void setSegmentCopy(const bool &value) { m_segmentCopyMode = value; }
-    void setSegmentCopyingAsLink(const bool &value) { m_segmentCopyingAsLink = value; }
+    virtual void mousePressEvent(QMouseEvent *);
+    virtual int mouseMoveEvent(QMouseEvent *);
+    virtual void mouseReleaseEvent(QMouseEvent *);
 
     bool isSegmentAdding() const { return m_segmentAddMode; }
     bool isSegmentCopying() const { return m_segmentCopyMode; }
 
-    // Return the SegmentItem list for other tools to use
-    //
-    SegmentItemList* getSegmentItemList() { return &m_selectedItems; }
-
     static const QString ToolName;
-
-protected slots:
-    void slotCanvasScrolled(int newX, int newY);
 
 protected:
     SegmentSelector(CompositionView*, RosegardenDocument*);
@@ -82,8 +63,6 @@ protected:
     void setContextHelpFor(QPoint p, bool ctrlPressed = false);
 
     //--------------- Data members ---------------------------------
-
-    SegmentItemList m_selectedItems;
 
     bool m_segmentAddMode;
     bool m_segmentCopyMode;
@@ -93,6 +72,7 @@ protected:
     bool m_passedInertiaEdge;
     bool m_buttonPressed;
     bool m_selectionMoveStarted;
+    bool m_changeMade;
 
     SegmentTool *m_dispatchTool;
 };

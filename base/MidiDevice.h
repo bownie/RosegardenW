@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -95,6 +95,8 @@ public:
 
     const ProgramList &getPrograms() const { return m_programList; }
     ProgramList getPrograms(const MidiBank &bank) const;
+    /// Used by the UI to display all programs in variations mode.
+    ProgramList getPrograms0thVariation(bool percussion, const MidiBank &bank) const;
 
     const KeyMappingList &getKeyMappings() const { return m_keyMappingList; }
     const MidiKeyMapping *getKeyMappingByName(const std::string &) const;

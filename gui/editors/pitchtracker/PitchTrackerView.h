@@ -22,7 +22,7 @@
 
 #include "gui/editors/notation/NotationView.h"
 #include "base/ViewSegment.h"
-//#include <lo/lo_osc_types.h>
+#include <lo/lo_osc_types.h>
 
 namespace Rosegarden {
 

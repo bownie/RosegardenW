@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -214,12 +214,7 @@ protected:
  * SegmentSelection is much simpler than EventSelection, we don't
  * need to do much with this really
  */
-
-class SegmentSelection : public std::set<Segment *>
-{
-public:
-    bool hasNonAudioSegment() const;
-};
+typedef std::set<Segment *> SegmentSelection;
 
 /**
  * Template for a selection that includes only elements of type

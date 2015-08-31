@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -21,8 +21,10 @@
 
 #include "base/MidiProgram.h"
 #include "InstrumentParameterPanel.h"
+
 #include <QPixmap>
 #include <QString>
+#include <QSharedPointer>
 
 
 class QWidget;
@@ -34,6 +36,8 @@ namespace Rosegarden
 
 class RosegardenDocument;
 class Instrument;
+class InstrumentStaticSignals;
+class InstrumentAliasButton;
 class AudioFaderBox;
 
 
@@ -62,7 +66,6 @@ public slots:
     void slotSelectAudioLevel(float dB);
     void slotSelectAudioRecordLevel(float dB);
     void slotAudioChannels(int channels);
-    void slotAudioRoutingChanged();
     void slotSelectPlugin(int index);
 
     // From the parameter box clicks
@@ -78,20 +81,28 @@ public slots:
 
 signals:
     void selectPlugin(QWidget *, InstrumentId, int index);
-    void instrumentParametersChanged(InstrumentId);
     void showPluginGUI(InstrumentId, int index);
-    void changeInstrumentLabel(InstrumentId id, QString label);
 
 protected:
     //--------------- Data members ---------------------------------
 
     AudioFaderBox   *m_audioFader;
 
+private slots:
+
+    /// Handle InstrumentStaticSignals::changed()
+    void slotInstrumentChanged(Instrument *);
+
 private:
+
+    // This is the tiny button in the upper left that allows the user
+    // to change the name of the audio instrument.
+    InstrumentAliasButton *m_aliasButton;
 
     QPixmap                                      m_monoPixmap;
     QPixmap                                      m_stereoPixmap;
 
+    QSharedPointer<InstrumentStaticSignals> m_instrumentStaticSignals;
 };
 
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -54,15 +54,21 @@ class EventView;
 class Composition;
 class LevelInfo;
 
+/// Parent for the TrackEditor
 /**
  * The RosegardenMainViewWidget class provides the view widget for the
  * RosegardenMainWindow instance.  The View instance inherits QWidget as a
  * base class and represents the view object of a QMainWindow. As
- * RosegardenMainViewWidget is part of the docuement-view model, it needs a
+ * RosegardenMainViewWidget is part of the document-view model, it needs a
  * reference to the document object connected with it by the
  * RosegardenMainWindow class to manipulate and display the document
  * structure provided by the RosegardenDocument class.
- *      
+ *
+ * An instance of this class is owned by RosegardenMainWindow and can be
+ * accessed via RosegardenMainWindow::getView().  This class is
+ * primarily responsible for containing the TrackEditor instance which
+ * can be accessed via getTrackEditor().
+ *
  * @author Guillaume Laurent with KDevelop 0.4
  */
 class RosegardenMainViewWidget : public QWidget
@@ -70,7 +76,7 @@ class RosegardenMainViewWidget : public QWidget
     Q_OBJECT
 public:
 
-    /**p
+    /**
      * Constructor for the main view
      */
     RosegardenMainViewWidget(bool showTrackLabels,
@@ -122,7 +128,7 @@ public:
     
     bool haveSelection();
     SegmentSelection getSelection();
-    void updateSelectionContents();
+    void updateSelectedSegments();
 
     static bool isMainWindowLastActive(const QWidget *w) {
         return w == m_lastActiveMainWindow;
@@ -211,11 +217,6 @@ public slots:
     void slotAddCommandToHistory(Command *command);
 
     /**
-     * Change the Instrument Label
-     */
-    void slotChangeInstrumentLabel(InstrumentId id, QString label);
-
-    /**
      * Change the Track Label
      */
 //    void slotChangeTrackLabel(TrackId id, QString label);
@@ -251,12 +252,33 @@ public slots:
     void slotActiveMainWindowChanged(const QWidget *);
     void slotActiveMainWindowChanged(); // uses sender()
 
+    /// Handle events from the external controller port.
     /**
-     * An event has been received from a device connected to the
-     * external controller port.
+     * This routine handles remote control events received from a
+     * device connected to the "external controller" port.
+     *
+     * This routine handles controller 81 which opens or
+     * brings to the top various windows based on the value.
      */
     void slotControllerDeviceEventReceived(MappedEvent *);
-    void slotControllerDeviceEventReceived(MappedEvent *, const void *);
+
+    /// Handle events from the external controller port.
+    /**
+     * This routine handles remote control events received from a
+     * device connected to the "external controller" port.
+     *
+     * This routine handles various controllers and Program Changes.
+     * Controller 82 selects the current track.  Other controllers,
+     * like volume and pan, cause changes to the corresponding controller
+     * setting for the current track.  Program Changes change the program
+     * for the current track.  For audio tracks, MIDI volume and pan
+     * controllers control the track's volume and pan.
+     *
+     * @see MidiMixerWindow::slotControllerDeviceEventReceived()
+     * @see AudioMixerWindow::slotControllerDeviceEventReceived()
+     */
+    void slotControllerDeviceEventReceived(
+            MappedEvent *, const void *preferredCustomer);
 
 signals:
     void activateTool(QString toolName);
@@ -300,8 +322,6 @@ signals:
     void controllerDeviceEventReceived(MappedEvent *,
                                        const void *);
 
-    void instrumentParametersChanged(InstrumentId);
-
 protected:
     NotationView *createNotationView(std::vector<Segment *>);
     MatrixView   *createMatrixView  (std::vector<Segment *>, bool drumMode);
@@ -309,6 +329,8 @@ protected:
     PitchTrackerView *createPitchTrackerView (std::vector<Segment *>);
 
     virtual void windowActivationChange(bool);
+
+    static bool hasNonAudioSegment(const SegmentSelection &segments);
 
     //--------------- Data members ---------------------------------
 

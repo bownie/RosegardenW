@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -17,6 +17,9 @@
 
 #define RG_MODULE_STRING "[MidiMixerWindow]"
 
+// Disable RG_DEBUG output.  Must be defined prior to including Debug.h.
+#define RG_NO_DEBUG_PRINT
+
 #include "MidiMixerWindow.h"
 
 #include "sound/Midi.h"
@@ -25,6 +28,7 @@
 #include "base/Colour.h"
 #include "base/Device.h"
 #include "base/Instrument.h"
+#include "base/InstrumentStaticSignals.h"
 #include "base/MidiDevice.h"
 #include "base/MidiProgram.h"
 #include "base/Studio.h"
@@ -86,6 +90,14 @@ MidiMixerWindow::MidiMixerWindow(QWidget *parent,
 
     createGUI("midimixer.rc");
     setRewFFwdToAutoRepeat();
+
+    // Hold on to this to make sure it stays around as long as we do.
+    m_instrumentStaticSignals = Instrument::getStaticSignals();
+
+    connect(m_instrumentStaticSignals.data(),
+            SIGNAL(changed(Instrument *)),
+            this,
+            SLOT(slotInstrumentChanged(Instrument *)));
 }
 
 void
@@ -257,7 +269,7 @@ MidiMixerWindow::setupTabs()
 
                 // Update all the faders and controllers
                 //
-                slotUpdateInstrument((*iIt)->getId());
+                slotInstrumentChanged(*iIt);
 
                 // Increment counters
                 //
@@ -285,20 +297,22 @@ MidiMixerWindow::slotFaderLevelChanged(float value)
 {
     const QObject *s = sender();
 
+    // For each fader
+    // ??? Wouldn't QSignalMapper be better?
     for (FaderVector::const_iterator it = m_faders.begin();
             it != m_faders.end(); ++it) {
         if ((*it)->m_volumeFader == s) {
-            Instrument *instr = m_studio->
+            Instrument *instrument = m_studio->
                                 getInstrumentById((*it)->m_id);
 
-            if (instr) {
+            if (instrument) {
 
-                instr->setControllerValue(MIDI_CONTROLLER_VOLUME, MidiByte(value));
+                instrument->setControllerValue(MIDI_CONTROLLER_VOLUME, MidiByte(value));
+                instrument->changed();
 
-                if (instr->hasFixedChannel())
+                if (instrument->hasFixedChannel())
                 {
-                    // send out to external controllers as well if the
-                    // affected instrument is on a fixed channel.
+                    // Send out the external controller port as well.
                     
                     //!!! really want some notification of whether we have any!
                     int tabIndex = m_tabWidget->currentIndex();
@@ -314,16 +328,16 @@ MidiMixerWindow::slotFaderLevelChanged(float value)
                             ++i;
                             continue;
                         }
-                        RG_DEBUG << "slotFaderLevelChanged: device id = " << instr->getDevice()->getId() << ", visible device id " << (*dit)->getId() << endl;
-                        if (instr->getDevice()->getId() == (*dit)->getId()) {
-                            RG_DEBUG << "slotFaderLevelChanged: sending control device mapped event for channel " << instr->getNaturalChannel() << endl;
+                        RG_DEBUG << "slotFaderLevelChanged: device id = " << instrument->getDevice()->getId() << ", visible device id " << (*dit)->getId() << endl;
+                        if (instrument->getDevice()->getId() == (*dit)->getId()) {
+                            RG_DEBUG << "slotFaderLevelChanged: sending control device mapped event for channel " << instrument->getNaturalChannel() << endl;
 
                             MappedEvent mE((*it)->m_id,
                                            MappedEvent::MidiController,
                                            MIDI_CONTROLLER_VOLUME,
                                            MidiByte(value));
 
-                            mE.setRecordedChannel(instr->getNaturalChannel());
+                            mE.setRecordedChannel(instrument->getNaturalChannel());
                             mE.setRecordedDevice(Device::CONTROL_DEVICE);
                             StudioControl::sendMappedEvent(mE);
                         }
@@ -332,7 +346,6 @@ MidiMixerWindow::slotFaderLevelChanged(float value)
                 }
             }
 
-            emit instrumentParametersChanged((*it)->m_id);
             return ;
         }
     }
@@ -344,6 +357,8 @@ MidiMixerWindow::slotControllerChanged(float value)
     const QObject *s = sender();
     size_t i = 0, j = 0;
 
+    // For each fader
+    // ??? Wouldn't QSignalMapper be better?
     for (i = 0; i < m_faders.size(); ++i) {
         for (j = 0; j < m_faders[i]->m_controllerRotaries.size(); ++j) {
             if (m_faders[i]->m_controllerRotaries[j].second == s)
@@ -364,19 +379,23 @@ MidiMixerWindow::slotControllerChanged(float value)
     //RG_DEBUG << "MidiMixerWindow::slotControllerChanged - found a controller"
     //<< endl;
 
-    Instrument *instr = m_studio->getInstrumentById(
+    Instrument *instrument = m_studio->getInstrumentById(
                             m_faders[i]->m_id);
 
-    if (instr) {
+    if (instrument) {
 
         //RG_DEBUG << "MidiMixerWindow::slotControllerChanged - "
         //<< "got instrument to change" << endl;
 
-        instr->setControllerValue(m_faders[i]->
-                                  m_controllerRotaries[j].first,
-                                  MidiByte(value));
+        instrument->setControllerValue(
+                m_faders[i]->m_controllerRotaries[j].first,
+                MidiByte(value));
+        instrument->changed();
 
-        if (instr->hasFixedChannel()) {
+        if (instrument->hasFixedChannel()) {
+
+            // Send out the external controller port as well.
+
             int tabIndex = m_tabWidget->currentIndex();
             if (tabIndex < 0)
                 tabIndex = 0;
@@ -390,119 +409,99 @@ MidiMixerWindow::slotControllerChanged(float value)
                     ++k;
                     continue;
                 }
-                RG_DEBUG << "slotControllerChanged: device id = " << instr->getDevice()->getId() << ", visible device id " << (*dit)->getId() << endl;
-                if (instr->getDevice()->getId() == (*dit)->getId()) {
-                    RG_DEBUG << "slotControllerChanged: sending control device mapped event for channel " << instr->getNaturalChannel() << endl;
+                RG_DEBUG << "slotControllerChanged: device id = " << instrument->getDevice()->getId() << ", visible device id " << (*dit)->getId() << endl;
+                if (instrument->getDevice()->getId() == (*dit)->getId()) {
+                    RG_DEBUG << "slotControllerChanged: sending control device mapped event for channel " << instrument->getNaturalChannel() << endl;
                     // send out to external controllers as well.
                     //!!! really want some notification of whether we have any!
                     MappedEvent mE(m_faders[i]->m_id,
                                    MappedEvent::MidiController,
                                    m_faders[i]->m_controllerRotaries[j].first,
                                    MidiByte(value));
-                    mE.setRecordedChannel(instr->getNaturalChannel());
+                    mE.setRecordedChannel(instrument->getNaturalChannel());
                     mE.setRecordedDevice(Device::CONTROL_DEVICE);
                     StudioControl::sendMappedEvent(mE);
                 }
             }
         }
-        emit instrumentParametersChanged(m_faders[i]->m_id);
     }
 }
 
 void
-MidiMixerWindow::slotUpdateInstrument(InstrumentId id)
+MidiMixerWindow::slotInstrumentChanged(Instrument *instrument)
 {
-    //RG_DEBUG << "MidiMixerWindow::slotUpdateInstrument - id = " << id << endl;
+    //RG_DEBUG << "slotUpdateInstrument(): Instrument ID = " << instrument->getId();
 
-    DeviceListConstIterator it;
-    MidiDevice *dev = 0;
-    InstrumentList instruments;
-    InstrumentList::const_iterator iIt;
     int count = 0;
 
-    blockSignals(true);
+    // For each device in the Studio
+    for (DeviceListConstIterator it = m_studio->begin(); it != m_studio->end(); ++it) {
+        MidiDevice *dev = dynamic_cast<MidiDevice *>(*it);
 
-    for (it = m_studio->begin(); it != m_studio->end(); ++it) {
-        dev = dynamic_cast<MidiDevice*>(*it);
+        // If this isn't a MidiDevice, try the next.
+        if (!dev)
+            continue;
 
-        if (dev) {
-            instruments = dev->getPresentationInstruments();
-            ControlList controls = getIPBForMidiMixer(dev);
+        InstrumentList instruments = dev->getPresentationInstruments();
 
-            for (iIt = instruments.begin(); iIt != instruments.end(); ++iIt) {
-                // Match and set
+        // For each Instrument in the Device
+        for (InstrumentList::const_iterator iIt = instruments.begin();
+             iIt != instruments.end(); ++iIt) {
+            // Match and set
+            //
+            if ((*iIt)->getId() == instrument->getId()) {
+                // Set Volume fader
                 //
-                if ((*iIt)->getId() == id) {
-                    // Set Volume fader
-                    //
-                    m_faders[count]->m_volumeFader->blockSignals(true);
 
-                    MidiByte volumeValue;
-                    try {
-                        volumeValue = (*iIt)->
-                                getControllerValue(MIDI_CONTROLLER_VOLUME);
-                    } catch (std::string s) {
-                        // This should never get called.
-                        volumeValue = (*iIt)->getVolume();
-                    }
-                    
-                    m_faders[count]->m_volumeFader->setFader(float(volumeValue));
-                    m_faders[count]->m_volumeFader->blockSignals(false);
-
-                    /*
-                    StaticControllers &staticControls = 
-                        (*iIt)->getStaticControllers();
-                    RG_DEBUG << "STATIC CONTROLS SIZE = " 
-                             << staticControls.size() << endl;
-                    */
-
-                    // Set all controllers for this Instrument
-                    //
-                    for (size_t i = 0; i < controls.size(); ++i) {
-                        float value = 0.0;
-
-                        m_faders[count]->m_controllerRotaries[i].second->blockSignals(true);
-
-                        // The ControllerValues might not yet be set on
-                        // the actual Instrument so don't always expect
-                        // to find one.  There might be a hole here for
-                        // deleted Controllers to hang around on
-                        // Instruments..
-                        //
-                        try {
-                            value = float((*iIt)->getControllerValue
-                                          (controls[i].getControllerValue()));
-                        } catch (std::string s) {
-                            /*
-                            RG_DEBUG << 
-                            "MidiMixerWindow::slotUpdateInstrument - "
-                                     << "can't match controller " 
-                                     << int(controls[i].
-                                         getControllerValue()) << " - \""
-                                     << s << "\"" << endl;
-                                     */
-                            continue;
-                        }
-
-                        /*
-                        RG_DEBUG << "MidiMixerWindow::slotUpdateInstrument"
-                                 << " - MATCHED "
-                                 << int(controls[i].getControllerValue())
-                                 << endl;
-                                 */
-
-                        m_faders[count]->m_controllerRotaries[i].
-                        second->setPosition(value);
-
-                        m_faders[count]->m_controllerRotaries[i].second->blockSignals(false);
-                    }
+                MidiByte volumeValue;
+                try {
+                    volumeValue = (*iIt)->
+                            getControllerValue(MIDI_CONTROLLER_VOLUME);
+                } catch (std::string s) {
+                    // This should never get called.
+                    volumeValue = (*iIt)->getVolume();
                 }
-                count++;
+
+                // setFader() emits a signal.  If we don't block it, we crash
+                // due to an endless loop.
+                // ??? Need to examine more closely and see if we can redesign
+                //     things to avoid this crash and remove the
+                //     blockSignals() calls around every call to setFader().
+                m_faders[count]->m_volumeFader->blockSignals(true);
+                m_faders[count]->m_volumeFader->setFader(float(volumeValue));
+                m_faders[count]->m_volumeFader->blockSignals(false);
+
+                //RG_DEBUG << "STATIC CONTROLS SIZE = " << (*iIt)->getStaticControllers().size();
+
+                ControlList controls = getIPBForMidiMixer(dev);
+
+                // Set all controllers for this Instrument
+                //
+                for (size_t i = 0; i < controls.size(); ++i) {
+                    float value = 0.0;
+
+                    // The ControllerValues might not yet be set on
+                    // the actual Instrument so don't always expect
+                    // to find one.  There might be a hole here for
+                    // deleted Controllers to hang around on
+                    // Instruments..
+                    //
+                    try {
+                        value = float((*iIt)->getControllerValue
+                                      (controls[i].getControllerValue()));
+                    } catch (std::string s) {
+                        //RG_DEBUG << "slotUpdateInstrument - can't match controller " << int(controls[i].getControllerValue()) << " - \"" << s << "\"";
+                        continue;
+                    }
+
+                    //RG_DEBUG << "MidiMixerWindow::slotUpdateInstrument - MATCHED " << int(controls[i].getControllerValue());
+
+                    m_faders[count]->m_controllerRotaries[i].second->setPosition(value);
+                }
             }
+            count++;
         }
     }
-
-    blockSignals(false);
 }
 
 void
@@ -535,7 +534,9 @@ MidiMixerWindow::slotControllerDeviceEventReceived(MappedEvent *e,
 {
     if (preferredCustomer != this)
         return ;
-    RG_DEBUG << "MidiMixerWindow::slotControllerDeviceEventReceived: this one's for me" << endl;
+
+    RG_DEBUG << "slotControllerDeviceEventReceived(): this one's for me";
+
     raise();
 
     // get channel number n from event
@@ -574,18 +575,16 @@ MidiMixerWindow::slotControllerDeviceEventReceived(MappedEvent *e,
             if (instrument->getNaturalChannel() != channel)
                 continue;
 
-            ControlList cl = dev->getIPBControlParameters();
-            for (ControlList::const_iterator i = cl.begin();
-                    i != cl.end(); ++i) {
-                if ((*i).getControllerValue() == controller) {
-                    RG_DEBUG << "Setting controller " << controller << " for instrument " << instrument->getId() << " to " << value << endl;
+            ControlList cl = dev->getControlParameters();
+            for (ControlList::const_iterator controlIter = cl.begin();
+                    controlIter != cl.end(); ++controlIter) {
+                if ((*controlIter).getControllerValue() == controller) {
+                    RG_DEBUG << "slotControllerDeviceEventReceived(): Setting controller " << controller << " for instrument " << instrument->getId() << " to " << value;
                     instrument->setControllerValue(controller, value);
+                    instrument->changed();
                     break;
                 }
             }
-
-            slotUpdateInstrument(instrument->getId());
-            emit instrumentParametersChanged(instrument->getId());
         }
 
         break;
@@ -772,4 +771,4 @@ MidiMixerWindow::getIPBForMidiMixer(MidiDevice *dev) const
 
 
 }
-#include "moc_MidiMixerWindow.cpp"
+#include "MidiMixerWindow.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -26,7 +26,6 @@
 #include "base/Track.h"
 #include "base/SnapGrid.h"
 #include "commands/segment/SegmentReconfigureCommand.h"
-#include "CompositionItemHelper.h"
 #include "CompositionModelImpl.h"
 #include "CompositionView.h"
 #include "document/RosegardenDocument.h"
@@ -34,8 +33,9 @@
 #include "gui/general/RosegardenScrollView.h"
 #include "SegmentTool.h"
 #include "SegmentToolBox.h"
-#include "SegmentSelector.h"
 #include "document/Command.h"
+#include "document/CommandHistory.h"
+
 #include <QCursor>
 #include <QEvent>
 #include <QPoint>
@@ -47,8 +47,14 @@
 namespace Rosegarden
 {
 
+
+const QString SegmentMover::ToolName = "segmentmover";
+
 SegmentMover::SegmentMover(CompositionView *c, RosegardenDocument *d)
-        : SegmentTool(c, d)
+        : SegmentTool(c, d),
+        m_clickPoint(),
+        m_changeMade(false)
+
 {
     RG_DEBUG << "SegmentMover()\n";
 }
@@ -56,285 +62,271 @@ SegmentMover::SegmentMover(CompositionView *c, RosegardenDocument *d)
 void SegmentMover::ready()
 {
     m_canvas->viewport()->setCursor(Qt::SizeAllCursor);
-    //connect(m_canvas, SIGNAL(contentsMoving (int, int)),
-    //        this, SLOT(slotCanvasScrolled(int, int)));
     setBasicContextHelp();
 }
 
 void SegmentMover::stow()
 {
-    //disconnect(m_canvas, SIGNAL(contentsMoving (int, int)),
-    //           this, SLOT(slotCanvasScrolled(int, int)));
 }
 
-void SegmentMover::slotCanvasScrolled(int newX, int newY)
+void SegmentMover::mousePressEvent(QMouseEvent *e)
 {
+    // Let the baseclass have a go.
+    SegmentTool::mousePressEvent(e);
 
-    Qt::MouseButton button = Qt::NoButton;
-    Qt::MouseButtons buttons = Qt::NoButton;
-    Qt::KeyboardModifiers modifiers = 0;
-    QMouseEvent tmpEvent(QEvent::MouseMove,
-                         m_canvas->viewport()->mapFromGlobal(QCursor::pos()) + QPoint(newX, newY), button, buttons, modifiers);
-    handleMouseMove(&tmpEvent);
-}
+    // We only care about the left mouse button.
+    if (e->button() != Qt::LeftButton)
+        return;
 
-void SegmentMover::handleMouseButtonPress(QMouseEvent *e)
-{
-    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
-    SegmentSelector* selector = dynamic_cast<SegmentSelector*>
-                                (getToolBox()->getTool("segmentselector"));
+    // No need to propagate.
+    e->accept();
 
-    // #1027303: Segment move issue
-    // Clear selection if we're clicking on an item that's not in it
-    // and we're not in add mode
+    QPoint pos = m_canvas->viewportToContents(e->pos());
 
-    if (selector && item &&
-            !m_canvas->getModel()->isSelected(item) && !selector->isSegmentAdding()) {
-        m_canvas->getModel()->clearSelected();
-        m_canvas->getModel()->signalSelection();
-// 		m_canvas->updateContents();
-		m_canvas->update();
-	}
+    CompositionModelImpl *model = m_canvas->getModel();
 
-    if (item) {
+    // Get the Segment that was clicked.
+    ChangingSegmentPtr changingSegment = model->getSegmentAt(pos);
 
-        setCurrentIndex(item);
-        m_clickPoint = e->pos();
-        Segment* s = CompositionItemHelper::getSegment(m_currentIndex);
-
-        int x = int(m_canvas->grid().getRulerScale()->getXForTime(s->getStartTime()));
-        int y = int(m_canvas->grid().getYBinCoordinate(s->getTrack()));
-
-        m_canvas->setGuidesPos(x, y);
-        m_canvas->setDrawGuides(true);
-
-        if (m_canvas->getModel()->haveSelection()) {
-            RG_DEBUG << "SegmentMover::handleMouseButtonPress() : haveSelection\n";
-            // startChange on all selected segments
-            m_canvas->getModel()->startChangeSelection(CompositionModelImpl::ChangeMove);
-
-
-            CompositionModelImpl::ItemContainer& changingItems = m_canvas->getModel()->getChangingItems();
-            // set m_currentIndex to its "sibling" among selected (now moving) items
-            setCurrentIndex(CompositionItemHelper::findSiblingCompositionItem(changingItems, m_currentIndex));
-
-        } else {
-            RG_DEBUG << "SegmentMover::handleMouseButtonPress() : no selection\n";
-            m_canvas->getModel()->startChange(item, CompositionModelImpl::ChangeMove);
-        }
-
-// 		m_canvas->updateContents();
-		m_canvas->update();
-
-        m_passedInertiaEdge = false;
-
-    } else {
-
-        // check for addmode - clear the selection if not
-        RG_DEBUG << "SegmentMover::handleMouseButtonPress() : clear selection\n";
-        m_canvas->getModel()->clearSelected();
-        m_canvas->getModel()->signalSelection();
-// 		m_canvas->updateContents();
-		m_canvas->update();
-	}
-
-}
-
-void SegmentMover::handleMouseButtonRelease(QMouseEvent *e)
-{
-    Composition &comp = m_doc->getComposition();
-
-    int startDragTrackPos = m_canvas->grid().getYBin(m_clickPoint.y());
-    int currentTrackPos = m_canvas->grid().getYBin(e->pos().y());
-    int trackDiff = currentTrackPos - startDragTrackPos;
-
-    if (m_currentIndex) {
-
-        if (changeMade()) {
-
-            CompositionModelImpl::ItemContainer& changingItems = m_canvas->getModel()->getChangingItems();
-
-            SegmentReconfigureCommand *command =
-                new SegmentReconfigureCommand
-                (changingItems.size() == 1 ? tr("Move Segment") : tr("Move Segments"), &comp);
-
-
-            CompositionModelImpl::ItemContainer::iterator it;
-
-            for (it = changingItems.begin();
-                    it != changingItems.end();
-                    ++it) {
-
-                CompositionItemPtr item = *it;
-
-                Segment* segment = CompositionItemHelper::getSegment(item);
-
-                TrackId origTrackId = segment->getTrack();
-                int trackPos = comp.getTrackPositionById(origTrackId);
-                trackPos += trackDiff;
-
-                if (trackPos < 0) {
-                    trackPos = 0;
-                } else if (trackPos >= (int)comp.getNbTracks()) {
-                    trackPos = comp.getNbTracks() - 1;
-                }
-
-                Track *newTrack = comp.getTrackByPosition(trackPos);
-                int newTrackId = origTrackId;
-                if (newTrack) newTrackId = newTrack->getId();
-
-                timeT newStartTime = CompositionItemHelper::getStartTime(item, m_canvas->grid());
-
-                // We absolutely don't want to snap the end time
-                // to the grid.  We want it to remain exactly the same
-                // as it was, but relative to the new start time.
-                timeT newEndTime = newStartTime + segment->getEndMarkerTime(false)
-                                   - segment->getStartTime();
-
-                command->addSegment(segment,
-                                    newStartTime,
-                                    newEndTime,
-                                    newTrackId);
-            }
-
-            addCommandToHistory(command);
-        }
-
-        m_canvas->hideTextFloat();
-        m_canvas->setDrawGuides(false);
-        m_canvas->getModel()->endChange();
-        m_canvas->slotUpdateAll();
-
+    // If the segment canvas background was clicked, clear the selection.
+    if (!changingSegment) {
+        model->clearSelected();
+        model->selectionHasChanged();
+        m_canvas->update();
+        return;
     }
 
-    setChangeMade(false);
-    m_currentIndex = CompositionItemPtr();
+    // The original segment in the composition.
+    Segment *segment = changingSegment->getSegment();
+
+    // If we're clicking on a segment that isn't in the selection
+    if (!model->isSelected(segment)) {
+
+        // Clear the selection.
+        model->clearSelected();
+        model->selectionHasChanged();
+    }
+
+    setChangingSegment(changingSegment);
+    m_clickPoint = pos;
+
+    setSnapTime(e, SnapGrid::SnapToBeat);
+
+    int x = int(m_canvas->grid().getRulerScale()->getXForTime(
+                    segment->getStartTime()));
+    int y = m_canvas->grid().getYBinCoordinate(segment->getTrack());
+
+    m_canvas->drawGuides(x, y);
+
+    // If some segments are already selected
+    if (model->haveSelection()) {
+
+        // Start the move on all selected segments
+        model->startChangeSelection(CompositionModelImpl::ChangeMove);
+
+        // Find the clicked segment in the model.
+        ChangingSegmentPtr newChangingSegment =
+                model->findChangingSegment(segment);
+
+        if (newChangingSegment) {
+            // Toss the local "changing" segment since it isn't going to
+            // be moving at all.  Swap it for the same changing segment in
+            // the model.  That one *will* be moving and can be used to
+            // drive the guides.
+            setChangingSegment(newChangingSegment);
+        }
+
+    } else {  // Nothing selected, just move the one that was clicked
+        model->startChange(changingSegment, CompositionModelImpl::ChangeMove);
+    }
+
+    m_canvas->update();
+}
+
+void SegmentMover::mouseReleaseEvent(QMouseEvent *e)
+{
+    // We only care about the left mouse button.
+    if (e->button() != Qt::LeftButton)
+        return;
+
+    // No need to propagate.
+    e->accept();
+
+    // If we weren't moving anything, bail.
+    if (!getChangingSegment())
+        return;
+
+    if (m_changeMade) {
+
+        QPoint pos = m_canvas->viewportToContents(e->pos());
+
+        // Compute how far we've moved vertically.
+        const int startTrackPos = m_canvas->grid().getYBin(m_clickPoint.y());
+        const int currentTrackPos = m_canvas->grid().getYBin(pos.y());
+        const int deltaTrack = currentTrackPos - startTrackPos;
+
+        CompositionModelImpl::ChangingSegmentSet &changingSegments =
+                m_canvas->getModel()->getChangingSegments();
+
+        Composition &comp = m_doc->getComposition();
+
+        SegmentReconfigureCommand *command =
+            new SegmentReconfigureCommand(
+                    changingSegments.size() == 1 ?
+                            tr("Move Segment") :
+                            tr("Move Segments"),
+                    &comp);
+
+        // For each changing segment
+        for (CompositionModelImpl::ChangingSegmentSet::iterator it =
+                 changingSegments.begin();
+             it != changingSegments.end();
+             ++it) {
+
+            ChangingSegmentPtr changingSegment = *it;
+
+            // The original Segment in the Composition.
+            Segment *segment = changingSegment->getSegment();
+
+            // New Track ID
+
+            TrackId origTrackId = segment->getTrack();
+            int trackPos = comp.getTrackPositionById(origTrackId) + deltaTrack;
+
+            if (trackPos < 0) {
+                trackPos = 0;
+            } else if (trackPos >= (int)comp.getNbTracks()) {
+                trackPos = comp.getNbTracks() - 1;
+            }
+
+            Track *newTrack = comp.getTrackByPosition(trackPos);
+
+            int newTrackId = origTrackId;
+            if (newTrack)
+                newTrackId = newTrack->getId();
+
+            // New start time
+
+            timeT newStartTime = changingSegment->getStartTime(m_canvas->grid());
+
+            // New end time
+
+            // We absolutely don't want to snap the end time
+            // to the grid.  We want it to remain exactly the same
+            // as it was, but relative to the new start time.
+            timeT newEndTime = newStartTime +
+                    segment->getEndMarkerTime(false) - segment->getStartTime();
+
+            // Add the changed segment to the command
+
+            command->addSegment(segment,
+                                newStartTime,
+                                newEndTime,
+                                newTrackId);
+        }
+
+        CommandHistory::getInstance()->addCommand(command);
+
+        m_changeMade = false;
+    }
+
+    m_canvas->hideTextFloat();
+    m_canvas->hideGuides();
+    m_canvas->getModel()->endChange();
+    m_canvas->slotUpdateAll();
+
+    setChangingSegment(ChangingSegmentPtr());
 
     setBasicContextHelp();
 }
 
-int SegmentMover::handleMouseMove(QMouseEvent *e)
+int SegmentMover::mouseMoveEvent(QMouseEvent *e)
 {
-    m_canvas->setSnapGrain(true);
+    // No need to propagate.
+    e->accept();
 
-    Composition &comp = m_doc->getComposition();
-
-    if (!m_currentIndex) {
-        setBasicContextHelp();
+    // If we aren't moving anything, bail.
+    if (!getChangingSegment())
         return RosegardenScrollView::NoFollow;
-    }
 
-    if (!m_canvas->isFineGrain()) {
+    QPoint pos = m_canvas->viewportToContents(e->pos());
+
+    setSnapTime(e, SnapGrid::SnapToBeat);
+
+    // If shift isn't being held down
+    if ((e->modifiers() & Qt::ShiftModifier) == 0) {
         setContextHelp(tr("Hold Shift to avoid snapping to beat grid"));
     } else {
         clearContextHelp();
     }
 
-    CompositionModelImpl::ItemContainer& changingItems = m_canvas->getModel()->getChangingItems();
+    const SnapGrid &grid = m_canvas->grid();
 
-    //         RG_DEBUG << "SegmentMover::handleMouseMove : nb changingItems = "
-    //                  << changingItems.size() << endl;
+    // Compute how far we've moved vertically.
+    const int startTrackPos = grid.getYBin(m_clickPoint.y());
+    const int currentTrackPos = grid.getYBin(pos.y());
+    const int deltaTrack = currentTrackPos - startTrackPos;
 
-    CompositionModelImpl::ItemContainer::iterator it;
-    int guideX = 0;
-    int guideY = 0;
-    QRect updateRect;
+    const int dx = pos.x() - m_clickPoint.x();
 
-    for (it = changingItems.begin();
-         it != changingItems.end();
+    Composition &comp = m_doc->getComposition();
+
+    CompositionModelImpl::ChangingSegmentSet &changingSegments =
+            m_canvas->getModel()->getChangingSegments();
+
+    // For each changing segment, move it
+    for (CompositionModelImpl::ChangingSegmentSet::iterator it =
+             changingSegments.begin();
+         it != changingSegments.end();
          ++it) {
-        //             it->second->showRepeatRect(false);
 
-        int dx = e->pos().x() - m_clickPoint.x(),
-            dy = e->pos().y() - m_clickPoint.y();
+        ChangingSegmentPtr changingSegment = *it;
 
-        const int inertiaDistance = m_canvas->grid().getYSnap() / 3;
-        if (!m_passedInertiaEdge &&
-            (dx < inertiaDistance && dx > -inertiaDistance) &&
-            (dy < inertiaDistance && dy > -inertiaDistance)) {
-            return RosegardenScrollView::NoFollow;
-        } else {
-            m_passedInertiaEdge = true;
-        }
+        const timeT newStartTime = grid.snapX(changingSegment->savedRect().x() + dx);
+        const int newX = int(grid.getRulerScale()->getXForTime(newStartTime));
 
-        timeT newStartTime = m_canvas->grid().snapX((*it)->savedRect().x() + dx);
-
-        int newX = int(m_canvas->grid().getRulerScale()->getXForTime(newStartTime));
-
-        int startDragTrackPos = m_canvas->grid().getYBin(m_clickPoint.y());
-        int currentTrackPos = m_canvas->grid().getYBin(e->pos().y());
-        int trackDiff = currentTrackPos - startDragTrackPos;
-        int trackPos = m_canvas->grid().getYBin((*it)->savedRect().y());
-
-//        std::cerr << "segment " << *it << ": mouse started at track " << startDragTrackPos << ", is now at " << currentTrackPos << ", trackPos from " << trackPos << " to ";
-
-        trackPos += trackDiff;
-
-//        std::cerr << trackPos << std::endl;
-
-        if (trackPos < 0) {
+        int trackPos = grid.getYBin(changingSegment->savedRect().y()) + deltaTrack;
+        if (trackPos < 0)
             trackPos = 0;
-        } else if (trackPos >= (int)comp.getNbTracks()) {
+        if (trackPos >= (int)comp.getNbTracks())
             trackPos = comp.getNbTracks() - 1;
-        }
-/*!!!
-        int newY = m_canvas->grid().snapY((*it)->savedRect().y() + dy);
-        // Make sure we don't set a non-existing track
-        if (newY < 0) {
-            newY = 0;
-        }
-        int trackPos = m_canvas->grid().getYBin(newY);
+        const int newY = grid.getYBinCoordinate(trackPos);
 
-        //             RG_DEBUG << "SegmentMover::handleMouseMove: orig y "
-        //                      << (*it)->savedRect().y()
-        //                      << ", dy " << dy << ", newY " << newY
-        //                      << ", track " << track << endl;
-
-        // Make sure we don't set a non-existing track (c'td)
-        // TODO: make this suck less. Either the tool should
-        // not allow it in the first place, or we automatically
-        // create new tracks - might make undo very tricky though
-        //
-        if (trackPos >= comp.getNbTracks())
-            trackPos = comp.getNbTracks() - 1;
-*/
-        int newY = m_canvas->grid().getYBinCoordinate(trackPos);
-
-        //             RG_DEBUG << "SegmentMover::handleMouseMove: moving to "
-        //                      << newX << "," << newY << endl;
-
-        updateRect |= (*it)->rect();
-        (*it)->moveTo(newX, newY);
-        updateRect |= (*it)->rect();
-        setChangeMade(true);
+        changingSegment->moveTo(newX, newY);
+        m_changeMade = true;
     }
 
-    if (changeMade())
-        m_canvas->getModel()->signalContentChange();
+    if (m_changeMade) {
+        // Make sure the segments are redrawn.
+        m_canvas->slotUpdateAll();
+    }
 
-    guideX = m_currentIndex->rect().x();
-    guideY = m_currentIndex->rect().y();
+    // Draw the guides
 
-    m_canvas->setGuidesPos(guideX, guideY);
+    int guideX = getChangingSegment()->rect().x();
+    int guideY = getChangingSegment()->rect().y();
 
-    timeT currentIndexStartTime = m_canvas->grid().snapX(m_currentIndex->rect().x());
+    m_canvas->drawGuides(guideX, guideY);
 
-    RealTime time = comp.getElapsedRealTime(currentIndexStartTime);
-    QString ms;
-    ms.sprintf("%03d", time.msec());
+    // Format and draw the text float
+
+    timeT guideTime = grid.snapX(guideX);
+
+    RealTime time = comp.getElapsedRealTime(guideTime);
 
     int bar, beat, fraction, remainder;
-    comp.getMusicalTimeForAbsoluteTime(currentIndexStartTime, bar, beat, fraction, remainder);
+    comp.getMusicalTimeForAbsoluteTime(guideTime, bar, beat, fraction, remainder);
 
-    QString posString = QString("%1.%2s (%3, %4, %5)")
-        .arg(time.sec).arg(ms)
+    QString timeString = QString("%1.%2s (%3, %4, %5)")
+        .arg(time.sec).arg(time.msec(), 3, 10, QChar('0'))
         .arg(bar + 1).arg(beat).arg(fraction);
 
-    m_canvas->setTextFloat(guideX + 10, guideY - 30, posString);
-// 	m_canvas->updateContents();
+    m_canvas->drawTextFloat(guideX + 10, guideY - 30, timeString);
+
 	m_canvas->update();
 
-    return RosegardenScrollView::FollowHorizontal | RosegardenScrollView::FollowVertical;
+    return RosegardenScrollView::FollowHorizontal |
+           RosegardenScrollView::FollowVertical;
 }
 
 void SegmentMover::setBasicContextHelp()
@@ -342,7 +334,6 @@ void SegmentMover::setBasicContextHelp()
     setContextHelp(tr("Click and drag to move a segment"));
 }
 
-const QString SegmentMover::ToolName    = "segmentmover";
 
 }
-#include "moc_SegmentMover.cpp"
+#include "SegmentMover.moc"

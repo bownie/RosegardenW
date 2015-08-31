@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -26,7 +26,6 @@
 #include "base/SnapGrid.h"
 #include "base/Track.h"
 #include "commands/segment/SegmentInsertCommand.h"
-#include "CompositionItemHelper.h"
 #include "CompositionView.h"
 #include "document/RosegardenDocument.h"
 #include "gui/general/BaseTool.h"
@@ -34,6 +33,8 @@
 #include "gui/general/RosegardenScrollView.h"
 #include "SegmentTool.h"
 #include "document/Command.h"
+#include "document/CommandHistory.h"
+
 #include <QCursor>
 #include <QEvent>
 #include <QPoint>
@@ -43,6 +44,8 @@
 
 namespace Rosegarden
 {
+
+const QString SegmentPencil::ToolName = "segmentpencil";
 
 SegmentPencil::SegmentPencil(CompositionView *c, RosegardenDocument *d)
         : SegmentTool(c, d),
@@ -57,59 +60,59 @@ SegmentPencil::SegmentPencil(CompositionView *c, RosegardenDocument *d)
 void SegmentPencil::ready()
 {
     m_canvas->viewport()->setCursor(Qt::IBeamCursor);
-    //connect(m_canvas, SIGNAL(contentsMoving (int, int)),
-    //        this, SLOT(slotCanvasScrolled(int, int)));
     setContextHelpFor(QPoint(0, 0));
 }
 
 void SegmentPencil::stow()
 {
-    //disconnect(m_canvas, SIGNAL(contentsMoving (int, int)),
-    //           this, SLOT(slotCanvasScrolled(int, int)));
 }
 
-void SegmentPencil::slotCanvasScrolled(int newX, int newY)
+void SegmentPencil::mousePressEvent(QMouseEvent *e)
 {
-    Qt::MouseButton button = Qt::NoButton;
-    Qt::MouseButtons buttons = Qt::NoButton;
-    Qt::KeyboardModifiers modifiers = 0;
-    QMouseEvent tmpEvent(QEvent::MouseMove,
-                         m_canvas->viewport()->mapFromGlobal(QCursor::pos()) + QPoint(newX, newY), button, buttons, modifiers);
-    handleMouseMove(&tmpEvent);
-}
+    // Let the baseclass have a go.
+    SegmentTool::mousePressEvent(e);
 
-void SegmentPencil::handleMouseButtonPress(QMouseEvent *e)
-{
-    if (e->button() != Qt::LeftButton)
+    // We only care about the left and middle mouse buttons.
+    // SegmentSelector might send us a middle press.
+    if (e->button() != Qt::LeftButton  &&
+        e->button() != Qt::MidButton)
         return;
+
+    // No need to propagate.
+    e->accept();
 
     // is user holding Ctrl+Alt? (ugly, but we are running short on available
     // modifiers; Alt is grabbed by the window manager, and right clicking, my
     // (dmm) original idea, is grabbed by the context menu, so let's see how
     // this goes over
-    bool pencilAnyway = (m_canvas->pencilOverExisting());
+    // ??? Why not just set this to true?  The use case is starting a
+    //     pencil click/drag on top of an existing segment.  If the
+    //     user wants to draw a segment on top of a segment, just let
+    //     them.  Maybe this was an issue when segments could overlap?
+    bool pencilAnyway = ((e->modifiers() & Qt::AltModifier) != 0  &&
+                         (e->modifiers() & Qt::ControlModifier) != 0);
 
     m_newRect = false;
 
+    QPoint pos = m_canvas->viewportToContents(e->pos());
+
     // Check if mouse click was on a rect
     //
-    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
+    ChangingSegmentPtr item = m_canvas->getModel()->getSegmentAt(pos);
 
     // If user clicked a rect, and pencilAnyway is false, then there's nothing
     // left to do here
     if (item) {
-        delete item;
         if (!pencilAnyway) return ;
     }
 
     // make new item
 
-    // Switch to coarse-grain snap resolution.
-    m_canvas->setSnapGrain(false);
-
     SnapGrid &snapGrid = m_canvas->grid();
     
-    int trackPosition = snapGrid.getYBin(e->pos().y());
+    setSnapTime(e, SnapGrid::SnapToBar);
+
+    int trackPosition = snapGrid.getYBin(pos.y());
 
     // Don't do anything if the user clicked beyond the track buttons
     //
@@ -123,7 +126,7 @@ void SegmentPencil::handleMouseButtonPress(QMouseEvent *e)
     TrackId trackId = t->getId();
 
     // Save the mouse X as the original Press point
-    m_pressX = e->pos().x();
+    m_pressX = pos.x();
 
     m_startTime = snapGrid.snapX(m_pressX, SnapGrid::SnapLeft);
     m_endTime = snapGrid.snapX(m_pressX, SnapGrid::SnapRight);
@@ -145,35 +148,38 @@ void SegmentPencil::handleMouseButtonPress(QMouseEvent *e)
     tmpRect.setY(snapGrid.getYBinCoordinate(trackPosition) + 1);
     tmpRect.setHeight(snapGrid.getYSnap() * multiple - 2);
 
-    m_canvas->setTmpRect(tmpRect,
-                         GUIPalette::convertColour
-                         (m_doc->getComposition().getSegmentColourMap().
-                          getColourByIndex(t->getColor())));
+    m_canvas->setNewSegmentColor(GUIPalette::convertColour(
+            m_doc->getComposition().getSegmentColourMap().
+            getColourByIndex(t->getColor())));
+    m_canvas->drawNewSegment(tmpRect);
 
     m_newRect = true;
 
 	m_canvas->update(tmpRect);
 }
 
-void SegmentPencil::handleMouseButtonRelease(QMouseEvent* e)
+void SegmentPencil::mouseReleaseEvent(QMouseEvent *e)
 {
-    if (e->button() != Qt::LeftButton)
-        return ;
+    // Have to allow middle button for SegmentSelector's middle
+    // button feature to work.
+    if (e->button() != Qt::LeftButton  &&
+        e->button() != Qt::MidButton)
+        return;
 
-    setContextHelpFor(e->pos());
+    // No need to propagate.
+    e->accept();
+
+    QPoint pos = m_canvas->viewportToContents(e->pos());
+
+    setContextHelpFor(pos);
 
     if (m_newRect) {
 
-        QRect tmpRect = m_canvas->getTmpRect();
+        QRect tmpRect = m_canvas->getNewSegmentRect();
 
         int trackPosition = m_canvas->grid().getYBin(tmpRect.y());
         Track *track = 
             m_doc->getComposition().getTrackByPosition(trackPosition);
-
-//RG_DEBUG << "SegmentPencil::handleMouseButtonRelease():";
-//RG_DEBUG << "  m_startTime = " << m_startTime;
-//RG_DEBUG << "  m_endTime = " << m_endTime;
-//RG_DEBUG << "  track id = " << track->getId();
 
         SegmentInsertCommand *command =
             new SegmentInsertCommand(m_doc, track->getId(),
@@ -181,7 +187,7 @@ void SegmentPencil::handleMouseButtonRelease(QMouseEvent* e)
 
         m_newRect = false;
 
-        addCommandToHistory(command);
+        CommandHistory::getInstance()->addCommand(command);
 
         // add the SegmentItem by hand, instead of allowing the usual
         // update mechanism to spot it.  This way we can select the
@@ -211,38 +217,42 @@ void SegmentPencil::handleMouseButtonRelease(QMouseEvent* e)
             segment->setLabel( track->getPresetLabel().c_str() );
         }
 
-        CompositionItemPtr item = CompositionItemHelper::makeCompositionItem(segment);
         m_canvas->getModel()->clearSelected();
-        m_canvas->getModel()->setSelected(item);
-        m_canvas->getModel()->signalSelection();
+        m_canvas->getModel()->setSelected(segment);
+        m_canvas->getModel()->selectionHasChanged();
 
-        m_canvas->setTmpRect(QRect());
+        m_canvas->hideNewSegment();
         m_canvas->slotUpdateAll();
 
     }
 }
 
-int SegmentPencil::handleMouseMove(QMouseEvent *e)
+int SegmentPencil::mouseMoveEvent(QMouseEvent *e)
 {
+    // No need to propagate.
+    e->accept();
+
+    QPoint pos = m_canvas->viewportToContents(e->pos());
+
     if (!m_newRect) {
-        setContextHelpFor(e->pos());
+        setContextHelpFor(pos);
         return RosegardenScrollView::NoFollow;
     }
 
-    if (!m_canvas->isFineGrain()) {
+    // If shift isn't being held down
+    if ((e->modifiers() & Qt::ShiftModifier) == 0) {
         setContextHelp(tr("Hold Shift to avoid snapping to bar lines"));
     } else {
         clearContextHelp();
     }
 
-    QRect tmpRect = m_canvas->getTmpRect();
-
-    // Switch to coarse-grain snap resolution.
-    m_canvas->setSnapGrain(false);
+    QRect tmpRect = m_canvas->getNewSegmentRect();
 
     SnapGrid &snapGrid = m_canvas->grid();
 
-    int mouseX = e->pos().x();
+    setSnapTime(e, SnapGrid::SnapToBar);
+
+    int mouseX = pos.x();
     
     // if mouse X is to the right of the original Press point
     if (mouseX >= m_pressX) {
@@ -268,7 +278,7 @@ int SegmentPencil::handleMouseMove(QMouseEvent *e)
     tmpRect.setLeft(leftX);
     tmpRect.setRight(rightX);
 
-    m_canvas->setTmpRect(tmpRect);
+    m_canvas->drawNewSegment(tmpRect);
     return RosegardenScrollView::FollowHorizontal;
 }
 
@@ -290,7 +300,5 @@ void SegmentPencil::setContextHelpFor(QPoint p)
     setContextHelp(tr("Click and drag to draw an empty segment.  Control+Alt click and drag to draw in overlap mode."));
 }
 
-const QString SegmentPencil::ToolName   = "segmentpencil";
-
 }
-#include "moc_SegmentPencil.cpp"
+#include "SegmentPencil.moc"

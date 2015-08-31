@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -80,6 +80,7 @@
 #include "base/Controllable.h"
 #include "base/Studio.h"
 #include "base/Instrument.h"
+#include "base/InstrumentStaticSignals.h"
 #include "base/Device.h"
 #include "base/MidiDevice.h"
 #include "base/SoftSynthDevice.h"
@@ -319,6 +320,14 @@ MatrixWidget::MatrixWidget(bool drumMode) :
     // button isn't pressed.  This way the keys on the piano keyboard
     // to the left are always highlighted to show which note we are on.
     m_view->setMouseTracking(true);
+
+    // Hold on to this to make sure it stays around as long as we do.
+    m_instrumentStaticSignals = Instrument::getStaticSignals();
+
+    connect(m_instrumentStaticSignals.data(),
+            SIGNAL(changed(Instrument *)),
+            this,
+            SLOT(slotInstrumentChanged(Instrument *)));
 }
 
 MatrixWidget::~MatrixWidget()
@@ -589,23 +598,45 @@ MatrixWidget::generatePitchRuler()
 }
 
 void
+MatrixWidget::slotInstrumentChanged(Instrument *instrument)
+{
+    // This covers the test case when the user toggles the "Percussion"
+    // checkbox on the MIPP.
+
+    if (m_instrument->getId() == instrument->getId()) {
+
+        // ??? Can we further determine whether the Percussion state
+        //     (instrument->isPercussion()) has really changed?
+        //     We probably need to cache this in a member.
+
+        generatePitchRuler();
+    }
+}
+
+void
 MatrixWidget::slotPercussionSetChanged(Instrument *instr)
 {
-    //@@@ In spite of its name (and of the name of the signal which trigs it),
-    //    this slot is called each time some change happens in any instrument
-    //    and not only when a percussion set changes [true in rev. 11782].
-
     // Regenerate the pitchruler if the instrument which changed
     // is the current one...
     if (instr == m_instrument) { 
         generatePitchRuler();
     } else {
+        // m_instrument might not be pointing at the Instrument we are
+        // displaying.  This will happen if the user changes the Instrument
+        // for the Segment that we are displaying.
+
         Composition &comp = m_document->getComposition();
-        Track *track = comp.getTrackById(m_scene->getCurrentSegment()->
-                                                                getTrack());
-        Instrument *currInstr = m_document->getStudio().
-                                     getInstrumentById(track->getInstrument());
-        // ...or if the new current instrument appears to be one which changes.
+
+        // Get the Track for the segment we (MatrixScene) are displaying.
+        Track *track = comp.getTrackById(
+                m_scene->getCurrentSegment()->getTrack());
+
+        // Get the Instrument for the segment we are displaying.
+        Instrument *currInstr =
+                m_document->getStudio().getInstrumentById(track->getInstrument());
+
+        // If the Instrument that is changing is indeed the Instrument for
+        // the segment we are displaying, update the pitch ruler.
         if (currInstr == instr) {
             generatePitchRuler();
         }
@@ -1393,7 +1424,7 @@ void MatrixWidget::slotKeySelected(unsigned int y, bool repeating)
 
     slotHoveredOverKeyChanged(y);
 
-//    getCanvasView()->slotScrollVertSmallSteps(y);
+//    getCanvasView()->scrollVertSmallSteps(y);
     
     int evPitch = m_scene->calculatePitchFromY(y);
 
@@ -1505,5 +1536,5 @@ slotInstrumentGone(void)
 
 }
 
-#include "moc_MatrixWidget.cpp"
+#include "MatrixWidget.moc"
 

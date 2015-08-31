@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A MIDI and audio sequencer and musical notation editor.
-  Copyright 2000-2014 the Rosegarden development team.
+  Copyright 2000-2015 the Rosegarden development team.
  
   Other copyrights also apply to some parts of this work.  Please
   see the AUTHORS file and individual file headers for details.
@@ -26,159 +26,157 @@
 #include "base/SnapGrid.h"
 #include "base/Profiler.h"
 #include "CompositionColourCache.h"
-#include "CompositionItemHelper.h"
-#include "CompositionItem.h"
-#include "CompositionRect.h"
+#include "ChangingSegment.h"
+#include "SegmentRect.h"
 #include "AudioPreviewPainter.h"
 #include "document/RosegardenDocument.h"
 #include "misc/ConfigGroups.h"
 #include "gui/general/GUIPalette.h"
+#include "gui/general/IconLoader.h"
 #include "gui/general/RosegardenScrollView.h"
 #include "SegmentSelector.h"
 #include "SegmentToolBox.h"
 
-#include <QMessageBox>
 #include <QBrush>
 #include <QColor>
 #include <QEvent>
 #include <QFont>
 #include <QFontMetrics>
-#include <QVector>
+#include <QMessageBox>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPen>
 #include <QPixmap>
 #include <QPoint>
 #include <QRect>
 //#include <QScrollBar>
+#include <QSettings>
 #include <QSize>
 #include <QString>
+#include <QTimer>
+#include <QVector>
 #include <QWidget>
-#include <QSettings>
-#include <QMouseEvent>
 
-#include <algorithm>
+#include <algorithm>  // std::min, std::max, std::find
 
 
 namespace Rosegarden
 {
 
 
-CompositionView::CompositionView(RosegardenDocument* doc,
-                                 CompositionModelImpl* model,
-                                 QWidget * parent) :
+CompositionView::CompositionView(RosegardenDocument *doc,
+                                 CompositionModelImpl *model,
+                                 QWidget *parent) :
     RosegardenScrollView(parent),
     m_model(model),
-    m_currentIndex(0),
-    m_tool(0),
-    m_toolBox(0),
-    m_enableDrawing(true),
+    m_lastContentsX(0),
+    m_lastContentsY(0),
+    m_segmentsRefresh(0, 0, viewport()->width(), viewport()->height()),
+    //m_backgroundPixmap(),
+    m_trackDividerColor(GUIPalette::getColour(GUIPalette::TrackDivider)),
     m_showPreviews(false),
     m_showSegmentLabels(true),
-    m_fineGrain(false),
-    m_pencilOverExisting(false),
-    //m_minWidth(m_model->getCompositionLength()),
-    m_stepSize(0),
-    m_rectFill(0xF0, 0xF0, 0xF0),
-    m_selectedRectFill(0x00, 0x00, 0xF0),
+    m_segmentsLayer(viewport()->width(), viewport()->height()),
+    //m_audioPreview(),
+    //m_notationPreview(),
+    //m_updateTimer(),
+    m_updateNeeded(false),
+    //m_updateRect()
+    m_drawTextFloat(false),
+    //m_textFloatText(),
+    //m_textFloatPos(),
     m_pointerPos(0),
-    m_pointerColor(GUIPalette::getColour(GUIPalette::Pointer)),
-    m_pointerWidth(4),
-    m_pointerPen(QPen(m_pointerColor, m_pointerWidth)),
-    m_tmpRect(QRect(QPoint(0, 0), QPoint( -1, -1))),
-    m_tmpRectFill(CompositionRect::DefaultBrushColor),
-    m_trackDividerColor(GUIPalette::getColour(GUIPalette::TrackDivider)),
+    m_pointerPen(GUIPalette::getColour(GUIPalette::Pointer), 4),
+    //m_newSegmentRect(),
+    //m_newSegmentColor(),
+    //m_splitLinePos(),
     m_drawGuides(false),
     m_guideColor(GUIPalette::getColour(GUIPalette::MovementGuide)),
-    m_topGuidePos(0),
-    m_foreGuidePos(0),
+    m_guideX(0),
+    m_guideY(0),
     m_drawSelectionRect(false),
-    m_drawTextFloat(false),
-    m_segmentsLayer(visibleWidth(), visibleHeight()),
-    m_doubleBuffer(visibleWidth(), visibleHeight()),
-    m_segmentsRefresh(0, 0, visibleWidth(), visibleHeight()),
-    m_artifactsRefresh(0, 0, visibleWidth(), visibleHeight()),
-    m_lastBufferRefreshX(0),
-    m_lastBufferRefreshY(0),
-    m_lastPointerRefreshX(0),
+    //m_selectionRect(),
+    m_toolBox(new SegmentToolBox(this, doc)),
+    m_currentTool(0),
+    //m_toolContextHelp(),
     m_contextHelpShown(false),
-    m_updateTimer(new QTimer(static_cast<QObject *>(this))),
-    m_updateNeeded(false)
-//  m_updateRect()
+    m_enableDrawing(true)
 {
-    if (doc) {
-        m_toolBox = new SegmentToolBox(this, doc);
+    if (!doc)
+        return;
+    if (!m_model)
+        return;
 
-        connect(m_toolBox, SIGNAL(showContextHelp(const QString &)),
-                this, SLOT(slotToolHelpChanged(const QString &)));
+    // Causing slow refresh issues on RG Main Window -- 10-12-2011 - JAS
+    // ??? This appears to have no effect positive or negative now (2015).
+    //viewport()->setAttribute(Qt::WA_PaintOnScreen);
+
+    // Disable background erasing.  We redraw everything.  This would
+    // just waste time.  (It's hard to measure any improvement here.)
+    viewport()->setAttribute(Qt::WA_OpaquePaintEvent);
+
+    QSettings settings;
+
+    // If background textures are enabled, load the texture pixmap.
+    if (settings.value(
+            QString(GeneralOptionsConfigGroup) + "/backgroundtextures",
+            "true").toBool()) {
+
+        IconLoader il;
+        m_backgroundPixmap = il.loadPixmap("bg-segmentcanvas");
     }
-    
-    setDragAutoScroll(true);
-
-// Causing slow refresh issues on RG Mian Window -- 10-12-2011 - JAS
-//    viewport()->setAttribute(Qt::WA_PaintOnScreen);
-//    viewport()->setAttribute(Qt::WA_OpaquePaintEvent);
-
-    QPalette pal;
-    pal.setColor(viewport()->backgroundRole(), GUIPalette::getColour(GUIPalette::SegmentCanvas));
-    viewport()->setPalette(pal);
 
     slotUpdateSize();
 
-    // QScrollBar* hsb = horizontalScrollBar();
+    // *** Connections
 
-    // dynamically adjust content size when scrolling past current composition's end
-    //   connect(hsb, SIGNAL(nextLine()),
-    //          this, SLOT(scrollRight()));
-    //   connect(hsb, SIGNAL(prevLine()),
-    //          this, SLOT(scrollLeft()));
+    connect(m_toolBox, SIGNAL(showContextHelp(const QString &)),
+            this, SLOT(slotToolHelpChanged(const QString &)));
 
-    //    connect(this, SIGNAL(contentsMoving(int, int)),
-    //            this, SLOT(allNeedRefresh()));
-
-    //     connect(this, SIGNAL(contentsMoving(int, int)),
-    //             this, SLOT(slotContentsMoving(int, int)));
-
-    connect(model, SIGNAL(needContentUpdate()),
+    connect(m_model, SIGNAL(needUpdate()),
             this, SLOT(slotUpdateAll()));
-    connect(model, SIGNAL(needContentUpdate(const QRect&)),
-            this, SLOT(slotUpdateAll(const QRect&)));
-    connect(model, SIGNAL(needArtifactsUpdate()),
-            this, SLOT(slotArtifactsNeedRefresh()));
-    connect(model, SIGNAL(needSizeUpdate()),
+    connect(m_model, SIGNAL(needUpdate(const QRect&)),
+            this, SLOT(slotAllNeedRefresh(const QRect&)));
+    connect(m_model, SIGNAL(needArtifactsUpdate()),
+            this, SLOT(slotUpdateArtifacts()));
+    connect(m_model, SIGNAL(needSizeUpdate()),
             this, SLOT(slotUpdateSize()));
 
-    if (doc) {
-        connect(doc, SIGNAL(docColoursChanged()),
-                this, SLOT(slotRefreshColourCache()));
+    connect(doc, SIGNAL(docColoursChanged()),
+            this, SLOT(slotRefreshColourCache()));
 
-        // recording-related signals
-        connect(doc, SIGNAL(newMIDIRecordingSegment(Segment*)),
-                this, SLOT(slotNewMIDIRecordingSegment(Segment*)));
-        connect(doc, SIGNAL(newAudioRecordingSegment(Segment*)),
-                this, SLOT(slotNewAudioRecordingSegment(Segment*)));
-        //     connect(doc, SIGNAL(recordMIDISegmentUpdated(Segment*, timeT)),
-        //             this, SLOT(slotRecordMIDISegmentUpdated(Segment*, timeT)));
-        connect(doc, SIGNAL(stoppedAudioRecording()),
-                this, SLOT(slotStoppedRecording()));
-        connect(doc, SIGNAL(stoppedMIDIRecording()),
-                this, SLOT(slotStoppedRecording()));
-        connect(doc, SIGNAL(audioFileFinalized(Segment*)),
-                getModel(), SLOT(slotAudioFileFinalized(Segment*)));
-    }
-    
-    if (model) {
-        model->setAudioPreviewThread(&doc->getAudioPreviewThread());
-    }
+    // recording-related signals
+    connect(doc, SIGNAL(newMIDIRecordingSegment(Segment*)),
+            this, SLOT(slotNewMIDIRecordingSegment(Segment*)));
+    connect(doc, SIGNAL(newAudioRecordingSegment(Segment*)),
+            this, SLOT(slotNewAudioRecordingSegment(Segment*)));
+    connect(doc, SIGNAL(stoppedAudioRecording()),
+            this, SLOT(slotStoppedRecording()));
+    connect(doc, SIGNAL(stoppedMIDIRecording()),
+            this, SLOT(slotStoppedRecording()));
+    connect(doc, SIGNAL(audioFileFinalized(Segment*)),
+            m_model, SLOT(slotAudioFileFinalized(Segment*)));
 
-    if (doc) {
-        doc->getAudioPreviewThread().setEmptyQueueListener(this);
-    }
+    // Audio Preview Thread
+    m_model->setAudioPreviewThread(&doc->getAudioPreviewThread());
+    doc->getAudioPreviewThread().setEmptyQueueListener(this);
 
     // Update timer
-    connect(m_updateTimer, SIGNAL(timeout()), this, SLOT(slotUpdateTimer()));
-    m_updateTimer->start(100);
+    connect(&m_updateTimer, SIGNAL(timeout()), this, SLOT(slotUpdateTimer()));
+    m_updateTimer.start(100);
 
-    QSettings settings;
+    // Init the halo offsets table.
+    m_haloOffsets.push_back(QPoint(-1,-1));
+    m_haloOffsets.push_back(QPoint(-1, 0));
+    m_haloOffsets.push_back(QPoint(-1,+1));
+    m_haloOffsets.push_back(QPoint( 0,-1));
+    m_haloOffsets.push_back(QPoint( 0,+1));
+    m_haloOffsets.push_back(QPoint(+1,-1));
+    m_haloOffsets.push_back(QPoint(+1, 0));
+    m_haloOffsets.push_back(QPoint(+1,+1));
+
+    // *** Debugging
+
     settings.beginGroup("Performance_Testing");
 
     m_enableDrawing = (settings.value("CompositionView", 1).toInt() != 0);
@@ -196,102 +194,59 @@ void CompositionView::endAudioPreviewGeneration()
     }
 }
 
-void CompositionView::setBackgroundPixmap(const QPixmap &m)
-{
-    m_backgroundPixmap = m;
-    //     viewport()->setErasePixmap(m_backgroundPixmap);
-}
-
-#if 0
-// Dead Code.
-void CompositionView::initStepSize()
-{
-    QScrollBar* hsb = horizontalScrollBar();
-    m_stepSize = hsb->singleStep();
-}
-#endif
-
 void CompositionView::slotUpdateSize()
 {
-//    int vStep = getModel()->grid().getYSnap();
-//    int height = std::max(getModel()->m_composition.getNbTracks() * vStep, (unsigned)visibleHeight());
-    int height = std::max(getModel()->getCompositionHeight(), (unsigned) visibleHeight());
+    const int height =
+            std::max(m_model->getCompositionHeight(), viewport()->height());
 
-    const RulerScale *ruler = grid().getRulerScale();
+    const RulerScale *rulerScale = grid().getRulerScale();
+    const int compositionWidth = (int)ceil(rulerScale->getTotalWidth());
+    const int minWidth = sizeHint().width();
+    const int width = std::max(compositionWidth, minWidth);
 
-    int minWidth = sizeHint().width();
-    int computedWidth = int(nearbyint(ruler->getTotalWidth()));
-
-    int width = std::max(computedWidth, minWidth);
-    
-    if (contentsWidth() != width || contentsHeight() != height) {
-//        RG_DEBUG << "CompositionView::slotUpdateSize: Resizing contents from "
-//                 << contentsWidth() << "x" << contentsHeight() << " to "
-//                 << width << "x" << height << endl;
-
+    // If the width or height need to change...
+    if (contentsWidth() != width  ||  contentsHeight() != height)
         resizeContents(width, height);
-    }
 }
 
-#if 0
-// Dead Code.
-void CompositionView::scrollRight()
+void CompositionView::drawSelectionRectPos1(const QPoint &pos)
 {
-    RG_DEBUG << "CompositionView::scrollRight()\n";
-    if (m_stepSize == 0)
-        initStepSize();
+    m_drawSelectionRect = true;
 
-    if (horizontalScrollBar()->value() == horizontalScrollBar()->maximum()) {
-
-        resizeContents(contentsWidth() + m_stepSize, contentsHeight());
-        setContentsPos(contentsX() + m_stepSize, contentsY());
-        getModel()->setLength(contentsWidth());
-    }
-
-}
-
-void CompositionView::scrollLeft()
-{
-    RG_DEBUG << "CompositionView::scrollLeft()\n";
-    if (m_stepSize == 0)
-        initStepSize();
-
-    int cWidth = contentsWidth();
-
-    if (horizontalScrollBar()->value() < cWidth && cWidth > m_minWidth) {
-        resizeContents(cWidth - m_stepSize, contentsHeight());
-        getModel()->setLength(contentsWidth());
-    }
-
-}
-#endif
-
-void CompositionView::setSelectionRectPos(const QPoint& pos)
-{
-    //RG_DEBUG << "setSelectionRectPos(" << pos << ")";
+    // Update the selection rect used for drawing the rubber band.
     m_selectionRect.setRect(pos.x(), pos.y(), 0, 0);
-    getModel()->setSelectionRect(m_selectionRect);
+    // Pass on to CompositionModelImpl which will adjust the selected
+    // segments and redraw them.
+    m_model->setSelectionRect(m_selectionRect);
 }
 
-void CompositionView::setSelectionRectSize(int w, int h)
+void CompositionView::drawSelectionRectPos2(const QPoint &pos)
 {
-    //RG_DEBUG << "setSelectionRectSize(" << w << "," << h << ")";
-    m_selectionRect.setSize(QSize(w, h));
-    getModel()->setSelectionRect(m_selectionRect);
+    m_drawSelectionRect = true;
+
+    // Update the selection rect used for drawing the rubber band.
+    m_selectionRect.setBottomRight(pos);
+
+    // Pass on to CompositionModelImpl which will adjust the selected
+    // segments and redraw them.
+    m_model->setSelectionRect(m_selectionRect);
 }
 
-void CompositionView::setDrawSelectionRect(bool d)
+void CompositionView::hideSelectionRect()
 {
-    if (m_drawSelectionRect != d) {
-        m_drawSelectionRect = d;
-        slotArtifactsNeedRefresh();
-        slotUpdateAll(m_selectionRect);
-    }
+    // If it's already hidden, bail.
+    if (!m_drawSelectionRect)
+        return;
+
+    m_drawSelectionRect = false;
+
+    // Redraw the selection rect.
+    slotUpdateArtifacts();
 }
 
-void CompositionView::clearSegmentRectsCache(bool clearPreviews)
+void CompositionView::deleteCachedPreviews()
 {
-    getModel()->clearSegmentRectsCache(clearPreviews);
+    m_model->deleteCachedPreviews();
 }
 
 SegmentSelection
@@ -300,380 +255,222 @@ CompositionView::getSelectedSegments()
     return m_model->getSelectedSegments();
 }
 
-void CompositionView::updateSelectionContents()
+void CompositionView::updateSelectedSegments()
 {
-    if (!haveSelection())
-        return ;
+    if (!m_model->haveSelection())
+        return;
 
-
-    QRect selectionRect = getModel()->getSelectionContentsRect();
-    updateContents(selectionRect);
-//    update(selectionRect);
+    updateContents(m_model->getSelectedSegmentsRect());
 }
 
-#if 0
-void CompositionView::slotContentsMoving(int /* x */, int /* y */)
+void CompositionView::setTool(const QString &toolName)
 {
-    //     qDebug("contents moving : x=%d", x);
-}
-#endif
-
-void CompositionView::setTool(const QString& toolName)
-{
-    RG_DEBUG << "CompositionView::setTool(" << toolName << ")"
-             << this << "\n";
-
-    if (m_tool)
-        m_tool->stow();
+    if (m_currentTool)
+        m_currentTool->stow();
 
     m_toolContextHelp = "";
 
-    m_tool = m_toolBox->getTool(toolName);
+    m_currentTool = m_toolBox->getTool(toolName);
 
-    if (m_tool)
-        m_tool->ready();
-    else {
+    if (!m_currentTool) {
         QMessageBox::critical(0, tr("Rosegarden"), QString("CompositionView::setTool() : unknown tool name %1").arg(toolName));
+        return;
     }
+
+    m_currentTool->ready();
 }
 
 void CompositionView::selectSegments(const SegmentSelection &segments)
 {
-    RG_DEBUG << "CompositionView::selectSegments\n";
-
-    static QRect dummy;
-
-    getModel()->clearSelected();
-
-    for (SegmentSelection::iterator i = segments.begin(); i != segments.end(); ++i) {
-        getModel()->setSelected(CompositionItemPtr(new CompositionItem(**i, dummy)));
-    }
-    slotUpdateAll();
+    m_model->selectSegments(segments);
 }
 
-SegmentSelector*
-CompositionView::getSegmentSelectorTool()
-{
-    return dynamic_cast<SegmentSelector*>(getToolBox()->getTool(SegmentSelector::ToolName));
-}
-
-void CompositionView::setSelectAdd(bool value)
-{
-    SegmentSelector* selTool = getSegmentSelectorTool();
-
-    if (!selTool)
-        return ;
-
-    selTool->setSegmentAdd(value);
-}
-
-void CompositionView::setSelectCopy(bool value)
-{
-    SegmentSelector* selTool = getSegmentSelectorTool();
-
-    if (!selTool)
-        return ;
-
-    selTool->setSegmentCopy(value);
-}
-
-void CompositionView::setSelectCopyingAsLink(bool value)
-{
-    SegmentSelector* selTool = getSegmentSelectorTool();
-
-    if (!selTool)
-        return ;
-
-    selTool->setSegmentCopyingAsLink(value);
-}
-
-void CompositionView::showSplitLine(int x, int y)
+void CompositionView::drawSplitLine(int x, int y)
 {
     m_splitLinePos.setX(x);
     m_splitLinePos.setY(y);
+    viewport()->update();
 }
 
 void CompositionView::hideSplitLine()
 {
     m_splitLinePos.setX( -1);
     m_splitLinePos.setY( -1);
+    viewport()->update();
 }
 
-void CompositionView::slotExternalWheelEvent(QWheelEvent* e)
+void CompositionView::slotExternalWheelEvent(QWheelEvent *e)
 {
-    e->accept();
+    // Pass it up to RosegardenScrollView.
     wheelEvent(e);
-}
-
-CompositionItemPtr CompositionView::getFirstItemAt(QPoint pos)
-{
-    CompositionModelImpl::ItemContainer items = getModel()->getItemsAt(pos);
-
-    if (items.size()) {
-        // find topmost item
-        CompositionItemPtr res = *(items.begin());
-
-        unsigned int maxZ = res->z();
-
-        CompositionModelImpl::ItemContainer::iterator maxZItemPos = items.begin();
-
-        for (CompositionModelImpl::ItemContainer::iterator i = items.begin();
-             i != items.end(); ++i) {
-            CompositionItemPtr ic = *i;
-            if (ic->z() > maxZ) {
-                res = ic;
-                maxZ = ic->z();
-                maxZItemPos = i;
-            }
-        }
-
-        // get rid of the rest;
-        items.erase(maxZItemPos);
-        for (CompositionModelImpl::ItemContainer::iterator i = items.begin();
-             i != items.end(); ++i)
-            delete *i;
-
-        return res;
-    }
-
-
-    return CompositionItemPtr();
-}
-
-void CompositionView::setSnapGrain(bool fine)
-{
-    if (m_fineGrain) {
-        grid().setSnapTime(SnapGrid::NoSnap);
-    } else {
-        grid().setSnapTime(fine ? SnapGrid::SnapToBeat : SnapGrid::SnapToBar);
-    }
+    // We've got this.  No need to propagate.
+    e->accept();
 }
 
 void CompositionView::slotUpdateAll()
 {
     // This one doesn't get called too often while recording.
-    Profiler profiler("CompositionView::slotUpdateAll()");
+    //Profiler profiler("CompositionView::slotUpdateAll()");
 
-    //RG_DEBUG << "CompositionView::slotUpdateAll()";
-    allNeedRefresh();
-    updateContents();
-//    update();
+    // Redraw the segments and artifacts.
+    updateAll();
 }
 
 void CompositionView::slotUpdateTimer()
 {
-    //RG_DEBUG << "CompositionView::slotUpdateTimer()";
-
-    if (m_updateNeeded)
-    {
-        updateAll(m_updateRect);
-
-        //m_updateRect.setRect(0,0,0,0);  // Not needed.
+    if (m_updateNeeded) {
+        updateAll2(m_updateRect);
         m_updateNeeded = false;
     }
 }
 
-void CompositionView::updateAll(const QRect& rect)
+void CompositionView::updateAll2(const QRect &rect)
 {
-    Profiler profiler("CompositionView::updateAll(const QRect& rect)");
+    Profiler profiler("CompositionView::updateAll2(rect)");
 
-    //RG_DEBUG << "CompositionView::updateAll() rect " << rect << " - valid : " << rect.isValid();
+    //RG_DEBUG << "updateAll2() rect:" << rect << ", valid:" << rect.isValid();
 
-    allNeedRefresh(rect);
-
-    if (rect.isValid()) {
-        updateContents(rect);
-//        update(rect);
-    } else {
-        updateContents();
-//        update();
+    // If the incoming rect is invalid, just do everything.
+    // ??? This is probably not necessary as an invalid rect
+    //     cannot get in here.  See slotAllNeedRefresh(rect).
+    if (!rect.isValid()) {
+        updateAll();
+        return;
     }
+
+    segmentsNeedRefresh(rect);
+    updateArtifacts(rect);
 }
 
-void CompositionView::slotUpdateAll(const QRect& rect)
+void CompositionView::slotAllNeedRefresh(const QRect &rect)
 {
     // Bail if drawing is turned off in the settings.
     if (!m_enableDrawing)
         return;
 
     // This one gets hit pretty hard while recording.
-    Profiler profiler("CompositionView::slotUpdateAll(const QRect& rect)");
-
-#if 0
-// Old way.  Just do the work for every update.  Very expensive.
-    updateAll(rect);
-#else
-// Alternate approach with a timer to throttle updates
+    Profiler profiler("CompositionView::slotAllNeedRefresh(const QRect &rect)");
 
     // Note: This new approach normalizes the incoming rect.  This means
     //   that it will never trigger a full refresh given an invalid rect
-    //   like it used to.  See updateAll().  Some rough
-    //   testing reveals that the following test cases trigger this
-    //   invalid rect situation:
-    //       1. Move a segment.
-    //       2. Click with the arrow tool where there is no segment.
-    //   Testing of these situations reveals no (or minor) refresh issues.
+    //   like it used to.  See updateAll2(rect).
+    if (!rect.isValid())
+        RG_DEBUG << "slotAllNeedRefresh(rect): Invalid rect";
 
     // If an update is now needed, set m_updateRect, otherwise accumulate it.
-    if (!m_updateNeeded)
-    {
+    if (!m_updateNeeded) {
         // Let slotUpdateTimer() know an update is needed next time.
         m_updateNeeded = true;
         m_updateRect = rect.normalized();
-    }
-    else
-    {
+    } else {
         // Accumulate the update rect
         m_updateRect |= rect.normalized();
     }
-#endif
 }
 
 void CompositionView::slotRefreshColourCache()
 {
     CompositionColourCache::getInstance()->init();
-    clearSegmentRectsCache();
-    slotUpdateAll();
+    updateAll();
 }
 
-void CompositionView::slotNewMIDIRecordingSegment(Segment* s)
+void CompositionView::slotNewMIDIRecordingSegment(Segment *s)
 {
-    getModel()->addRecordingItem(CompositionItemHelper::makeCompositionItem(s));
+    m_model->addRecordingItem(ChangingSegmentPtr(
+            new ChangingSegment(*s, QRect())));
 }
 
-void CompositionView::slotNewAudioRecordingSegment(Segment* s)
+void CompositionView::slotNewAudioRecordingSegment(Segment *s)
 {
-    getModel()->addRecordingItem(CompositionItemHelper::makeCompositionItem(s));
+    m_model->addRecordingItem(ChangingSegmentPtr(
+            new ChangingSegment(*s, QRect())));
 }
 
 void CompositionView::slotStoppedRecording()
 {
-    getModel()->clearRecordingItems();
+    m_model->clearRecordingItems();
 }
 
-void CompositionView::resizeEvent(QResizeEvent* e)
+void CompositionView::resizeEvent(QResizeEvent *e)
 {
-    if (e->size() == e->oldSize()) return;
-
-//    RG_DEBUG << "CompositionView::resizeEvent() : from " << e->oldSize() << " to " << e->size() << endl;
-
     RosegardenScrollView::resizeEvent(e);
+
+    // Resize the contents if needed.
     slotUpdateSize();
 
-    int w = std::max(m_segmentsLayer.width(), visibleWidth());
-    int h = std::max(m_segmentsLayer.height(), visibleHeight());
+    // If the viewport has grown larger than the segments layer
+    if (e->size().width() > m_segmentsLayer.width()  ||
+        e->size().height() > m_segmentsLayer.height()) {
 
-    m_segmentsLayer = QPixmap(w, h);
-    m_doubleBuffer = QPixmap(w, h);
-    allNeedRefresh();
-
-    RG_DEBUG << "CompositionView::resizeEvent() : segments layer size = " << m_segmentsLayer.size() << endl;
-}
-
-void CompositionView::viewportPaintEvent(QPaintEvent* e)
-{
-    Profiler profiler("CompositionView::viewportPaintEvent");
-
-    QVector<QRect> rects = e->region().rects();
-
-    for (int i = 0; i < rects.size(); ++i) {
-        viewportPaintRect(rects[i]);
+        // Reallocate the segments layer
+        m_segmentsLayer = QPixmap(e->size().width(), e->size().height());
     }
+
+    updateAll();
 }
 
-void CompositionView::viewportPaintRect(QRect r)
+void CompositionView::paintEvent(QPaintEvent *)
 {
-    Profiler profiler("CompositionView::viewportPaintRect");
+    Profiler profiler("CompositionView::paintEvent()");
 
-    QRect updateRect = r;
+    // Just redraw the entire viewport.  Turns out that for the most
+    // critical use case, recording, this is actually slightly faster
+    // than trying to be frugal about drawing small parts of the viewport.
+    // The code is certainly easier to read.
+    drawAll();
+}
 
-    // Limit the requested rect to the viewport.
-    r &= viewport()->rect();
-    // Convert from viewport coords to contents coords.
-    r.translate(contentsX(), contentsY());
-
-//    std::cerr << "CompositionView::viewportPaintRect updateRect = "
-//              << updateRect.x() << "," << updateRect.y()
-//              << " " << updateRect.width() << "x" << updateRect.height()
-//              << std::endl;
-
-    bool scroll = false;
+void CompositionView::drawAll()
+{
+    Profiler profiler("CompositionView::drawAll()");
 
     // Scroll and refresh the segments layer.
-    bool changed = scrollSegmentsLayer(r, scroll);
+    scrollSegmentsLayer();
 
-    // r is now the combination of the requested refresh rect and the refresh
-    // needed by any scrolling.
+    // ??? Try putting the artifacts on their own layer pixmap.  This might
+    //     simplify the code a bit.  Should also allow us to avoid
+    //     redrawing the artifacts just because the segments need to
+    //     be updated.  This might help the recording use case a little.
+    // ??? There are two key use cases that need to be optimized.
+    //     The first is recording.  This is the most important as it uses
+    //     a lot of CPU (and shouldn't).  The second is auto-scrolling.
+    //     It's not quite as important since it is relatively rare.
 
-    if (changed || m_artifactsRefresh.isValid()) {
+    // Copy the entire segments layer to the viewport
 
-        QRect copyRect(r | m_artifactsRefresh);
-        copyRect.translate(-contentsX(), -contentsY());
+    QRect viewportRect = viewport()->rect();
+    // Copy the segments to the viewport.
+    QPainter viewportPainter(viewport());
+    viewportPainter.drawPixmap(
+            viewportRect, m_segmentsLayer, viewportRect);
+    viewportPainter.end();
 
-//        std::cerr << "changed = " << changed << ", artrefresh " << m_artifactsRefresh.x() << "," << m_artifactsRefresh.y() << " " << m_artifactsRefresh.width() << "x" << m_artifactsRefresh.height() << ": copying from segment to artifacts buffer: " << copyRect.width() << "x" << copyRect.height() << std::endl;
+    // Redraw all of the artifacts on the viewport.
 
-        // Copy the segments to the double buffer.
-        QPainter ap;
-        ap.begin(&m_doubleBuffer);
-        ap.drawPixmap(copyRect.x(), copyRect.y(),
-                      m_segmentsLayer,
-                      copyRect.x(), copyRect.y(),
-                      copyRect.width(), copyRect.height());
-        ap.end();
-
-        m_artifactsRefresh |= r;
-    }
-
-    if (m_artifactsRefresh.isValid()) {
-        // Draw the artifacts over top of the segments on the double-buffer.
-        refreshArtifacts(m_artifactsRefresh);
-        m_artifactsRefresh = QRect();
-    }
-
-    // Display the double buffer on the viewport.
-
-    QPainter p;
-    p.begin(viewport());
-    if (scroll) {
-        // Redraw the entire double buffer.
-        p.drawPixmap(0, 0, 
-                     m_doubleBuffer,
-                     0, 0,
-                     m_doubleBuffer.width(),
-                     m_doubleBuffer.height());
-    } else {
-        p.drawPixmap(updateRect.x(), updateRect.y(),
-                     m_doubleBuffer,
-                     updateRect.x(), updateRect.y(),
-                     updateRect.width(), updateRect.height());
-    }
-    p.end();
-
-    // DEBUG
-
-    //     QPainter pdebug(viewport());
-    //     static QPen framePen(QColor(Qt::red), 1);
-    //     pdebug.setPen(framePen);
-    //     pdebug.drawRect(updateRect);
-
+    drawArtifacts();
 }
 
-bool CompositionView::scrollSegmentsLayer(QRect &rect, bool& scroll)
+void CompositionView::scrollSegmentsLayer()
 {
-    Profiler profiler("CompositionView::scrollSegmentsLayer");
+    Profiler profiler("CompositionView::scrollSegmentsLayer()");
 
-    bool all = false;
+    // Portion of the segments layer that needs to be redrawn.
     QRect refreshRect = m_segmentsRefresh;
 
-    int w = visibleWidth(), h = visibleHeight();
-    int cx = contentsX(), cy = contentsY();
+    const int w = viewport()->width();
+    const int h = viewport()->height();
+    const int cx = contentsX();
+    const int cy = contentsY();
+    // The entire viewport in contents coords.
+    const QRect viewportContentsRect(cx, cy, w, h);
 
-    scroll = (cx != m_lastBufferRefreshX || cy != m_lastBufferRefreshY);
+    bool scroll = (cx != m_lastContentsX || cy != m_lastContentsY);
 
     if (scroll) {
 
-        //RG_DEBUG << "scrollSegmentsLayer: scrolling by ("
-        //         << cx - m_lastBufferRefreshX << "," << cy - m_lastBufferRefreshY << ")" << endl;
+        // ??? All this scroll optimization saves about 7% cpu on my
+        //     machine when auto-scrolling the BWV1048 example.  Doesn't
+        //     seem worth the extra code.
 
         if (refreshRect.isValid()) {
 
@@ -682,38 +479,24 @@ bool CompositionView::scrollSegmentsLayer(QRect &rect, bool& scroll)
             // predated or postdated the internal update of scroll
             // location.  Cut our losses and refresh everything.
 
-            refreshRect.setRect(cx, cy, w, h);
+            refreshRect = viewportContentsRect;
 
         } else {
 
             // No existing refresh rect: we only need to handle the
-            // scroll.  Formerly we dealt with this by copying part of
-            // the pixmap to itself, but that only worked by accident,
-            // and it fails with the raster renderer or on non-X11
-            // platforms.  Use a temporary pixmap instead
+            // scroll.
 
-            static QPixmap map;
-            if (map.size() != m_segmentsLayer.size()) {
-                map = QPixmap(m_segmentsLayer.size());
-            }
+            // Horizontal scroll distance
+            int dx = m_lastContentsX - cx;
 
-            // If we're scrolling sideways
-            if (cx != m_lastBufferRefreshX) {
-
-                // compute the delta
-                int dx = m_lastBufferRefreshX - cx;
+            // If we're scrolling horizontally
+            if (dx != 0) {
 
                 // If we're scrolling less than the entire viewport
-                if (dx > -w && dx < w) {
+                if (abs(dx) < w) {
 
                     // Scroll the segments layer sideways
-                    QPainter cp;
-                    cp.begin(&map);
-                    cp.drawPixmap(0, 0, m_segmentsLayer);
-                    cp.end();
-                    cp.begin(&m_segmentsLayer);
-                    cp.drawPixmap(dx, 0, map);
-                    cp.end();
+                    m_segmentsLayer.scroll(dx, 0, m_segmentsLayer.rect());
 
                     // Add the part that was exposed to the refreshRect
                     if (dx < 0) {
@@ -725,29 +508,22 @@ bool CompositionView::scrollSegmentsLayer(QRect &rect, bool& scroll)
                 } else {  // We've scrolled more than the entire viewport
 
                     // Refresh everything
-                    refreshRect.setRect(cx, cy, w, h);
-                    all = true;
+                    refreshRect = viewportContentsRect;
                 }
             }
 
+            // Vertical scroll distance
+            int dy = m_lastContentsY - cy;
+
             // If we're scrolling vertically and the sideways scroll didn't
             // result in a need to refresh everything,
-            if (cy != m_lastBufferRefreshY && !all) {
-
-                // compute the delta
-                int dy = m_lastBufferRefreshY - cy;
+            if (dy != 0  &&  refreshRect != viewportContentsRect) {
 
                 // If we're scrolling less than the entire viewport
-                if (dy > -h && dy < h) {
+                if (abs(dy) < h) {
 
                     // Scroll the segments layer vertically
-                    QPainter cp;
-                    cp.begin(&map);
-                    cp.drawPixmap(0, 0, m_segmentsLayer);
-                    cp.end();
-                    cp.begin(&m_segmentsLayer);
-                    cp.drawPixmap(0, dy, map);
-                    cp.end();
+                    m_segmentsLayer.scroll(0, dy, m_segmentsLayer.rect());
 
                     // Add the part that was exposed to the refreshRect
                     if (dy < 0) {
@@ -759,176 +535,56 @@ bool CompositionView::scrollSegmentsLayer(QRect &rect, bool& scroll)
                 } else {  // We've scrolled more than the entire viewport
 
                     // Refresh everything
-                    refreshRect.setRect(cx, cy, w, h);
-                    all = true;
+                    refreshRect = viewportContentsRect;
                 }
             }
         }
     }
 
-    // Refresh the segments layer for the exposed portion.
+    m_lastContentsX = cx;
+    m_lastContentsY = cy;
 
-    bool needRefresh = false;
-
+    // If we need to redraw the segments layer, do so.
     if (refreshRect.isValid()) {
-        needRefresh = true;
+        // Refresh the segments layer
+        drawSegments(refreshRect);
+        m_segmentsRefresh = QRect();
     }
-
-    if (needRefresh)
-        refreshSegments(refreshRect);
-
-    // ??? Move these lines to the end of refreshSegments()?
-    //     Or do they still need to run even when needRefresh is false?
-    m_segmentsRefresh = QRect();
-    m_lastBufferRefreshX = cx;
-    m_lastBufferRefreshY = cy;
-
-    // Compute the final rect for the caller.
-
-    rect |= refreshRect;
-    if (scroll)
-        rect.setRect(cx, cy, w, h);  // everything
-
-    return needRefresh;
 }
 
-void CompositionView::refreshSegments(const QRect& rect)
+void CompositionView::drawSegments(const QRect &clipRect)
 {
-    Profiler profiler("CompositionView::refreshSegments");
+    Profiler profiler("CompositionView::drawSegments(clipRect)");
 
-    //RG_DEBUG << "CompositionView::refreshSegments() r = "
-    //         << rect << endl;
+    QPainter segmentsLayerPainter(&m_segmentsLayer);
+    // Switch to contents coords.
+    segmentsLayerPainter.translate(-contentsX(), -contentsY());
 
-//### This constructor used to mean "start painting on the segments layer, taking your default paint configuration from the viewport".  I don't think it's supported any more -- I had to look it up (I'd never known it was possible to do this in the first place!)
-//@@@    QPainter p(&m_segmentsLayer, viewport());
-// Let's see how we get on with:
-    QPainter p(&m_segmentsLayer);
-
-    p.setRenderHint(QPainter::Antialiasing, false);
-
-    p.translate( -contentsX(), -contentsY());
+    // *** Draw the background
 
     if (!m_backgroundPixmap.isNull()) {
-        QPoint pp(rect.x() % m_backgroundPixmap.height(), rect.y() % m_backgroundPixmap.width());
-        p.drawTiledPixmap(rect, m_backgroundPixmap, pp);
+        QPoint offset(
+                clipRect.x() % m_backgroundPixmap.height(),
+                clipRect.y() % m_backgroundPixmap.width());
+        segmentsLayerPainter.drawTiledPixmap(
+                clipRect, m_backgroundPixmap, offset);
     } else {
-        p.eraseRect(rect);
+        segmentsLayerPainter.eraseRect(clipRect);
     }
 
-    drawSegments(&p, rect);
+    // *** Draw the track dividers
 
-    // DEBUG - show what's updated
-    //    QPen framePen(QColor(Qt::red), 1);
-    //    p.setPen(framePen);
-    //    p.drawRect(rect);
-
-    //    m_segmentsNeedRefresh = false;
-}
-
-void CompositionView::refreshArtifacts(const QRect& rect)
-{
-    Profiler profiler("CompositionView::refreshArtifacts");
-
-    //RG_DEBUG << "CompositionView::refreshArtifacts() r = "
-    //         << rect << endl;
-
-    QPainter p;
-
-//@@@ see comment in refreshSegments    p.begin(&m_doubleBuffer, viewport());
-    p.begin(&m_doubleBuffer);
-
-    p.translate( -contentsX(), -contentsY());
-    //     QRect r(contentsX(), contentsY(), m_doubleBuffer.width(), m_doubleBuffer.height());
-    drawArtifacts(&p, rect);
-    p.end();
-
-    //    m_artifactsNeedRefresh = false;
-}
-
-void CompositionView::drawSegments(QPainter *segmentLayerPainter, const QRect &clipRect)
-{
-    Profiler profiler("CompositionView::drawSegments");
-
-    //RG_DEBUG << "CompositionView::drawSegments() clipRect = " << clipRect;
-
-    // *** Track Dividers
-
-    // Fetch track Y coordinates within the clip rectangle.  We expand the
-    // clip rectangle slightly because we are drawing a rather wide track
-    // divider, so we need enough divider coords to do the drawing even
-    // though the center of the divider might be slightly outside of the
-    // viewport.
-    // This is not a height list.
-    CompositionModelImpl::YCoordList trackYCoords =
-            getModel()->getTrackDividersIn(clipRect.adjusted(0,-1,0,+1));
-
-    if (!trackYCoords.empty()) {
-
-        Profiler profiler("CompositionView::drawSegments: dividing lines");
-
-        segmentLayerPainter->save();
-
-        // Select the lighter (middle) divider color.
-        QColor light = m_trackDividerColor.light();
-        segmentLayerPainter->setPen(light);
-
-        // For each track Y coordinate, draw the two light lines in the middle
-        // of the track divider.
-        for (CompositionModelImpl::YCoordList::const_iterator yi = trackYCoords.begin();
-             yi != trackYCoords.end(); ++yi) {
-            // Upper line.
-            int y = *yi - 1;
-            // If it's in the clipping area, draw it
-            if (y >= clipRect.top()  &&  y <= clipRect.bottom()) {
-                segmentLayerPainter->drawLine(
-                        clipRect.left(), y,
-                        clipRect.right(), y);
-            }
-            // Lower line.
-            ++y;
-            if (y >= clipRect.top()  &&  y <= clipRect.bottom()) {
-                segmentLayerPainter->drawLine(
-                        clipRect.left(), y,
-                        clipRect.right(), y);
-            }
-        }
-
-        // Switch to the darker divider color.
-        segmentLayerPainter->setPen(m_trackDividerColor);
-
-        // For each track Y coordinate, draw the two dark lines on the outside
-        // of the track divider.
-        for (CompositionModelImpl::YCoordList::const_iterator yi = trackYCoords.begin();
-             yi != trackYCoords.end(); ++yi) {
-            // Upper line
-            int y = *yi - 2;
-            if (y >= clipRect.top()  &&  y <= clipRect.bottom()) {
-                segmentLayerPainter->drawLine(
-                        clipRect.x(), y,
-                        clipRect.x() + clipRect.width() - 1, y);
-            }
-            // Lower line
-            y += 3;
-            if (y >= clipRect.top()  &&  y <= clipRect.bottom()) {
-                segmentLayerPainter->drawLine(
-                        clipRect.x(), y,
-                        clipRect.x() + clipRect.width() - 1, y);
-            }
-        }
-
-        segmentLayerPainter->restore();
-    }
+    drawTrackDividers(&segmentsLayerPainter, clipRect);
 
     // *** Get Segment and Preview Rectangles
 
     // Assume we aren't going to show previews.
-    CompositionModelImpl::RectRanges *notationPreview = 0;
-    CompositionModelImpl::AudioPreviewDrawData *audioPreview = 0;
+    CompositionModelImpl::NotationPreviewRanges *notationPreview = 0;
+    CompositionModelImpl::AudioPreviews *audioPreview = 0;
 
     if (m_showPreviews) {
-        // Clear the previews.  Apparently getSegmentRects() will not.
-        // Given that this is the only caller, this should be moved into
-        // getSegmentRects().
+        // Clear the previews.
+        // ??? Move this clearing into CompositionModelImpl::getSegmentRects()?
         m_notationPreview.clear();
         m_audioPreview.clear();
 
@@ -937,907 +593,826 @@ void CompositionView::drawSegments(QPainter *segmentLayerPainter, const QRect &c
         audioPreview = &m_audioPreview;
     }
 
-    // Fetch segment rectangles and (optionally) previews
-    const CompositionModelImpl::RectContainer &segmentRects =
-        getModel()->getSegmentRects(clipRect, notationPreview, audioPreview);
+    CompositionModelImpl::SegmentRects segmentRects;
 
-    CompositionModelImpl::RectContainer::const_iterator end = segmentRects.end();
+    // Fetch segment rectangles and (optionally) previews
+    m_model->getSegmentRects(clipRect, &segmentRects, notationPreview, audioPreview);
 
     // *** Draw Segment Rectangles
 
-    {
-        Profiler profiler("CompositionView::drawSegments(): segment rectangles");
+    // For each segment rectangle, draw it
+    for (CompositionModelImpl::SegmentRects::const_iterator i = segmentRects.begin();
+         i != segmentRects.end(); ++i) {
 
-        segmentLayerPainter->save();
-
-        // For each segment rectangle, draw it
-        for (CompositionModelImpl::RectContainer::const_iterator i = segmentRects.begin();
-             i != end; ++i) {
-            segmentLayerPainter->setBrush(i->getBrush());
-            segmentLayerPainter->setPen(i->getPen());
-
-            //RG_DEBUG << "CompositionView::drawSegments : draw comp rect " << *i << endl;
-            drawCompRect(*i, segmentLayerPainter, clipRect);
-        }
-
-        segmentLayerPainter->restore();
+        drawCompRect(&segmentsLayerPainter, clipRect, *i);
     }
 
-    {
-        Profiler profiler("CompositionView::drawSegments(): intersections");
-
-        if (segmentRects.size() > 1) {
-            //RG_DEBUG << "CompositionView::drawSegments : drawing intersections\n";
-            drawIntersections(segmentRects, segmentLayerPainter, clipRect);
-        }
-    }
+    drawIntersections(&segmentsLayerPainter, clipRect, segmentRects);
 
     // *** Draw Segment Previews
 
     if (m_showPreviews) {
-        segmentLayerPainter->save();
+        // We'll be modifying the transform.  save()/restore() to be safe.
+        segmentsLayerPainter.save();
 
         // Audio Previews
 
-        {
-            Profiler profiler("CompositionView::drawSegments: audio previews");
-
-            drawAudioPreviews(segmentLayerPainter, clipRect);
-        }
+        drawAudioPreviews(&segmentsLayerPainter, clipRect);
 
         // Notation Previews
 
-        Profiler profiler("CompositionView::drawSegments: note previews");
+        QColor defaultColor = CompositionColourCache::getInstance()->SegmentInternalPreview;
 
-        CompositionModelImpl::RectRanges::const_iterator npi = m_notationPreview.begin();
-        CompositionModelImpl::RectRanges::const_iterator npEnd = m_notationPreview.end();
+        // For each segment's preview range
+        for (CompositionModelImpl::NotationPreviewRanges::const_iterator notationPreviewIter =
+                 m_notationPreview.begin();
+             notationPreviewIter != m_notationPreview.end();
+             ++notationPreviewIter) {
 
-        // For each preview range
-        // ??? I think there is never more than one range here.  We should be
-        //     able to switch from RectRanges to RectRange.
-        for (; npi != npEnd; ++npi) {
-            CompositionModelImpl::RectRange interval = *npi;
-            segmentLayerPainter->save();
-            segmentLayerPainter->translate(
-                    interval.basePoint.x(), interval.basePoint.y());
-            //RG_DEBUG << "CompositionView::drawSegments : translating to x = " << interval.basePoint.x() << endl;
+            const CompositionModelImpl::NotationPreviewRange &notationPreviewRange =
+                    *notationPreviewIter;
 
-            // For each event rectangle
-            for (; interval.range.first != interval.range.second; ++interval.range.first) {
-                const QRect &pr = *(interval.range.first);
-                QColor defaultCol = CompositionColourCache::getInstance()->SegmentInternalPreview;
-                QColor col = interval.color.isValid() ? interval.color : defaultCol;
-                segmentLayerPainter->setBrush(col);
-                segmentLayerPainter->setPen(QPen(col, 0));
-                //RG_DEBUG << "CompositionView::drawSegments : drawing preview rect at x = " << pr.x() << endl;
-                segmentLayerPainter->drawRect(pr);
+            QColor color = notationPreviewRange.color.isValid() ?
+                           notationPreviewRange.color : defaultColor;
+
+            // translate() calls are cumulative, so we need to be able to get
+            // back to where we were.  Note that resetTransform() would be
+            // too extreme as it would reverse the contents translation that
+            // is present in segmentsLayerPainter at this point in time.
+            segmentsLayerPainter.save();
+            // Adjust the coordinate system to account for any segment
+            // move offset and the vertical position of the segment.
+            segmentsLayerPainter.translate(
+                    notationPreviewRange.moveXOffset,
+                    notationPreviewRange.segmentTop);
+
+            // For each event rectangle, draw it.
+            for (CompositionModelImpl::NotationPreview::const_iterator i =
+                     notationPreviewRange.begin;
+                 i != notationPreviewRange.end;
+                 ++i) {
+
+                QRect eventRect = *i;
+                // Make the rect thicker vertically to match the old
+                // appearance.  Without this, the rect is thin, which gives
+                // slightly more information.
+                eventRect.adjust(0,0,0,1);
+
+                // Per the Qt docs, fillRect() should be faster than
+                // drawRect().  In practice, a small improvement was noted.
+                segmentsLayerPainter.fillRect(eventRect, color);
             }
-            segmentLayerPainter->restore();
+            // Restore the transformation.
+            segmentsLayerPainter.restore();
         }
 
-        segmentLayerPainter->restore();
+        segmentsLayerPainter.restore();
     }
 
     // *** Draw Segment Labels
 
-    //
-    // Draw segment labels (they must be drawn over the preview rects)
-    //
     if (m_showSegmentLabels) {
-        Profiler profiler("CompositionView::drawSegments: labels");
-        for (CompositionModelImpl::RectContainer::const_iterator i = segmentRects.begin();
-             i != end; ++i) {
-            drawCompRectLabel(*i, segmentLayerPainter, clipRect);
-        }
-    }
+        // For each segment rect, draw the label
+        for (CompositionModelImpl::SegmentRects::const_iterator i = segmentRects.begin();
+             i != segmentRects.end(); ++i) {
 
-    //    drawArtifacts(p, clipRect);
-
-}
-
-void CompositionView::drawAudioPreviews(QPainter * p, const QRect& clipRect)
-{
-    Profiler profiler("CompositionView::drawAudioPreviews");
-
-    CompositionModelImpl::AudioPreviewDrawData::const_iterator api = m_audioPreview.begin();
-    CompositionModelImpl::AudioPreviewDrawData::const_iterator apEnd = m_audioPreview.end();
-    QRect rectToFill,  // rect to fill on canvas
-        localRect; // the rect of the tile to draw on the canvas
-    QPoint basePoint,  // origin of segment rect
-        drawBasePoint; // origin of rect to fill on canvas
-    QRect r;
-    for (; api != apEnd; ++api) {
-        rectToFill = api->rect;
-        basePoint = api->basePoint;
-        rectToFill.moveTopLeft(basePoint);
-        rectToFill &= clipRect;
-        r = rectToFill;
-        drawBasePoint = rectToFill.topLeft();
-        rectToFill.translate( -basePoint.x(), -basePoint.y());
-        int firstPixmapIdx = (r.x() - basePoint.x()) / AudioPreviewPainter::tileWidth();
-        if (firstPixmapIdx >= int(api->pixmap.size())) {
-            //RG_DEBUG << "CompositionView::drawAudioPreviews : WARNING - miscomputed pixmap array : r.x = "
-            //         << r.x() << " - basePoint.x = " << basePoint.x() << " - firstPixmapIdx = " << firstPixmapIdx
-            //         << endl;
-            continue;
-        }
-        int x = 0, idx = firstPixmapIdx;
-        //RG_DEBUG << "CompositionView::drawAudioPreviews : clipRect = " << clipRect
-        //         << " - firstPixmapIdx = " << firstPixmapIdx << endl;
-        while (x < clipRect.width()) {
-            int pixmapRectXOffset = idx * AudioPreviewPainter::tileWidth();
-            localRect.setRect(basePoint.x() + pixmapRectXOffset, basePoint.y(),
-                              AudioPreviewPainter::tileWidth(), api->rect.height());
-            //RG_DEBUG << "CompositionView::drawAudioPreviews : initial localRect = "
-            //         << localRect << endl;
-            localRect &= r;
-            if (idx == firstPixmapIdx && api->resizeOffset != 0) {
-                // this segment is being resized from start, clip beginning of preview
-                localRect.translate(api->resizeOffset, 0);
-            }
-
-            //RG_DEBUG << "CompositionView::drawAudioPreviews : localRect & clipRect = "
-            //         << localRect << endl;
-            if (localRect.isEmpty()) {
-                //RG_DEBUG << "CompositionView::drawAudioPreviews : localRect & clipRect is empty\n";
-                break;
-            }
-            localRect.translate( -(basePoint.x() + pixmapRectXOffset), -basePoint.y());
-
-            //RG_DEBUG << "CompositionView::drawAudioPreviews : drawing pixmap "
-            //         << idx << " at " << drawBasePoint << " - localRect = " << localRect
-            //         << " - preResizeOrigin : " << api->preResizeOrigin << endl;
-
-            p->drawImage(drawBasePoint, api->pixmap[idx], localRect,
-                         Qt::ColorOnly | Qt::ThresholdDither | Qt::AvoidDither);
-
-            ++idx;
-            if (idx >= int(api->pixmap.size()))
-                break;
-            drawBasePoint.setX(drawBasePoint.x() + localRect.width());
-            x += localRect.width();
+            drawCompRectLabel(&segmentsLayerPainter, *i);
         }
     }
 }
 
-void CompositionView::drawArtifacts(QPainter * p, const QRect& clipRect)
+void CompositionView::drawArtifacts()
 {
+    Profiler profiler("CompositionView::drawArtifacts()");
+
+    // The entire viewport in contents coords.
+    QRect viewportContentsRect(
+            contentsX(), contentsY(),
+            viewport()->rect().width(), viewport()->rect().height());
+
+    QPainter viewportPainter(viewport());
+    // Switch to contents coords.
+    viewportPainter.translate(-contentsX(), -contentsY());
+
     //
     // Playback Pointer
     //
-    drawPointer(p, clipRect);
+    viewportPainter.setPen(m_pointerPen);
+    viewportPainter.drawLine(m_pointerPos, 0, m_pointerPos, contentsHeight() - 1);
 
     //
-    // Tmp rect (rect displayed while drawing a new segment)
+    // New Segment (SegmentPencil)
     //
-    if (m_tmpRect.isValid() && m_tmpRect.intersects(clipRect)) {
-        p->setBrush(m_tmpRectFill);
-        p->setPen(CompositionColourCache::getInstance()->SegmentBorder);
-        drawRect(m_tmpRect, p, clipRect);
+    if (m_newSegmentRect.isValid()  &&
+        m_newSegmentRect.intersects(viewportContentsRect)) {
+
+        viewportPainter.setPen(CompositionColourCache::getInstance()->SegmentBorder);
+        viewportPainter.setBrush(m_newSegmentColor);
+        drawRect(&viewportPainter, viewportContentsRect, m_newSegmentRect);
     }
 
     //
     // Tool guides (crosshairs)
     //
-    if (m_drawGuides)
-        drawGuides(p, clipRect);
+    if (m_drawGuides) {
+        viewportPainter.setPen(m_guideColor);
+        // Vertical Guide
+        viewportPainter.drawLine(m_guideX, 0, m_guideX, contentsHeight() - 1);
+        // Horizontal Guide
+        viewportPainter.drawLine(0, m_guideY, contentsWidth() - 1, m_guideY);
+    }
 
     //
-    // Selection Rect
+    // Selection Rect (rubber band)
     //
     if (m_drawSelectionRect) {
-        //RG_DEBUG << "about to draw selection rect" << endl;
-        drawRect(m_selectionRect.normalized(), p, clipRect, false, 0, false);
+        viewportPainter.save();
+
+        viewportPainter.setPen(CompositionColourCache::getInstance()->SegmentBorder);
+        viewportPainter.setBrush(Qt::NoBrush);
+        viewportPainter.drawRect(m_selectionRect);
+
+        viewportPainter.restore();
     }
 
     //
     // Floating Text
     //
     if (m_drawTextFloat)
-        drawTextFloat(p, clipRect);
+        drawTextFloat(&viewportPainter);
 
     //
     // Split line
     //
-    if (m_splitLinePos.x() > 0 && clipRect.contains(m_splitLinePos)) {
-        p->save();
-        p->setPen(m_guideColor);
-        p->drawLine(m_splitLinePos.x(), m_splitLinePos.y(),
-                    m_splitLinePos.x(), m_splitLinePos.y() + getModel()->grid().getYSnap());
-        p->restore();
+    if (m_splitLinePos.x() > 0) {
+        viewportPainter.setPen(m_guideColor);
+        viewportPainter.drawLine(m_splitLinePos.x(), m_splitLinePos.y(),
+                    m_splitLinePos.x(), m_splitLinePos.y() + m_model->grid().getYSnap());
     }
 }
 
-void CompositionView::drawGuides(QPainter * p, const QRect& /*clipRect*/)
+void CompositionView::drawTrackDividers(
+        QPainter *segmentsLayerPainter, const QRect &clipRect)
 {
-    // no need to check for clipping, these guides are meant to follow the mouse cursor
-    QPoint guideOrig(m_topGuidePos, m_foreGuidePos);
-    
-    int contentsHeight = this->contentsHeight();
-    int contentsWidth = this->contentsWidth();
-//    int contentsHeight = this->widget()->height();    //@@@
-//    int contentsWidth = this->widget()->width();
-    
+    // Fetch track Y coordinates within the clip rectangle.  We expand the
+    // clip rectangle slightly because we are drawing a rather wide track
+    // divider, so we need enough divider coords to do the drawing even
+    // though the center of the divider might be slightly outside of the
+    // viewport.
+    CompositionModelImpl::YCoordVector trackYCoords =
+            m_model->getTrackYCoords(clipRect.adjusted(0,-1,0,+1));
+
+    // Nothing to do?  Bail.
+    if (trackYCoords.empty())
+        return;
+
+    const int left = clipRect.left();
+    const int right = clipRect.right();
+
+    segmentsLayerPainter->save();
+
+    // For each track Y coordinate
+    for (CompositionModelImpl::YCoordVector::const_iterator yi =
+             trackYCoords.begin();
+         yi != trackYCoords.end();
+         ++yi) {
+
+        int y = *yi - 2;
+        segmentsLayerPainter->setPen(m_trackDividerColor);
+        segmentsLayerPainter->drawLine(left, y, right, y);
+
+        ++y;
+        segmentsLayerPainter->setPen(m_trackDividerColor.light());
+        segmentsLayerPainter->drawLine(left, y, right, y);
+
+        ++y;
+        segmentsLayerPainter->setPen(m_trackDividerColor.light());
+        segmentsLayerPainter->drawLine(left, y, right, y);
+
+        ++y;
+        segmentsLayerPainter->setPen(m_trackDividerColor);
+        segmentsLayerPainter->drawLine(left, y, right, y);
+    }
+
+    segmentsLayerPainter->restore();
+}
+
+void CompositionView::drawImage(
+        QPainter *painter,
+        QPoint dest, const CompositionModelImpl::QImageVector &tileVector,
+        QRect source)
+{
+    // ??? This is an awful lot of complexity to accommodate the tiling
+    //     of the audio previews.  Why are they tiled?  Can they be
+    //     untiled so that all of this would reduce to a single drawImage()?
+
+    // No tiles?  Bail.
+    if (tileVector.empty())
+        return;
+
+    int tileWidth = AudioPreviewPainter::tileWidth();
+
+    int firstTile = source.left() / tileWidth;
+    int firstTileStartX = source.left() % tileWidth;
+    int lastTile = source.right() / tileWidth;
+    int lastTileStopX = source.right() % tileWidth;
+
+    if (firstTile < 0  ||  lastTile < 0)
+        return;
+
+    // Most likely, the source rect needs normalizing.
+    if (lastTile < firstTile)
+        return;
+
+    // If we are starting beyond the available tiles, bail.
+    if (firstTile >= (int)tileVector.size())
+        return;
+
+    // If we are ending beyond the available tiles
+    if (lastTile >= (int)tileVector.size()) {
+        // Stop at the last.
+        lastTile = (int)tileVector.size() - 1;
+        lastTileStopX = tileWidth - 1;
+    }
+
+    // Special case: Drawing from a single tile.
+    if (firstTile == lastTile) {
+        QRect tileSource = source;  // get top, bottom, and width
+        tileSource.setLeft(source.left() - tileWidth * firstTile);
+        painter->drawImage(dest, tileVector[firstTile], tileSource);
+        return;
+    }
+
+    // *** First Tile
+
+    QRect firstTileSource = source;  // get the top and bottom
+    firstTileSource.setLeft(firstTileStartX);
+    firstTileSource.setRight(tileWidth - 1);
+    painter->drawImage(dest, tileVector[firstTile], firstTileSource);
+    dest.setX(dest.x() + firstTileSource.width());
+
+    // *** Middle Tile(s)
+
+    int firstMiddleTile = firstTile + 1;
+    int lastMiddleTile = lastTile - 1;
+
+    // An entire tile
+    QRect tileRect(source.x(), source.y(), tileWidth, source.height());
+
+    // for each middle tile
+    for (int tile = firstMiddleTile; tile <= lastMiddleTile; ++tile) {
+        // draw the middle tile entirely
+        painter->drawImage(dest, tileVector[tile], tileRect);
+        dest.setX(dest.x() + tileRect.width());
+    }
+
+    // *** Last Tile
+
+    QRect lastTileSource = source;  // get the top and bottom
+    lastTileSource.setLeft(0);
+    lastTileSource.setRight(lastTileStopX);
+    painter->drawImage(dest, tileVector[lastTile], lastTileSource);
+}
+
+void CompositionView::drawAudioPreviews(
+        QPainter *segmentsLayerPainter, const QRect &clipRect)
+{
+    Profiler profiler("CompositionView::drawAudioPreviews");
+
+    // for each audio preview
+    for (CompositionModelImpl::AudioPreviews::const_iterator audioPreviewIter = m_audioPreview.begin();
+         audioPreviewIter != m_audioPreview.end();
+         ++audioPreviewIter) {
+
+        const CompositionModelImpl::AudioPreview &audioPreviewDrawDataItem = *audioPreviewIter;
+
+        // If this one isn't in the clip rect, try the next.
+        if (!audioPreviewDrawDataItem.rect.intersects(clipRect))
+            continue;
+
+        QPoint destPoint = audioPreviewDrawDataItem.rect.topLeft();
+        QRect sourceRect = audioPreviewDrawDataItem.rect;
+        // Translate contents coords to preview coords.
+        sourceRect.moveTo(0,0);
+
+        // If the beginning is being resized to the right, clip the preview
+        if (audioPreviewDrawDataItem.resizeOffset > 0)
+            sourceRect.setLeft(audioPreviewDrawDataItem.resizeOffset);
+
+        // draw the preview
+        drawImage(segmentsLayerPainter,
+                  destPoint,
+                  audioPreviewDrawDataItem.image,
+                  sourceRect);
+    }
+}
+
+void CompositionView::drawCompRect(
+        QPainter *painter,
+        const QRect &clipRect,
+        const SegmentRect &rect,
+        int intersectLvl)
+{
+    // Non repeating case, just draw the segment rect.
+    if (!rect.isRepeating()) {
+        painter->save();
+
+        painter->setBrush(rect.brush);
+        painter->setPen(rect.pen);
+        drawRect(painter, clipRect, rect.rect, rect.selected, intersectLvl);
+
+        painter->restore();
+
+        return;
+    }
+
+    // Repeating case.
+
+    painter->save();
+
+    // *** Base Segment
+
+    QRect baseRect = rect.rect;
+    baseRect.setWidth(rect.baseWidth);
+
+    painter->setPen(rect.pen);
+    painter->setBrush(rect.brush);
+    drawRect(painter, clipRect, baseRect, rect.selected, intersectLvl);
+
+    // *** Repeat Area
+
+    // ??? COPY.
+    SegmentRect::RepeatMarks repeatMarksX = rect.repeatMarks;
+    QRect repeatRect = rect.rect;
+    repeatRect.setLeft(repeatMarksX[0]);
+
+    // The repeat area is lighter.
+    QBrush repeatBrush(rect.brush.color().lighter(150));
+
+    painter->setBrush(repeatBrush);
+    drawRect(painter, clipRect, repeatRect, rect.selected, intersectLvl);
+
+    // *** Repeat Marks
+
+    painter->setPen(CompositionColourCache::getInstance()->RepeatSegmentBorder);
+
+    // For each repeat mark, draw it.
+    for (size_t i = 0; i < repeatMarksX.size(); ++i) {
+        int x = repeatMarksX[i];
+        painter->drawLine(x, rect.rect.top(), x, rect.rect.bottom());
+    }
+
+    painter->restore();
+}
+
+void CompositionView::drawCompRectLabel(
+        QPainter *painter, const SegmentRect &rect)
+{
+    // No label?  Bail.
+    if (rect.label.isEmpty())
+        return;
+
+    painter->save();
+
+    // Pick a font that will fit nicely within a segment rect.
+    QFont font;
+    font.setPixelSize(rect.rect.height() / 2.2);
+    font.setWeight(QFont::Bold);
+    painter->setFont(font);
+
+    QRect labelRect = rect.rect;
+    // Add a one character left margin.  Add a one pixel top margin to
+    // make the text look a little more centered vertically.
+    labelRect.adjust(painter->fontMetrics().width('x'), 1, 0, 0);
+
+    QColor backgroundColor = rect.brush.color();
+
+    // *** Draw the halo
+
+    painter->setPen(backgroundColor);
+
+    // For each halo offset, draw the text
+    for (unsigned i = 0; i < m_haloOffsets.size(); ++i) {
+        painter->drawText(labelRect.translated(m_haloOffsets[i]),
+                          Qt::AlignLeft | Qt::AlignVCenter,
+                          rect.label);
+    }
+
+    // *** Draw the text
+
+    const bool lightBackground = (qGray(backgroundColor.rgb()) >= 127);
+    // Based on the background, pick a contrasting pen.
+    painter->setPen(lightBackground ? Qt::black : Qt::white);
+    painter->drawText(labelRect,
+                      Qt::AlignLeft | Qt::AlignVCenter, rect.label);
+
+    painter->restore();
+}
+
+void CompositionView::drawRect(QPainter *p, const QRect &clipRect,
+        const QRect &r, bool isSelected, int intersectLvl)
+{
+    // If the rect isn't in the clip rect, bail.
+    if (!r.intersects(clipRect))
+        return;
+
     p->save();
-    p->setPen(m_guideColor);
-    p->drawLine(guideOrig.x(), 0, guideOrig.x(), contentsHeight);
-    p->drawLine(0, guideOrig.y(), contentsWidth, guideOrig.y());
-    p->restore();
-}
 
-void CompositionView::drawCompRect(const CompositionRect& r, QPainter *p, const QRect& clipRect,
-                                   int intersectLvl, bool fill)
-{
-    p->save();
+    // Since we do partial updates when scrolling, make sure we don't
+    // obliterate the previews.
+    p->setClipRect(clipRect);
 
-    QBrush brush = r.getBrush();
-
-    if (r.isRepeating()) {
-        QColor brushColor = brush.color();
-        brush.setColor(brushColor.light(150));
+    // For a selected segment, go with a darker fill.
+    if (isSelected) {
+        QColor fillColor = p->brush().color().darker(200);
+        p->setBrush(QBrush(fillColor));
     }
 
-    p->setBrush(brush);
-    p->setPen(r.getPen());
-    drawRect(r, p, clipRect, r.isSelected(), intersectLvl, fill);
-
-    if (r.isRepeating()) {
-
-        CompositionRect::repeatmarks repeatMarks = r.getRepeatMarks();
-
-        //RG_DEBUG << "CompositionView::drawCompRect() : drawing repeating rect " << r
-        //         << " nb repeat marks = " << repeatMarks.size() << endl;
-
-        // draw 'start' rectangle with original brush
-        //
-        QRect startRect = r;
-        startRect.setWidth(repeatMarks[0] - r.x());
-        p->setBrush(r.getBrush());
-        drawRect(startRect, p, clipRect, r.isSelected(), intersectLvl, fill);
-
-
-        // now draw the 'repeat' marks
-        //
-        p->setPen(CompositionColourCache::getInstance()->RepeatSegmentBorder);
-        int penWidth = int(std::max((unsigned int)r.getPen().width(), 1u));
-
-        for (int i = 0; i < repeatMarks.size(); ++i) {
-            int pos = repeatMarks[i];
-            if (pos > clipRect.right())
-                break;
-
-            if (pos >= clipRect.left()) {
-                QPoint p1(pos, r.y() + penWidth),
-                    p2(pos, r.y() + r.height() - penWidth - 1);
-
-                //RG_DEBUG << "CompositionView::drawCompRect() : drawing repeat mark at "
-                //         << p1 << "-" << p2 << endl;
-                p->drawLine(p1, p2);
-            }
-
-        }
-
+    // For intersecting segments, go with a darker fill.
+    if (intersectLvl > 0) {
+        QColor fillColor = p->brush().color().darker(intersectLvl * 105);
+        p->setBrush(QBrush(fillColor));
     }
-
-    p->restore();
-}
-
-void CompositionView::drawCompRectLabel(const CompositionRect& r, QPainter *p, const QRect& /* clipRect */)
-{
-    // draw segment label
-    //
-    if (!r.getLabel().isEmpty()) {
-
-        p->save();
-
-        QFont font;
-        font.setPixelSize(r.height() / 2.2);
-        font.setWeight(QFont::Bold);
-        font.setItalic(false);
-        p->setFont(font);
-
-        QRect labelRect = QRect
-            (r.x(),
-             r.y() + ((r.height() - p->fontMetrics().height()) / 2) + 1,
-             r.width(),
-             p->fontMetrics().height());
-
-        int x = labelRect.x() + p->fontMetrics().width('x');
-        int y = labelRect.y();
-
-        // get the segment color as the foundation for drawing the surrounding
-        // "halo" to ensure contrast against any preview dashes that happen to
-        // be present right under the label
-        QBrush brush = r.getBrush();
-
-        // figure out the intensity of this base color, Yves style
-        QColor surroundColor = brush.color();
-        int intensity = qGray(surroundColor.rgb());
-
-        bool lightSurround = false;
-
-        // straight black or white as originally rewritten was too stark, so we
-        // go back to using lighter() against the base color, and this time we
-        // use darker() against the base color too
-        if (intensity < 127) {
-            surroundColor = surroundColor.darker(100);
-        } else {
-            surroundColor = surroundColor.lighter(100);
-            lightSurround = true;
-        }
-
-        // draw the "halo" effect
-        p->setPen(surroundColor);
-
-        for (int i = 0; i < 9; ++i) {
-
-            if (i == 4)
-                continue;
-
-            int wx = x, wy = y;
-
-            if (i < 3)
-                --wx;
-            if (i > 5)
-                ++wx;
-            if (i % 3 == 0)
-                --wy;
-            if (i % 3 == 2)
-                ++wy;
-
-            labelRect.setX(wx);
-            labelRect.setY(wy);
-
-            p->drawText(labelRect,
-                        Qt::AlignLeft | Qt::AlignTop,
-                        r.getLabel());
-        }
-
-        labelRect.setX(x);
-        labelRect.setY(y);
-
-        // use black on light halo, white on dark halo for the text itself
-        p->setPen((lightSurround ? Qt::black : Qt::white));
-
-        p->drawText(labelRect,
-                    Qt::AlignLeft | Qt::AlignVCenter, r.getLabel());
-        p->restore();
-    }
-}
-
-void CompositionView::drawRect(const QRect& r, QPainter *p, const QRect& clipRect,
-                               bool isSelected, int intersectLvl, bool fill)
-{
-    //RG_DEBUG << "CompositionView::drawRect : intersectLvl = " << intersectLvl
-    //         << " - brush col = " << p->brush().color() << endl;
-
-    //RG_DEBUG << "CompositionView::drawRect " << r << " - xformed : " << p->xForm(r)
-    //         << " - contents x = " << contentsX() << ", contents y = " << contentsY() << endl;
-
-    p->save();
 
     QRect rect = r;
-    rect.setSize(rect.size() - QSize(1, 1));                                    
+    // Shrink height by 1 to accommodate the dividers.
+    // Shrink width by 1 so that adjacent segment borders don't overlap.
+    // ??? Why isn't the SegmentRect already adjusted like this?
+    rect.adjust(0, 0, -1, -1);
 
-    //RG_DEBUG << "drawRect: rect is " << rect << endl;
-
-    if (fill) {
-        if (isSelected) {
-            QColor fillColor = p->brush().color();
-            fillColor = fillColor.dark(200);
-            QBrush b = p->brush();
-            b.setColor(fillColor);
-            p->setBrush(b);
-            //RG_DEBUG << "CompositionView::drawRect : selected color : " << fillColor << endl;
-        }
-
-        if (intersectLvl > 0) {
-            QColor fillColor = p->brush().color();
-            fillColor = fillColor.dark((intersectLvl) * 105);
-            QBrush b = p->brush();
-            b.setColor(fillColor);
-            p->setBrush(b);
-            //RG_DEBUG << "CompositionView::drawRect : intersected color : " << fillColor << " isSelected : " << isSelected << endl;
-        }
-    } else {
-        p->setBrush(Qt::NoBrush);
-    }
-
-    // Paint using the small coordinates...
-    QRect intersection = rect.intersected(clipRect);
-
-    if (clipRect.contains(rect)) {
-        //RG_DEBUG << "note: drawing whole rect" << endl;
-        p->drawRect(rect);
-    } else {
-        // draw only what's necessary
-        if (!intersection.isEmpty() && fill)
-            p->fillRect(intersection, p->brush());
-
-        int rectTopY = rect.y();
-
-        if (rectTopY >= clipRect.y() &&
-            rectTopY <= (clipRect.y() + clipRect.height() - 1)) {
-            // to prevent overflow, in case the original rect is too wide
-            // the line would be drawn "backwards"
-            p->drawLine(intersection.topLeft(), intersection.topRight());
-        }
-
-        int rectBottomY = rect.y() + rect.height();
-        if (rectBottomY >= clipRect.y() &&
-            rectBottomY < (clipRect.y() + clipRect.height() - 1))
-            // to prevent overflow, in case the original rect is too wide
-            // the line would be drawn "backwards"
-            p->drawLine(intersection.bottomLeft() + QPoint(0, 1),
-                        intersection.bottomRight() + QPoint(0, 1));
-
-        int rectLeftX = rect.x();
-        if (rectLeftX >= clipRect.x() &&
-            rectLeftX <= (clipRect.x() + clipRect.width() - 1))
-            p->drawLine(rect.topLeft(), rect.bottomLeft());
-
-        int rectRightX = rect.x() + rect.width(); // make sure we don't overflow
-        if (rectRightX >= clipRect.x() &&
-            rectRightX < clipRect.x() + clipRect.width() - 1)
-            p->drawLine(rect.topRight(), rect.bottomRight());
-
-    }
+    p->drawRect(rect);
 
     p->restore();
 }
 
-QColor CompositionView::mixBrushes(QBrush a, QBrush b)
+// Functor to just compare the SegmentRect's QRect's.
+class CompareSegmentRects
 {
-    QColor ac = a.color(), bc = b.color();
+public:
+    CompareSegmentRects(const SegmentRect &sr) : r(sr.rect) { }
+    bool operator()(const SegmentRect &sr)
+            { return (sr.rect == r); }
+private:
+    QRect r;
+};
 
-    int aR = ac.red(), aG = ac.green(), aB = ac.blue(),
-        bR = bc.red(), bG = bc.green(), bB = ac.blue();
-
-    ac.setRgb((aR + bR) / 2, (aG + bG) / 2, (aB + bB) / 2);
-
-    return ac;
-}
-
-void CompositionView::drawIntersections(const CompositionModelImpl::RectContainer& rects,
-                                        QPainter * p, const QRect& clipRect)
+void CompositionView::drawIntersections(
+        QPainter *painter, const QRect &clipRect,
+        const CompositionModelImpl::SegmentRects &rects)
 {
-    if (! (rects.size() > 1))
-        return ;
+    // Intersections are most noticeable when recording over existing
+    // segments.  They also play a part when moving a segment over top
+    // of existing segments.
 
-    CompositionModelImpl::RectContainer intersections;
+    // If there aren't enough rects for there to be an intersection, bail.
+    if (rects.size() <= 1)
+        return;
 
-    CompositionModelImpl::RectContainer::const_iterator i = rects.begin(),
-        j = rects.begin();
+    CompositionModelImpl::SegmentRects intersections;
 
-    for (; j != rects.end(); ++j) {
+    // For each rect
+    for (CompositionModelImpl::SegmentRects::const_iterator i = rects.begin();
+         i != rects.end();
+         ++i) {
 
-        CompositionRect testRect = *j;
-        i = j;
-        ++i; // set i to pos after j
+        // For each rect after i
+        for (CompositionModelImpl::SegmentRects::const_iterator j = i + 1;
+             j != rects.end();
+             ++j) {
 
-        if (i == rects.end())
-            break;
+            SegmentRect intersectRect = i->intersected(*j);
 
-        for (; i != rects.end(); ++i) {
-            CompositionRect ri = testRect.intersected(*i);
-            if (!ri.isEmpty()) {
-                CompositionModelImpl::RectContainer::iterator t = std::find(intersections.begin(),
-                                                                        intersections.end(), ri);
-                if (t == intersections.end()) {
-                    ri.setBrush(mixBrushes(testRect.getBrush(), i->getBrush()));
-                    ri.setSelected(testRect.isSelected() || i->isSelected());
-                    intersections.push_back(ri);
-                }
+            // If no intersection, try the next rect.
+            if (intersectRect.rect.isEmpty())
+                continue;
 
-            }
+            // Check if we've already encountered this intersection.
+            CompositionModelImpl::SegmentRects::iterator t =
+                    std::find_if(intersections.begin(),
+                              intersections.end(),
+                              CompareSegmentRects(intersectRect));
+
+            // If we've already seen this intersection, try the next rect.
+            if (t != intersections.end())
+                continue;
+
+            // Add it to the intersections vector.
+            intersections.push_back(intersectRect);
         }
     }
 
+    // For each intersection, draw the rectangle
+    for (CompositionModelImpl::SegmentRects::iterator i =
+             intersections.begin();
+         i != intersections.end();
+         ++i) {
+
+        drawCompRect(painter, clipRect, *i, 1);
+    }
+
+#if 0
+// This code is from when segments could overlap each other on a track.
+// Overlapping segments are no longer allowed.  See:
+//    CompositionModelImpl::setTrackHeights()
+//    Composition::getMaxContemporaneousSegmentsOnTrack()
     //
     // draw this level of intersections then compute and draw further ones
     //
-    int intersectionLvl = 1;
+    int level = 1;
 
     while (!intersections.empty()) {
 
-        for (CompositionModelImpl::RectContainer::iterator intIter = intersections.begin();
-             intIter != intersections.end(); ++intIter) {
-            CompositionRect r = *intIter;
-            drawCompRect(r, p, clipRect, intersectionLvl);
+        // For each intersection, draw the segment rectangle
+        for (CompositionModelImpl::SegmentRects::iterator intersectionIter =
+                 intersections.begin();
+             intersectionIter != intersections.end();
+             ++intersectionIter) {
+
+            drawCompRect(painter, clipRect, *intersectionIter, level);
         }
 
+        // Bail if more than 10 intersections.
+        // Original comment: "put a limit on how many intersections we can
+        //                    compute and draw - this grows exponentially"
+        // That doesn't seem right.  Each time through, the intersections
+        // will become fewer and fewer.
         if (intersections.size() > 10)
-            break; // put a limit on how many intersections we can compute and draw - this grows exponentially
+            break;
 
-        ++intersectionLvl;
+        ++level;
 
-        CompositionModelImpl::RectContainer intersections2;
+        CompositionModelImpl::SegmentRects intersections2;
 
-        CompositionModelImpl::RectContainer::iterator i = intersections.begin(),
-            j = intersections.begin();
+        // For each intersection rect
+        for (CompositionModelImpl::SegmentRects::iterator j =
+                 intersections.begin();
+             j != intersections.end();
+             ++j) {
 
-        for (; j != intersections.end(); ++j) {
+            const SegmentRect &testRect = *j;
 
-            CompositionRect testRect = *j;
-            i = j;
-            ++i; // set i to pos after j
+            // For each rect after j
+            for (CompositionModelImpl::SegmentRects::iterator i = j + 1;
+                 i != intersections.end();
+                 ++i) {
 
-            if (i == intersections.end())
-                break;
+                SegmentRect intersectRect = testRect.intersected(*i);
 
-            for (; i != intersections.end(); ++i) {
-                CompositionRect ri = testRect.intersected(*i);
-                if (!ri.isEmpty() && ri != *i) {
-                    CompositionModelImpl::RectContainer::iterator t = std::find(intersections2.begin(),
-                                                                            intersections2.end(), ri);
-                    if (t == intersections2.end())
-                        ri.setBrush(mixBrushes(testRect.getBrush(), i->getBrush()));
-                    intersections2.push_back(ri);
+                // If we have an intersection, and it isn't simply the
+                // "i" rect.
+                // ??? Why?  If the i rect is contained within the j
+                //     rect, we ignore it?
+                if (!intersectRect.isEmpty()  &&  intersectRect != *i) {
+                    // Check to see if we've found this intersection already.
+                    CompositionModelImpl::SegmentRects::iterator t =
+                            std::find(intersections2.begin(),
+                                      intersections2.end(),
+                                      intersectRect);
+
+                    // If we've not seen this intersection before
+                    if (t == intersections2.end()) {
+                        // Set the attributes.
+                        // ??? What about selected?
+                        intersectRect.setBrush(
+                                mixBrushes(testRect.getBrush(), i->getBrush()));
+                    }
+
+                    // ??? Add all intersections that we find, even if we've
+                    //     already seen them?
+                    intersections2.push_back(intersectRect);
                 }
             }
         }
 
         intersections = intersections2;
     }
-
+#endif
 }
 
-void CompositionView::drawPointer(QPainter *p, const QRect& clipRect)
+void CompositionView::drawTextFloat(QPainter *p)
 {
-    //RG_DEBUG << "CompositionView::drawPointer: clipRect "
-    //         << clipRect.x() << "," << clipRect.y() << " " << clipRect.width()
-    //         << "x" << clipRect.height() << " pointer pos is " << m_pointerPos << endl;
+    if (!m_model)
+        return;
 
-    if (m_pointerPos >= clipRect.x() && m_pointerPos <= (clipRect.x() + clipRect.width())) {
-        p->save();
-        p->setPen(m_pointerPen);
-        p->drawLine(m_pointerPos, clipRect.y(), m_pointerPos, clipRect.y() + clipRect.height());
-        p->restore();
+    // Find out how big of a rect we need for the text.
+    QRect boundingRect = p->boundingRect(
+            QRect(),  // we want the "required" rectangle
+            0,        // we want the "required" rectangle
+            m_textFloatText);
+
+    // Add some margins to give the text room to breathe.
+    boundingRect.adjust(-4,-2,+4,+2);
+
+    QPoint pos(m_textFloatPos);
+
+    // If the text float would appear above the top of the viewport
+    if (pos.y() < contentsY()) {
+        // Move it down
+        pos.setY(pos.y() + m_model->grid().getYSnap() * 2 +
+                 boundingRect.height());
     }
 
-}
-
-void CompositionView::drawTextFloat(QPainter *p, const QRect& clipRect)
-{
-    QFontMetrics metrics(p->fontMetrics());
-
-    QRect bound = p->boundingRect(0, 0, 300, metrics.height() + 6, Qt::AlignLeft, m_textFloatText);
+    boundingRect.moveTopLeft(pos);
 
     p->save();
 
-    bound.setLeft(bound.left() - 2);
-    bound.setRight(bound.right() + 2);
-    bound.setTop(bound.top() - 2);
-    bound.setBottom(bound.bottom() + 2);
-
-    QPoint pos(m_textFloatPos);
-    if (pos.y() < 0 && getModel()) {
-        if (pos.y() + bound.height() < 0) {
-            pos.setY(pos.y() + getModel()->grid().getYSnap() * 3);
-        } else {
-            pos.setY(pos.y() + getModel()->grid().getYSnap() * 2);
-        }
-    }
-
-    bound.moveTopLeft(pos);
-
-    if (bound.intersects(clipRect)) {
-
-        p->setBrush(CompositionColourCache::getInstance()->RotaryFloatBackground);
-
-        drawRect(bound, p, clipRect, false, 0, true);
-
-        p->setPen(CompositionColourCache::getInstance()->RotaryFloatForeground);
-
-        p->drawText(pos.x() + 2, pos.y() + 3 + metrics.ascent(), m_textFloatText);
-
-    }
+    p->setPen(CompositionColourCache::getInstance()->RotaryFloatForeground);
+    p->setBrush(CompositionColourCache::getInstance()->RotaryFloatBackground);
+    p->drawRect(boundingRect);
+    p->drawText(boundingRect, Qt::AlignCenter, m_textFloatText);
 
     p->restore();
 }
 
-bool CompositionView::event(QEvent* e)
+bool CompositionView::event(QEvent *e)
 {
     if (e->type() == AudioPreviewThread::AudioPreviewQueueEmpty) {
-        RG_DEBUG << "CompositionView::event - AudioPreviewQueueEmpty\n";
+        // Audio previews have been generated, redraw the segments.
         segmentsNeedRefresh();
         viewport()->update();
+
+        // No need to propagate to parent.
+        e->accept();
+        // Event was recognized.
         return true;
     }
 
     return RosegardenScrollView::event(e);
 }
 
-void CompositionView::enterEvent(QEvent */* e */)
+void CompositionView::enterEvent(QEvent *)
 {
-    QSettings settings;
-    settings.beginGroup( GeneralOptionsConfigGroup );
-
-    if (! qStrToBool( settings.value("toolcontexthelp", "true" ) ) ) {
-        settings.endGroup();
-        return;
-    }
-    settings.endGroup();
-
+    // Ask RosegardenMainWindow to display the context help in the status bar.
     emit showContextHelp(m_toolContextHelp);
     m_contextHelpShown = true;
 }
 
-void CompositionView::leaveEvent(QEvent */* e */)
+void CompositionView::leaveEvent(QEvent *)
 {
+    // Ask RosegardenMainWindow to clear the context help in the status bar.
     emit showContextHelp("");
     m_contextHelpShown = false;
 }
 
 void CompositionView::slotToolHelpChanged(const QString &text)
 {
-    if (m_toolContextHelp == text) return;
+    // No change?  Bail.
+    if (m_toolContextHelp == text)
+        return;
+
     m_toolContextHelp = text;
 
-    QSettings settings;
-
-    settings.beginGroup( GeneralOptionsConfigGroup );
-
-    if (! qStrToBool( settings.value("toolcontexthelp", "true" ) ) ) {
-        settings.endGroup();
-        return;
-    }
-    settings.endGroup();
-
-    if (m_contextHelpShown) emit showContextHelp(text);
+    // If we're showing context help, ask RosegardenMainWindow to update
+    // the context help in the status bar.
+    if (m_contextHelpShown)
+        emit showContextHelp(text);
 }
 
-void CompositionView::contentsMousePressEvent(QMouseEvent* e)
+void CompositionView::mousePressEvent(QMouseEvent *e)
 {
-    setSelectCopy((e->modifiers() & Qt::ControlModifier) != 0);
-    setSelectCopyingAsLink(((e->modifiers() & Qt::AltModifier) != 0) &&
-                               ((e->modifiers() & Qt::ControlModifier) != 0));
-    setSelectAdd((e->modifiers() & Qt::ShiftModifier) != 0);
-    setFineGrain((e->modifiers() & Qt::ShiftModifier) != 0);
-    setPencilOverExisting((e->modifiers() & (Qt::AltModifier + Qt::ControlModifier)) != 0);
-
-    switch (e->button()) {
-    case Qt::LeftButton:
-    case Qt::MidButton:
+    // The left and middle buttons can be used for dragging out new
+    // segments with SegmentSelector and SegmentPencil.  We want to
+    // auto-scroll in those cases and others.
+    // ??? Would it be better to push this down into the tools?
+    if (e->button() == Qt::LeftButton  ||
+        e->button() == Qt::MidButton)
         startAutoScroll();
 
-        if (m_tool)
-            m_tool->handleMouseButtonPress(e);
-        else
-            RG_DEBUG << "CompositionView::contentsMousePressEvent() :"
-                     << this << " no tool\n";
-        break;
-    case Qt::RightButton:
-        if (m_tool)
-            m_tool->handleRightButtonPress(e);
-        else
-            RG_DEBUG << "CompositionView::contentsMousePressEvent() :"
-                     << this << " no tool\n";
-        break;
-    case Qt::MouseButtonMask:
-    case Qt::NoButton:
-    case Qt::XButton1:
-    case Qt::XButton2:
-    default:
-        break;
-    }
+    // Delegate to current tool
+    if (m_currentTool)
+        m_currentTool->mousePressEvent(e);
 }
 
-void CompositionView::contentsMouseReleaseEvent(QMouseEvent* e)
+void CompositionView::mouseReleaseEvent(QMouseEvent *e)
 {
-    RG_DEBUG << "CompositionView::contentsMouseReleaseEvent()\n";
+    // In case there is no tool, and auto scroll is running.
+    slotStopAutoScroll();
 
-    stopAutoScroll();
-
-    if (!m_tool)
-        return ;
-
-    if (e->button() == Qt::LeftButton ||
-        e->button() == Qt::MidButton )
-        m_tool->handleMouseButtonRelease(e);
+    if (m_currentTool)
+        m_currentTool->mouseReleaseEvent(e);;
 }
 
-void CompositionView::contentsMouseDoubleClickEvent(QMouseEvent* e)
+void CompositionView::mouseDoubleClickEvent(QMouseEvent *e)
 {
-    m_currentIndex = getFirstItemAt(e->pos());
+    const QPoint contentsPos = viewportToContents(e->pos());
 
-    if (!m_currentIndex) {
-        RG_DEBUG << "CompositionView::contentsMouseDoubleClickEvent - no currentIndex\n";
+    ChangingSegmentPtr item = m_model->getSegmentAt(contentsPos);
+
+    // If the user clicked on a space where there is no segment,
+    // move the playback position pointer to that time.
+    if (!item) {
         const RulerScale *ruler = grid().getRulerScale();
-        if (ruler) emit setPointerPosition(ruler->getTimeForX(e->pos().x()));
-        return ;
+        if (ruler)
+            emit setPointerPosition(ruler->getTimeForX(contentsPos.x()));
+
+        return;
     }
 
-    RG_DEBUG << "CompositionView::contentsMouseDoubleClickEvent - have currentIndex\n";
+    // Ask RosegardenMainViewWidget to launch the default editor for
+    // the segment under the mouse pointer.
 
-    CompositionItem* itemImpl = m_currentIndex;
+    if (item->isRepeating()) {
+        const timeT time = item->getRepeatTimeAt(grid(), contentsPos);
 
-    if (m_currentIndex->isRepeating()) {
-        timeT time = getModel()->getRepeatTimeAt(e->pos(), m_currentIndex);
-
-        RG_DEBUG << "editRepeat at time " << time << endl;
         if (time > 0)
-            emit editRepeat(itemImpl->getSegment(), time);
+            emit editRepeat(item->getSegment(), time);
         else
-            emit editSegment(itemImpl->getSegment());
+            emit editSegment(item->getSegment());
 
     } else {
 
-        emit editSegment(itemImpl->getSegment());
+        emit editSegment(item->getSegment());
     }
 }
 
-void CompositionView::contentsMouseMoveEvent(QMouseEvent* e)
+void CompositionView::mouseMoveEvent(QMouseEvent *e)
 {
-    if (!m_tool)
-        return ;
+    if (!m_currentTool)
+        return;
 
-    setFineGrain((e->modifiers() & Qt::ShiftModifier) != 0);
-    setPencilOverExisting((e->modifiers() & Qt::AltModifier) != 0);
+    // Delegate to the current tool.
+    int followMode = m_currentTool->mouseMoveEvent(e);
 
-    int follow = m_tool->handleMouseMove(e);
-    setScrollDirectionConstraint(follow);
+    // ??? Can we push the rest of this down into the tools?
 
-    if (follow != RosegardenScrollView::NoFollow) {
+    setFollowMode(followMode);
+
+    if (followMode != RosegardenScrollView::NoFollow) {
         doAutoScroll();
-
-        if (follow & RosegardenScrollView::FollowHorizontal) {
-            int mouseX = e->pos().x();
-            slotScrollHorizSmallSteps(mouseX);
-
-//&& JAS - Deactivate auto expand feature when resizing / moving segments past
-//&& Compostion end.  Though current code works, this creates lots of corner
-//&& cases that are not reversible using the REDO / UNDO commands.
-//&& Additionally, this makes accidentally altering the compostion length too easy.
-//&& Currently leaving code here until a full debate is complete.
-
-//            // enlarge composition if needed
-//            if ((horizontalScrollBar()->value() == horizontalScrollBar()->maximum()) &&
-//               // This code minimizes the chances of auto expand when moving segments
-//               // Not a perfect fix -- but fixes several auto expand errors
-//               (mouseX > (contentsX() + visibleWidth() * 0.95))) {
-//                resizeContents(contentsWidth() + m_stepSize, contentsHeight());
-//                setContentsPos(contentsX() + m_stepSize, contentsY());
-//                getModel()->setLength(contentsWidth());
-//                slotUpdateSize();
-//            }
-        }
-
-        if (follow & RosegardenScrollView::FollowVertical)
-            slotScrollVertSmallSteps(e->pos().y());
     }
 }
 
-#if 0
-// Dead Code.
-void CompositionView::releaseCurrentItem()
+void CompositionView::drawPointer(int pos)
 {
-    m_currentIndex = CompositionItemPtr();
-}
-#endif
+    // If we've not moved, bail.
+    if (m_pointerPos == pos)
+        return;
 
-void CompositionView::setPointerPos(int pos)
-{
-    //RG_DEBUG << "CompositionView::setPointerPos(" << pos << ")\n";
-    int oldPos = m_pointerPos;
-    if (oldPos == pos) return;
-
+    const int oldPos = m_pointerPos;
     m_pointerPos = pos;
-    getModel()->pointerPosChanged(pos);
 
-    // automagically grow contents width if pointer position goes beyond right end
-    //
-    if (pos >= (contentsWidth() - m_stepSize)) {
-        resizeContents(pos + m_stepSize, contentsHeight());
-        // grow composition too, if needed (it may not be the case if
-        if (getModel()->getCompositionLength() < contentsWidth())
-            getModel()->setCompositionLength(contentsWidth());
-    }
+    // This routine calls us back for each recording segment to make
+    // sure we update the display as the recording segments expand.
+    m_model->pointerPosChanged(pos);
 
+    int deltaPos = abs(m_pointerPos - oldPos);
 
-    // interesting -- isAutoScrolling() never seems to return true?
-    //RG_DEBUG << "CompositionView::setPointerPos(" << pos << "), isAutoScrolling " << isAutoScrolling() << ", contentsX " << contentsX() << ", m_lastPointerRefreshX " << m_lastPointerRefreshX << ", contentsHeight " << contentsHeight() << endl;
+    // If the pointer has only moved slightly
+    if (deltaPos <= m_pointerPen.width() * 2) {
 
-    if (contentsX() != m_lastPointerRefreshX) {
-        m_lastPointerRefreshX = contentsX();
-        // We'll need to shift the whole canvas anyway, so
-        slotArtifactsNeedRefresh();
-        return ;
-    }
+        // Use one update rect instead of two.
 
-    int deltaW = abs(m_pointerPos - oldPos);
-
-    if (deltaW <= m_pointerPen.width() * 2) { // use one rect instead of two separate ones
-
-        QRect updateRect
-            (std::min(m_pointerPos, oldPos) - m_pointerPen.width(), 0,
-             deltaW + m_pointerPen.width() * 2, contentsHeight());
-
-        artifactsNeedRefresh(updateRect);
-
+        updateArtifacts(
+                QRect(std::min(m_pointerPos, oldPos) - m_pointerPen.width()/2, 0,
+                      deltaPos + m_pointerPen.width(), contentsHeight()));
     } else {
 
-        artifactsNeedRefresh
-            (QRect(m_pointerPos - m_pointerPen.width(), 0,
-                   m_pointerPen.width() * 2, contentsHeight()));
+        // Update the new pointer position.
+        updateArtifacts(
+                QRect(m_pointerPos - m_pointerPen.width()/2, 0,
+                      m_pointerPen.width(), contentsHeight()));
 
-        artifactsNeedRefresh
-            (QRect(oldPos - m_pointerPen.width(), 0,
-                   m_pointerPen.width() * 2, contentsHeight()));
+        // Update the old pointer position.
+        updateArtifacts(
+                QRect(oldPos - m_pointerPen.width()/2, 0,
+                      m_pointerPen.width(), contentsHeight()));
     }
 }
 
-void CompositionView::setGuidesPos(int x, int y)
+void CompositionView::drawGuides(int x, int y)
 {
-    m_topGuidePos = x;
-    m_foreGuidePos = y;
-    slotArtifactsNeedRefresh();
+    m_drawGuides = true;
+    m_guideX = x;
+    m_guideY = y;
+
+    slotUpdateArtifacts();
 }
 
-void CompositionView::setGuidesPos(const QPoint& p)
+void CompositionView::hideGuides()
 {
-    m_topGuidePos = p.x();
-    m_foreGuidePos = p.y();
-    slotArtifactsNeedRefresh();
+    m_drawGuides = false;
+
+    slotUpdateArtifacts();
 }
 
-void CompositionView::setDrawGuides(bool d)
+void CompositionView::drawNewSegment(const QRect &r)
 {
-    m_drawGuides = d;
-    slotArtifactsNeedRefresh();
+    QRect previousRect = m_newSegmentRect;
+    m_newSegmentRect = r;
+
+    slotAllNeedRefresh(m_newSegmentRect | previousRect);
 }
 
-void CompositionView::setTmpRect(const QRect& r)
-{
-    setTmpRect(r, m_tmpRectFill);
-}
-
-void CompositionView::setTmpRect(const QRect& r, const QColor &c)
-{
-    QRect pRect = m_tmpRect;
-    m_tmpRect = r;
-    m_tmpRectFill = c;
-    slotUpdateAll(m_tmpRect | pRect);
-}
-
-void CompositionView::setTextFloat(int x, int y, const QString &text)
+void CompositionView::drawTextFloat(int x, int y, const QString &text)
 {
     m_textFloatPos.setX(x);
     m_textFloatPos.setY(y);
     m_textFloatText = text;
     m_drawTextFloat = true;
-    slotArtifactsNeedRefresh();
 
-    // most of the time when the floating text is drawn
-    // we want to update a larger part of the view
-    // so don't update here
-    //     QRect r = fontMetrics().boundingRect(x, y, 300, 40, AlignLeft, m_textFloatText);
-    //     slotUpdateAll(r);
-
-
-    //    mainWindow->slotSetStatusMessage(text);
+    slotUpdateArtifacts();
 }
 
-void CompositionView::setFineGrain(bool value)
-{
-    m_fineGrain = value;
-}
-
-void CompositionView::setPencilOverExisting(bool value)
-{
-    m_pencilOverExisting = value;
-}
-
-#if 0
-// Dead Code.
-void
-CompositionView::slotTextFloatTimeout()
-{
-    hideTextFloat();
-    slotArtifactsNeedRefresh();
-    //    mainWindow->slotSetStatusMessage(QString::null);
-}
-#endif
 
 }
-#include "moc_CompositionView.cpp"
+#include "CompositionView.moc"

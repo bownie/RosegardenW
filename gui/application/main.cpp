@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -49,7 +49,6 @@
 #include <QtGui>
 #include <QPixmapCache>
 #include <QStringList>
-#include <QStyleFactory>
 
 #include <sys/time.h>
 #include <unistd.h>
@@ -368,16 +367,11 @@ int main(int argc, char *argv[])
         }
     }
 
-#ifdef DEBUG
-    // Force all Qt warnings to crash the system.
-    setenv("QT_FATAL_WARNINGS", "1", 1);
-#endif
-
     QPixmapCache::setCacheLimit(8192); // KB
 
-    //setsid(); // acquire shiny new process group
+    setsid(); // acquire shiny new process group
 
-    //srandom((unsigned int)time(0) * (unsigned int)getpid());
+    srandom((unsigned int)time(0) * (unsigned int)getpid());
 
     // we have to set the graphics system before creating theApp, or it
     // won't work, so we have to use an unusual QSettings ctor here.
@@ -461,11 +455,10 @@ int main(int argc, char *argv[])
 
     // In order to ensure the Thorn style comes out right, we need to set our
     // custom style, which is based on QPlastiqueStyle
-    //if (Thorn) QApplication::setStyle(new ThornStyle);
-
+    if (Thorn) QApplication::setStyle(new ThornStyle);
 
     RosegardenApplication theApp(argc, argv);    
-    theApp.setStyle(QStyleFactory::create("Fusion"));
+
     theApp.setOrganizationName("rosegardenmusic");
     theApp.setOrganizationDomain("rosegardenmusic.com");
     theApp.setApplicationName(QObject::tr("Rosegarden"));
@@ -540,7 +533,7 @@ int main(int argc, char *argv[])
         std::cerr << "NOTE: Found stylesheet at \"" << stylepath << "\", applying it" << std::endl;
         QFile file(stylepath);
         if (!file.open(QFile::ReadOnly)) {
-            std::cerr << "(Failed to open file)" << std::endl;
+            std::cerr << "Failed to open stylesheet" << std::endl;
         } else {
             if (Thorn) {
                 QString styleSheet = QLatin1String(file.readAll());
@@ -586,6 +579,7 @@ int main(int argc, char *argv[])
 
     }
 
+    RG_INFO << "Unbundling examples...";
     
     // unbundle examples
     QStringList exampleFiles;
@@ -602,6 +596,8 @@ int main(int argc, char *argv[])
         }
     }
 
+    RG_INFO << "Unbundling templates...";
+
     // unbundle templates
     QStringList templateFiles;
     templateFiles << ResourceFinder().getResourceFiles("templates", "rgt");
@@ -616,6 +612,8 @@ int main(int argc, char *argv[])
             }
         }
     }
+
+    RG_INFO << "Unbundling libraries (device files)...";
 
     // unbundle libraries
     QStringList libraryFiles;
@@ -675,6 +673,8 @@ int main(int argc, char *argv[])
 #else
     theApp.setNoSequencerMode(true);
 #endif // NO_SOUND
+
+    RG_INFO << "Creating RosegardenMainWindow instance...";
 
     rosegardengui = new RosegardenMainWindow(!theApp.noSequencerMode(), startLogo);
 
@@ -824,6 +824,8 @@ int main(int argc, char *argv[])
     }
     settings.endGroup();
 
+    RG_INFO << "Launching the sequencer...";
+
     try {
         rosegardengui->launchSequencer();
     } catch (std::string e) {
@@ -842,11 +844,13 @@ int main(int argc, char *argv[])
     QMessageBox::warning(0, "Rosegarden", "Warning!", QMessageBox::Ok, QMessageBox::Ok);
 #endif
 
+    RG_INFO << "Starting the app...";
+
     int returnCode = theApp.exec();
 
     // Announce end of run so that we can tell if we have crashed on
     // the way down.
-    RG_DEBUG << "Rosegarden main() exiting with rc:" << returnCode;
+    RG_INFO << "Rosegarden main() exiting with rc:" << returnCode;
 
     return returnCode;
 }

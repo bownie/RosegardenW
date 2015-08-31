@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,18 +28,18 @@ namespace Rosegarden {
 class CompositionModelImpl;
 class Composition;
 class Segment;
-class CompositionRect;
+class SegmentRect;
 
 class AudioPreviewPainter {
 public:
     AudioPreviewPainter(CompositionModelImpl& model,
-			CompositionModelImpl::AudioPreviewData* apData,
+			CompositionModelImpl::AudioPeaks* apData,
 			const Composition &composition,
 			const Segment* segment);
 
     void paintPreviewImage();
-    PixmapArray getPreviewImage();
-    const CompositionRect& getSegmentRect() { return m_rect; }
+    CompositionModelImpl::QImageVector getPreviewImage();
+    const SegmentRect& getSegmentRect() { return m_rect; }
 
     static int tileWidth();
 
@@ -49,13 +49,13 @@ protected:
 
     //--------------- Data members ---------------------------------
     CompositionModelImpl& m_model;
-    CompositionModelImpl::AudioPreviewData* m_apData;
+    CompositionModelImpl::AudioPeaks* m_apData;
     const Composition &m_composition;
     const Segment* m_segment;
-    CompositionRect m_rect;
+    SegmentRect m_rect;
 
     QImage m_image;
-    PixmapArray m_previewPixmaps;
+    CompositionModelImpl::QImageVector m_previewPixmaps;
 
     QPainter m_p;
     QPainter m_pb;

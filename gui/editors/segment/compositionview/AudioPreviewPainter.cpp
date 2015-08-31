@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -36,24 +36,26 @@
 namespace Rosegarden {
 
 AudioPreviewPainter::AudioPreviewPainter(CompositionModelImpl& model,
-					 CompositionModelImpl::AudioPreviewData* apData,
+					 CompositionModelImpl::AudioPeaks* apData,
 					 const Composition &composition,
 					 const Segment* segment)
     : m_model(model),
       m_apData(apData),
       m_composition(composition),
       m_segment(segment),
-      m_rect(model.computeSegmentRect(*(segment))),
+      m_rect(),
       m_defaultCol(CompositionColourCache::getInstance()->SegmentAudioPreview),
       m_height(model.grid().getYSnap()/2)
 {
-    int pixWidth = std::min(m_rect.getBaseWidth(), tileWidth());
+    model.getSegmentRect(*m_segment, m_rect);
+
+    int pixWidth = std::min(m_rect.baseWidth, tileWidth());
 
     //NB. m_image used to be created as an 8-bit image with 4 bits per pixel.
     // QImage::Format_Indexed8 seems to be close enough, since we manipulate the
     // pixels directly by index, rather than employ drawing tools.
-    m_image = QImage(pixWidth, m_rect.height(), QImage::Format_Indexed8);
-    m_penWidth = (std::max(1U, (unsigned int)m_rect.getPen().width()) * 2);
+    m_image = QImage(pixWidth, m_rect.rect.height(), QImage::Format_Indexed8);
+    m_penWidth = (std::max(1U, (unsigned int)m_rect.pen.width()) * 2);
     m_halfRectHeight = m_model.grid().getYSnap()/2 - m_penWidth / 2 - 2;
 }
 
@@ -66,7 +68,7 @@ int AudioPreviewPainter::tileWidth()
 
 void AudioPreviewPainter::paintPreviewImage()
 {
-    const CompositionModelImpl::AudioPreviewData::Values &values =
+    const CompositionModelImpl::AudioPeaks::Values &values =
             m_apData->values;
 
     if (values.empty())
@@ -99,14 +101,14 @@ void AudioPreviewPainter::paintPreviewImage()
 
     int samplePoints = int(values.size()) / (channels * (showMinima ? 2 : 1));
     float h1, h2, l1 = 0, l2 = 0;
-    double sampleScaleFactor = samplePoints / double(m_rect.getBaseWidth());
+    double sampleScaleFactor = samplePoints / double(m_rect.baseWidth);
     m_sliceNb = 0;
 
     initializeNewSlice();
 
     int centre = m_image.height() / 2;
 
-    RG_DEBUG << "AudioPreviewPainter::paintPreviewImage width = " << m_rect.getBaseWidth() << ", height = " << m_rect.height() << ", halfRectHeight = " << m_halfRectHeight << endl;
+    RG_DEBUG << "AudioPreviewPainter::paintPreviewImage width = " << m_rect.baseWidth << ", height = " << m_rect.rect.height() << ", halfRectHeight = " << m_halfRectHeight << endl;
 
     RG_DEBUG << "AudioPreviewPainter::paintPreviewImage: channels = " << channels << ", gain left = " << gain[0] << ", right = " << gain[1] << endl;
 
@@ -149,7 +151,7 @@ void AudioPreviewPainter::paintPreviewImage()
     bool meterLevels = (settings.value("audiopreviewstyle", 1).toUInt() 
 			== 1);
 
-    for (int i = 0; i < m_rect.getBaseWidth(); ++i) {
+    for (int i = 0; i < m_rect.baseWidth; ++i) {
 
 	// i is the x coordinate within the rectangle.  We need to
 	// calculate the position within the audio preview from which
@@ -163,7 +165,7 @@ void AudioPreviewPainter::paintPreviewImage()
 	    
 	    // First find the time corresponding to this i.
 	    timeT musicalTime =
-		m_model.grid().getRulerScale()->getTimeForX(m_rect.x() + i);
+		m_model.grid().getRulerScale()->getTimeForX(m_rect.rect.x() + i);
 	    RealTime realTime =
 		m_model.getComposition().getElapsedRealTime(musicalTime);
 	    
@@ -172,7 +174,7 @@ void AudioPreviewPainter::paintPreviewImage()
 	    double offset = time - startTime;
 
 	    if (endTime > startTime) {
-		position = offset * m_rect.getBaseWidth() / (endTime - startTime);
+		position = offset * m_rect.baseWidth / (endTime - startTime);
 		position = int(channels * position);
 	    }
 	    
@@ -255,7 +257,7 @@ void AudioPreviewPainter::paintPreviewImage()
 	    m_image.setPixel(rectX, centre + py, pixel);
 	}
 
-        if (((i+1) % tileWidth()) == 0 || i == (m_rect.getBaseWidth() - 1)) {
+        if (((i+1) % tileWidth()) == 0 || i == (m_rect.baseWidth - 1)) {
             finalizeCurrentSlice();
             initializeNewSlice();
         }
@@ -309,7 +311,7 @@ void AudioPreviewPainter::finalizeCurrentSlice()
     ++m_sliceNb;
 }
 
-PixmapArray AudioPreviewPainter::getPreviewImage()
+CompositionModelImpl::QImageVector AudioPreviewPainter::getPreviewImage()
 {
     return m_previewPixmaps;
 }

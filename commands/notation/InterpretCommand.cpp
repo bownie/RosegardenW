@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -561,10 +561,16 @@ InterpretCommand::articulate()
             timeT duration = e->getNotationDuration();
 
             // don't mess with the duration of a tied note
-            bool tiedForward = false;
-            if (e->get
-                    <Bool>(TIED_FORWARD, tiedForward) && tiedForward) {
+            bool tied = false;
+            e->get<Bool>(TIED_FORWARD, tied);
+            if (!tied)
+                e->get<Bool>(TIED_BACKWARD, tied);
+            if (tied) {
                 durationChange = 0;
+                NOTATION_DEBUG << "InterpretCommand::modifySegment: Tied "
+                               << (e->has(TIED_FORWARD) ? "for" : "back")
+                               << "ward note encountered, durationChange is "
+                               << durationChange << endl;
             }
 
             timeT newDuration = duration + duration * durationChange / 100;
@@ -574,7 +580,11 @@ InterpretCommand::articulate()
             // the performance duration of a note (that's perhaps been
             // articulated wrongly) based on the notation duration:
 
-            if (e->getDuration() != newDuration) {
+            timeT eventDuration = e->getDuration();
+
+            if (eventDuration != newDuration) {
+
+                NOTATION_DEBUG << "InterpretCommand::modifySegment: durationChange is " << durationChange << "; e->getDuration() is " << eventDuration << "; newDuration is " << newDuration << endl;
 
                 if (toErase.find(e) == toErase.end()) {
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,8 +38,7 @@ namespace Rosegarden
 SegmentTool::SegmentTool(CompositionView* canvas, RosegardenDocument *doc)
         : BaseTool("SegmentTool", canvas),
         m_canvas(canvas),
-        m_doc(doc),
-        m_changeMade(false)
+        m_doc(doc)
 {
     //RG_DEBUG << "SegmentTool::SegmentTool()";
 
@@ -73,8 +72,8 @@ SegmentTool::SegmentTool(CompositionView* canvas, RosegardenDocument *doc)
 }
 
 SegmentTool::~SegmentTool()
-{}
-
+{
+}
 
 void SegmentTool::ready()
 {
@@ -82,26 +81,34 @@ void SegmentTool::ready()
 }
 
 void
-SegmentTool::handleRightButtonPress(QMouseEvent *e)
+SegmentTool::mousePressEvent(QMouseEvent *e)
 {
-    if (m_currentIndex) // mouse button is pressed for some tool
+    // We only care about the right button.
+    if (e->button() != Qt::RightButton)
+        return;
+
+    if (m_changingSegment) // mouse button is pressed for some tool
         return ;
 
-    //RG_DEBUG << "SegmentTool::handleRightButtonPress()\n";
+    // No need to propagate.
+    e->accept();
 
-    setCurrentIndex(m_canvas->getFirstItemAt(e->pos()));
+    QPoint pos = m_canvas->viewportToContents(e->pos());
 
-    if (m_currentIndex) {
-        if (!m_canvas->getModel()->isSelected(m_currentIndex)) {
+    setChangingSegment(m_canvas->getModel()->getSegmentAt(pos));
+
+    if (m_changingSegment) {
+        if (!m_canvas->getModel()->isSelected(m_changingSegment->getSegment())) {
 
             m_canvas->getModel()->clearSelected();
-            m_canvas->getModel()->setSelected(m_currentIndex);
-            m_canvas->getModel()->signalSelection();
+            m_canvas->getModel()->setSelected(m_changingSegment->getSegment());
+            m_canvas->getModel()->selectionHasChanged();
         }
     }
 
     showMenu();
-    setCurrentIndex(CompositionItemPtr());
+
+    setChangingSegment(ChangingSegmentPtr());
 }
 
 void
@@ -131,24 +138,24 @@ SegmentTool::createMenu()
     m_menu = menu;
 }
 
-void
-SegmentTool::addCommandToHistory(Command *command)
+void SegmentTool::setChangingSegment(ChangingSegmentPtr changingSegment)
 {
-    CommandHistory::getInstance()->addCommand(command);
-}
-
-void SegmentTool::setCurrentIndex(CompositionItemPtr item)
-{
-    if (item != m_currentIndex) 
+    if (changingSegment != m_changingSegment)
     {
-        delete m_currentIndex;
-        m_currentIndex = item; 
+        m_changingSegment = changingSegment;
     }
 }
 
-SegmentToolBox* SegmentTool::getToolBox()
+void SegmentTool::setSnapTime(QMouseEvent *e, timeT snapTime)
 {
-    return m_canvas->getToolBox();
+    SnapGrid &snapGrid = m_canvas->grid();
+
+    // If shift isn't being held down
+    if ((e->modifiers() & Qt::ShiftModifier) == 0) {
+        snapGrid.setSnapTime(snapTime);
+    } else {
+        snapGrid.setSnapTime(SnapGrid::NoSnap);
+    }
 }
 
 void SegmentTool::slotEdit()
@@ -239,4 +246,4 @@ void SegmentTool::slotSplitSelected()
 
 }
 
-#include "moc_SegmentTool.cpp"
+#include "SegmentTool.moc"

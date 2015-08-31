@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -138,8 +138,7 @@ RosegardenMainViewWidget::RosegardenMainViewWidget(bool showTrackLabels,
     // Construct the trackEditor first so we can then
     // query it for placement information
     //
-    m_trackEditor = new TrackEditor(doc, this,
-                                    m_rulerScale, showTrackLabels, unitsPerPixel, this /*hbox*/);
+    m_trackEditor = new TrackEditor(doc, this, m_rulerScale, showTrackLabels);
 
     layout->addWidget(m_trackEditor);
     setLayout(layout);
@@ -194,16 +193,6 @@ RosegardenMainViewWidget::RosegardenMainViewWidget(bool showTrackLabels,
             SIGNAL(droppedNewAudio(QString)),
             this,
             SLOT(slotDroppedNewAudio(QString)));
-
-    connect(m_instrumentParameterBox,
-            SIGNAL(changeInstrumentLabel(InstrumentId, QString)),
-            this,
-            SLOT(slotChangeInstrumentLabel(InstrumentId, QString)));
-
-    connect(m_instrumentParameterBox,
-            SIGNAL(changeInstrumentLabel(InstrumentId, QString)),
-            m_trackParameterBox,
-            SLOT(slotInstrumentLabelChanged(InstrumentId, QString)));
 
     connect(m_trackEditor->getTrackButtons(),
             SIGNAL(instrumentSelected(int)),
@@ -261,9 +250,9 @@ RosegardenMainViewWidget::getSelection()
     return m_trackEditor->getCompositionView()->getSelectedSegments();
 }
 
-void RosegardenMainViewWidget::updateSelectionContents()
+void RosegardenMainViewWidget::updateSelectedSegments()
 {
-    m_trackEditor->getCompositionView()->updateSelectionContents();
+    m_trackEditor->getCompositionView()->updateSelectedSegments();
 }
 
 /* hjj: WHAT DO DO WITH THIS ?
@@ -1064,9 +1053,9 @@ void RosegardenMainViewWidget::setZoomSize(double size)
     timeT pointerTime = getDocument()->getComposition().getPosition();
     double pointerXPosition = compositionView->
         grid().getRulerScale()->getXForTime(pointerTime);
-    compositionView->setPointerPos(pointerXPosition);
+    compositionView->drawPointer(pointerXPosition);
 
-    compositionView->clearSegmentRectsCache(true);
+    compositionView->deleteCachedPreviews();
     compositionView->slotUpdateSize();
     compositionView->slotUpdateAll();
 
@@ -1220,7 +1209,7 @@ void RosegardenMainViewWidget::slotPropagateSegmentSelection(const SegmentSelect
 
     if (!segments.empty()) {
         emit stateChange("have_selection", true);
-        if (!segments.hasNonAudioSegment()) {
+        if (!hasNonAudioSegment(segments)) {
             emit stateChange("audio_segment_selected", true);
         }
     } else {
@@ -1283,7 +1272,7 @@ void RosegardenMainViewWidget::slotSelectAllSegments()
 
     if (!segments.empty()) {
         emit stateChange("have_selection", true);
-        if (!segments.hasNonAudioSegment()) {
+        if (!hasNonAudioSegment(segments)) {
             emit stateChange("audio_segment_selected", true);
         }
     } else {
@@ -1310,7 +1299,7 @@ void RosegardenMainViewWidget::slotUpdateInstrumentParameterBox(int id)
     // set prog-change select-box unchecked (if selected TrackChanged)
     MIDIInstrumentParameterPanel *mipp;
     mipp = m_instrumentParameterBox->getMIDIInstrumentParameterPanel();
-    mipp->slotToggleChangeListOnProgChange(false);
+    mipp->clearReceiveExternal();
     
     // Then do this instrument/track fiddling
     //
@@ -1534,7 +1523,7 @@ RosegardenMainViewWidget::slotSelectedSegments(const SegmentSelection &segments)
 
     if (!segments.empty()) {
         emit stateChange("have_selection", true);
-        if (!segments.hasNonAudioSegment())
+        if (!hasNonAudioSegment(segments))
             emit stateChange("audio_segment_selected", true);
     } else {
         emit stateChange("have_selection", false);
@@ -1589,7 +1578,7 @@ void RosegardenMainViewWidget::slotAddTracks(unsigned int nbTracks,
                                       InstrumentId id, int pos)
 {
     RG_DEBUG << "RosegardenMainViewWidget::slotAddTracks(" << nbTracks << ", " << pos << ")" << endl;
-    m_trackEditor->slotAddTracks(nbTracks, id, pos);
+    m_trackEditor->addTracks(nbTracks, id, pos);
 }
 
 void RosegardenMainViewWidget::slotDeleteTracks(
@@ -1599,20 +1588,13 @@ void RosegardenMainViewWidget::slotDeleteTracks(
     << "deleting " << tracks.size() << " tracks"
     << endl;
 
-    m_trackEditor->slotDeleteTracks(tracks);
+    m_trackEditor->deleteTracks(tracks);
 }
 
 void
 RosegardenMainViewWidget::slotAddCommandToHistory(Command *command)
 {
     CommandHistory::getInstance()->addCommand(command);
-}
-
-void
-RosegardenMainViewWidget::slotChangeInstrumentLabel(InstrumentId id,
-        QString label)
-{
-    m_trackEditor->getTrackButtons()->changeInstrumentName(id, label);
 }
 
 #if 0
@@ -1725,7 +1707,7 @@ RosegardenMainViewWidget::slotAddAudioSegmentDefaultPosition(AudioFileId audioFi
                 bestSoFar = ti->first;
             bool haveSegment = false;
 
-            for (segmentcontainer::const_iterator si =
+            for (SegmentMultiSet::const_iterator si =
                         comp.getSegments().begin();
                     si != comp.getSegments().end(); ++si) {
                 if ((*si)->getTrack() == ti->first) {
@@ -1795,7 +1777,7 @@ RosegardenMainViewWidget::slotDroppedNewAudio(QString audioDesc)
 
     // from qt4-doc : " don't use a (modal) QProgressDialog inside a paintEvent() !"
 
-    //cc 20140508: because ProgressDialog has WA_DeleteOnClose set, it
+    //cc 20150508: because ProgressDialog has WA_DeleteOnClose set, it
     // is destroyed if the user closes it during event processing --
     // use a QPointer to avoid dereferencing it afterwards
     QPointer<ProgressDialog> progressDlg =
@@ -2001,7 +1983,8 @@ RosegardenMainViewWidget::slotSynchroniseWithComposition()
     Track *track = comp.getTrackById(comp.getSelectedTrack());
     slotUpdateInstrumentParameterBox(track->getInstrument());
 
-    m_instrumentParameterBox->slotUpdateAllBoxes();
+    // Update the MatrixWidget's PitchRuler.
+    m_instrumentParameterBox->emitInstrumentPercussionSetChanged();
 }
 
 void
@@ -2082,6 +2065,16 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e)
         }
     }
 
+    // Delegate to the currently active track-related window.
+    // The idea here is that the user can remotely switch between the
+    // three track-related windows (rg main, MIDI Mixer, and Audio Mixer)
+    // via controller 81 (above).  Then they can control the tracks
+    // on that window via other controllers.
+
+    // The behavior is slightly different between the three windows.
+    // The main window uses controller 82 to select a track while
+    // the other two use the incoming MIDI channel to select which
+    // track will be modified.
     emit controllerDeviceEventReceived(e, m_lastActiveMainWindow);
 }
 
@@ -2120,7 +2113,7 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e, cons
             if (!instrument)
                 return ;
             instrument->setProgramChange(program);
-            emit instrumentParametersChanged(ii);
+            instrument->changed();
         }
         return ;
     }
@@ -2159,11 +2152,12 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e, cons
                 return ;
             }
 
-            ControlList cl = md->getIPBControlParameters();
+            ControlList cl = md->getControlParameters();
             for (ControlList::const_iterator i = cl.begin(); i != cl.end(); ++i) {
                 if ((*i).getControllerValue() == controller) {
                     RG_DEBUG << "Setting controller " << controller << " for instrument " << instrument->getId() << " to " << value << endl;
                     instrument->setControllerValue(controller, value);
+                    instrument->changed();
                     break;
                 }
             }
@@ -2179,22 +2173,23 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e, cons
             RG_DEBUG << "Setting volume for instrument " << instrument->getId() << " to " << value << endl;
             instrument->setLevel(AudioLevel::fader_to_dB
                                  (value, 127, AudioLevel::ShortFader));
+            instrument->changed();
             break;
 
         case MIDI_CONTROLLER_PAN:
             RG_DEBUG << "Setting pan for instrument " << instrument->getId() << " to " << value << endl;
             instrument->setControllerValue(MIDI_CONTROLLER_PAN, MidiByte((value / 64.0) * 100.0 + 0.01));
+            instrument->changed();
             break;
 
         default:
             break;
         }
+        break;
 
     default:
         break;
     }
-
-    emit instrumentParametersChanged(instrument->getId());
 
     //!!! send out updates via MIDI
 }
@@ -2249,5 +2244,17 @@ RosegardenMainViewWidget::createEventView(std::vector<Segment *> segmentsToEdit)
     return eventView;
 }
 
+bool RosegardenMainViewWidget::hasNonAudioSegment(const SegmentSelection &segments)
+{
+    for (SegmentSelection::const_iterator i = segments.begin();
+         i != segments.end();
+         ++i) {
+        if ((*i)->getType() == Segment::Internal)
+            return true;
+    }
+    return false;
 }
-#include "moc_RosegardenMainViewWidget.cpp"
+
+
+}
+#include "RosegardenMainViewWidget.moc"

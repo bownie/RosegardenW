@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -129,6 +129,8 @@
 #include "gui/dialogs/TextEventDialog.h"
 #include "gui/dialogs/SimpleEventEditDialog.h"
 #include "gui/dialogs/ConfigureDialog.h"
+
+#include "gui/dialogs/CheckForParallelsDialog.h"
 
 #include "gui/general/IconLoader.h"
 #include "gui/general/LilyPondProcessor.h"
@@ -541,6 +543,7 @@ NotationView::setupActions()
     //"document" Menubar menu
     createAction("add_tempo", SLOT(slotAddTempo()));
     createAction("add_time_signature", SLOT(slotAddTimeSignature()));
+    createAction("check_for_parallels", SLOT(slotCheckForParallels()));
 
     //"segment" Menubar menu
     // "open-with" subMenu
@@ -3559,6 +3562,26 @@ NotationView::slotAddTimeSignature()
     delete dialog;
 }
 
+// check composition for parallels
+
+void
+NotationView::slotCheckForParallels()
+{
+    qDebug() << "check for parallels...";
+
+    Segment *segment = getCurrentSegment();
+
+    if (!segment) return ;
+
+    Composition *composition = segment->getComposition();
+
+    CheckForParallelsDialog *dialog = 0;
+
+    dialog = new CheckForParallelsDialog(this, m_document, m_notationWidget->getScene(), composition);
+
+    dialog->show();
+}
+
 void
 NotationView::slotToggleRawNoteRuler()
 {
@@ -5204,4 +5227,4 @@ NotationView::slotInterpretActivate()
 
 } // end namespace Rosegarden
 
-#include "moc_NotationView.cpp"
+#include "NotationView.moc"

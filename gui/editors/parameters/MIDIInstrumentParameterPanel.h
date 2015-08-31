@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,11 +18,13 @@
 #ifndef RG_MIDIINSTRUMENTPARAMETERPANEL_H
 #define RG_MIDIINSTRUMENTPARAMETERPANEL_H
 
-#include "base/ChannelInterval.h"
-#include "base/MidiProgram.h"
-#include "base/MidiDevice.h"
+#include "base/MidiProgram.h"  // InstrumentId
+#include "base/MidiDevice.h"  // MidiByteList
+
 #include "InstrumentParameterPanel.h"
+
 #include <QString>
+#include <QSharedPointer>
 
 
 class QWidget;
@@ -32,104 +34,172 @@ class QGridLayout;
 class QFrame;
 class QCheckBox;
 class QComboBox;
-class QGroupBox;
-class QSpinBox;
 
 namespace Rosegarden
 {
 
+
 class RosegardenDocument;
 class MidiDevice;
 class Instrument;
+class InstrumentStaticSignals;
+class Rotary;
+class SqueezedLabel;
 
 
+/// "Instrument Parameters" box for MIDI Instrument's.  AKA "MIPP".
 class MIDIInstrumentParameterPanel : public InstrumentParameterPanel
 {
     Q_OBJECT
+
 public:
 
-    MIDIInstrumentParameterPanel(RosegardenDocument *doc, QWidget* parent);
+    MIDIInstrumentParameterPanel(RosegardenDocument *doc, QWidget *parent);
 
-    void setupControllers(MidiDevice *); // setup ControlParameters on box
+    /// Display a potentially different Instrument.
+    /**
+     * This is called whenever a different Instrument needs to be displayed.
+     * E.g. when the user selects a different track.
+     */
+    void displayInstrument(Instrument *);
 
-    virtual void setupForInstrument(Instrument*);
-
-    void showAdditionalControls(bool showThem);
-    
-    //void slotToggleChangeListOnProgChange(bool val);
-
-signals:
-    void changeInstrumentLabel(InstrumentId id, QString label);
-    void instrumentParametersChanged(InstrumentId);
+    /// Uncheck the Receive External checkbox.
+    /**
+     * Called by RosegardenMainViewWidget::slotUpdateInstrumentParameterBox()
+     * to clear the "Receive External" checkbox when the user selects a
+     * different track.
+     */
+    void clearReceiveExternal();
 
 public slots:
-    void slotSelectProgramNoSend(int prog, int bank_lsb, int bank_msb);
-    void slotSelectProgram(int index);
+
+    /// Handle external Bank Selects and Program Changes.
+    /**
+     * When the "Receive External" checkbox is checked, this routine takes
+     * incoming Bank Select and Program Changes, and updates the instrument's
+     * bank and program based on those.  This allows the user to quickly set
+     * the bank/program from a MIDI device instead of sifting through the
+     * typically very arbitrarily ordered bank and program changes in
+     * the comboboxes.
+     *
+     * This slot is connected in RosegardenMainWindow's ctor to
+     * SequenceManager::signalSelectProgramNoSend().
+     *
+     * Note: This function's parameters are in reverse order.  They should be:
+     *       slotExternalProgramChange(bankMSB, bankLSB, programChange)
+     *       This would require changing
+     *       SequenceManager::signalSelectProgramNoSend() as well.
+     *
+     * parameters:
+     * programChange : the program to select (triggered by Program
+     *                 Change message)
+     * bankLSB : the bank to select (-1 if no LSB Bank Select occurred)
+     *           (triggered by LSB Bank Select message)
+     * bankMSB : the bank to select (-1 if no MSB Bank Select occurred)
+     *           (triggered by MSB Bank Select message)
+     */
+    void slotExternalProgramChange(
+            int programChange, int bankLSB, int bankMSB);
+
+private slots:
+
+    /// Handle InstrumentStaticSignals::changed()
+    void slotInstrumentChanged(Instrument *);
+
+    /// Handle m_percussionCheckBox clicked()
+    void slotPercussionClicked(bool checked);
+
+    /// Handle m_bankCheckBox clicked()
+    void slotBankClicked(bool checked);
+    /// Handle m_bankComboBox activated()
     void slotSelectBank(int index);
+
+    /// Handle m_programCheckBox clicked()
+    void slotProgramClicked(bool checked);
+    /// Handle m_programComboBox activated()
+    void slotSelectProgram(int index);
+
+    /// Handle m_variationCheckBox clicked()
+    void slotVariationClicked(bool checked);
+    /// Handle m_variationComboBox activated()
     void slotSelectVariation(int index);
 
+    /// Handle m_channelValue activated()
+    void slotSelectChannel(int index);
+
+    /// Handle a rotary change (m_rotaryMapper mapped())
     void slotControllerChanged(int index);
-    void slotSetUseChannel(int index);
 
-    void slotTogglePercussion(bool value);
-    void slotToggleProgramChange(bool value);
-    void slotToggleBank(bool value);
-    void slotToggleVariation(bool value);
-    void slotToggleChangeListOnProgChange(bool val);
-    
-protected:
-
-    // fill (or hide) bank combo based on whether the instrument is percussion
-    void populateBankList();
-
-    // fill program combo based on current bank
-    void populateProgramList();
-
-    // fill (or hide) variation combo based on current bank and program
-    void populateVariationList();
-
-    // Fill the fixed channel list controls
-    void populateChannelList();
-
-    // get value of a specific rotary (keyed by controller value)
-    int getValueFromRotary(int rotary);
-
-    // set rotary to value
-    void setRotaryToValue(int controller, int value);
-
-    //--------------- Data members ---------------------------------
-
-    QLabel             *m_connectionLabel;
-
-    QComboBox          *m_bankValue;
-    QComboBox          *m_variationValue;
-    QComboBox          *m_programValue;
-
-    QCheckBox          *m_percussionCheckBox;
-    QCheckBox          *m_bankCheckBox;
-    QCheckBox          *m_variationCheckBox;
-    QCheckBox          *m_programCheckBox;
-    QCheckBox          *m_evalMidiPrgChgCheckBox;
-
-    QComboBox          *m_channelUsed;
-
-    QLabel             *m_bankLabel;
-    QLabel             *m_variationLabel;
-    QLabel             *m_programLabel;
-    QLabel             *m_evalMidiPrgChgLabel;
-    QLabel             *m_channelDisplay;
+private:
 
     QGridLayout        *m_mainGrid;
+
+    // m_instrumentLabel is inherited from InstrumentParameterPanel.
+
+    SqueezedLabel      *m_connectionLabel;
+
+    QCheckBox          *m_percussionCheckBox;
+
+    // Bank
+    QLabel             *m_bankLabel;
+    QCheckBox          *m_bankCheckBox;
+    QComboBox          *m_bankComboBox;
+    BankList            m_banks;
+    void showBank(bool show);
+    /// From the selected instrument.
+    void updateBankComboBox();
+
+    // Program
+    QLabel             *m_programLabel;
+    QCheckBox          *m_programCheckBox;
+    QComboBox          *m_programComboBox;
+    ProgramList         m_programs;
+    /// From the selected instrument.
+    void updateProgramComboBox();
+    static bool hasNoName(const MidiProgram &p);
+
+    // Variation
+    QLabel             *m_variationLabel;
+    QCheckBox          *m_variationCheckBox;
+    QComboBox          *m_variationComboBox;
+    ProgramList         m_variations;
+    void showVariation(bool show);
+    /// From the selected instrument.
+    void updateVariationComboBox();
+
+    // Channel: auto/fixed
+    QComboBox          *m_channelValue;
+
+    QLabel             *m_receiveExternalLabel;
+    QCheckBox          *m_receiveExternalCheckBox;
+
+    // Rotaries
+
     QFrame             *m_rotaryFrame;
     QGridLayout        *m_rotaryGrid;
-    RotaryMap           m_rotaries;
+
+    // ??? Consider creating a RotaryWithLabel class.  Maybe derived
+    //     from QWidget?  Then much of the creation code in
+    //     setupControllers() could be moved to this new class.
+    struct RotaryInfo
+    {
+        Rotary *rotary;
+        SqueezedLabel *label;
+        MidiByte controller;
+    };
+    typedef std::vector<RotaryInfo> RotaryInfoVector;
+    RotaryInfoVector    m_rotaries;
+
     QSignalMapper      *m_rotaryMapper;
 
-    BankList       m_banks;
-    ProgramList    m_programs;
-    MidiByteList   m_variations;
-};
+    /// Create or update the rotary controls for each controller.
+    void setupControllers(MidiDevice *);
 
+    /// Update all widgets from the selected Instrument.
+    void updateWidgets();
+
+    QSharedPointer<InstrumentStaticSignals> m_instrumentStaticSignals;
+};
 
 
 }

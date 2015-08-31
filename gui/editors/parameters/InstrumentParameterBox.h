@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,15 +20,12 @@
 #define RG_INSTRUMENTPARAMETERBOX_H
 
 #include "base/MidiProgram.h"
-#include "RosegardenParameterArea.h"
 #include "RosegardenParameterBox.h"
+
 #include <QString>
 #include <vector>
 
-#include <QStackedWidget>
-
-
-//class QWidgetStack;
+class QStackedWidget;
 class QWidget;
 class QFrame;
 
@@ -42,8 +39,20 @@ class Instrument;
 class AudioInstrumentParameterPanel;
 
 
+/// Display and allow modification of Instrument parameters for a Track
 /**
- * Display and allow modification of Instrument parameters
+ * InstrumentParameterBox is the box in the lower left of the main window
+ * with the title "Instrument Parameters".  Within this box is a stack
+ * of three widgets.  One for MIDI parameters (MIDIInstrumentParameterPanel),
+ * one for Audio parameters (AudioInstrumentParameterPanel), and an empty
+ * QFrame for no parameters (a track without an instrument).
+ *
+ * Future Direction
+ * The current design has each part of the UI connected to every other part
+ * of the UI.  This results in a combinatorial explosion of connections.
+ * A simpler design would move all notification mechanisms (Observer) out
+ * of the UI and into the data objects.  This way the various parts of the
+ * UI need only know about the data.  See CompositionObserver.
  */
 class InstrumentParameterBox : public RosegardenParameterBox
 {
@@ -56,31 +65,23 @@ public:
 
     void useInstrument(Instrument *instrument);
 
-    Instrument* getSelectedInstrument();
+    Instrument *getSelectedInstrument();
 
     void setAudioMeter(float dBleft, float dBright,
                        float recDBleft, float recDBright);
 
-    void setDocument(RosegardenDocument* doc);
-    
-    MIDIInstrumentParameterPanel * getMIDIInstrumentParameterPanel();
-    
-    virtual void showAdditionalControls(bool showThem);
+    void setDocument(RosegardenDocument *doc);
+
+    MIDIInstrumentParameterPanel *getMIDIInstrumentParameterPanel();
+
+    virtual void showAdditionalControls(bool)  { }
 
     virtual QString getPreviousBox(RosegardenParameterArea::Arrangement) const;
-    
+
+    /// Update the MatrixWidget's PitchRuler.
+    void emitInstrumentPercussionSetChanged();
 
 public slots:
-
-    // To update all InstrumentParameterBoxen for an Instrument.  Called
-    // from one of the parameter panels when something changes.
-    //
-    void slotUpdateAllBoxes();
-
-    // Update InstrumentParameterBoxes that are showing a given instrument.
-    // Called from the Outside.
-    //
-    void slotInstrumentParametersChanged(InstrumentId id);
 
     // From Plugin dialog
     //
@@ -89,15 +90,13 @@ public slots:
 
 signals:
 
-    void changeInstrumentLabel(InstrumentId id, QString label);
-
-    void selectPlugin(QWidget*, InstrumentId id, int index);
+    void selectPlugin(QWidget *, InstrumentId id, int index);
     void showPluginGUI(InstrumentId id, int index);
 
-    void instrumentParametersChanged(InstrumentId);
+    /// Update the MatrixWidget's PitchRuler.
     void instrumentPercussionSetChanged(Instrument *);
 
-protected:
+private:
 
     //--------------- Data members ---------------------------------
     QStackedWidget                  *m_widgetStack;
@@ -110,13 +109,17 @@ protected:
 
     // So we can setModified()
     //
-    RosegardenDocument                *m_doc;
-    bool                            m_lastShowAdditionalControlsArg;
-};
+    RosegardenDocument              *m_doc;
 
-// Global references
-//
-static std::vector<InstrumentParameterBox*> instrumentParamBoxes;
+    // Global references
+    //
+    // Since there is only one instance of InstrumentParameterBox
+    // ever created, this is probably unnecessary.  Consider getting
+    // rid of it altogether.
+    // Used by: nobody
+    typedef std::vector<InstrumentParameterBox *> IPBVector;
+    static IPBVector m_instrumentParamBoxes;
+};
 
 
 }

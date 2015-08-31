@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -117,15 +117,12 @@ ThornStyle::standardIconImplementation(StandardPixmap standardIcon,
     case SP_MediaVolumeMuted:
     case SP_CustomBase:
     default:
-        ;
         // let QPlastiqueStyle handle the rest
-        //return QPlastiqueStyle::standardPixmap(standardIcon, option, parent);
+        return QPlastiqueStyle::standardPixmap(standardIcon, option, parent);
     }
-
-    return IconLoader().loadPixmap("messagebox-question");
 }
 
 
 }
 
-#include "moc_ThornStyle.cpp"
+#include "ThornStyle.moc"

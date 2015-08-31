@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -95,7 +95,7 @@ public:
 
     /// A Segment contains either Internal representation or Audio
     typedef enum {
-        Internal,
+        Internal,  // ??? rename: MIDI
         Audio
     } SegmentType;
 
@@ -153,6 +153,8 @@ public:
      * Get the Segment type (Internal or Audio)
      */
     SegmentType getType() const { return m_type; }
+    bool isMIDI() const  { return (m_type == Internal); }
+    bool isAudio() const  { return (m_type == Audio); }
 
     /**
      * Get the element name this class will have when serialised
@@ -727,10 +729,15 @@ public:
         }
     };
 
-    typedef std::multiset<Segment*, Segment::SegmentCmp> segmentcontainer;
+    // This is a std::multiset because the segments aren't indexed by
+    // pointer address, they are indexed by track, then start time on
+    // a track (see SegmentCmp).  And it is not unusual for two
+    // Segments to start at the same time on the same track.
+    // ??? rename: SegmentMultiSet
+    typedef std::multiset<Segment *, Segment::SegmentCmp> SegmentMultiSet;
 
     // Get the segments in the current composition.
-    static segmentcontainer& getCompositionSegments(void);
+    static SegmentMultiSet& getCompositionSegments(void);
     
     void  addObserver(SegmentObserver *obs) { m_observers.push_back(obs); }
     void removeObserver(SegmentObserver *obs) { m_observers.remove(obs); }
@@ -988,7 +995,8 @@ private:
     int m_verse;       // Used to distribute lyrics among repeated segments
 };
 
-typedef Segment::segmentcontainer segmentcontainer;
+// Make it a global name.
+typedef Segment::SegmentMultiSet SegmentMultiSet;
 
 /// Base class interface for Segment notifications.
 /**
@@ -1011,7 +1019,7 @@ public:
     // Exists just for performance reasons.  Called in lieu of calling
     // eventAdded or eventRemoved many times.  The default just calls
     // both eventRemoved() and eventAdded() on every event.
-    virtual void AllEventsChanged(const Segment *);
+    virtual void allEventsChanged(const Segment *);
 
     /**
      * Called after a change in the segment that will change the way its displays,
@@ -1033,7 +1041,8 @@ public:
 
     /**
      * Called from the segment dtor
-     * MUST BE IMPLEMENTED BY ALL OBSERVERS
+     * All observers must implement this and call removeObserver() to
+     * remove themselves as observers.
      */
     virtual void segmentDeleted(const Segment *) = 0;
 };

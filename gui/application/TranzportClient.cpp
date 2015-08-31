@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     This file is Copyright 2009
         Immanuel Litzroth         <immanuel203@gmail.com>
@@ -61,7 +61,7 @@ TranzportClient::TranzportClient(RosegardenMainWindow* rgGUIApp) :
     if (m_descriptor < 0) {
         throw Exception(qstrtostr(QObject::tr("Failed to open tranzport device /dev/tranzport0")));
     }
-/*
+
     bzero(currentbuf,8);
     bzero(previousbuf,8);
 
@@ -70,7 +70,7 @@ TranzportClient::TranzportClient(RosegardenMainWindow* rgGUIApp) :
     if (socketFlags != -1) {
         fcntl(m_descriptor, F_SETFL, socketFlags | O_NONBLOCK);
     }
-*/
+
     m_socketReadNotifier = new QSocketNotifier(m_descriptor, QSocketNotifier::Read, 0);
     m_socketWriteNotifier = new QSocketNotifier(m_descriptor, QSocketNotifier::Write,0);
 
@@ -684,4 +684,4 @@ TranzportClient::readData()
 
 }
 
-#include "moc_TranzportClient.cpp"
+#include "TranzportClient.moc"

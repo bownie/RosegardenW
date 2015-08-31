@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -175,6 +175,7 @@ public slots:
 protected:
     virtual void showEvent(QShowEvent * event);
     void hideOrShowRulers();
+    bool linearMode();   // Return true when notation page layout is linear
 
 protected slots:
     void slotDispatchMousePress(const NotationMouseEvent *);
@@ -286,7 +287,6 @@ private:
 
     QGridLayout *m_layout; // I own this
 
-    bool m_linearMode;
     bool m_tempoRulerIsVisible;         // Only valid in linear mode
     bool m_rawNoteRulerIsVisible;       // Only valid in linear mode
     bool m_chordNameRulerIsVisible;     // Only valid in linear mode

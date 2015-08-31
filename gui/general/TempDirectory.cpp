@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     This file originally from Sonic Visualiser, copyright 2006 Chris
     Cannam.
@@ -124,8 +124,8 @@ TempDirectory::createTempDirectoryIn(QString dir)
 
     QString suffix;
     int padlen = 6, attempts = 100;
-    //unsigned int r = time(0) ^ getpid();
-    unsigned r = 1;
+    unsigned int r = time(0) ^ getpid();
+
     for (int i = 0; i < padlen; ++i) {
         suffix += "X";
     }
@@ -264,7 +264,6 @@ TempDirectory::cleanupAbandonedDirectories(QString rgDir)
             int pid = QFileInfo(subdir[j]).baseName().toInt(&ok);
             if (!ok) continue;
 
-            /*
             if (kill(getpid(), 0) == 0 && kill(pid, 0) != 0) {
                 std::cerr << "INFO: Found abandoned temporary directory from "
                           << "a previous, defunct process\n(pid=" << pid
@@ -274,7 +273,7 @@ TempDirectory::cleanupAbandonedDirectories(QString rgDir)
                 cleanupDirectory(dir.filePath(dir[i]));
                 std::cerr << "...done." << std::endl;
                 break;
-            }*/
+            }
         }
     }
 }

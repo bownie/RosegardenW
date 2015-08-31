@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -50,14 +50,12 @@ public:
 private:
     typedef std::map<timeT, tempoT> TempoMap;
     typedef std::pair<timeT, tempoT> TempoChange;
-    typedef std::multiset<Segment*, Segment::SegmentCmp>
-        segmentcontainer;
     typedef std::vector<RealTime> vecRealTime;
     
     void initialise(Segment *s);
     void changeAllTempi(TempoMap newTempi);
-    void changeSegments(segmentcontainer oldSegments,
-                        segmentcontainer newSegments);
+    void changeSegments(SegmentMultiSet oldSegments,
+                        SegmentMultiSet newSegments);
 
     static int
         getBeatRealTimes(Segment *s, vecRealTime &beatRealTimes);
@@ -68,8 +66,8 @@ private:
 
     Composition *m_composition;
 
-    segmentcontainer m_oldSegments;
-    segmentcontainer m_newSegments;
+    SegmentMultiSet m_oldSegments;
+    SegmentMultiSet m_newSegments;
     // !!! These don't need to be maps but they do need to associate
     // with a timeT.  Could just use a TempoChange.
     TempoMap m_oldTempi;

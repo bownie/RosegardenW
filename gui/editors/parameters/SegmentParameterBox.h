@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -21,6 +21,7 @@
 
 #include "base/Composition.h"
 #include "base/MidiProgram.h"
+#include "base/Selection.h"
 #include "gui/widgets/ColourTable.h"
 #include "RosegardenParameterArea.h"
 #include "RosegardenParameterBox.h"
@@ -42,7 +43,7 @@ namespace Rosegarden
 
 class Command;
 class TristateCheckBox;
-class SegmentSelection;
+class Label;
 class Segment;
 class RosegardenDocument;
 class Composition;
@@ -122,7 +123,7 @@ protected:
     void populateBoxFromSegments();
     void updateHighLow();
 
-    QLabel                     *m_label;
+    Label                      *m_label;
 //    QLabel                     *m_rangeLabel;
     QPushButton                *m_labelButton;
 //    QPushButton                *m_highButton;

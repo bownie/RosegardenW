@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -67,6 +67,9 @@
 #include <QHBoxLayout>
 #include <QShortcut>
 #include <QDesktopServices>
+#if QT_VERSION >= 0x050000
+#include <QStandardPaths>
+#endif
 #include <QDialogButtonBox>
 #include <QSettings>
 
@@ -1554,7 +1557,11 @@ BankEditorDialog::addCommandToHistory(Command *command)
 void
 BankEditorDialog::slotImport()
 {
+#if QT_VERSION >= 0x050000
     QString home = QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::HomeLocation)).path();
+#else
+    QString home = QUrl::fromLocalFile(QDesktopServices::storageLocation(QDesktopServices::HomeLocation)).path();
+#endif
     QString deviceDir = home + "/.local/share/rosegarden/library";
 
     QString url_str = FileDialog::getOpenFileName(this, tr("Import Banks from Device in File"), deviceDir,
@@ -1654,7 +1661,9 @@ void
 BankEditorDialog::slotEdit(QTreeWidgetItem * item, int)
 {
     std::cout << "BankEditorDialog::slotEdit()" << std::endl;
-    m_treeWidget->editItem(item);
+
+    if (item->flags() & Qt::ItemIsEditable)
+        m_treeWidget->editItem(item);
 }
 
 void
@@ -1862,4 +1871,4 @@ BankEditorDialog::slotHelpAbout()
     new AboutDialog(this);
 }
 }
-#include "moc_BankEditorDialog.cpp"
+#include "BankEditorDialog.moc"

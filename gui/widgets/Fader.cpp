@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -50,6 +50,7 @@ Fader::Fader(AudioLevel::FaderType type,
         m_vertical(h > w),
         m_min(0),
         m_max(0),
+        m_default(0),
         m_type(type),
         m_clickMousePos( -1)
 {
@@ -74,6 +75,7 @@ Fader::Fader(AudioLevel::FaderType type,
 
     calculateGroovePixmap();
     setFader(0.0);
+    emit faderChanged(m_value);
 }
 
 Fader::Fader(int min, int max, int deflt,
@@ -83,6 +85,7 @@ Fader::Fader(int min, int max, int deflt,
         m_vertical(h > w),
         m_min(min),
         m_max(max),
+        m_default(deflt),
         m_clickMousePos( -1)
 {
 //    setBackgroundMode(Qt::NoBackground);
@@ -106,6 +109,7 @@ Fader::Fader(int min, int max, int deflt,
 
     calculateGroovePixmap();
     setFader(deflt);
+    emit faderChanged(m_value);
 }
 
 Fader::Fader(int min, int max, int deflt,
@@ -115,6 +119,7 @@ Fader::Fader(int min, int max, int deflt,
         m_vertical(vertical),
         m_min(min),
         m_max(max),
+        m_default(deflt),
         m_clickMousePos( -1)
 {
 //    setBackgroundMode(Qt::NoBackground);
@@ -132,6 +137,7 @@ Fader::Fader(int min, int max, int deflt,
 
     calculateGroovePixmap();
     setFader(deflt);
+    emit faderChanged(m_value);
 }
 
 Fader::~Fader()
@@ -178,8 +184,10 @@ Fader::getFaderLevel() const
 void
 Fader::setFader(float value)
 {
+    if (m_value == value)
+        return;
+
     m_value = value;
-    emit faderChanged(value);
     update();
 }
 
@@ -337,6 +345,7 @@ Fader::mousePressEvent(QMouseEvent *e)
 
         if (e->type() == QEvent::MouseButtonDblClick) {
             setFader(0);
+            emit faderChanged(m_value);
             return ;
         }
 
@@ -351,7 +360,14 @@ Fader::mousePressEvent(QMouseEvent *e)
                 showFloatText();
             }
         }
+    } else if (e->button() == Qt::MidButton) {  // reset to centre position
+        setFader((m_max + m_min) / 2.0);
+        emit faderChanged(m_value);
+    } else if (e->button() == Qt::RightButton) {  // reset to default
+        setFader(m_default);
+        emit faderChanged(m_value);
     }
+
 }
 
 void
@@ -375,6 +391,7 @@ Fader::mouseMoveEvent(QMouseEvent *e)
                 buttonPosition = m_sliderMax - m_sliderMin;
             }
             setFader(position_to_value(buttonPosition));
+            emit faderChanged(m_value);
             showFloatText();
         }
     }
@@ -397,6 +414,7 @@ Fader::wheelEvent(QWheelEvent *e)
     }
     RG_DEBUG << "Fader::wheelEvent - button position = " << buttonPosition << endl;
     setFader(position_to_value(buttonPosition));
+    emit faderChanged(m_value);
     RG_DEBUG << "Fader::wheelEvent - value = " << m_value << endl;
 
     showFloatText();
@@ -594,4 +612,4 @@ Fader::calculateButtonPixmap()
 }
 
 }
-#include "moc_Fader.cpp"
+#include "Fader.moc"

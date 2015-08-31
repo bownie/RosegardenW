@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -52,10 +52,10 @@ SegmentSyncCommand::SegmentSyncCommand(std::vector<Segment *> segments, int newT
     }
 }
 
-SegmentSyncCommand::SegmentSyncCommand(segmentcontainer& segments, TrackId selectedTrack, int newTranspose, int lowRange, int highRange, const Clef& clef) :
+SegmentSyncCommand::SegmentSyncCommand(SegmentMultiSet& segments, TrackId selectedTrack, int newTranspose, int lowRange, int highRange, const Clef& clef) :
         MacroCommand(tr("Sync segment parameters"))
 {
-    for (segmentcontainer::const_iterator si = segments.begin();
+    for (SegmentMultiSet::const_iterator si = segments.begin();
                         si != segments.end(); ++si) {
         if ((*si)->getTrack() == selectedTrack) {
             processSegment(**si, newTranspose, lowRange, highRange, clef);

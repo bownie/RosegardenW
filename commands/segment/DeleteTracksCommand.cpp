@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -52,35 +52,44 @@ DeleteTracksCommand::~DeleteTracksCommand()
 
 void DeleteTracksCommand::execute()
 {
-    //RG_DEBUG << "DeleteTracksCommand::execute()";
-
     // Clear out the undo info.
     m_oldSegments.clear();
     m_oldTracks.clear();
 
-    // Aliases for readability
-    const segmentcontainer &segments =
-        m_composition->getSegments();
-    Composition::trackcontainer &tracks = m_composition->getTracks();
+    // Alias for readability
+    const SegmentMultiSet &segments = m_composition->getSegments();
 
     // Remove the tracks and their segments.
 
     // For each track we are deleting.
     for (size_t i = 0; i < m_tracks.size(); ++i) {
-
-        Track *track = m_composition->getTrackById(m_tracks[i]);
+        TrackId trackId = m_tracks[i];
+        Track *track = m_composition->getTrackById(trackId);
 
         if (track) {
+            // ??? The following segment removal code will never find any
+            //     segments to remove.  All clients of this class make sure
+            //     the segments are removed before the tracks are removed.
+            //     This code should be removed and replaced with a check to
+            //     make sure that the segments have been removed before
+            //     removing the tracks.  Segment removal is a bit tricky
+            //     for audio segments.  We should limit the kludge to
+            //     SegmentEraseCommand.
+
             // For each segment in the composition.
-            for (segmentcontainer::const_iterator it =
-                     segments.begin();
-                 it != segments.end(); ++it) {
+            for (SegmentMultiSet::const_iterator j = segments.begin();
+                 j != segments.end();
+                 /* incremented inside */) {
+                // Increment before use.  Otherwise detachSegment() will
+                // invalidate our iterator.
+                SegmentMultiSet::const_iterator k = j++;
+
                 // If this segment is on the track we are deleting
-                if ((*it)->getTrack() == m_tracks[i]) {
+                if ((*k)->getTrack() == trackId) {
                     // Save the segment for undo.
-                    m_oldSegments.push_back(*it);
+                    m_oldSegments.push_back(*k);
                     // Remove the segment from the composition.
-                    m_composition->detachSegment(*it);
+                    m_composition->detachSegment(*k);
                 }
             }
 
@@ -95,6 +104,8 @@ void DeleteTracksCommand::execute()
 
     // Adjust the track position numbers to remove any gaps.
 
+    Composition::trackcontainer &tracks = m_composition->getTracks();
+
     // For each deleted track
     for (std::vector<Track*>::iterator oldTrackIter = m_oldTracks.begin();
          oldTrackIter != m_oldTracks.end();
@@ -104,12 +115,12 @@ void DeleteTracksCommand::execute()
              compTrackIter != tracks.end();
              ++compTrackIter) {
             // If the composition track was after the deleted track
-            if ((*compTrackIter).second->getPosition() > 
+            if (compTrackIter->second->getPosition() >
                     (*oldTrackIter)->getPosition()) {
                 // Decrement the composition track's position to close up
                 // the gap in the position numbers.
-                int newPosition = (*compTrackIter).second->getPosition() - 1;
-                (*compTrackIter).second->setPosition(newPosition);
+                int newPosition = compTrackIter->second->getPosition() - 1;
+                compTrackIter->second->setPosition(newPosition);
             }
         }
     }
@@ -136,10 +147,6 @@ void DeleteTracksCommand::unexecute()
         // From the back we shift the track positions in the composition
         // to allow the new (old) track some space to come back in.
 
-        // ??? There's no need to do this in reverse.  Doing this forward will
-        //     work just as well.  We are visiting every single track in the
-        //     Composition either way.
-
         Composition::trackiterator compTrackIter = tracks.end();
         while (true) {
             --compTrackIter;
@@ -163,6 +170,8 @@ void DeleteTracksCommand::unexecute()
     }
 
     // Add the old segments back in.
+    // ??? This is not good enough for audio segments.  See
+    //     SegmentEraseCommand::unexecute().
     for (size_t i = 0; i < m_oldSegments.size(); ++i)
         m_composition->addSegment(m_oldSegments[i]);
 

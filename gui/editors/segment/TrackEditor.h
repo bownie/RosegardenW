@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -26,7 +26,7 @@
 #include <QWidget>
 #include <QScrollArea>
 
-#include <map>
+#include <vector>
 
 
 class QPaintEvent;
@@ -42,40 +42,43 @@ class Command;
 class TrackButtons;
 class TempoRuler;
 class Segment;
-class RulerScale;
+class SimpleRulerScale;
 class RosegardenDocument;
-class QDeferScrollView;
+class DeferScrollArea;
 class CompositionView;
 class CompositionModelImpl;
 class ChordNameRuler;
 class StandardRuler;
 
+/// Holds the CompositionView, TrackButtons, and Rulers.
 /**
- * Global widget for segment edition.
- *
- * Shows a global overview of the composition, and lets the user
- * manipulate the segments.
- *
  * An object of this class is created and owned by RosegardenMainViewWidget.
+ * It can be accessed globally as follows:
  *
- * @see CompositionView
+ *   RosegardenMainWindow::self()->getView()->getTrackEditor()
+ *
+ * This class owns instances of the following classes:
+ *
+ *   * CompositionView - The segment canvas.
+ *   * TrackButtons - The buttons to the left of the segment canvas.
+ *   * Various Rulers
+ *
  * @see RosegardenMainViewWidget::getTrackEditor()
  */
 class TrackEditor : public QWidget
 {
     Q_OBJECT
 public:
-    /**
-     * Create a new TrackEditor representing the document \a doc
-     */
-    TrackEditor(RosegardenDocument* doc,
-                QWidget* rosegardenguiview,
-                RulerScale *rulerScale,
-                bool showTrackLabels,
-                double initialUnitsPerPixel = 0,
-                QWidget* parent = 0);
+    TrackEditor(RosegardenDocument *doc,
+                RosegardenMainViewWidget *mainViewWidget,
+                SimpleRulerScale *rulerScale,
+                bool showTrackLabels);
 
-    ~TrackEditor();
+    // ??? These accessors are mostly for RosegardenMainViewWidget.
+    //     Consider moving the code from RosegardenMainViewWidget into
+    //     here and wrapping in functions at a higher level of
+    //     abstraction instead of exposing internals.  The ruler
+    //     functions should be easy to start with.  See updateRulers().
 
     CompositionView *getCompositionView()     { return m_compositionView; }
     TempoRuler      *getTempoRuler()          { return m_tempoRuler; }
@@ -83,164 +86,175 @@ public:
     StandardRuler   *getTopStandardRuler()    { return m_topStandardRuler; }
     StandardRuler   *getBottomStandardRuler() { return m_bottomStandardRuler; }
     TrackButtons    *getTrackButtons()        { return m_trackButtons; }
-    RulerScale      *getRulerScale()          { return m_rulerScale; }
+    //RulerScale      *getRulerScale()          { return m_rulerScale; }
 
-    int getTrackCellHeight() const;
-
-    /**
-     * Add a new segment - DCOP interface
-     */
-    virtual void addSegment(int track, int start, unsigned int duration);
-
-    /**
-     * Manage command history
-     */
-    void addCommandToHistory(Command *command);
-
+    /// Calls update() on each of the rulers.
     void updateRulers();
 
+    /// Are we scrolling as we play?
     bool isTracking() const { return m_playTracking; }
+    /// Toggle playback scrolling.
+    void toggleTracking();
+
+    /// Adjust the canvas size to that required for the composition
+    void updateCanvasSize();
+
+    void addTracks(unsigned int nbTracks, InstrumentId id, int position);
+    void deleteTracks(std::vector<TrackId> tracks);
+    void deleteSelectedSegments();
+    void turnRepeatingSegmentToRealCopies();
+    void turnLinkedSegmentsToRealCopies();
+
+    // Add a new segment - DCOP interface
+    //virtual void addSegment(int track, int start, unsigned int duration);
 
 public slots:
 
+    /// Scroll the view such that the numbered track is on-screen
     /**
-     * Scroll the view such that the numbered track is on-screen
+     * RosegardenMainWindow::setDocument() connects this to
+     * RosegardenDocument::makeTrackVisible(int).
      */
     void slotScrollToTrack(int trackPosition);
 
-    /**
-     * Set the position pointer during playback
-     */
-    void slotSetPointerPosition(timeT position);
-
-    /**
-     * Update the pointer position as it is being dragged along
-     * This changes how the segment canvas will scroll to follow the pointer
-     */
-    void slotPointerDraggedToPosition(timeT position);
-
-    /**
-     * Update the loop end position as it is being dragged along
-     * This changes how the segment canvas will scroll to follow the pointer
-     */
-    void slotLoopDraggedToPosition(timeT position);
-
-    /**
-     * Act on a canvas scroll event
-     */
-    void slotCanvasScrolled(int, int);
-
-    /**
-     * Adjust the canvas size to that required for the composition
-     */
-    void slotReadjustCanvasSize();
-
-    /**
-     * Show the given loop on the ruler or wherever
-     */
-    void slotSetLoop(timeT start, timeT end);
-
-    /**
-     * Add given number of tracks
-     */
-    void slotAddTracks(unsigned int nbTracks, InstrumentId id, int position);
-
-    /*
-     * Delete a given track
-     */
-    void slotDeleteTracks(std::vector<TrackId> tracks);
-
-    void slotDeleteSelectedSegments();
-    void slotTurnRepeatingSegmentToRealCopies();
-    void slotTurnLinkedSegmentsToRealCopies();
-
-    void slotToggleTracking();
-
-protected slots:
-    // Dead Code.
-//    void slotSegmentOrderChanged(int section, int fromIdx, int toIdx);
-
-    //void slotTrackButtonsWidthChanged();
-
-    /// Scroll the track buttons along with the segment canvas
-    void slotVerticalScrollTrackButtons(int y);
-
 signals:
     /**
+     * init() connects this to RosegardenMainViewWidget::stateChange().
+     *
+     * Used to modify have_segments and have_selection states.
+     */
+    void stateChange(QString name, bool state);
+
+    /// A URI to a Rosegarden document was dropped on the canvas.
+    /**
+     * RosegardenMainViewWidget's ctor connects this to
+     * RosegardenMainWindow::slotOpenDroppedURL().
+     */
+    void droppedDocument(QString uri);
+
+    /// An audio file was dropped from the audio manager dialog.
+    /**
+     * RosegardenMainViewWidget's ctor connects this to
+     * RosegardenMainViewWidget::slotDroppedAudio().
+     */
+    void droppedAudio(QString audioDesc);
+
+    /// An audio file was dropped from an external application.
+    /**
+     * Inserts the audio file into AudioManagerDialog before adding to the
+     * composition.
+     *
+     * RosegardenMainViewWidget's ctor connects this to
+     * RosegardenMainViewWidget::slotDroppedNewAudio().
+     */
+    void droppedNewAudio(QString audioDesc);
+
+    /*
      * Emitted when the represented data changed and the CompositionView
      * needs to update itself
      *
      * @see CompositionView::update()
      */
-    // Dead Code.
-//    void needUpdate();
+    //void needUpdate();
 
+private slots:
+    /// Set the position pointer during playback
     /**
-     * sent back to RosegardenGUI
-     */
-    void stateChange(QString, bool);
-
-    /**
-     * A URI to a Rosegarden document was dropped on the canvas
+     * Scrolls as needed to keep the position pointer visible.
      *
-     * @see RosegardenGUI#slotOpenURL()
+     * init() connects this to
+     * RosegardenDocument::pointerPositionChanged(timeT).
      */
-    void droppedDocument(QString uri);
+    void slotSetPointerPosition(timeT pointerTime);
 
+    /// Update the pointer position as it is being dragged along.
     /**
-     * An audio file was dropped from the audio manager dialog
+     * Scroll to make sure the pointer is visible.
+     *
+     * init() connects this to the top and bottom rulers'
+     * dragPointerToPosition(timeT).
      */
-    void droppedAudio(QString audioDesc);
+    void slotPointerDraggedToPosition(timeT position);
 
+    /// Scroll to make sure the loop end is visible.
     /**
-     * And audio file was dropped from konqi say and needs to be
-     * inserted into AudioManagerDialog before adding to the 
-     * composition.
+     * init() connects this to the top and bottom rulers'
+     * dragLoopToPosition(timeT).
      */
-    void droppedNewAudio(QString audioDesc);
+    void slotLoopDraggedToPosition(timeT position);
 
-protected:
+    /// Show the given loop on the rulers
+    /**
+     * init() connects this to RosegardenDocument::loopChanged().
+     */
+    void slotSetLoop(timeT start, timeT end);
+
+    /// Scroll the track buttons along with the segment canvas
+    void slotVerticalScrollTrackButtons(int y);
+
+    /// Triggers a refresh if the composition has changed.
+    void slotCommandExecuted();
+
+    /// Adjust the size of the TrackButtons to match the CompositionView.
+    /**
+     * Connected to RosegardenScrollView::viewportResize().
+     */
+    void slotViewportResize();
+
+    // Act on a canvas scroll event
+    //void slotCanvasScrolled(int, int);
+    //void slotSegmentOrderChanged(int section, int fromIdx, int toIdx);
+    //void slotTrackButtonsWidthChanged();
+
+private:
+
+    /// Initialization routine called by ctor.
+    void init(RosegardenMainViewWidget *);
 
     // QWidget overrides.
-    virtual void dragEnterEvent(QDragEnterEvent *event);
-    virtual void dropEvent(QDropEvent*);
+    virtual void dragEnterEvent(QDragEnterEvent *);
+    virtual void dropEvent(QDropEvent *);
     virtual void dragMoveEvent(QDragMoveEvent *);
-    virtual void paintEvent(QPaintEvent* e);
-    
-    void init(QWidget *);
 
-    bool isCompositionModified();
-    void setCompositionModified(bool);
-    
-    /// return true if an actual move occurred between current and new position, newPosition contains the horiz. pos corresponding to newTimePosition
-    bool handleAutoScroll(int currentPosition, timeT newTimePosition, double& newPosition);
-    
+    /// Scroll when dragging the pointer or loop end.
+    /**
+     * Returns true if an actual move occurred between currentPosition and
+     * newTimePosition.  Output parameter newPosition contains the horizontal
+     * position corresponding to newTimePosition.
+     */
+    bool handleAutoScroll(
+            int currentPosition, timeT newTimePosition, double &newPosition);
+
+    /// Wrapper around CommandHistory::addCommand().
+    void addCommandToHistory(Command *command);
+
     //--------------- Data members ---------------------------------
 
     RosegardenDocument      *m_doc;
-    
-    RulerScale              *m_rulerScale;
+    unsigned int             m_compositionRefreshStatusId;
+
+    // Segment Canvas
+    CompositionView         *m_compositionView;
+    CompositionModelImpl    *m_compositionModel;
+    bool                     m_playTracking;
+    int                      m_trackCellHeight;
+
+    // Track Buttons to the left of the Segment Canvas
+    TrackButtons            *m_trackButtons;
+    // Scrollable parent for the TrackButtons.
+    DeferScrollArea         *m_trackButtonScroll;
+    bool                     m_showTrackLabels;
+
+    // Rulers
+    SimpleRulerScale        *m_rulerScale;
     TempoRuler              *m_tempoRuler;
     ChordNameRuler          *m_chordNameRuler;
     StandardRuler           *m_topStandardRuler;
     StandardRuler           *m_bottomStandardRuler;
-    TrackButtons            *m_trackButtons;
-    CompositionView         *m_compositionView;
-    CompositionModelImpl    *m_compositionModel;
-    QScrollArea             *m_trackButtonScroll;
 
-    bool                     m_showTrackLabels;
-    unsigned int             m_canvasWidth;
-    unsigned int             m_compositionRefreshStatusId;
-    bool                     m_playTracking;
-
-    typedef std::map<Segment *, unsigned int>
-        SegmentRefreshStatusIdMap;
-    SegmentRefreshStatusIdMap m_segmentsRefreshStatusIds;
-
-    double                   m_initialUnitsPerPixel;
-
-private:
+    //unsigned int             m_canvasWidth;
+    //typedef std::map<Segment *, unsigned int> SegmentRefreshStatusIdMap;
+    //SegmentRefreshStatusIdMap m_segmentsRefreshStatusIds;
 };
 
 

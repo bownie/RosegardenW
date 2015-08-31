@@ -2,7 +2,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -87,7 +87,9 @@ public Q_SLOTS:
     * QLabel* label = squeezed;
     * label->setText("new text");    // this will not work
     * squeezed->setText("new text");    // works as expected
-    * static_cast<SqueezedLabel*>(label)->setText("new text");    // works as expected
+    * // Dynamic downcast from QLabel to SqueezedLabel.
+    * SqueezedLabel *s2 = dynamic_cast<SqueezedLabel *>(label);
+    * if (s2) s2->setText("new text");    // works as expected
     * \endcode
     * @param mode The new text.
     */

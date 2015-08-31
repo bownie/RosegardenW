@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -91,10 +91,6 @@ struct ControllerAndPBList
 class ChannelManager : public QObject
 {
     Q_OBJECT
-
-    friend class InternalSegmentMapper;
-    friend class MetronomeMapper;
-    friend class ImmediateNote;
 
 public:
     /// %Controller and pitchbend info callback interface.
@@ -226,6 +222,10 @@ public:
 
     /// Set the instrument we are playing on, releasing any old one.
     void setInstrument(Instrument *instrument);
+
+    /// Get the instrument we are playing on.  Can return NULL.
+    Instrument *getInstrument(void) const
+    { return m_instrument; }
 
     void setDirty(void)  { m_inittedForOutput = false; }
 

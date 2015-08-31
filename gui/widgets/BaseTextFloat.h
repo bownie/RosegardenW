@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -117,6 +117,10 @@ protected :
     // Position of top left corner of the parent widget relative to the
     // top left corner of either top level or dialog window. 
     QPoint   m_totalPos;
+
+    // Width and height of text-bounding rectangle.
+    int m_width;
+    int m_height;
 };
 
 }

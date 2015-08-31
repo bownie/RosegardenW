@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,6 +22,7 @@
 #include "base/MidiDevice.h"
 #include "gui/general/ActionFileClient.h"
 #include "MixerWindow.h"
+#include <QSharedPointer>
 #include <vector>
 
 
@@ -39,6 +40,7 @@ class RosegardenDocument;
 class MidiMixerVUMeter;
 class MappedEvent;
 class Fader;
+class InstrumentStaticSignals;
 
 
 class MidiMixerWindow : public MixerWindow, public ActionFileClient
@@ -62,8 +64,13 @@ public:
 public slots:
     void slotSynchronise(); // synchronise with updated studio
 
+    /// Handle events from the external controller port.
+    /**
+     * @see RosegardenMainViewWidget::slotControllerDeviceEventReceived()
+     * @see AudioMixerWindow::slotControllerDeviceEventReceived()
+     */
     void slotControllerDeviceEventReceived(MappedEvent *,
-                                           const void *);
+                                           const void *preferredCustomer);
 
     void slotCurrentTabChanged(QWidget *);
     void slotHelpRequested();
@@ -79,11 +86,8 @@ signals:
     void record();
     void panic();
 
-    // to be redirected to the instrument parameter box if necessary
-    void instrumentParametersChanged(InstrumentId);
-
 protected slots:
-    void slotUpdateInstrument(InstrumentId);
+    void slotInstrumentChanged(Instrument *);
 
     //void slotPanChanged(float);
     void slotFaderLevelChanged(float);
@@ -117,6 +121,7 @@ protected:
     // Grab IPB controls and remove Volume.
     ControlList getIPBForMidiMixer(MidiDevice *) const;
 
+    QSharedPointer<InstrumentStaticSignals> m_instrumentStaticSignals;
 };
 
 

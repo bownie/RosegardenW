@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -24,13 +24,14 @@
 #include "base/SnapGrid.h"
 #include "commands/segment/AudioSegmentSplitCommand.h"
 #include "commands/segment/SegmentSplitCommand.h"
-#include "CompositionItemHelper.h"
 #include "CompositionView.h"
 #include "document/RosegardenDocument.h"
 #include "gui/general/BaseTool.h"
 #include "gui/general/RosegardenScrollView.h"
 #include "SegmentTool.h"
 #include "document/Command.h"
+#include "document/CommandHistory.h"
+
 #include <QPoint>
 #include <QRect>
 #include <QString>
@@ -39,6 +40,9 @@
 
 namespace Rosegarden
 {
+
+
+const QString SegmentSplitter::ToolName = "segmentsplitter";
 
 SegmentSplitter::SegmentSplitter(CompositionView *c, RosegardenDocument *d)
         : SegmentTool(c, d),
@@ -54,53 +58,73 @@ SegmentSplitter::~SegmentSplitter()
 void SegmentSplitter::ready()
 {
     m_canvas->viewport()->setCursor(Qt::SplitHCursor);
-    setBasicContextHelp();
+    setContextHelp(tr("Click on a segment to split it in two; hold Shift to avoid snapping to beat grid"));
 }
 
 void
-SegmentSplitter::handleMouseButtonPress(QMouseEvent *e)
+SegmentSplitter::mousePressEvent(QMouseEvent *e)
 {
-    // Remove cursor and replace with line on a SegmentItem
-    // at where the cut will be made
-    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
+    // Let the baseclass have a go.
+    SegmentTool::mousePressEvent(e);
+
+    // We only care about the left mouse button.
+    if (e->button() != Qt::LeftButton)
+        return;
+
+    // No need to propagate.
+    e->accept();
+
+    QPoint pos = m_canvas->viewportToContents(e->pos());
+
+    ChangingSegmentPtr item = m_canvas->getModel()->getSegmentAt(pos);
 
     if (item) {
+        // Remove cursor and replace with line on a SegmentItem
+        // at where the cut will be made
         m_canvas->viewport()->setCursor(Qt::BlankCursor);
+
         m_prevX = item->rect().x();
+        // ??? Clearly, not used.
         m_prevX = item->rect().y();
+
         drawSplitLine(e);
-        delete item;
     }
 
 }
 
 void
-SegmentSplitter::handleMouseButtonRelease(QMouseEvent *e)
+SegmentSplitter::mouseReleaseEvent(QMouseEvent *e)
 {
-    setBasicContextHelp();
+    // We only care about the left mouse button.
+    if (e->button() != Qt::LeftButton)
+        return;
 
-    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
+    // No need to propagate.
+    e->accept();
+
+    QPoint pos = m_canvas->viewportToContents(e->pos());
+
+    ChangingSegmentPtr item = m_canvas->getModel()->getSegmentAt(pos);
 
     if (item) {
-        m_canvas->setSnapGrain(true);
-        Segment* segment = CompositionItemHelper::getSegment(item);
+        setSnapTime(e, SnapGrid::SnapToBeat);
+
+        Segment* segment = item->getSegment();
 
         if (segment->getType() == Segment::Audio) {
             AudioSegmentSplitCommand *command =
-                new AudioSegmentSplitCommand(segment, m_canvas->grid().snapX(e->pos().x()));
+                new AudioSegmentSplitCommand(segment, m_canvas->grid().snapX(pos.x()));
             if (command->isValid())
-                addCommandToHistory(command);
+                CommandHistory::getInstance()->addCommand(command);
         } else {
             SegmentSplitCommand *command =
-                new SegmentSplitCommand(segment, m_canvas->grid().snapX(e->pos().x()));
+                new SegmentSplitCommand(segment, m_canvas->grid().snapX(pos.x()));
             if (command->isValid())
-                addCommandToHistory(command);
+                CommandHistory::getInstance()->addCommand(command);
         }
 
 // 		m_canvas->updateContents(item->rect());
 		m_canvas->update(item->rect());
-		
-		delete item;
     }
 
     // Reinstate the cursor
@@ -109,16 +133,22 @@ SegmentSplitter::handleMouseButtonRelease(QMouseEvent *e)
 }
 
 int
-SegmentSplitter::handleMouseMove(QMouseEvent *e)
+SegmentSplitter::mouseMoveEvent(QMouseEvent *e)
 {
-    setBasicContextHelp();
+    // No need to propagate.
+    e->accept();
 
-    CompositionItemPtr item = m_canvas->getFirstItemAt(e->pos());
+    QPoint pos = m_canvas->viewportToContents(e->pos());
+
+    // ??? Minor bug: Middle button will cause the split line to
+    //     appear.  We should be able to query the QMouseEvent for the
+    //     button state and bail if left isn't currently pressed.
+
+    ChangingSegmentPtr item = m_canvas->getModel()->getSegmentAt(pos);
 
     if (item) {
 //        m_canvas->viewport()->setCursor(Qt::blankCursor);
         drawSplitLine(e);
-        delete item;
         return RosegardenScrollView::FollowHorizontal;
     } else {
         m_canvas->viewport()->setCursor(Qt::SplitHCursor);
@@ -130,27 +160,23 @@ SegmentSplitter::handleMouseMove(QMouseEvent *e)
 void
 SegmentSplitter::drawSplitLine(QMouseEvent *e)
 {
-    m_canvas->setSnapGrain(true);
+    setSnapTime(e, SnapGrid::SnapToBeat);
+
+    QPoint pos = m_canvas->viewportToContents(e->pos());
 
     // Turn the real X into a snapped X
     //
-    timeT xT = m_canvas->grid().snapX(e->pos().x());
+    timeT xT = m_canvas->grid().snapX(pos.x());
     int x = (int)(m_canvas->grid().getRulerScale()->getXForTime(xT));
 
     // Need to watch y doesn't leak over the edges of the
     // current Segment.
     //
-    int y = m_canvas->grid().snapY(e->pos().y());
+    int y = m_canvas->grid().snapY(pos.y());
 
-    m_canvas->showSplitLine(x, y);
+    m_canvas->drawSplitLine(x, y);
 
-    QRect updateRect(std::max(0, std::min(x, m_prevX) - 5), y,
-                     std::max(m_prevX, x) + 5, m_prevY + m_canvas->grid().getYSnap());
-	
-// 	m_canvas->updateContents(updateRect);
-	m_canvas->update(updateRect);
-	
-	m_prevX = x;
+    m_prevX = x;
     m_prevY = y;
 }
 
@@ -160,17 +186,6 @@ SegmentSplitter::contentsMouseDoubleClickEvent(QMouseEvent*)
     // DO NOTHING
 }
 
-void
-SegmentSplitter::setBasicContextHelp()
-{
-    if (!m_canvas->isFineGrain()) {
-        setContextHelp(tr("Click on a segment to split it in two; hold Shift to avoid snapping to beat grid"));
-    } else {
-        setContextHelp(tr("Click on a segment to split it in two"));
-    }
-}
-
-const QString SegmentSplitter::ToolName = "segmentsplitter";
 
 }
-#include "moc_SegmentSplitter.cpp"
+#include "SegmentSplitter.moc"

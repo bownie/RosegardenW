@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -17,371 +17,358 @@
 
 #define RG_MODULE_STRING "[MIDIInstrumentParameterPanel]"
 
+// Disable RG_DEBUG output.  Must be defined prior to including Debug.h.
+// Warnings are currently done with std::cerr to make sure they appear
+// even in a release build.
+#define RG_NO_DEBUG_PRINT
+
 #include "MIDIInstrumentParameterPanel.h"
 
+#include "InstrumentParameterPanel.h"
+#include "document/RosegardenDocument.h"
 #include "gui/widgets/SqueezedLabel.h"
-#include "sound/Midi.h"
+#include "gui/widgets/Rotary.h"
+#include "sequencer/RosegardenSequencer.h"
 #include "misc/Debug.h"
-#include "misc/Strings.h"
-#include "base/AllocateChannels.h"
 #include "base/Colour.h"
 #include "base/Composition.h"
 #include "base/ControlParameter.h"
 #include "base/Instrument.h"
+#include "base/InstrumentStaticSignals.h"
 #include "base/MidiDevice.h"
 #include "base/MidiProgram.h"
-#include "document/RosegardenDocument.h"
-#include "gui/studio/StudioControl.h"
-#include "gui/widgets/Rotary.h"
-#include "InstrumentParameterPanel.h"
-#include "sequencer/RosegardenSequencer.h"
-
-#include <algorithm>
 
 #include <QComboBox>
 #include <QCheckBox>
 #include <QColor>
+#include <QFont>
 #include <QFontMetrics>
 #include <QFrame>
-#include <QGroupBox>
+#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QKeySequence>
 #include <QLabel>
 #include <QRegExp>
 #include <QSignalMapper>
-#include <QSpinBox>
 #include <QString>
-#include <QVariant>
 #include <QWidget>
-#include <QLayout>
-#include <QHBoxLayout>
-#include <QToolTip>
 
+#include <algorithm>  // std::sort(), std::remove_if()
+#include <string>
+#include <iostream>
+#include <cmath>
 
 namespace Rosegarden
 {
 
-MIDIInstrumentParameterPanel::MIDIInstrumentParameterPanel(RosegardenDocument *doc, QWidget* parent):
-        InstrumentParameterPanel(doc, parent),
-        m_rotaryFrame(0),
-        m_rotaryMapper(new QSignalMapper(this))
+MIDIInstrumentParameterPanel::MIDIInstrumentParameterPanel(
+        RosegardenDocument *doc, QWidget *parent) :
+    InstrumentParameterPanel(doc, parent),
+    m_rotaryFrame(NULL),
+    m_rotaryGrid(NULL)
 {
+    RG_DEBUG << "MIDIInstrumentParameterPanel ctor";
+
     setObjectName("MIDI Instrument Parameter Panel");
 
-    QFont f;
-    f.setPointSize(f.pointSize() * 90 / 100);
-    f.setBold(false);
-
-    QFontMetrics metrics(f);
-    int width25 = metrics.width("1234567890123456789012345");
-
-    m_instrumentLabel->setFont(f);
-    m_instrumentLabel->setFixedWidth(width25);
-    m_instrumentLabel->setAlignment(Qt::AlignCenter);
-
+    // Grid
     setContentsMargins(2, 2, 2, 2);
     m_mainGrid = new QGridLayout(this);
     m_mainGrid->setMargin(0);
-    m_mainGrid->setSpacing(1);
+    m_mainGrid->setSpacing(3);
+    m_mainGrid->setColumnStretch(2, 1);
     setLayout(m_mainGrid);
 
+    // Font
+    QFont f;
+    f.setPointSize(f.pointSize() * 90 / 100);
+    f.setBold(false);
+    QFontMetrics metrics(f);
+    // Compute a width for the labels that will prevent them from becoming
+    // so large that they make a mess out of the layout.
+    const int labelWidth = metrics.width("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+
+    // Instrument Label
+    m_instrumentLabel->setFont(f);
+    // Set a fixed width to prevent the label from growing too large.
+    m_instrumentLabel->setFixedWidth(labelWidth);
+    m_instrumentLabel->setAlignment(Qt::AlignCenter);
+    m_mainGrid->addWidget(m_instrumentLabel, 0, 0, 1, 4, Qt::AlignCenter);
+
+    // Connection Label
     m_connectionLabel = new SqueezedLabel(this);
-    m_bankValue = new QComboBox(this);
-    m_programValue = new QComboBox(this);
-    m_variationValue = new QComboBox(this);
-    m_bankCheckBox = new QCheckBox(this);
-    m_programCheckBox = new QCheckBox(this);
-    m_variationCheckBox = new QCheckBox(this);
-    m_percussionCheckBox = new QCheckBox(this);
-    m_channelUsed = new QComboBox(this);
-
-    // Everything else sets up elsewhere, but these don't vary per instrument:
-    m_channelUsed->addItem(tr("auto"));
-    m_channelUsed->addItem(tr("fixed"));
-
     m_connectionLabel->setFont(f);
-    m_bankValue->setFont(f);
-    m_programValue->setFont(f);
-    m_variationValue->setFont(f);
-    m_bankCheckBox->setFont(f);
-    m_programCheckBox->setFont(f);
-    m_variationCheckBox->setFont(f);
-    m_percussionCheckBox->setFont(f);
-    m_channelUsed->setFont(f);
+    // Set a fixed width to prevent the label from growing too large.
+    m_connectionLabel->setFixedWidth(labelWidth);
+    m_connectionLabel->setAlignment(Qt::AlignCenter);
+    m_mainGrid->addWidget(m_connectionLabel, 1, 0, 1, 4, Qt::AlignCenter);
 
-    m_bankValue->setToolTip(tr("<qt>Set the MIDI bank from which to select programs</qt>"));
-    m_programValue->setToolTip(tr("<qt>Set the MIDI program or &quot;patch&quot;</p></qt>"));
-    m_variationValue->setToolTip(tr("<qt>Set variations on the program above, if available in the studio</qt>"));
-    m_percussionCheckBox->setToolTip(tr("<qt><p>Check this to tell Rosegarden that this is a percussion instrument.  This allows you access to any percussion key maps and drum kits you may have configured in the studio</p></qt>"));
-    m_channelUsed->setToolTip(tr("<qt><p><i>Auto</i>, allocate channel automatically; <i>Fixed</i>, fix channel to instrument number</p></qt>"));
-
-    m_bankValue->setMaxVisibleItems(20);
-    m_programValue->setMaxVisibleItems(20);
-    m_variationValue->setMaxVisibleItems(20);
-    m_channelUsed->setMaxVisibleItems(2);
-    
-    m_bankLabel = new QLabel(tr("Bank"), this);
-    m_variationLabel = new QLabel(tr("Variation"), this);
-    m_programLabel = new QLabel(tr("Program"), this);
+    // Percussion Label
     QLabel *percussionLabel = new QLabel(tr("Percussion"), this);
-    QLabel *channelLabel = new QLabel(tr("Channel"), this);
-    
-    m_bankLabel->setFont(f);
-    m_variationLabel->setFont(f);
-    m_programLabel->setFont(f);
     percussionLabel->setFont(f);
-    channelLabel->setFont(f);
-    
-    // Ensure a reasonable amount of space in the program dropdowns even
-    // if no instrument initially selected
+    m_mainGrid->addWidget(percussionLabel, 3, 0, 1, 2, Qt::AlignLeft);
 
+    // Percussion CheckBox
+    m_percussionCheckBox = new QCheckBox(this);
+    m_percussionCheckBox->setFont(f);
+    m_percussionCheckBox->setToolTip(tr("<qt><p>Check this to tell Rosegarden that this is a percussion instrument.  This allows you access to any percussion key maps and drum kits you may have configured in the studio</p></qt>"));
+    connect(m_percussionCheckBox, SIGNAL(clicked(bool)),
+            this, SLOT(slotPercussionClicked(bool)));
+    m_mainGrid->addWidget(m_percussionCheckBox, 3, 3, Qt::AlignLeft);
+
+    // Bank Label
+    m_bankLabel = new QLabel(tr("Bank"), this);
+    m_bankLabel->setFont(f);
+    m_mainGrid->addWidget(m_bankLabel, 4, 0, Qt::AlignLeft);
+
+    // Bank CheckBox
+    m_bankCheckBox = new QCheckBox(this);
+    m_bankCheckBox->setFont(f);
+    m_bankCheckBox->setToolTip(tr("<qt>Send bank select</qt>"));
+    connect(m_bankCheckBox, SIGNAL(clicked(bool)),
+            this, SLOT(slotBankClicked(bool)));
+    m_mainGrid->addWidget(m_bankCheckBox, 4, 1, Qt::AlignRight);
+
+    // Ensure a reasonable amount of space in the dropdowns even
+    // if no instrument initially selected.
     // setMinimumWidth() using QFontMetrics wasn't cutting it at all, so let's
     // try what I used in the plugin manager dialog, with
     // setMinimumContentsLength() instead:
-    QString metric("Acoustic Grand Piano #42B");
-    int width22 = metric.size();
-    
-    m_bankValue->setMinimumContentsLength(width22);
-    m_programValue->setMinimumContentsLength(width22);
-    m_variationValue->setMinimumContentsLength(width22);
-    m_channelUsed->setMinimumContentsLength(width22);
+    const int comboWidth = 25;
 
-    // we still have to use the QFontMetrics here, or a SqueezedLabel will
-    // squeeze itself down to 0.
-    int width30 = metrics.width("123456789012345678901234567890");
-    m_connectionLabel->setFixedWidth(width30);
-    m_connectionLabel->setAlignment(Qt::AlignCenter);
-    
-    
-    QString programTip = tr("<qt>Use program changes from an external source to manipulate these controls (only valid for the currently-active track) [Shift + P]</qt>");
-    m_evalMidiPrgChgCheckBox = new QCheckBox(this); 
-    m_evalMidiPrgChgCheckBox->setFont(f);
-    m_evalMidiPrgChgLabel = new QLabel(tr("Receive external"), this);
-    m_evalMidiPrgChgLabel->setFont(f);
-    m_evalMidiPrgChgLabel->setToolTip(programTip);
-    
-    m_evalMidiPrgChgCheckBox->setDisabled(false);
-    m_evalMidiPrgChgCheckBox->setChecked(false);
-    m_evalMidiPrgChgCheckBox->setToolTip(programTip);
-    m_evalMidiPrgChgCheckBox->setShortcut((QKeySequence)"Shift+P");
-
-
-
-    m_mainGrid->setColumnStretch(2, 1);
-
-    m_mainGrid->addWidget(m_instrumentLabel, 0, 0, 1, 4, Qt::AlignCenter);
-    m_mainGrid->addWidget(m_connectionLabel, 1, 0, 1, 4, Qt::AlignCenter);
-
-    m_mainGrid->addWidget(percussionLabel, 3, 0, 1, 2, Qt::AlignLeft);
-    m_mainGrid->addWidget(m_percussionCheckBox, 3, 3, Qt::AlignLeft);
-
-    m_mainGrid->addWidget(m_bankLabel, 4, 0, Qt::AlignLeft);
-    m_mainGrid->addWidget(m_bankCheckBox, 4, 1, Qt::AlignRight);
-    m_mainGrid->addWidget(m_bankValue, 4, 2, 1, 2, Qt::AlignRight);
-
-    m_mainGrid->addWidget(m_programLabel, 5, 0, Qt::AlignLeft);
-    m_mainGrid->addWidget(m_programCheckBox, 5, 1, Qt::AlignRight);
-    m_mainGrid->addWidget(m_programValue, 5, 2, 1, 2, Qt::AlignRight);
-
-    m_mainGrid->addWidget(m_variationLabel, 6, 0);
-    m_mainGrid->addWidget(m_variationCheckBox, 6, 1);
-    m_mainGrid->addWidget(m_variationValue, 6, 2, 1, 2, Qt::AlignRight);
-      
-    m_mainGrid->addWidget(channelLabel, 7, 0, Qt::AlignLeft);
-    m_mainGrid->addWidget(m_channelUsed, 7, 2, 1, 2, Qt::AlignRight);
-
-    m_mainGrid->addWidget(m_evalMidiPrgChgLabel, 8, 0, 1, 3, Qt::AlignLeft);
-    m_mainGrid->addWidget(m_evalMidiPrgChgCheckBox, 8, 3, Qt::AlignLeft);
-
-    // Disable these by default - they are activated by their checkboxes
-    //
-    m_programValue->setDisabled(true);
-    m_bankValue->setDisabled(true);
-    m_variationValue->setDisabled(true);
-
-    // Only active if we have an Instrument selected
-    //
-    m_percussionCheckBox->setDisabled(true);
-    m_programCheckBox->setDisabled(true);
-    m_bankCheckBox->setDisabled(true);
-    m_variationCheckBox->setDisabled(true);
-
-    // Connect up the toggle boxes
-    //
-    connect(m_percussionCheckBox, SIGNAL(toggled(bool)),
-            this, SLOT(slotTogglePercussion(bool)));
-
-    connect(m_programCheckBox, SIGNAL(toggled(bool)),
-            this, SLOT(slotToggleProgramChange(bool)));
-
-    connect(m_bankCheckBox, SIGNAL(toggled(bool)),
-            this, SLOT(slotToggleBank(bool)));
-
-    connect(m_variationCheckBox, SIGNAL(toggled(bool)),
-            this, SLOT(slotToggleVariation(bool)));
-    
-    connect(m_evalMidiPrgChgCheckBox, SIGNAL(toggled(bool)),
-            this, SLOT(slotToggleChangeListOnProgChange(bool)) );
-    
-    
-    // Connect activations
-    //
-    connect(m_bankValue, SIGNAL(activated(int)),
+    // Bank ComboBox
+    m_bankComboBox = new QComboBox(this);
+    m_bankComboBox->setFont(f);
+    m_bankComboBox->setToolTip(tr("<qt>Set the MIDI bank from which to select programs</qt>"));
+    m_bankComboBox->setMaxVisibleItems(20);
+    m_bankComboBox->setMinimumContentsLength(comboWidth);
+    // Activated by m_bankCheckBox
+    //m_bankComboBox->setDisabled(true);
+    connect(m_bankComboBox, SIGNAL(activated(int)),
             this, SLOT(slotSelectBank(int)));
+    //m_bankComboBox->setCurrentIndex(-1);
+    m_mainGrid->addWidget(m_bankComboBox, 4, 2, 1, 2, Qt::AlignRight);
 
-    connect(m_variationValue, SIGNAL(activated(int)),
-            this, SLOT(slotSelectVariation(int)));
+    // Program Label
+    m_programLabel = new QLabel(tr("Program"), this);
+    m_programLabel->setFont(f);
+    m_mainGrid->addWidget(m_programLabel, 5, 0, Qt::AlignLeft);
 
-    connect(m_programValue, SIGNAL(activated(int)),
+    // Program CheckBox
+    m_programCheckBox = new QCheckBox(this);
+    m_programCheckBox->setFont(f);
+    m_programCheckBox->setToolTip(tr("<qt>Send program change</qt>"));
+    connect(m_programCheckBox, SIGNAL(clicked(bool)),
+            this, SLOT(slotProgramClicked(bool)));
+    m_mainGrid->addWidget(m_programCheckBox, 5, 1, Qt::AlignRight);
+
+    // Program ComboBox
+    m_programComboBox = new QComboBox(this);
+    m_programComboBox->setFont(f);
+    m_programComboBox->setToolTip(tr("<qt>Set the MIDI program or &quot;patch&quot;</p></qt>"));
+    m_programComboBox->setMaxVisibleItems(20);
+    m_programComboBox->setMinimumContentsLength(comboWidth);
+    // Activated by m_programCheckBox
+    //m_programComboBox->setDisabled(true);
+    connect(m_programComboBox, SIGNAL(activated(int)),
             this, SLOT(slotSelectProgram(int)));
-    
-    // don't select any of the options in any dropdown
-    m_programValue->setCurrentIndex( -1);
-    m_bankValue->setCurrentIndex( -1);
-    m_variationValue->setCurrentIndex( -1);
-    m_channelUsed->setCurrentIndex(-1);
+    //m_programComboBox->setCurrentIndex(-1);
+    m_mainGrid->addWidget(m_programComboBox, 5, 2, 1, 2, Qt::AlignRight);
 
+    // Variation Label
+    m_variationLabel = new QLabel(tr("Variation"), this);
+    m_variationLabel->setFont(f);
+    m_mainGrid->addWidget(m_variationLabel, 6, 0);
+
+    // Variation CheckBox
+    m_variationCheckBox = new QCheckBox(this);
+    m_variationCheckBox->setFont(f);
+    m_variationCheckBox->setToolTip(tr("<qt>Send bank select for variation</qt>"));
+    connect(m_variationCheckBox, SIGNAL(clicked(bool)),
+            this, SLOT(slotVariationClicked(bool)));
+    m_mainGrid->addWidget(m_variationCheckBox, 6, 1);
+
+    // Variation ComboBox
+    m_variationComboBox = new QComboBox(this);
+    m_variationComboBox->setFont(f);
+    m_variationComboBox->setToolTip(tr("<qt>Set variations on the program above, if available in the studio</qt>"));
+    m_variationComboBox->setMaxVisibleItems(20);
+    m_variationComboBox->setMinimumContentsLength(comboWidth);
+    // Activated by m_variationCheckBox
+    //m_variationComboBox->setDisabled(true);
+    connect(m_variationComboBox, SIGNAL(activated(int)),
+            this, SLOT(slotSelectVariation(int)));
+    //m_variationComboBox->setCurrentIndex(-1);
+    m_mainGrid->addWidget(m_variationComboBox, 6, 2, 1, 2, Qt::AlignRight);
+
+    // Channel Label
+    QLabel *channelLabel = new QLabel(tr("Channel"), this);
+    channelLabel->setFont(f);
+    QString channelTip(tr("<qt><p><i>Auto</i>, allocate channel automatically; <i>Fixed</i>, fix channel to instrument number</p></qt>"));
+    channelLabel->setToolTip(channelTip);
+    m_mainGrid->addWidget(channelLabel, 7, 0, Qt::AlignLeft);
+
+    // Channel ComboBox
+    m_channelValue = new QComboBox(this);
+    m_channelValue->setFont(f);
+    m_channelValue->setToolTip(channelTip);
+    m_channelValue->setMaxVisibleItems(2);
+    // Everything else sets up elsewhere, but these don't vary per instrument:
+    m_channelValue->addItem(tr("Auto"));
+    m_channelValue->addItem(tr("Fixed"));
+    m_channelValue->setMinimumContentsLength(comboWidth);
+    connect(m_channelValue, SIGNAL(activated(int)),
+            this, SLOT(slotSelectChannel(int)));
+    //m_channelValue->setCurrentIndex(-1);
+    m_mainGrid->addWidget(m_channelValue, 7, 2, 1, 2, Qt::AlignRight);
+
+    // Receive External Label
+    m_receiveExternalLabel = new QLabel(tr("Receive external"), this);
+    m_receiveExternalLabel->setFont(f);
+    QString receiveExternalTip = tr("<qt>Use program changes from an external source to manipulate these controls (only valid for the currently-active track) [Shift + P]</qt>");
+    m_receiveExternalLabel->setToolTip(receiveExternalTip);
+    m_mainGrid->addWidget(m_receiveExternalLabel, 8, 0, 1, 3, Qt::AlignLeft);
+    
+    // Receive External CheckBox
+    m_receiveExternalCheckBox = new QCheckBox(this);
+    m_receiveExternalCheckBox->setFont(f);
+    m_receiveExternalCheckBox->setToolTip(receiveExternalTip);
+    m_receiveExternalCheckBox->setShortcut((QKeySequence)"Shift+P");
+    m_receiveExternalCheckBox->setChecked(false);
+    m_mainGrid->addWidget(m_receiveExternalCheckBox, 8, 3, Qt::AlignLeft);
+
+    // Rotary Frame and Grid
+    m_rotaryFrame = new QFrame(this);
+    m_rotaryFrame->setContentsMargins(8, 8, 8, 8);
+    m_rotaryGrid = new QGridLayout(m_rotaryFrame);
+    m_rotaryGrid->setSpacing(1);
+    m_rotaryGrid->setMargin(0);
+    m_rotaryGrid->addItem(new QSpacerItem(10, 4), 0, 1);
+    m_rotaryFrame->setLayout(m_rotaryGrid);
+    // Add the rotary frame to the main grid layout.
+    m_mainGrid->addWidget(m_rotaryFrame, 10, 0, 1, 4, Qt::AlignHCenter);
+    // Add a spacer to take up the rest of the space.  This keeps
+    // the widgets above compact vertically.
+    m_mainGrid->addItem(new QSpacerItem(1, 1), 11, 0, 1, 4);
+    m_mainGrid->setRowStretch(11, 1);
+
+    // Rotary Mapper
+    m_rotaryMapper = new QSignalMapper(this);
     connect(m_rotaryMapper, SIGNAL(mapped(int)),
             this, SLOT(slotControllerChanged(int)));
-    connect(m_channelUsed, SIGNAL(activated(int)),
-            this, SLOT(slotSetUseChannel(int)));
+
+    // Hold on to this to make sure it stays around as long as we do.
+    m_instrumentStaticSignals = Instrument::getStaticSignals();
+
+    connect(m_instrumentStaticSignals.data(),
+            SIGNAL(changed(Instrument *)),
+            this,
+            SLOT(slotInstrumentChanged(Instrument *)));
 }
-
-
-void MIDIInstrumentParameterPanel::slotToggleChangeListOnProgChange(bool val){
-    // used to disable prog-change select-box 
-    // (in MIDIInstrumentParameterPanel), if TrackChanged 
-    this->m_evalMidiPrgChgCheckBox->setChecked(val);
-}
-
 
 void
-MIDIInstrumentParameterPanel::setupForInstrument(Instrument *instrument)
+MIDIInstrumentParameterPanel::clearReceiveExternal()
 {
-    RG_DEBUG << "MIDIInstrumentParameterPanel::setupForInstrument" << endl;
+    RG_DEBUG << "clearReceiveExternal()";
 
-    // In some cases setupForInstrument gets called several times.
-    // This shortcuts this activity since only one setup is needed.
-    if (m_selectedInstrument == instrument) {
-        RG_DEBUG << "MIDIInstrumentParameterPanel::setupForInstrument "
-                 << "-- early exit.  instrument didn't change." << endl;
+    m_receiveExternalCheckBox->setChecked(false);
+}
+
+void
+MIDIInstrumentParameterPanel::displayInstrument(Instrument *instrument)
+{
+    if (!instrument)
+        return;
+
+    setSelectedInstrument(instrument);
+    m_instrumentLabel->setText(instrument->getLocalizedPresentationName());
+
+    updateWidgets();
+}
+
+void
+MIDIInstrumentParameterPanel::updateWidgets()
+{
+    RG_DEBUG << "updateWidgets() begin";
+
+    if (!getSelectedInstrument())
+        return;
+
+    MidiDevice *md = dynamic_cast<MidiDevice *>(getSelectedInstrument()->getDevice());
+    if (!md) {
+        std::cerr << "WARNING: MIDIInstrumentParameterPanel::updateWidgets(): No MidiDevice for Instrument " << getSelectedInstrument()->getId() << '\n';
+        RG_DEBUG << "setupForInstrument() end";
         return;
     }
 
-    MidiDevice *md = dynamic_cast<MidiDevice*>
-                     (instrument->getDevice());
-    if (!md) {
-        RG_DEBUG << "WARNING: MIDIInstrumentParameterPanel::setupForInstrument:"
-        << " No MidiDevice for Instrument "
-        << instrument->getId() << endl;
-        return ;
-    }
+    // Instrument name
 
-    setSelectedInstrument(instrument,
-                          instrument->getLocalizedPresentationName());
+    m_instrumentLabel->setText(
+            getSelectedInstrument()->getLocalizedPresentationName());
 
-    // Set Studio Device name
-    //
+    // Studio Device (connection) name
+
     QString connection(RosegardenSequencer::getInstance()->getConnection(md->getId()));
 
     if (connection == "") {
-        m_connectionLabel->setText(tr("[ %1 ]").arg(tr("No connection")));
+        connection = tr("No connection");
     } else {
-
         // remove trailing "(duplex)", "(read only)", "(write only)" etc
         connection.replace(QRegExp("\\s*\\([^)0-9]+\\)\\s*$"), "");
-
-        QString text = QObject::tr("[ %1 ]").arg(connection);
-        /*QString origText(text);
-
-        QFontMetrics metrics(m_connectionLabel->fontMetrics());
-        int maxwidth = metrics.width
-            ("Program: [X]   Acoustic Grand Piano 123");// kind of arbitrary!
-
-        int hlen = text.length() / 2;
-        while (metrics.width(text) > maxwidth && text.length() > 10) {
-            --hlen;
-            text = origText.left(hlen) + "..." + origText.right(hlen);
-        }
-
-        if (text.length() > origText.length() - 7) text = origText;*/
-        m_connectionLabel->setText(QObject::tr(text.toStdString().c_str()));
     }
 
-    // Enable all check boxes
-    //
-    m_percussionCheckBox->setDisabled(false);
-    m_programCheckBox->setDisabled(false);
-    m_bankCheckBox->setDisabled(false);
-    m_variationCheckBox->setDisabled(false);
+    m_connectionLabel->setText("[ " + connection + " ]");
 
-    // Activate all checkboxes
-    //
+    // Percussion
+    m_percussionCheckBox->setChecked(getSelectedInstrument()->isPercussion());
     
-    // Block signals
-    m_percussionCheckBox-> blockSignals(true);
-    m_programCheckBox->    blockSignals(true);
-    m_bankCheckBox->       blockSignals(true);
-    m_variationCheckBox->  blockSignals(true);
-    
-    // Change state
-    m_percussionCheckBox->setChecked(instrument->isPercussion());
-    m_programCheckBox->setChecked(instrument->sendsProgramChange());
-    m_bankCheckBox->setChecked(instrument->sendsBankSelect());
-    m_variationCheckBox->setChecked(instrument->sendsBankSelect());
+    // Bank
+    m_bankCheckBox->setChecked(getSelectedInstrument()->sendsBankSelect());
+    updateBankComboBox();
 
-    // Unblock signals
-    m_percussionCheckBox-> blockSignals(false);
-    m_programCheckBox->    blockSignals(false);
-    m_bankCheckBox->       blockSignals(false);
-    m_variationCheckBox->  blockSignals(false);
+    // Program
+    m_programCheckBox->setChecked(getSelectedInstrument()->sendsProgramChange());
+    updateProgramComboBox();
 
-    // Basic parameters
-    //
-    //
-    // Check for program change
-    //
-    populateBankList();
-    populateProgramList();
-    populateVariationList();
-    populateChannelList();
-    
-    // Setup the ControlParameters
-    //
+    // Variation
+    m_variationCheckBox->setChecked(getSelectedInstrument()->sendsBankSelect());
+    updateVariationComboBox();
+
+    // Channel
+    m_channelValue->setCurrentIndex(
+            getSelectedInstrument()->hasFixedChannel() ? 1 : 0);
+
+    // Controller Rotaries
+
+    // Make sure we have the right number of Rotary widgets and
+    // they have the proper labels.
+    // rename: setupRotaries()?
     setupControllers(md);
 
-    m_mainGrid->setRowStretch(9, 20);
-
-    // Set all the positions by controller number
-    //
-    for (RotaryMap::iterator it = m_rotaries.begin() ;
-            it != m_rotaries.end(); ++it) {
+    // For each rotary
+    for (RotaryInfoVector::iterator rotaryIter = m_rotaries.begin();
+            rotaryIter != m_rotaries.end(); ++rotaryIter) {
         MidiByte value = 0;
 
         try {
-            value = instrument->getControllerValue(
-                        MidiByte(it->first));
-        } catch (...) {
+            value = getSelectedInstrument()->getControllerValue(rotaryIter->controller);
+        } catch (...) {  // unknown controller, try the next one
             continue;
         }
-        setRotaryToValue(it->first, int(value));
+
+        rotaryIter->rotary->setPosition(static_cast<float>(value));
     }
 
+    RG_DEBUG << "updateWidgets() end";
 }
 
 void
 MIDIInstrumentParameterPanel::setupControllers(MidiDevice *md)
 {
-    QFont f(font());
+    RG_DEBUG << "setupControllers()";
 
-    if (!m_rotaryFrame) {
-        m_rotaryFrame = new QFrame(this);
-        m_mainGrid->addWidget(m_rotaryFrame, 10, 0, 1, 3, Qt::AlignHCenter);
-        m_rotaryFrame->setContentsMargins(8, 8, 8, 8);
-        m_rotaryGrid = new QGridLayout(m_rotaryFrame);
-        m_rotaryGrid->setSpacing(1);
-        m_rotaryGrid->setMargin(0);
-        m_rotaryGrid->addItem(new QSpacerItem(10, 4), 0, 1);
-        m_rotaryFrame->setLayout(m_rotaryGrid);
-    }
+    if (!md)
+        return;
 
     // To cut down on flicker, we avoid destroying and recreating
     // widgets as far as possible here.  If a label already exists,
@@ -389,16 +376,17 @@ MIDIInstrumentParameterPanel::setupControllers(MidiDevice *md)
     // if we actually need a different one.
 
     Composition &comp = m_doc->getComposition();
+
     ControlList list = md->getControlParameters();
 
-    // sort by IPB position
-    //
+    // Sort by IPB position.
     std::sort(list.begin(), list.end(),
               ControlParameter::ControlPositionCmp());
 
     int count = 0;
-    RotaryMap::iterator rmi = m_rotaries.begin();
+    RotaryInfoVector::iterator rotaryIter = m_rotaries.begin();
 
+    // For each controller
     for (ControlList::iterator it = list.begin();
             it != list.end(); ++it) {
         if (it->getIPBPosition() == -1)
@@ -408,116 +396,92 @@ MIDIInstrumentParameterPanel::setupControllers(MidiDevice *md)
         // black instead of the default color from the map!  it was here the
         // whole time, this simple!)
         //
-        QColor knobColour = it->getColourIndex();
-        Colour c =
-            comp.getGeneralColourMap().getColourByIndex
-            (it->getColourIndex());
-        knobColour = QColor(c.getRed(), c.getGreen(), c.getBlue());
+        const Colour c = comp.getGeneralColourMap().getColourByIndex(
+                it->getColourIndex());
+        const QColor knobColour = QColor(c.getRed(), c.getGreen(), c.getBlue());
 
         Rotary *rotary = 0;
 
-        if (rmi != m_rotaries.end()) {
+        // If the Rotary widgets have already been created, update them.
+        if (rotaryIter != m_rotaries.end()) {
 
             // Update the controller number that is associated with the
             // existing rotary widget.
 
-            rmi->first = it->getControllerValue();
+            rotaryIter->controller = it->getControllerValue();
 
             // Update the properties of the existing rotary widget.
 
-            rotary = rmi->second.first;
-            int redraw = 0; // 1 -> position, 2 -> all
+            rotary = rotaryIter->rotary;
 
-            if (rotary->getMinValue() != it->getMin()) {
-                rotary->setMinimum(it->getMin());
-                redraw = 1;
-            }
-            if (rotary->getMaxValue() != it->getMax()) {
-                rotary->setMaximum(it->getMax());
-                redraw = 1;
-            }
-            
-            bool isCentered = it->getDefault() == 64;
-            if (rotary->getCentered() != isCentered) {
-                rotary->setCentered(isCentered);
-                redraw = 1;
-            }
-            if (rotary->getKnobColour() != knobColour) {
-                rotary->setKnobColour(knobColour);
-                redraw = 2;
-            }
-            if (redraw == 1 || rotary->getPosition() != it->getDefault()) {
-                rotary->setPosition(it->getDefault());
-                if (redraw == 1)
-                    redraw = 0;
-            }
-            if (redraw == 2) {
-                rotary->repaint();
-            }
+            rotary->setMinimum(it->getMin());
+            rotary->setMaximum(it->getMax());
+            // If the default is 64, then this is most likely a "centered"
+            // control which should show its distance from the 12 o'clock
+            // position around the outside.
+            rotary->setCentered((it->getDefault() == 64));
+            rotary->setKnobColour(knobColour);
 
-            // Update the controller name that is associated with
-            // with the existing rotary widget.
+            // Update the controller name.
+            rotaryIter->label->setText(QObject::tr(it->getName().c_str()));
 
-            QLabel *label = rmi->second.second;
-            label->setText(QObject::tr(it->getName().c_str()));
+            // Next Rotary widget
+            ++rotaryIter;
 
-            ++rmi;
+        } else {  // Need to create the Rotary widget.
 
-        } else {
-
+            // Create a horizontal box for the Rotary/Label pair.
             QWidget *hbox = new QWidget(m_rotaryFrame);
             QHBoxLayout *hboxLayout = new QHBoxLayout;
             hboxLayout->setSpacing(8);
             hboxLayout->setMargin(0);
-
-            float smallStep = 1.0;
-
-            float bigStep = 5.0;
-            if (it->getMax() - it->getMin() < 10)
-                bigStep = 1.0;
-            else if (it->getMax() - it->getMin() < 20)
-                bigStep = 2.0;
-
-            rotary = new Rotary(hbox,
-                                it->getMin(),
-                                it->getMax(),
-                                smallStep,
-                                bigStep,
-                                it->getDefault(),
-                                20,
-                                Rotary::NoTicks,
-                                false,
-                                it->getDefault() == 64); //!!! hacky
-
-            hboxLayout->addWidget(rotary);
             hbox->setLayout(hboxLayout);
 
+            // Add a Rotary
+
+            float pageStep = 5.0;
+            if (it->getMax() - it->getMin() < 10)
+                pageStep = 1.0;
+            else if (it->getMax() - it->getMin() < 20)
+                pageStep = 2.0;
+
+            rotary = new Rotary(hbox,          // parent
+                                it->getMin(),  // minimum
+                                it->getMax(),  // maximum
+                                1.0,           // step
+                                pageStep,      // pageStep
+                                it->getDefault(),  // initialPosition
+                                20,                // size
+                                Rotary::NoTicks,   // ticks
+                                false,             // snapToTicks
+                                (it->getDefault() == 64));  // centred, see setCentered() above
             rotary->setKnobColour(knobColour);
+            hboxLayout->addWidget(rotary);
 
             // Add a label
-            QLabel *label = new SqueezedLabel(QObject::tr(it->getName().c_str()), hbox);
-            label->setFont(f);
+
+            SqueezedLabel *label = new SqueezedLabel(QObject::tr(it->getName().c_str()), hbox);
+            label->setFont(font());
             hboxLayout->addWidget(label);
 
-            RG_DEBUG << "Adding new widget at " << (count / 2) << "," << (count % 2) << endl;
+            RG_DEBUG << "setupControllers(): Adding new widget at " << (count / 2) << "," << (count % 2);
 
-            // Add the compound widget
-            //
+            // Add the compound (Rotary and Label) widget to the grid.
             m_rotaryGrid->addWidget(hbox, count / 2, (count % 2) * 2, Qt::AlignLeft);
             hbox->show();
 
-            // Add to list
-            //
-            m_rotaries.push_back(std::pair<int, RotaryPair>
-                                 (it->getControllerValue(),
-                                  RotaryPair(rotary, label)));
+            // Add to the Rotary info list
+            RotaryInfo ri;
+            ri.rotary = rotary;
+            ri.label = label;
+            ri.controller = it->getControllerValue();
+            m_rotaries.push_back(ri);
 
-            // Connect
-            //
+            // Connect for changes to the Rotary by the user.
             connect(rotary, SIGNAL(valueChanged(float)),
                     m_rotaryMapper, SLOT(map()));
 
-            rmi = m_rotaries.end();
+            rotaryIter = m_rotaries.end();
         }
 
         // Add signal mapping
@@ -525,119 +489,104 @@ MIDIInstrumentParameterPanel::setupControllers(MidiDevice *md)
         m_rotaryMapper->setMapping(rotary,
                                    int(it->getControllerValue()));
 
-        count++;
+        ++count;
     }
 
-    if (rmi != m_rotaries.end()) {
-        for (RotaryMap::iterator rmj = rmi; rmj != m_rotaries.end(); ++rmj) {
-            delete rmj->second.first;
-            delete rmj->second.second;
+    // If there are more rotary widgets than this instrument needs,
+    // delete them.
+    if (rotaryIter != m_rotaries.end()) {
+        for (RotaryInfoVector::iterator it = rotaryIter; it != m_rotaries.end(); ++it) {
+            // ??? Instead of deleting and recreating, we could hide the
+            //     extras and bring them back when needed.
+            delete it->rotary;
+            delete it->label;
         }
-        m_rotaries = std::vector<std::pair<int, RotaryPair> >
-                     (m_rotaries.begin(), rmi);
-    }
-
-//    m_rotaryFrame->show();
-}
-
-void
-MIDIInstrumentParameterPanel::setRotaryToValue(int controller, int value)
-{
-    /*
-    RG_DEBUG << "MIDIInstrumentParameterPanel::setRotaryToValue - "
-             << "controller = " << controller
-             << ", value = " << value << std::endl;
-             */
-
-    for (RotaryMap::iterator it = m_rotaries.begin() ; it != m_rotaries.end(); ++it) {
-        if (it->first == controller) {
-            it->second.first->setPosition(float(value));
-            return ;
-        }
+        m_rotaries.resize(count);
     }
 }
 
 void
-MIDIInstrumentParameterPanel::populateBankList()
+MIDIInstrumentParameterPanel::showBank(bool show)
 {
-    if (m_selectedInstrument == 0) return;
+    // Show/hide all bank-related widgets.
+    m_bankLabel->setVisible(show);
+    m_bankCheckBox->setVisible(show);
+    m_bankComboBox->setVisible(show);
+}
 
-    m_bankValue->clear();
-    m_banks.clear();
+void
+MIDIInstrumentParameterPanel::updateBankComboBox()
+{
+    RG_DEBUG << "updateBankComboBox()";
 
-    MidiDevice *md = dynamic_cast<MidiDevice*>
-                     (m_selectedInstrument->getDevice());
+    if (!getSelectedInstrument())
+        return;
+
+    MidiDevice *md =
+            dynamic_cast<MidiDevice *>(getSelectedInstrument()->getDevice());
     if (!md) {
-        RG_DEBUG << "WARNING: MIDIInstrumentParameterPanel::populateBankList:"
-        << " No MidiDevice for Instrument "
-        << m_selectedInstrument->getId() << endl;
-        return ;
+        std::cerr << "WARNING: MIDIInstrumentParameterPanel::updateBankComboBox(): No MidiDevice for Instrument " << getSelectedInstrument()->getId() << '\n';
+        return;
     }
 
     int currentBank = -1;
     BankList banks;
 
-    /*
-    RG_DEBUG << "MIDIInstrumentParameterPanel::populateBankList: "
-             << "variation type is " << md->getVariationType() << endl;
-             */
+    RG_DEBUG << "updateBankComboBox(): Variation type is " << md->getVariationType();
 
     if (md->getVariationType() == MidiDevice::NoVariations) {
 
-        banks = md->getBanks(m_selectedInstrument->isPercussion());
+        banks = md->getBanks(getSelectedInstrument()->isPercussion());
 
-        if (!banks.empty()) {
-            if (m_bankLabel->isHidden()) {
-                m_bankLabel->show();
-                m_bankCheckBox->show();
-                m_bankValue->show();
-            }
-        } else {
-            m_bankLabel->hide();
-            m_bankCheckBox->hide();
-            m_bankValue->hide();
-        }
+        // If there are banks to display, show the bank widgets.
+        // Why not showBank(banks.size()>1)?  Because that would hide the
+        // bank checkbox which would take away the user's ability to
+        // enable/disable bank selects.  If we do away with the checkbox
+        // in the future, we should re-evaluate this decision.
+        showBank(!banks.empty());
 
+        // Find the selected bank in the MIDI Device's bank list.
         for (unsigned int i = 0; i < banks.size(); ++i) {
-            if (m_selectedInstrument->getProgram().getBank() == banks[i]) {
+            if (getSelectedInstrument()->getProgram().getBank() == banks[i]) {
                 currentBank = i;
+                break;
             }
         }
 
     } else {
 
-        MidiByteList bytes;
+        // Usually in variation mode, the bank widgets will be hidden.
+        // E.g. in GM2, the MSB for all banks is 121 with the variations
+        // in the LSB numbered 0-9.  If, however, there were another
+        // MSB, say 122, with some variations in the LSB, this code would
+        // display the Bank combobox to allow selection of the MSB.
+
+        // If the variations are in the LSB, then the banks are in the MSB
+        // and vice versa.
         bool useMSB = (md->getVariationType() == MidiDevice::VariationFromLSB);
 
+        MidiByteList bytes;
+
         if (useMSB) {
-            bytes = md->getDistinctMSBs(m_selectedInstrument->isPercussion());
+            bytes = md->getDistinctMSBs(getSelectedInstrument()->isPercussion());
         } else {
-            bytes = md->getDistinctLSBs(m_selectedInstrument->isPercussion());
+            bytes = md->getDistinctLSBs(getSelectedInstrument()->isPercussion());
         }
 
-        if (bytes.size() < 2) {
-            if (!m_bankLabel->isHidden()) {
-                m_bankLabel->hide();
-                m_bankCheckBox->hide();
-                m_bankValue->hide();
-            }
-        } else {
-            if (m_bankLabel->isHidden()) {
-                m_bankLabel->show();
-                m_bankCheckBox->show();
-                m_bankValue->show();
-            }
-        }
+        // If more than one bank value is found, show the bank widgets.
+        showBank(bytes.size() > 1);
+
+        // Load "banks" with the banks and figure out currentBank.
 
         if (useMSB) {
             for (unsigned int i = 0; i < bytes.size(); ++i) {
                 BankList bl = md->getBanksByMSB
-                              (m_selectedInstrument->isPercussion(), bytes[i]);
-                RG_DEBUG << "MIDIInstrumentParameterPanel::populateBankList: have " << bl.size() << " variations for msb " << bytes[i] << endl;
+                              (getSelectedInstrument()->isPercussion(), bytes[i]);
+                RG_DEBUG << "updateBankComboBox(): Have " << bl.size() << " variations for MSB " << bytes[i];
 
                 if (bl.size() == 0)
                     continue;
-                if (m_selectedInstrument->getMSB() == bytes[i]) {
+                if (getSelectedInstrument()->getMSB() == bytes[i]) {
                     currentBank = banks.size();
                 }
                 banks.push_back(bl[0]);
@@ -645,11 +594,13 @@ MIDIInstrumentParameterPanel::populateBankList()
         } else {
             for (unsigned int i = 0; i < bytes.size(); ++i) {
                 BankList bl = md->getBanksByLSB
-                              (m_selectedInstrument->isPercussion(), bytes[i]);
-                RG_DEBUG << "MIDIInstrumentParameterPanel::populateBankList: have " << bl.size() << " variations for lsb " << bytes[i] << endl;
+                              (getSelectedInstrument()->isPercussion(), bytes[i]);
+
+                RG_DEBUG << "updateBankComboBox(): Have " << bl.size() << " variations for LSB " << bytes[i];
+
                 if (bl.size() == 0)
                     continue;
-                if (m_selectedInstrument->getLSB() == bytes[i]) {
+                if (getSelectedInstrument()->getLSB() == bytes[i]) {
                     currentBank = banks.size();
                 }
                 banks.push_back(bl[0]);
@@ -657,569 +608,586 @@ MIDIInstrumentParameterPanel::populateBankList()
         }
     }
 
-    for (BankList::const_iterator i = banks.begin();
-            i != banks.end(); ++i) {
-        m_banks.push_back(*i);
-        m_bankValue->addItem(QObject::tr(i->getName().c_str()));
+    // Populate the combobox with bank names.
+
+    // If we need to repopulate m_bankComboBox
+    if (banks != m_banks)
+    {
+        // Update the cache.
+        m_banks = banks;
+
+        // Copy from m_banks to m_bankComboBox.
+        m_bankComboBox->clear();
+        for (BankList::const_iterator i = m_banks.begin();
+                i != m_banks.end(); ++i) {
+            m_bankComboBox->addItem(QObject::tr(i->getName().c_str()));
+        }
     }
 
-    // Keep bank value enabled if percussion map is in use
-    if  (m_percussionCheckBox->isChecked()) {
-        m_bankValue->setDisabled(false);
-    } else {
-        m_bankValue->setEnabled(m_selectedInstrument->sendsBankSelect());
-    }    
+    m_bankComboBox->setEnabled(getSelectedInstrument()->sendsBankSelect());
 
-    if (currentBank < 0 && !banks.empty()) {
-        m_bankValue->setCurrentIndex(0);
-        slotSelectBank(0);
-    } else {
-        m_bankValue->setCurrentIndex(currentBank);
+#if 0
+// ??? This is a pretty nifty idea, but unfortunately, it requires
+//     that we maintain a bogus combobox entry.  For now, we'll go
+//     with the simpler "unselected" approach.
+
+    // If the current bank was not found...
+    if (currentBank < 0  &&  !banks.empty()) {
+        // Format bank MSB:LSB and add to combobox.
+        MidiBank bank = getSelectedInstrument()->getProgram().getBank();
+        QString bankString = QString("%1:%2").arg(bank.getMSB()).arg(bank.getLSB());
+        m_bankComboBox->addItem(bankString);
+        currentBank = banks.size();
     }
+#endif
+
+    // If the bank wasn't in the Device, show the bank widgets so
+    // the user can fix it if they want.
+    if (currentBank == -1  &&  !banks.empty())
+        showBank(true);
+
+    // Display the current bank.
+    m_bankComboBox->setCurrentIndex(currentBank);
+}
+
+bool
+MIDIInstrumentParameterPanel::hasNoName(const MidiProgram &p)
+{
+    return (p.getName() == "");
 }
 
 void
-MIDIInstrumentParameterPanel::populateProgramList()
+MIDIInstrumentParameterPanel::updateProgramComboBox()
 {
-    if (m_selectedInstrument == 0)
-        return ;
+    RG_DEBUG << "updateProgramComboBox()";
 
-    m_programValue->clear();
-    m_programs.clear();
+    if (!getSelectedInstrument())
+        return;
 
-    MidiDevice *md = dynamic_cast<MidiDevice*>
-                     (m_selectedInstrument->getDevice());
+    MidiDevice *md =
+            dynamic_cast<MidiDevice *>(getSelectedInstrument()->getDevice());
     if (!md) {
-        RG_DEBUG << "WARNING: MIDIInstrumentParameterPanel::populateProgramList: No MidiDevice for Instrument "
-        << m_selectedInstrument->getId() << endl;
-        return ;
+        std::cerr << "WARNING: MIDIInstrumentParameterPanel::updateProgramComboBox(): No MidiDevice for Instrument " << getSelectedInstrument()->getId() << '\n';
+        return;
     }
 
-    /*
-    RG_DEBUG << "MIDIInstrumentParameterPanel::populateProgramList:"
-             << " variation type is " << md->getVariationType() << endl;
-    */
+    RG_DEBUG << "updateProgramComboBox(): variation type is " << md->getVariationType();
 
-    MidiBank bank( m_selectedInstrument->isPercussion(),
-                   m_selectedInstrument->getMSB(),
-                   m_selectedInstrument->getLSB());
+    MidiBank bank = getSelectedInstrument()->getProgram().getBank();
 
-    if (m_selectedInstrument->sendsBankSelect()) {
-        bank = m_selectedInstrument->getProgram().getBank();
-    }
+    ProgramList programs =
+            md->getPrograms0thVariation(getSelectedInstrument()->isPercussion(), bank);
+
+    // Remove the programs that have no name.
+    programs.erase(std::remove_if(programs.begin(), programs.end(),
+                                  MIDIInstrumentParameterPanel::hasNoName),
+                   programs.end());
+
+    // If we've got programs, show the Program widgets.
+    // Why not "show = (programs.size()>1)"?  Because that would hide the
+    // program checkbox which would take away the user's ability to
+    // enable/disable program changes.  If we do away with the checkbox
+    // in the future, we should re-evaluate this decision.
+    bool show = !programs.empty();
+    m_programLabel->setVisible(show);
+    m_programCheckBox->setVisible(show);
+    m_programComboBox->setVisible(show);
 
     int currentProgram = -1;
 
-    ProgramList programs = md->getPrograms(bank);
-
-    if (!programs.empty()) {
-        if (m_programLabel->isHidden()) {
-            m_programLabel->show();
-            m_programCheckBox->show();
-            m_programValue->show();
-            m_evalMidiPrgChgCheckBox->show();
-            m_evalMidiPrgChgLabel->show();
-        }
-    } else {
-        m_programLabel->hide();
-        m_programCheckBox->hide();
-        m_programValue->hide();
-        m_evalMidiPrgChgCheckBox->hide();
-        m_evalMidiPrgChgLabel->hide();
-    }
-
-    for (unsigned int i = 0; i < programs.size(); ++i) {
-        std::string programName = programs[i].getName();
-        if (programName != "") {
-            m_programValue->addItem(QObject::tr("%1. %2")
-                                       .arg(programs[i].getProgram() + 1)
-                                       .arg(QObject::tr(programName.c_str())));
-            if (m_selectedInstrument->getProgram() == programs[i]) {
-                currentProgram = m_programs.size();
-            }
-            m_programs.push_back(programs[i]);
+    // Compute the current program.
+    for (unsigned i = 0; i < programs.size(); ++i) {
+        // If the program change is the same...
+        if (getSelectedInstrument()->getProgram().getProgram() == programs[i].getProgram()) {
+            currentProgram = i;
+            break;
         }
     }
 
-    // Keep program value enabled if percussion map is in use
-    if  (m_percussionCheckBox->isChecked()) {
-        m_programValue->setDisabled(false);
-    } else {
-        m_programValue->setEnabled(m_selectedInstrument->sendsProgramChange());
-    }    
+    // If the programs have changed, we need to repopulate the combobox.
+    if (programs != m_programs)
+    {
+        // Update the cache.
+        m_programs = programs;
 
-    if (currentProgram < 0 && !m_programs.empty()) {
-        m_programValue->setCurrentIndex(0);
-        slotSelectProgram(0);
-    } else {
-        m_programValue->setCurrentIndex(currentProgram);
-
-        // Ensure that stored program change value is same as the one
-        // we're now showing (BUG 937371)
-        //
-        if (!m_programs.empty()) {
-            m_selectedInstrument->setProgramChange
-            ((m_programs[m_programValue->currentIndex()]).getProgram());
+        // Copy from m_programs to m_programComboBox.
+        m_programComboBox->clear();
+        for (unsigned i = 0; i < m_programs.size(); ++i) {
+            m_programComboBox->addItem(QObject::tr("%1. %2")
+                                       .arg(m_programs[i].getProgram() + 1)
+                                       .arg(QObject::tr(m_programs[i].getName().c_str())));
         }
     }
+
+    m_programComboBox->setEnabled(getSelectedInstrument()->sendsProgramChange());
+
+#if 0
+// ??? This is a pretty nifty idea, but unfortunately, it requires
+//     that we maintain a bogus combobox entry.  For now, we'll go
+//     with the simpler "unselected" approach.
+
+    // If the current program was not found...
+    if (currentProgram < 0  &&  !m_programs.empty()) {
+        // Format program change and add to combobox.
+        MidiByte programChange = getSelectedInstrument()->getProgram().getProgram();
+        m_programComboBox->addItem(QString::number(programChange + 1));
+        currentProgram = programs.size();
+    }
+#endif
+
+    // Display the current program.
+    m_programComboBox->setCurrentIndex(currentProgram);
 }
 
 void
-MIDIInstrumentParameterPanel::populateVariationList()
+MIDIInstrumentParameterPanel::showVariation(bool show)
 {
-    if (m_selectedInstrument == 0)
-        return ;
+    // Show/hide all variation-related widgets.
+    m_variationLabel->setVisible(show);
+    m_variationCheckBox->setVisible(show);
+    m_variationComboBox->setVisible(show);
+}
 
-    m_variationValue->clear();
-    m_variations.clear();
+void
+MIDIInstrumentParameterPanel::updateVariationComboBox()
+{
+    RG_DEBUG << "updateVariationComboBox() begin...";
 
-    MidiDevice *md = dynamic_cast<MidiDevice*>
-                     (m_selectedInstrument->getDevice());
+    if (!getSelectedInstrument())
+        return;
+
+    MidiDevice *md =
+            dynamic_cast<MidiDevice *>(getSelectedInstrument()->getDevice());
     if (!md) {
-        RG_DEBUG << "WARNING: MIDIInstrumentParameterPanel::populateVariationList: No MidiDevice for Instrument "
-        << m_selectedInstrument->getId() << endl;
-        return ;
+        std::cerr << "WARNING: MIDIInstrumentParameterPanel::updateVariationComboBox(): No MidiDevice for Instrument " << getSelectedInstrument()->getId() << '\n';
+        return;
     }
 
-    /*
-    RG_DEBUG << "MIDIInstrumentParameterPanel::populateVariationList:"
-             << " variation type is " << md->getVariationType() << endl;
-    */
+    RG_DEBUG << "updateVariationComboBox(): Variation type is " << md->getVariationType();
 
     if (md->getVariationType() == MidiDevice::NoVariations) {
-        if (!m_variationLabel->isHidden()) {
-            m_variationLabel->hide();
-            m_variationCheckBox->hide();
-            m_variationValue->hide();
-        }
-        return ;
+        showVariation(false);
+        return;
     }
+
+    // Get the variations.
 
     bool useMSB = (md->getVariationType() == MidiDevice::VariationFromMSB);
-    MidiByteList variations;
+    MidiByteList variationBanks;
 
     if (useMSB) {
-        MidiByte lsb = m_selectedInstrument->getLSB();
-        variations = md->getDistinctMSBs(m_selectedInstrument->isPercussion(),
+        MidiByte lsb = getSelectedInstrument()->getLSB();
+        variationBanks = md->getDistinctMSBs(getSelectedInstrument()->isPercussion(),
                                          lsb);
-        RG_DEBUG << "MIDIInstrumentParameterPanel::populateVariationList: have " << variations.size() << " variations for lsb " << lsb << endl;
+        RG_DEBUG << "updateVariationComboBox(): Have " << variationBanks.size() << " variations for LSB " << lsb;
 
     } else {
-        MidiByte msb = m_selectedInstrument->getMSB();
-        variations = md->getDistinctLSBs(m_selectedInstrument->isPercussion(),
+        MidiByte msb = getSelectedInstrument()->getMSB();
+        variationBanks = md->getDistinctLSBs(getSelectedInstrument()->isPercussion(),
                                          msb);
-        RG_DEBUG << "MIDIInstrumentParameterPanel::populateVariationList: have " << variations.size() << " variations for msb " << msb << endl;
+
+        RG_DEBUG << "updateVariationComboBox(): Have " << variationBanks.size() << " variations for MSB " << msb;
     }
 
-    m_variationValue->setCurrentIndex( -1);
+    // Convert variationBanks to a ProgramList.
 
-    MidiProgram defaultProgram;
+    ProgramList variations;
 
-    if (useMSB) {
-        defaultProgram = MidiProgram
-                         (MidiBank(m_selectedInstrument->isPercussion(),
-                                   0,
-                                   m_selectedInstrument->getLSB()),
-                          m_selectedInstrument->getProgramChange());
-    } else {
-        defaultProgram = MidiProgram
-                         (MidiBank(m_selectedInstrument->isPercussion(),
-                                   m_selectedInstrument->getMSB(),
-                                   0),
-                          m_selectedInstrument->getProgramChange());
+    // For each variation
+    for (size_t i = 0; i < variationBanks.size(); ++i) {
+        // Assemble the program for the variation.
+        MidiBank bank;
+        if (useMSB) {
+            bank = MidiBank(getSelectedInstrument()->isPercussion(),
+                            variationBanks[i],
+                            getSelectedInstrument()->getLSB());
+        } else {
+            bank = MidiBank(getSelectedInstrument()->isPercussion(),
+                            getSelectedInstrument()->getMSB(),
+                            variationBanks[i]);
+        }
+        MidiProgram program(bank, getSelectedInstrument()->getProgramChange());
+
+        // Skip any programs without names.
+        if (md->getProgramName(program) == "")
+            continue;
+
+        variations.push_back(program);
     }
-    std::string defaultProgramName = md->getProgramName(defaultProgram);
+
+    // Compute the current variation.
+    // ??? This might be combined into the previous for loop.
 
     int currentVariation = -1;
 
-    for (unsigned int i = 0; i < variations.size(); ++i) {
-
-        MidiProgram program;
-
-        if (useMSB) {
-            program = MidiProgram
-                      (MidiBank(m_selectedInstrument->isPercussion(),
-                                variations[i],
-                                m_selectedInstrument->getLSB()),
-                       m_selectedInstrument->getProgramChange());
-        } else {
-            program = MidiProgram
-                      (MidiBank(m_selectedInstrument->isPercussion(),
-                                m_selectedInstrument->getMSB(),
-                                variations[i]),
-                       m_selectedInstrument->getProgramChange());
+    // For each variation
+    for (size_t i = 0; i < variations.size(); ++i) {
+        if (getSelectedInstrument()->getProgram() == variations[i]) {
+            currentVariation = i;
+            break;
         }
+    }
 
-        std::string programName = md->getProgramName(program);
+    // If the variations have changed, repopulate the combobox.
+    if (m_variations != variations) {
+        RG_DEBUG << "updateVariationComboBox(): Repopulating the combobox";
 
-        if (programName != "") { // yes, that is how you know whether it exists
-            /*
-                    m_variationValue->addItem(programName == defaultProgramName ?
-                                 tr("(default)") :
-                                 strtoqstr(programName));
-            */
-            m_variationValue->addItem(QObject::tr("%1. %2")
-                                         .arg(variations[i] + 1)
+        // Update the cache.
+        m_variations = variations;
+
+        // Copy from m_variations to m_variationComboBox.
+        m_variationComboBox->clear();
+        for (size_t i = 0; i < m_variations.size(); ++i) {
+            std::string programName = md->getProgramName(m_variations[i]);
+
+            // Pick the correct bank number.
+            MidiBank bank = m_variations[i].getBank();
+            MidiByte variationBank = useMSB ? bank.getMSB() : bank.getLSB();
+
+            m_variationComboBox->addItem(QObject::tr("%1. %2")
+                                         .arg(variationBank)
                                          .arg(QObject::tr(programName.c_str())));
-            if (m_selectedInstrument->getProgram() == program) {
-                currentVariation = m_variations.size();
-            }
-            m_variations.push_back(variations[i]);
         }
     }
 
-    if (currentVariation < 0 && !m_variations.empty()) {
-        m_variationValue->setCurrentIndex(0);
-        slotSelectVariation(0);
-    } else {
-        m_variationValue->setCurrentIndex(currentVariation);
-    }
+    // Display the current variation.
+    m_variationComboBox->setCurrentIndex(currentVariation);
 
-    if (m_variations.size() < 2) {
-        if (!m_variationLabel->isHidden()) {
-            m_variationLabel->hide();
-            m_variationCheckBox->hide();
-            m_variationValue->hide();
-        }
+    // Show the variation widgets in either of two cases:
+    //   1. More than one variation is available for this program.
+    //   2. The variation was not in the Device and there is a variation
+    //      to choose from.
+    showVariation(m_variations.size() > 1  ||
+                  (currentVariation == -1  &&  !m_variations.empty()));
 
-    } else {
-        //!!! seem to have problems here -- the grid layout doesn't
-        //like us adding stuff in the middle so if we go from 1
-        //visible row (say program) to 2 (program + variation) the
-        //second one overlaps the control knobs
-
-        if (m_variationLabel->isHidden()) {
-            m_variationLabel->show();
-            m_variationCheckBox->show();
-            m_variationValue->show();
-        }
-
-        if (m_programValue->width() > m_variationValue->width()) {
-            m_variationValue->setMinimumWidth(m_programValue->width());
-        } else {
-            m_programValue->setMinimumWidth(m_variationValue->width());
-        }
-    }
-
-    // Keep variation value enabled if percussion map is in use
-    if  (m_percussionCheckBox->isChecked()) {
-        m_variationValue->setDisabled(false);
-    } else {
-        m_variationValue->setEnabled(m_selectedInstrument->sendsBankSelect());
-    }    
-}
-
-// Fill the fixed channel list controls
-// @author Tom Breton (Tehom)
-void
-MIDIInstrumentParameterPanel::
-populateChannelList(void)
-{
-    // Block signals
-    m_channelUsed-> blockSignals(true);
-
-    const Instrument * instrument = m_selectedInstrument;
-    bool hasFixedChannel = instrument->hasFixedChannel();
-    int index = hasFixedChannel ? 1 : 0;
-    m_channelUsed->setCurrentIndex(index);
-
-    // Unblock signals
-    m_channelUsed-> blockSignals(false);
+    m_variationComboBox->setEnabled(getSelectedInstrument()->sendsBankSelect());
 }
 
 void
-MIDIInstrumentParameterPanel::slotTogglePercussion(bool value)
+MIDIInstrumentParameterPanel::slotInstrumentChanged(Instrument *instrument)
 {
-    if (m_selectedInstrument == 0) {
-        m_percussionCheckBox->setChecked(false);
-        emit updateAllBoxes();
-        return ;
-    }
+    if (!instrument)
+        return;
 
-    m_selectedInstrument->setPercussion(value);
+    if (!getSelectedInstrument())
+        return;
 
-    populateBankList();
-    populateProgramList();
-    populateVariationList();
+    // If this isn't a change for the Instrument we are displaying, bail.
+    if (getSelectedInstrument()->getId() != instrument->getId())
+        return;
 
-    emit changeInstrumentLabel(m_selectedInstrument->getId(),
-                               m_selectedInstrument->
-                                         getProgramName().c_str());
-    emit updateAllBoxes();
-
-    emit instrumentParametersChanged(m_selectedInstrument->getId());
+    updateWidgets();
 }
 
 void
-MIDIInstrumentParameterPanel::slotToggleBank(bool value)
+MIDIInstrumentParameterPanel::slotPercussionClicked(bool checked)
 {
-    if (m_selectedInstrument == 0) {
-        m_bankCheckBox->setChecked(false);
-        emit updateAllBoxes();
-        return ;
-    }
+    RG_DEBUG << "slotPercussionClicked(" << checked << ")";
 
-    m_variationCheckBox->setChecked(value);
-    m_selectedInstrument->setSendBankSelect(value);
+    if (!getSelectedInstrument())
+        return;
 
-    // Keep bank value enabled if percussion map is in use
-    if  (m_percussionCheckBox->isChecked()) {
-        m_bankValue->setDisabled(false);
-    } else {
-        m_bankValue->setDisabled(!value);
-    }
+    // Update the Instrument.
+    getSelectedInstrument()->setPercussion(checked);
+    getSelectedInstrument()->changed();
 
-    populateBankList();
-    populateProgramList();
-    populateVariationList();
-
-    emit changeInstrumentLabel(m_selectedInstrument->getId(),
-                               m_selectedInstrument->
-                                         getProgramName().c_str());
-    emit updateAllBoxes();
-
-    emit instrumentParametersChanged(m_selectedInstrument->getId());
+    // At this point, the bank will be invalid.  We could select
+    // the first valid bank/program for the current mode (percussion
+    // or not percussion).  This seems to be the right thing to
+    // do for the most common use case of setting up a track for
+    // percussion on a new device.  OTOH, the Device should already
+    // know which channels are percussion and which aren't.  So, it
+    // seems highly unlikely that anyone will ever click the Percussion
+    // checkbox.  Probably best just to leave this simple.  The user
+    // will normally be presented with a blank bank combobox and they
+    // can fix the problem themselves.
 }
 
 void
-MIDIInstrumentParameterPanel::slotToggleProgramChange(bool value)
+MIDIInstrumentParameterPanel::slotBankClicked(bool checked)
 {
-    if (m_selectedInstrument == 0) {
-        m_programCheckBox->setChecked(false);
-        emit updateAllBoxes();
-        return ;
-    }
+    RG_DEBUG << "slotBankClicked()";
 
-    m_selectedInstrument->setSendProgramChange(value);
+    if (!getSelectedInstrument())
+        return;
 
-    // Keep program value enabled if percussion map is in use
-    if  (m_percussionCheckBox->isChecked()) {
-        m_bankValue->setDisabled(false);
-    } else {
-        m_programValue->setDisabled(!value);
-    }
-
-    populateProgramList();
-    populateVariationList();
-
-    emit changeInstrumentLabel(m_selectedInstrument->getId(),
-                               m_selectedInstrument->
-                                         getProgramName().c_str());
-    emit updateAllBoxes();
-
-    emit instrumentParametersChanged(m_selectedInstrument->getId());
+    // Update the Instrument.
+    getSelectedInstrument()->setSendBankSelect(checked);
+    getSelectedInstrument()->changed();
 }
 
 void
-MIDIInstrumentParameterPanel::slotToggleVariation(bool value)
+MIDIInstrumentParameterPanel::slotProgramClicked(bool checked)
 {
-    if (m_selectedInstrument == 0) {
-        m_variationCheckBox->setChecked(false);
-        emit updateAllBoxes();
-        return ;
-    }
+    RG_DEBUG << "slotProgramClicked()";
 
-    m_bankCheckBox->setChecked(value);
-    m_selectedInstrument->setSendBankSelect(value);
+    if (!getSelectedInstrument())
+        return;
 
-    // Keep variation value enabled if percussion map is in use
-    if  (m_percussionCheckBox->isChecked()) {
-        m_bankValue->setDisabled(false);
-    } else {
-        m_variationValue->setDisabled(!value);
-    }
+    // Update the Instrument.
+    getSelectedInstrument()->setSendProgramChange(checked);
+    getSelectedInstrument()->changed();
+}
 
-    populateVariationList();
+void
+MIDIInstrumentParameterPanel::slotVariationClicked(bool checked)
+{
+    RG_DEBUG << "slotVariationClicked()";
 
-    emit changeInstrumentLabel(m_selectedInstrument->getId(),
-                               m_selectedInstrument->
-                                         getProgramName().c_str());
-    emit updateAllBoxes();
+    // ??? Disabling the sending of Bank Selects in Variations mode seems
+    //     very strange.  Variations mode is all about selecting a
+    //     variation through different bank selects.  Without the bank
+    //     selects, there are no variations.  It's likely that we can get
+    //     rid of this checkbox (and always send banks selects) and no one
+    //     will notice.
 
-    emit instrumentParametersChanged(m_selectedInstrument->getId());
+    if (!getSelectedInstrument())
+        return;
+
+    // Update the Instrument.
+    getSelectedInstrument()->setSendBankSelect(checked);
+    getSelectedInstrument()->changed();
 }
 
 void
 MIDIInstrumentParameterPanel::slotSelectBank(int index)
 {
-    if (m_selectedInstrument == 0)
-        return ;
+    RG_DEBUG << "slotSelectBank() begin...";
 
-    MidiDevice *md = dynamic_cast<MidiDevice*>
-                     (m_selectedInstrument->getDevice());
+    if (!getSelectedInstrument())
+        return;
+
+    MidiDevice *md =
+            dynamic_cast<MidiDevice *>(getSelectedInstrument()->getDevice());
     if (!md) {
-        RG_DEBUG << "WARNING: MIDIInstrumentParameterPanel::slotSelectBank: No MidiDevice for Instrument "
-        << m_selectedInstrument->getId() << endl;
-        return ;
+        std::cerr << "WARNING: MIDIInstrumentParameterPanel::slotSelectBank(): No MidiDevice for Instrument " << getSelectedInstrument()->getId() << '\n';
+        return;
     }
 
-    const MidiBank *bank = &m_banks[index];
+    const MidiBank &bank = m_banks[index];
 
     bool change = false;
 
     if (md->getVariationType() != MidiDevice::VariationFromLSB) {
-        if (m_selectedInstrument->getLSB() != bank->getLSB()) {
-            m_selectedInstrument->setLSB(bank->getLSB());
+        if (getSelectedInstrument()->getLSB() != bank.getLSB()) {
+            getSelectedInstrument()->setLSB(bank.getLSB());
             change = true;
         }
     }
     if (md->getVariationType() != MidiDevice::VariationFromMSB) {
-        if (m_selectedInstrument->getMSB() != bank->getMSB()) {
-            m_selectedInstrument->setMSB(bank->getMSB());
+        if (getSelectedInstrument()->getMSB() != bank.getMSB()) {
+            getSelectedInstrument()->setMSB(bank.getMSB());
             change = true;
         }
     }
 
-    populateProgramList();
-
-    if (change) {
-        emit updateAllBoxes();
-    }
-
-    emit changeInstrumentLabel(m_selectedInstrument->getId(),
-            m_selectedInstrument->getProgramName().c_str());
-
-    emit instrumentParametersChanged(m_selectedInstrument->getId());
-}
-
-
-
-
-
-void MIDIInstrumentParameterPanel::slotSelectProgramNoSend(int prog, int bank_lsb, int bank_msb )
-{
-    /*
-     * This function changes the program-list entry, if
-     * a midi program change message occured.
-     * 
-     * (the slot is being connected in RosegardenMainWindow.cpp,
-     *  and called (signaled) by SequenceManger.cpp)
-     * 
-     * parameters:
-     * prog : the program to select (triggered by program change message)
-     * bank_lsb : the bank to select (if no bank-select occured, this is -1)
-     *                (triggered by bank-select message (fine,lsb value))
-     * bank_msb : coarse/msb value  (-1 if not specified)
-     */
-    if( ! this->m_evalMidiPrgChgCheckBox->isChecked() ){
+    // If no change, bail.
+    if (!change)
         return;
-    }
-    
-    
-    
-    
-    if (m_selectedInstrument == 0)
-        return ;
 
-    MidiDevice *md = dynamic_cast<MidiDevice*>
-            (m_selectedInstrument->getDevice());
-    
-    if (!md) {
-        RG_DEBUG << "WARNING: MIDIInstrumentParameterPanel::slotSelectBank: No MidiDevice for Instrument "
-                << m_selectedInstrument->getId() << endl;
-        return ;
-    }
-    
-    bool changed_bank = false;
-    // bank msb value (MSB, coarse)
-    if ((bank_msb >= 0) ){ // and md->getVariationType() != MidiDevice::VariationFromMSB ) {
-        if (m_selectedInstrument->getMSB() != bank_msb ) {
-            m_selectedInstrument->setMSB( bank_msb );
-            changed_bank = true;
+    // Make sure the Instrument is valid WRT the Device.
+
+    // If the current bank/program is not valid for this device, fix it.
+    if (!getSelectedInstrument()->isProgramValid()) {
+
+        // If we're not in variations mode...
+        if (md->getVariationType() == MidiDevice::NoVariations) {
+
+            // ...go with the first program
+            ProgramList programList = md->getPrograms(bank);
+            if (!programList.empty()) {
+                // Switch to the first program in this bank.
+                getSelectedInstrument()->setProgram(programList.front());
+            } else {
+                // No programs for this bank.  Just go with 0.
+                getSelectedInstrument()->setProgramChange(0);
+            }
+
+        } else {  // We're in variations mode...
+
+            // This is the three-comboboxes (bank/program/variation) case.
+            // It's an extremely difficult case to handle, so we're just
+            // going to punt and give them the first program/variation in
+            // the bank they just selected.
+
+            // Get the variation bank list for this bank
+            BankList bankList;
+            if (md->getVariationType() == MidiDevice::VariationFromMSB) {
+                bankList = md->getBanksByLSB(
+                        getSelectedInstrument()->isPercussion(), bank.getLSB());
+            } else {
+                bankList = md->getBanksByMSB(
+                        getSelectedInstrument()->isPercussion(), bank.getMSB());
+            }
+            if (!bankList.empty()) {
+                // Pick the first bank
+                MidiBank firstBank = bankList.front();
+                // Get the program list
+                ProgramList programList = md->getPrograms(firstBank);
+                if (!programList.empty()) {
+                    // Pick the first program
+                    getSelectedInstrument()->setProgram(programList.front());
+                }
+            }
+
+            // To make the above more complex, we could consider the
+            // case where the Program Change happens to be valid for
+            // some variation bank in the newly selected bank.  Then
+            // go with the 0th variation bank that has that program
+            // change.  But I think this is complicated enough.
+
         }
-    }    
-    // selection of bank (LSB, fine)
-    if ((bank_lsb >= 0) ){ //and md->getVariationType() != MidiDevice::VariationFromLSB) {
-        if (m_selectedInstrument->getLSB() != bank_lsb ) {
-            m_selectedInstrument->setLSB( bank_lsb );
-            changed_bank = true;
-        }
     }
-    
-    bool change = false;
-    if (m_selectedInstrument->getProgramChange() != (MidiByte)prog) {
-        m_selectedInstrument->setProgramChange( (MidiByte)prog );
-        change = true;
-    }
-    
-    //populateVariationList();
-    
-    if (change or changed_bank) {
-        //emit changeInstrumentLabel( m_selectedInstrument->getId(),
-        //            strtoqstr(m_selectedInstrument->getProgramName()) );
-        emit updateAllBoxes();
-        
-        emit instrumentParametersChanged(m_selectedInstrument->getId());
-    }
-    
+
+    // This is why changed() isn't called within
+    // the setters.  If it were, then each of the above changes would
+    // result in a change notification going out.  Worst case, that
+    // would be three change notifications and the first two would be
+    // sent when the Instrument was in an inconsistent state.
+    // Rule: Avoid sending change notifications from setters.
+    // Why?  It reduces the number of notifications which improves
+    // performance.  It avoids sending notifications when an object's
+    // state is inconsistent.  It avoids endless loops.
+    getSelectedInstrument()->changed();
 }
 
+void
+MIDIInstrumentParameterPanel::slotExternalProgramChange(int programChange, int bankLSB, int bankMSB )
+{
+    RG_DEBUG << "slotExternalProgramChange()";
 
+    // If we aren't set to "Receive External", bail.
+    if (!m_receiveExternalCheckBox->isChecked())
+        return;
 
+    if (!getSelectedInstrument())
+        return;
 
+    bool bankChanged = false;
 
+    // MSB Bank Select
+    if (bankMSB >= 0) {  // &&  md->getVariationType() != MidiDevice::VariationFromMSB ) {
+        // If the MSB is changing
+        if (getSelectedInstrument()->getMSB() != bankMSB) {
+            getSelectedInstrument()->setMSB(bankMSB);
+            bankChanged = true;
+        }
+    }
 
+    // LSB Bank Select
+    if (bankLSB >= 0) { // &&  md->getVariationType() != MidiDevice::VariationFromLSB) {
+        // If the LSB is changing
+        if (getSelectedInstrument()->getLSB() != bankLSB) {
+            getSelectedInstrument()->setLSB(bankLSB);
+            bankChanged = true;
+        }
+    }
 
+    bool pcChanged = false;
 
+    // If the Program Change is changing
+    if (getSelectedInstrument()->getProgramChange() !=
+                static_cast<MidiByte>(programChange)) {
+        getSelectedInstrument()->setProgramChange(static_cast<MidiByte>(programChange));
+        pcChanged = true;
+    }
 
+    // If nothing changed, bail.
+    if (!pcChanged  &&  !bankChanged)
+        return;
 
+    // ??? If an unexpected bank/program change comes in, we could
+    //     pop up a message box to let the user know the values so
+    //     they can fix their device file.  Might be pretty annoying.
+    //     Maybe with a "[X] Don't *ever* show this pop-up again"
+    //     checkbox.
+
+    // Just one change notification for the three potential changes.
+    // See comments in slotSelectBank() for further discussion.
+    getSelectedInstrument()->changed();
+}
 
 void
 MIDIInstrumentParameterPanel::slotSelectProgram(int index)
 {
+    RG_DEBUG << "slotSelectProgram()";
+
+    if (!getSelectedInstrument())
+        return;
+
+    MidiDevice *md =
+            dynamic_cast<MidiDevice *>(getSelectedInstrument()->getDevice());
+    if (!md)
+        return;
+
     const MidiProgram *prg = &m_programs[index];
-    if (prg == 0) {
-        RG_DEBUG << "program change not found in bank" << endl;
-        return ;
+
+    // If there has been no change, bail.
+    if (getSelectedInstrument()->getProgramChange() == prg->getProgram())
+        return;
+
+    getSelectedInstrument()->setProgramChange(prg->getProgram());
+
+    // In Variations mode, select the 0th variation.
+
+    // In Variations mode, it's very easy to select an "invalid"
+    // program change.  I.e. one for which the bank is not valid.  Go
+    // from one program/variation to a program that doesn't have that
+    // variation.  We need to handle that here by selecting the 0th
+    // variation.  That's what the user expects.
+
+    if (md->getVariationType() == MidiDevice::VariationFromMSB) {
+        MidiBank bank = getSelectedInstrument()->getProgram().getBank();
+        // Get the list of MSB variations.
+        BankList bankList = md->getBanksByLSB(
+                getSelectedInstrument()->isPercussion(), bank.getLSB());
+        if (!bankList.empty()) {
+            // Pick the first MSB variation
+            getSelectedInstrument()->setMSB(bankList.front().getMSB());
+        }
+    }
+    if (md->getVariationType() == MidiDevice::VariationFromLSB) {
+        MidiBank bank = getSelectedInstrument()->getProgram().getBank();
+        // Get the list of LSB variations.
+        BankList bankList = md->getBanksByMSB(
+                getSelectedInstrument()->isPercussion(), bank.getMSB());
+        if (!bankList.empty()) {
+            // Pick the first LSB variation
+            getSelectedInstrument()->setLSB(bankList.front().getLSB());
+        }
     }
 
-    bool change = false;
-    if (m_selectedInstrument->getProgramChange() != prg->getProgram()) {
-        m_selectedInstrument->setProgramChange(prg->getProgram());
-        change = true;
-    }
-
-    populateVariationList();
-
-    if (change) {
-        emit changeInstrumentLabel(m_selectedInstrument->getId(),
-                                   m_selectedInstrument->
-                                             getProgramName().c_str());
-        emit updateAllBoxes();
-    }
-
-    emit instrumentParametersChanged(m_selectedInstrument->getId());
+    // Just one change notification for the two potential changes.
+    // See comments in slotSelectBank() for further discussion.
+    getSelectedInstrument()->changed();
 }
 
 void
 MIDIInstrumentParameterPanel::slotSelectVariation(int index)
 {
-    MidiDevice *md = dynamic_cast<MidiDevice*>
-                     (m_selectedInstrument->getDevice());
-    if (!md) {
-        RG_DEBUG << "WARNING: MIDIInstrumentParameterPanel::slotSelectVariation: No MidiDevice for Instrument "
-        << m_selectedInstrument->getId() << endl;
-        return ;
+    RG_DEBUG << "slotSelectVariation()";
+
+    if (!getSelectedInstrument())
+        return;
+
+    MidiBank newBank = m_variations[index].getBank();
+
+    bool changed = false;
+
+    // Update bank MSB/LSB as needed.
+    if (getSelectedInstrument()->getMSB() != newBank.getMSB()) {
+        getSelectedInstrument()->setMSB(newBank.getMSB());
+        changed = true;
+    }
+    if (getSelectedInstrument()->getLSB() != newBank.getLSB()) {
+        getSelectedInstrument()->setLSB(newBank.getLSB());
+        changed = true;
     }
 
-    if (index < 0 || index > int(m_variations.size())) {
-        RG_DEBUG << "WARNING: MIDIInstrumentParameterPanel::slotSelectVariation: index " << index << " out of range" << endl;
-        return ;
-    }
+    if (!changed)
+        return;
 
-    MidiByte v = m_variations[index];
-
-    if (md->getVariationType() == MidiDevice::VariationFromLSB) {
-        if (m_selectedInstrument->getLSB() != v) {
-            m_selectedInstrument->setLSB(v);
-        }
-    } else if (md->getVariationType() == MidiDevice::VariationFromMSB) {
-        if (m_selectedInstrument->getMSB() != v) {
-            m_selectedInstrument->setMSB(v);
-        }
-    }
-
-    emit instrumentParametersChanged(m_selectedInstrument->getId());
+    getSelectedInstrument()->changed();
 }
 
 // In place of the old sendBankAndProgram, instruments themselves now
@@ -1228,83 +1196,47 @@ MIDIInstrumentParameterPanel::slotSelectVariation(int index)
 void
 MIDIInstrumentParameterPanel::slotControllerChanged(int controllerNumber)
 {
+    RG_DEBUG << "slotControllerChanged(" << controllerNumber << ")";
 
-    RG_DEBUG << "MIDIInstrumentParameterPanel::slotControllerChanged - "
-    << "controller = " << controllerNumber << "\n";
+    if (!getSelectedInstrument())
+        return;
 
+    int value = -1;
 
-    if (m_selectedInstrument == 0)
-        return ;
-
-    MidiDevice *md = dynamic_cast<MidiDevice*>
-                     (m_selectedInstrument->getDevice());
-    if (!md)
-        return ;
-
-    /*
-    ControlParameter *controller = 
-    md->getControlParameter(MidiByte(controllerNumber));
-        */
-
-    int value = getValueFromRotary(controllerNumber);
+    // Figure out who sent this signal.
+    Rotary *rotary = dynamic_cast<Rotary *>(m_rotaryMapper->mapping(controllerNumber));
+    if (rotary)
+        value = static_cast<int>(std::floor(rotary->getPosition() + .5));
 
     if (value == -1) {
-        RG_DEBUG << "MIDIInstrumentParameterPanel::slotControllerChanged - "
-        << "couldn't get value of rotary for controller "
-        << controllerNumber << endl;
-        return ;
+        std::cerr << "MIDIInstrumentParameterPanel::slotControllerChanged(): Couldn't get value of rotary for controller " << controllerNumber << '\n';
+        return;
     }
 
-    m_selectedInstrument->setControllerValue(MidiByte(controllerNumber),
-            MidiByte(value));
-
-    emit updateAllBoxes();
-    emit instrumentParametersChanged(m_selectedInstrument->getId());
-
-}
-
-int
-MIDIInstrumentParameterPanel::getValueFromRotary(int rotary)
-{
-    for (RotaryMap::iterator it = m_rotaries.begin(); it != m_rotaries.end(); ++it) {
-        if (it->first == rotary)
-            return int(it->second.first->getPosition());
-    }
-
-    return -1;
-}
-
-void
-MIDIInstrumentParameterPanel::showAdditionalControls(bool showThem)
-{
-    // Now that the MIDI IPB can scroll, and since nobody seems to have
-    // implemented/repaired the tab layout mode (probably by design, and a
-    // good design) we'll do away with putting a limit on the number of
-    // controllers visible, and just always show them all
-    showThem = true;
-
-    m_instrumentLabel->setVisible(showThem);
-    int index = 0;
-    for (RotaryMap::iterator it = m_rotaries.begin(); it != m_rotaries.end(); ++it) {
-        it->second.first->parentWidget()->setVisible(showThem);
-        //it->second.first->setShown(showThem || (index < 8));
-        //it->second.second->setShown(showThem || (index < 8));
-        index++;
-    }
+    getSelectedInstrument()->setControllerValue(
+            MidiByte(controllerNumber), MidiByte(value));
+    getSelectedInstrument()->changed();
 }
 
 void
 MIDIInstrumentParameterPanel::
-slotSetUseChannel(int index)
+slotSelectChannel(int index)
 {
-    if (m_selectedInstrument == 0)
-        { return; }
-    if (index == 1) {
-        m_selectedInstrument->setFixedChannel();
-    } else {
-        m_selectedInstrument->releaseFixedChannel();
-    }
+    RG_DEBUG << "slotSelectChannel(" << index << ")";
+
+    if (!getSelectedInstrument())
+        return;
+
+    // Fixed
+    if (index == 1)
+        getSelectedInstrument()->setFixedChannel();
+    else  // Auto
+        getSelectedInstrument()->releaseFixedChannel();
+
+    // A call to getSelectedInstrument()->changed() is not required as the
+    // auto/fixed channel feature has its own notification mechanisms.
 }
 
+
 }
-#include "moc_MIDIInstrumentParameterPanel.cpp"
+#include "MIDIInstrumentParameterPanel.moc"

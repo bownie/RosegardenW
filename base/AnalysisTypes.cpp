@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file is Copyright 2002
@@ -1125,8 +1125,8 @@ AnalysisHelper::guessKeyAtTime(Composition &comp, timeT t,
 {
     typedef std::map<Key,unsigned int> MapKeys;
     MapKeys keyCounts;
-    segmentcontainer& segs = comp.getSegments();
-    for (segmentcontainer::iterator i = segs.begin();
+    SegmentMultiSet& segs = comp.getSegments();
+    for (SegmentMultiSet::iterator i = segs.begin();
          i != segs.end();
          ++i) {
         Segment *s = *i;

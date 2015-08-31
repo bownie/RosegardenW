@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,11 +19,9 @@
 #include "InstrumentParameterPanel.h"
 
 #include "base/Instrument.h"
-#include "document/RosegardenDocument.h"
 #include "gui/widgets/SqueezedLabel.h"
-#include <QFontMetrics>
+
 #include <QFrame>
-#include <QLabel>
 #include <QWidget>
 
 
@@ -31,25 +29,23 @@ namespace Rosegarden
 {
 
 InstrumentParameterPanel::InstrumentParameterPanel(RosegardenDocument *doc,
-                                                   QWidget* parent) :
+                                                   QWidget *parent) :
     QFrame(parent),
+    m_doc(doc),
     m_instrumentLabel(new SqueezedLabel(this)),
-    m_selectedInstrument(0),
-    m_doc(doc)
+    m_selectedInstrument(0)
 {
 }
 
 void
-InstrumentParameterPanel::setDocument(RosegardenDocument* doc)
+InstrumentParameterPanel::setDocument(RosegardenDocument *doc)
 {
     m_doc = doc;
     m_selectedInstrument = 0;
 }
 
-// Make instrument our selected instrument.
 void
-InstrumentParameterPanel::
-setSelectedInstrument(Instrument *instrument, QString label)
+InstrumentParameterPanel::setSelectedInstrument(Instrument *instrument)
 {
     m_selectedInstrument = instrument;
     if (instrument) {
@@ -57,10 +53,14 @@ setSelectedInstrument(Instrument *instrument, QString label)
         connect(instrument, SIGNAL(destroyed()),
                 this, SLOT(slotInstrumentGone()));
     }
-    m_instrumentLabel->setText(label);
 }
 
-        /// Instrument is being destroyed
+Instrument *
+InstrumentParameterPanel::getSelectedInstrument()
+{
+    return m_selectedInstrument;
+}
+
 void
 InstrumentParameterPanel::
 slotInstrumentGone(void)
@@ -69,6 +69,7 @@ slotInstrumentGone(void)
     m_instrumentLabel->setText(tr("none"));
 }
 
+
 }
 
-#include "moc_InstrumentParameterPanel.cpp"
+#include "InstrumentParameterPanel.moc"

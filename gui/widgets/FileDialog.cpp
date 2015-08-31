@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,6 +23,9 @@
 #include <QList>
 #include <QUrl>
 #include <QDesktopServices>
+#if QT_VERSION >= 0x050000
+#include <QStandardPaths>
+#endif
 #include <QApplication>
 #include <QSettings>
 
@@ -50,7 +53,11 @@ FileDialog::FileDialog(QWidget *parent,
     // set up the sidebar stuff; the entire purpose of this class 
     QList<QUrl> urls;
 
+#if QT_VERSION >= 0x050000
     QString home = QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::HomeLocation)).path();
+#else
+    QString home = QUrl::fromLocalFile(QDesktopServices::storageLocation(QDesktopServices::HomeLocation)).path();
+#endif
     QString examples = home + "/.local/share/rosegarden/examples";
     QString templates = home + "/.local/share/rosegarden/templates";
     QString rosegarden = home + "/rosegarden";
@@ -60,11 +67,20 @@ FileDialog::FileDialog(QWidget *parent,
               << "                  templates: " << templates << endl
               << "                 rosegarden: " << rosegarden << endl;
 
+#if QT_VERSION >= 0x050000
     urls << QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::HomeLocation))
+#else
+    urls << QUrl::fromLocalFile(QDesktopServices::storageLocation(QDesktopServices::HomeLocation))
+#endif
          << QUrl::fromLocalFile(examples)
          << QUrl::fromLocalFile(templates)
+#if QT_VERSION >= 0x050000
          << QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation))
          << QUrl::fromLocalFile(QStandardPaths::writableLocation(QStandardPaths::MusicLocation))
+#else
+         << QUrl::fromLocalFile(QDesktopServices::storageLocation(QDesktopServices::DocumentsLocation))
+         << QUrl::fromLocalFile(QDesktopServices::storageLocation(QDesktopServices::MusicLocation))
+#endif
          << QUrl::fromLocalFile(rosegarden)
          ; // closing ; on this line to allow the lines above to be shuffled easily
 
@@ -206,4 +222,4 @@ FileDialog::getSaveFileName(QWidget *parent,
 
 }
 
-#include "moc_FileDialog.cpp"
+#include "FileDialog.moc"

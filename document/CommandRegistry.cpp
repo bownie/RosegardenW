@@ -65,5 +65,5 @@ CommandRegistry::slotInvokeCommand()
 
 }
 
-#include "moc_CommandRegistry.cpp"
+#include "CommandRegistry.moc"
 

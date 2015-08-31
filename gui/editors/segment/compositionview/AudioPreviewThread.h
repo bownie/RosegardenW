@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,6 +38,12 @@ namespace Rosegarden
 class AudioFileManager;
 
 
+/// Generate audio peaks asynchronously.
+/**
+ * While this is used for generating audio previews, it would be more
+ * accurately named "AudioPeaksThread".  "Preview" can be replaced with
+ * "Peaks" wherever it occurs in this class.
+ */
 class AudioPreviewThread : public QThread
 {
 public:

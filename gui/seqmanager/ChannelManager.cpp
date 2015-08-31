@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,9 +23,12 @@
 #include "base/Instrument.h"
 #include "base/MidiTypes.h"
 #include "misc/Debug.h"
+#include "misc/ConfigGroups.h"
 #include "sound/MappedEvent.h"
 #include "sound/MappedInserterBase.h"
 #include "sound/Midi.h"
+
+#include <QSettings>
 
 namespace Rosegarden
 {
@@ -99,17 +102,14 @@ setControllers(ChannelId channel, Instrument *instrument,
                RealTime reftime, RealTime insertTime,
                Callbacks *callbacks, int trackId)
 {
-#if 0
-    // This was the old logic, but it's not clear that it is still
-    // desirable.
+    // This is still desirable for some users.
     QSettings settings;
     settings.beginGroup(SequencerOptionsConfigGroup);
-    bool sendControllers = qStrToBool(settings.value("alwayssendcontrollers", "false")) ;
+    bool sendControllers = settings.value("alwayssendcontrollers", "false").toBool();
     settings.endGroup();
 
     if (instrument->hasFixedChannel() && 
         !sendControllers) { return; }
-#endif
 
     // In case some controllers are on that we don't know about, turn
     // all controllers off.
@@ -348,7 +348,10 @@ setChannelIdDirectly(void)
     if (m_instrument->getType() == Instrument::Midi) {
         // !!! Stopgap measure.  If we ever share allocators between
         // MIDI devices, this will have to become smarter.
-        if (m_instrument->isPercussion()) { channel = 9; }
+        if (m_instrument->isPercussion()) {
+            channel = (m_instrument->hasFixedChannel() ?
+                       m_instrument->getNaturalChannel() : 9);
+        }
     }
     m_channel.setChannelId(channel);
 }
@@ -608,6 +611,8 @@ void
 ChannelManager::
 slotInstrumentChanged(void)
 {
+    m_triedToGetChannel = false;
+
     // Reset to the fixedness of the instrument.  This is safe even
     // when fixedness hasn't really changed.
     if(m_instrument) {
@@ -633,4 +638,4 @@ getControllers(Instrument *instrument, RealTime /*start*/)
 
 }
 
-#include "moc_ChannelManager.cpp"
+#include "ChannelManager.moc"

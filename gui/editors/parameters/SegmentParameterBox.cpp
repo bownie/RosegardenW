@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -52,6 +52,7 @@
 #include "document/Command.h"
 #include "gui/widgets/LineEdit.h"
 #include "gui/widgets/InputDialog.h"
+#include "gui/widgets/Label.h"
 
 #include <QColorDialog>
 #include <QLayout>
@@ -120,7 +121,6 @@ SegmentParameterBox::initBox()
     QFontMetrics fontMetrics(font);
     // magic numbers: 13 is the height of the menu pixmaps, 10 is just 10
     //int comboHeight = std::max(fontMetrics.height(), 13) + 10;
-    int width = fontMetrics.width("12345678901234567890");
 
     QSettings settings;
     settings.beginGroup(CollapsingFrameConfigGroup);
@@ -148,14 +148,21 @@ SegmentParameterBox::initBox()
 //    m_rangeLabel = new QLabel(tr("Range"), this);
 
     // Label ..
-    m_label = new QLabel(this);
+    m_label = new Label(this);
     m_label->setObjectName("SPECIAL_LABEL");
     m_label->setFont(font);
+    int width = fontMetrics.width("12345678901234567890");
     m_label->setFixedWidth(width);
     //m_label->setFixedHeight(comboHeight);
 //    m_label->setFrameStyle(QFrame::Panel | QFrame::Sunken);
+    m_label->setToolTip(tr("<qt>Click to edit the segment label for any selected segments</qt>"));
+
+    connect(m_label, SIGNAL(clicked()),
+            SLOT(slotEditSegmentLabel()));
 
     // .. and edit button
+    // ??? This Edit button is now no longer needed.  The user can just
+    //     click on the label to edit it.
     m_labelButton = new QPushButton(tr("Edit"), this);
     m_labelButton->setFont(font);
     m_labelButton->setToolTip(tr("<qt>Edit the segment label for any selected segments</qt>"));
@@ -1193,4 +1200,4 @@ SegmentParameterBox::getPreviousBox(RosegardenParameterArea::Arrangement arrange
 }
 
 }
-#include "moc_SegmentParameterBox.cpp"
+#include "SegmentParameterBox.moc"

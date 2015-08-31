@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,7 +19,7 @@
 #ifndef DEVICESMANAGERNEW_H
 #define DEVICESMANAGERNEW_H
 
-#include "ui_DeviceManagerDialogUi.h"
+#include "DeviceManagerDialogUi.h"
 
 #include "base/Device.h"
 #include "base/MidiDevice.h"
@@ -107,8 +107,6 @@ signals:
     void deviceNameChanged(DeviceId);
     void deviceNamesChanged();
     
-    void closing();
-    
 public slots:
     void slotOutputPortClicked(QTreeWidgetItem * item, int column);
     void slotPlaybackDeviceSelected();
@@ -137,15 +135,11 @@ public slots:
     void slotEditControllerDefinitions();
     
     void show();
-    void slotClose();
     void slotHelpRequested();
     
     void slotResyncDevicesReceived();
     
 protected:
-    virtual void closeEvent(QCloseEvent *);
-
-    //
     RosegardenDocument *m_doc;
     Studio *m_studio;
     
@@ -156,6 +150,9 @@ protected:
     int m_UserRole_DeviceId; // = Qt::UserRole + 1;
     
     QString m_noPortName;
+
+private slots:
+    void slotCloseButtonPress();
 };
 
 

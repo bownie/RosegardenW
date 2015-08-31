@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,198 +18,190 @@
 #ifndef RG_ROSEGARDENSCROLLVIEW_H
 #define RG_ROSEGARDENSCROLLVIEW_H
 
-#include <QPoint>
 #include <QAbstractScrollArea>
 #include <QDateTime>
+#include <QPoint>
 #include <QTimer>
 
 
-class QWidget;
-class QWheelEvent;
-class QScrollBar;
+class QMouseEvent;
+class QPaintEvent;
+class QRect;
 class QResizeEvent;
+class QScrollBar;
+class QWheelEvent;
+class QWidget;
 
 
 namespace Rosegarden
 {
 
 
+class StandardRuler;
 
+/// QAbstractScrollArea with auto-scroll and bottom ruler.
 /**
- * A QScrollView with more elaborate auto-scrolling capabilities
- * and the ability to have a "fixed" (non-scrolling) widget at its bottom,
- * just above the bottom scrollbar.
+ * A QAbstractScrollArea with more elaborate auto-scrolling capabilities
+ * and the ability to have a vertically "fixed" StandardRuler at its
+ * bottom, just above the horizontal scrollbar.
+ *
+ * Some Q3ScrollView compatibility is provided to ease the transition
+ * from Q3ScrollView to QAbstractScrollArea.
+ *
+ * CompositionView derives from this class.
  */
 class RosegardenScrollView : public QAbstractScrollArea
 {
     Q_OBJECT
-public:
-    RosegardenScrollView(QWidget* parent=0);
 
+public:
+
+    RosegardenScrollView(QWidget *parent);
+
+    /// Connect the bottom StandardRuler.
     /**
-     * EditTool::handleMouseMove() returns a OR-ed combination of these
-     * to indicate which direction to scroll to
+     * Sets the ruler widget which will be between the scrollable part of
+     * the view and the horizontal scrollbar.
+     *
+     * This is called by TrackEditor::init() to connect a StandardRuler
+     * instance.
      */
-    enum {
+    void setBottomRuler(StandardRuler *);
+
+    /// X coordinate of the contents that are at the left edge of the viewport.
+    int contentsX();
+    /// Y coordinate of the contents that are at the top edge of the viewport.
+    int contentsY();
+
+    QPoint viewportToContents(const QPoint &);
+
+    void updateContents();
+
+    /// Follow Mode
+    /**
+     * Derivers from SegmentTool override SegmentTool::handleMouseMove() and
+     * return an OR-ed combination of these to indicate the auto-scroll
+     * direction.
+     *
+     * See MatrixTool::FollowMode, NotationTool::FollowMode, and
+     * ControlTool::FollowMode.
+     *
+     * Would this make more sense in SegmentTool?
+     */
+    enum FollowMode {
         NoFollow = 0x0,
         FollowHorizontal = 0x1,
         FollowVertical = 0x2
     };
 
     /**
-     * Sets the canvas width to be exactly the width needed to show
-     * all the items
+     * Called by TrackEditor::handleAutoScroll().
      */
-//     void fitWidthToContents();
+    void doAutoScroll();
+    bool isAutoScrolling() const  { return m_autoScrolling; }
 
-	// Functions that were missing from QAbstractScrollArea
-	int contentsX();	//### todo: when GUI is ready: check the following code
-	int contentsY();
-	void setContentsPos(int, int ); //### JAS todo: when GUI is ready: check the following code
-	int visibleWidth();
-	int visibleHeight();
-	int contentsWidth();
-	int	contentsHeight();
-	
-	void resizeContents(int, int);	
-	void updateContents(int, int, int, int);
-	void updateContents(const QRect& r);
-	void updateContents();
-
-	void paintEvent( QPaintEvent* pe );
-	
-	void mousePressEvent( QMouseEvent* );
-	void mouseReleaseEvent( QMouseEvent* );
-	void mouseDoubleClickEvent( QMouseEvent* );
-	void mouseMoveEvent( QMouseEvent* );
-
-	QPoint viewportToContents( QPoint& );
-	
-	void setDragAutoScroll(bool);
-
+    /// Playback scrolling.
     /**
-     * Sets the widget which will be between the scrollable part of the view
-     * and the horizontal scrollbar
-     */
-    void setBottomFixedWidget(QWidget*);
-
-    void updateBottomWidgetGeometry();
-
-    /// Map a point with the inverse world matrix
-//     QPoint inverseMapPoint(const QPoint& p) { return inverseWorldMatrix().map(p); }
-
-    void setSmoothScroll(bool s) { m_smoothScroll = s; }
-
-    bool isTimeForSmoothScroll();
-
-    void setScrollDirectionConstraint(int d) { m_scrollDirectionConstraint = d; }
-
-    int getDeltaScroll() { return m_minDeltaScroll; }
-
-    virtual void wheelEvent(QWheelEvent *);
-
-public slots:
-    /**
-     * Scroll horizontally to make the given position visible,
-     * paging to as to get some visibility of the next screenful
+     * Scroll horizontally to make the given contents position visible,
+     * paging so as to get some visibility of the next screenful
      * (for playback etc)
      */
-    void slotScrollHoriz(int hpos);
+    void scrollHoriz(int x);
 
+    /// Track select scrolling.
     /**
-     * Scroll horizontally to make the given position somewhat
-     * nearer to visible, scrolling by only "a small distance"
-     * at a time
+     * Scroll vertically to make the given contents position visible.
+     *
+     * The main test case for this is selecting tracks with the
+     * arrow keys and making sure the view scrolls to show the
+     * selected track.
      */
-    void slotScrollHorizSmallSteps(int hpos);
+    void scrollVert(int y);
 
+public slots:
+    /// Handle top and bottom StandardRuler::startMouseMove() signals.
     /**
-     * Scroll vertically to make the given position somewhat
-     * nearer to visible, scrolling by only "a small distance"
-     * at a time
+     * See enum FollowMode for valid mask values.
      */
-    void slotScrollVertSmallSteps(int vpos);
-
-    /**
-     * Scroll vertically so as to place the given position
-     * somewhere near the top of the viewport.
-     */
-    void slotScrollVertToTop(int vpos);
-
-    /**
-     * Set the x and y scrollbars to a particular position
-     */
-    void slotSetScrollPos(const QPoint &);
-
-    void startAutoScroll();
-    void startAutoScroll(int directionConstraint);
-    void stopAutoScroll();
-    void doAutoScroll();
-
-    bool isAutoScrolling() const { return m_autoScrolling; }
-
-    void updateScrollBars();
+    void slotStartAutoScroll(int followMode);
+    /// Handle top and bottom StandardRuler::stopMouseMove() signals.
+    void slotStopAutoScroll();
 
 signals:
-    void bottomWidgetHeightChanged(int);
+    /// Used by TrackEditor to keep TrackButtons the right size.
+    void viewportResize();
 
+    /// Emitted on Ctrl-Scroll Wheel Up.
+    /**
+     * TrackEditor connects this to RosegardenMainWindow::slotZoomIn().
+     */
     void zoomIn();
+    /// Emitted on Ctrl-Scroll Wheel Down.
+    /**
+     * TrackEditor connects this to RosegardenMainWindow::slotZoomOut().
+     */
     void zoomOut();
 
 protected:
-    
-    virtual void viewportPaintEvent( QPaintEvent* );
 
-	virtual void contentsMousePressEvent( QMouseEvent* );
-	virtual void contentsMouseReleaseEvent( QMouseEvent* );
-	virtual void contentsMouseMoveEvent( QMouseEvent* );
-	virtual void contentsMouseDoubleClickEvent( QMouseEvent* );
+    /// Sets the size of the contents area and updates the viewport accordingly.
+    /**
+     * Q3ScrollView compatible function.
+     */
+    void resizeContents(int width, int height);
+    /// Width of the contents area.
+    int contentsWidth()  { return m_contentsWidth; }
+    /// Height of the contents area.
+    int contentsHeight()  { return m_contentsHeight; }
 
-    virtual void resizeEvent(QResizeEvent*);
-    virtual void setHBarGeometry(QScrollBar &hbar, int x, int y, int w, int h);
-    
-    virtual QScrollBar* getMainHorizontalScrollBar() { return horizontalScrollBar(); }
+    void updateContents(const QRect &);
 
-    //--------------- Data members ---------------------------------
-    enum ScrollDirection { None, Top, Bottom, Left, Right };
+    /// See enum FollowMode.
+    void setFollowMode(int followMode)  { m_followMode = followMode; }
+    void startAutoScroll();
 
-    QWidget* m_bottomWidget;
-    int m_currentBottomWidgetHeight;
+    /// Viewport resize.
+    virtual void resizeEvent(QResizeEvent *);
 
-    bool m_smoothScroll;
-    int m_smoothScrollTimeInterval;
-    float m_minDeltaScroll;
-    QTime m_scrollTimer;
-    QTime m_scrollShortcuterationTimer;
+    virtual void wheelEvent(QWheelEvent *);
 
-    QTimer m_autoScrollTimer;
-    int m_autoScrollTime;
-    int m_autoScrollShortcut;
-    QPoint m_previousP;
-    int m_autoScrollXMargin;
-    int m_autoScrollYMargin;
-    ScrollDirection m_currentScrollDirection;
-    int m_scrollDirectionConstraint;
-    bool m_autoScrolling;    
+private slots:
 
-    static const int    DefaultSmoothScrollTimeInterval;
-    static const double DefaultMinDeltaScroll;
+    /// Handler for m_autoScrollTimer.
+    void slotOnAutoScrollTimer();
 
-    static const int AutoscrollMargin;
-    static const int InitialScrollTime;
-    static const int InitialScrollShortcut;
-    static const int MaxScrollDelta;
-    static const double ScrollShortcutValue;
-
-	int m_vwidth;
-	int m_vheight;
-	
 private:
-	void viewportMousePressEvent( QMouseEvent* );
-	void viewportMouseReleaseEvent( QMouseEvent* );
-	void viewportMouseDoubleClickEvent( QMouseEvent* );
-	void viewportMouseMoveEvent( QMouseEvent* );
-	QPoint viewportToContents(const QPoint& vp);
+
+    StandardRuler *m_bottomRuler;
+    /// Make sure the bottom ruler stays in the proper place.
+    void updateBottomRulerGeometry();
+
+    int m_contentsWidth;
+    int m_contentsHeight;
+
+    /// Calls update() on a rectangle defined by x, y, w, h, translated appropriately.
+    /**
+     * Q3ScrollView compatible function.
+     */
+    void updateContents(int x, int y, int width, int height);
+
+    /// Adjust the scrollbars' max and page step.
+    void updateScrollBars();
+
+    // *** Auto Scrolling
+
+    /// Convert a distance outside the viewport into a scroll rate.
+    double distanceToScrollRate(int distance);
+
+    /// Calls slotOnAutoScrollTimer().
+    QTimer m_autoScrollTimer;
+    /// m_autoScrollTimer interval.
+    static const int AutoScrollTimerInterval;
+
+    /// See enum FollowMode for valid mask values.
+    int m_followMode;
+    bool m_autoScrolling;
+
 };
 
 

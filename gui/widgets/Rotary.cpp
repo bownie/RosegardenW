@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -105,10 +105,63 @@ Rotary::~Rotary()
 }
 
 void
+Rotary::setMinimum(float min)
+{
+    if (m_minimum == min)
+        return;
+
+    m_minimum = min;
+    update();
+}
+
+void
+Rotary::setMaximum(float max)
+{
+    if (m_maximum == max)
+        return;
+
+    m_maximum = max;
+    update();
+}
+
+void
+Rotary::setStep(float step)
+{
+    if (m_step == step)
+        return;
+
+    m_step = step;
+    update();
+}
+
+void
+Rotary::setPageStep(float step)
+{
+    if (m_pageStep == step)
+        return;
+
+    m_pageStep = step;
+    update();
+}
+
+void
 Rotary::setKnobColour(const QColor &colour)
 {
+    if (m_knobColour == colour)
+        return;
+
     m_knobColour = colour;
-    repaint();
+    update();
+}
+
+void
+Rotary::setCentered(bool centred)
+{
+    if (m_centred == centred)
+        return;
+
+    m_centred = centred;
+    update();
 }
 
 void
@@ -390,15 +443,13 @@ Rotary::mousePressEvent(QMouseEvent *e)
         m_buttonPressed = true;
         m_lastY = e->y();
         m_lastX = e->x();
-    } else if (e->button() == Qt::MidButton) // reset to default
-    {
-        m_position = m_initialPosition;
+    } else if (e->button() == Qt::MidButton) {  // reset to centre position
+        m_position = (m_maximum + m_minimum) / 2.0;
         snapPosition();
         update();
         emit valueChanged(m_snapPosition);
-    } else if (e->button() == Qt::RightButton) // reset to centre position
-    {
-        m_position = (m_maximum + m_minimum) / 2.0;
+    } else if (e->button() == Qt::RightButton) {  // reset to default
+        m_position = m_initialPosition;
         snapPosition();
         update();
         emit valueChanged(m_snapPosition);
@@ -589,11 +640,13 @@ Rotary::enterEvent(QEvent *)
 void
 Rotary::setPosition(float position)
 {
-    m_position = position;
+    if (m_position == position)
+        return;
 
+    m_position = position;
     snapPosition();
     update();
 }
 
 }
-#include "moc_Rotary.cpp"
+#include "Rotary.moc"

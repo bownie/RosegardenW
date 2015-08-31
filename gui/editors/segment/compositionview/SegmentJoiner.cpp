@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -34,6 +34,9 @@
 namespace Rosegarden
 {
 
+
+const QString SegmentJoiner::ToolName = "segmentjoiner";
+
 SegmentJoiner::SegmentJoiner(CompositionView *c, RosegardenDocument *d)
         : SegmentTool(c, d)
 {
@@ -44,16 +47,48 @@ SegmentJoiner::~SegmentJoiner()
 {}
 
 void
-SegmentJoiner::handleMouseButtonPress(QMouseEvent*)
-{}
+SegmentJoiner::mousePressEvent(QMouseEvent *e)
+{
+    // Let the baseclass have a go.
+    SegmentTool::mousePressEvent(e);
+
+    // We only care about the left mouse button.
+    if (e->button() != Qt::LeftButton)
+        return;
+
+    // No need to propagate.
+    e->accept();
+
+    //QPoint pos = m_canvas->viewportToContents(e->pos());
+
+    // ??? not implemented
+}
 
 void
-SegmentJoiner::handleMouseButtonRelease(QMouseEvent*)
-{}
+SegmentJoiner::mouseReleaseEvent(QMouseEvent *e)
+{
+    // We only care about the left mouse button.
+    if (e->button() != Qt::LeftButton)
+        return;
+
+    // No need to propagate.
+    e->accept();
+
+    //QPoint pos = m_canvas->viewportToContents(e->pos());
+
+    // ??? not implemented
+}
 
 int
-SegmentJoiner::handleMouseMove(QMouseEvent*)
+SegmentJoiner::mouseMoveEvent(QMouseEvent *e)
 {
+    // No need to propagate.
+    e->accept();
+
+    //QPoint pos = m_canvas->viewportToContents(e->pos());
+
+    // ??? not implemented
+
     return RosegardenScrollView::NoFollow;
 }
 
@@ -61,7 +96,6 @@ void
 SegmentJoiner::contentsMouseDoubleClickEvent(QMouseEvent*)
 {}
 
-const QString SegmentJoiner::ToolName   = "segmentjoiner";
 
 }
-#include "moc_SegmentJoiner.cpp"
+#include "SegmentJoiner.moc"

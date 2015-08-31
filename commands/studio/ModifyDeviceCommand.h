@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -68,33 +68,35 @@ public:
 protected:
 
     Studio                    *m_studio;
-    int                                    m_device;
-    std::string                            m_name;
-    std::string                            m_librarianName;
-    std::string                            m_librarianEmail;
+    int                        m_device;
+
+    std::string                m_name;
+    std::string                m_librarianName;
+    std::string                m_librarianEmail;
     MidiDevice::VariationType  m_variationType;
     BankList                   m_bankList;
     ProgramList                m_programList;
     ControlList                m_controlList;
     KeyMappingList             m_keyMappingList;
 
-    std::string                            m_oldName;
-    std::string                            m_oldLibrarianName;
-    std::string                            m_oldLibrarianEmail;
+    std::string                m_oldName;
+    std::string                m_oldLibrarianName;
+    std::string                m_oldLibrarianEmail;
     MidiDevice::VariationType  m_oldVariationType;
     BankList                   m_oldBankList;
     ProgramList                m_oldProgramList;
     ControlList                m_oldControlList;
     KeyMappingList             m_oldKeyMappingList;
+    ProgramList                m_oldInstrumentPrograms;
 
-    bool                                   m_overwrite;
-    bool                                   m_rename;
-    bool                                   m_changeVariation;
-    bool                                   m_changeBanks;
-    bool                                   m_changePrograms;
-    bool                                   m_changeControls;
-    bool                                   m_changeKeyMappings;
-    bool                                   m_clearBankAndProgramList;
+    bool                       m_overwrite;
+    bool                       m_rename;
+    bool                       m_changeVariation;
+    bool                       m_changeBanks;
+    bool                       m_changePrograms;
+    bool                       m_changeControls;
+    bool                       m_changeKeyMappings;
+    bool                       m_clearBankAndProgramList;
 
 };
 

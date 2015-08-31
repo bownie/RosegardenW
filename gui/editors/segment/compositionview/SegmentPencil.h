@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -49,15 +49,12 @@ public:
     virtual void ready();
     virtual void stow();
 
-    virtual void handleMouseButtonPress(QMouseEvent*);
-    virtual void handleMouseButtonRelease(QMouseEvent*);
-    virtual int  handleMouseMove(QMouseEvent*);
+    virtual void mousePressEvent(QMouseEvent *);
+    virtual int mouseMoveEvent(QMouseEvent *);
+    virtual void mouseReleaseEvent(QMouseEvent *);
 
     static const QString ToolName;
 
-protected slots:
-    void slotCanvasScrolled(int newX, int newY);
-    
 protected:
     SegmentPencil(CompositionView*, RosegardenDocument*);
     void setContextHelpFor(QPoint p);

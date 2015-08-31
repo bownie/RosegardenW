@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -25,6 +25,7 @@
 #include "TrackLabel.h"
 #include <QFrame>
 #include <QString>
+#include <QSharedPointer>
 #include <vector>
 
 
@@ -42,6 +43,7 @@ class TrackVUMeter;
 class RosegardenDocument;
 class LedButton;
 class Instrument;
+class InstrumentStaticSignals;
 
 /// The QFrame containing the various widgets for each track.
 /**
@@ -97,9 +99,6 @@ public:
      * Menu: View > Show Track Labels (show_tracklabels action)
      */
     void changeLabelDisplayMode(TrackLabel::DisplayMode mode);
-
-    /// Handles a change to the Program in the Instrument Parameters box.
-    void changeInstrumentName(InstrumentId id, QString programChangeName);
 
     /// Fill the instrument popup menu with the available instruments.
     /**
@@ -352,6 +351,9 @@ private slots:
     /// Handles clicks from m_clickedSigMapper.
     void slotTrackSelected(int trackId);
 
+    /// Handles a change to the Program in the Instrument Parameters box.
+    void slotInstrumentChanged(Instrument *instrument);
+
 private:
     // Hide copy ctor and op=
     TrackButtons(const TrackButtons &);
@@ -359,6 +361,8 @@ private:
 
     /// Select the given track.  This displays it with a highlight.
     void selectTrack(int position);
+
+    QSharedPointer<InstrumentStaticSignals> m_instrumentStaticSignals;
 };
 
 

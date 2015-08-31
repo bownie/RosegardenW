@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -91,9 +91,7 @@ void PlayListView::mousePressEvent ( QMouseEvent * event ){
 */
 void PlayListView::dragEnterEvent ( QDragEnterEvent * e ){
     
-    const QMimeData *mime;
-    mime = e->mimeData();
-    if (mime->hasFormat("text/uri-list") || mime->hasFormat("text/plain")) {
+    if (e->mimeData()->hasUrls() || e->mimeData()->hasText()) {
 
         if (e->proposedAction() & Qt::CopyAction) {
             e->acceptProposedAction();
@@ -150,12 +148,11 @@ QStringList PlayListView::mimeTypes() const{
 
 void PlayListView::dropEvent(QDropEvent* e)
 {
+    QList<QUrl> uList;
     QStringList uriList;
     QString text;
-    const QMimeData *mime;
-    mime = e->mimeData();
 
-    if (mime->hasFormat("text/uri-list") || mime->hasFormat("text/plain")) {
+    if (e->mimeData()->hasUrls() || e->mimeData()->hasText()) {
         
         // if (drag-source == this)  (or a child item) disallow drop
         if( e->source() && ((e->source() == this) || (e->source()->parent() && (e->source()->parent() == this )))){
@@ -171,12 +168,15 @@ void PlayListView::dropEvent(QDropEvent* e)
             e->accept();
         }
 
-        if (mime->hasFormat("text/uri-list")) {
-            uriList = QString::fromLocal8Bit(
-                        mime->data("text/uri-list")
-                    ).split( QRegExp("[\\r\\n]+"), QString::SkipEmptyParts );
+        if (e->mimeData()->hasUrls()) {
+            uList = e->mimeData()->urls();
+            if (!uList.isEmpty()) {
+                for (int i = 0; i < uList.size(); ++i)  {
+                    uriList.append(QString::fromLocal8Bit(uList.value(i).toEncoded().data()));
+               }
+            }
         } else {
-            text = QString::fromLocal8Bit(mime->data("text/plain"));
+            text = e->mimeData()->text();
         }
     } else {
         e->ignore();
@@ -220,6 +220,6 @@ QTreeWidgetItem* PlayListView::previousSibling(QTreeWidgetItem* item)
 
 }
 
-#include "moc_PlayListView.cpp"
+#include "PlayListView.moc"
 
 

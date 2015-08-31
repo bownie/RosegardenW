@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -1738,6 +1738,10 @@ NotationStaff::renderNote(ViewElementList::iterator &vli)
         m_graceNotePixmapFactory->setShaded(m_notePixmapFactory->isShaded());
         factory = m_graceNotePixmapFactory;
     }
+
+    bool memberOfParallel = false;
+    elt->event()->get<Bool>(BaseProperties::MEMBER_OF_PARALLEL, memberOfParallel);
+    params.setMemberOfParallel(memberOfParallel);
 
     if (m_printPainter) {
 

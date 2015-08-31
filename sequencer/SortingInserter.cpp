@@ -1,0 +1,46 @@
+/* -*- c-basic-offset: 4 indent-tabs-mode: nil -*- vi:set ts=8 sts=4 sw=4: */
+
+/*
+    Rosegarden
+    A MIDI and audio sequencer and musical notation editor.
+    Copyright 2000-2015 the Rosegarden development team.
+
+    Other copyrights also apply to some parts of this work.  Please
+    see the AUTHORS file and individual file headers for details.
+
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License as
+    published by the Free Software Foundation; either version 2 of the
+    License, or (at your option) any later version.  See the file
+    COPYING included with this distribution for more information.
+*/
+
+#include "SortingInserter.h"
+
+namespace Rosegarden
+{
+
+void
+SortingInserter::
+insertSorted(MappedInserterBase &exporter)
+{
+    static MappedEventCmp merc;
+    // std::list sort is stable, so we get same-time events in the
+    // order we inserted them, important for NoteOffs.
+    m_list.sort(merc);
+    typedef std::list<MappedEvent>::const_iterator iterator;
+    for(iterator i = m_list.begin(); i != m_list.end(); ++i) {
+        exporter.insertCopy(*i);
+    }
+}
+
+void
+SortingInserter::
+insertCopy(const MappedEvent &evt)
+{
+    m_list.push_back(evt);
+}
+  
+}
+
+

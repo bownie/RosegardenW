@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     This file is Copyright 2005
         Toni Arnold         <toni__arnold@bluewin.ch>
@@ -221,6 +221,6 @@ void LircCommander::slotExecute(const char *command)
 
 }
 
-#include "moc_LircCommander.cpp"
+#include "LircCommander.moc"
 
 #endif

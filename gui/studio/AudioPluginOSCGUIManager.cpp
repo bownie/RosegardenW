@@ -3,17 +3,19 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
-
+    Copyright 2000-2015 the Rosegarden development team.
+ 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
-
+ 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[AudioPluginOSCGUIManager]"
 
 #include "AudioPluginOSCGUIManager.h"
 
@@ -36,8 +38,8 @@
 
 #include <QString>
 
-//#include <lo/lo.h>
-
+#include <lo/lo.h>
+#include <unistd.h>
 
 namespace Rosegarden
 {
@@ -45,12 +47,11 @@ namespace Rosegarden
 static void osc_error(int num, const char *msg, const char *path)
 {
     std::cerr << "Rosegarden: ERROR: liblo server error " << num
-          << " in path " << path << ": " << msg << std::endl;
+	      << " in path " << path << ": " << msg << std::endl;
 }
 
-/*
 static int osc_message_handler(const char *path, const char *types, lo_arg **argv,
-                   int argc, lo_message, void *user_data)
+			       int argc, lo_message, void *user_data)
 {
     AudioPluginOSCGUIManager *manager = (AudioPluginOSCGUIManager *)user_data;
 
@@ -59,7 +60,7 @@ static int osc_message_handler(const char *path, const char *types, lo_arg **arg
     QString method;
 
     if (!manager->parseOSCPath(path, instrument, position, method)) {
-    return 1;
+	return 1;
     }
 
     OSCMessage *message = new OSCMessage();
@@ -69,13 +70,13 @@ static int osc_message_handler(const char *path, const char *types, lo_arg **arg
 
     int arg = 0;
     while (types && arg < argc && types[arg]) {
-    message->addArg(types[arg], argv[arg]);
-    ++arg;
+	message->addArg(types[arg], argv[arg]);
+	++arg;
     }
 
     manager->postMessage(message);
     return 0;
-}*/
+}
 
 AudioPluginOSCGUIManager::AudioPluginOSCGUIManager(RosegardenMainWindow *mainWindow) :
         m_mainWindow(mainWindow),
@@ -97,14 +98,13 @@ AudioPluginOSCGUIManager::~AudioPluginOSCGUIManager()
     }
     m_guis.clear();
 
-   // if (m_haveOSCThread)
-  //      lo_server_thread_stop(m_serverThread);
+    if (m_haveOSCThread)
+        lo_server_thread_stop(m_serverThread);
 }
 
 void
 AudioPluginOSCGUIManager::checkOSCThread()
 {
-    /*
     if (m_haveOSCThread)
         return ;
 
@@ -120,7 +120,7 @@ AudioPluginOSCGUIManager::checkOSCThread()
 
     m_dispatchTimer = new TimerCallbackAssistant(20, timerCallback, this);
 
-    m_haveOSCThread = true;*/
+    m_haveOSCThread = true;
 }
 
 bool
@@ -323,7 +323,6 @@ QString
 AudioPluginOSCGUIManager::getOSCUrl(InstrumentId instrument, int position,
                                     QString identifier)
 {
-    /*
     // OSC URL will be of the form
     //   osc.udp://localhost:54343/plugin/dssi/<instrument>/<position>/<label>
     // where <position> will be "synth" for synth plugins
@@ -349,7 +348,7 @@ AudioPluginOSCGUIManager::getOSCUrl(InstrumentId instrument, int position,
 
     url = url.arg(label);
 
-    return url;*/
+    return url;
 }
 
 bool
@@ -435,10 +434,10 @@ AudioPluginOSCGUIManager::getFriendlyName(InstrumentId instrument, int position,
         return tr("Rosegarden Plugin");
     else {
         if (position == int(Instrument::SYNTH_PLUGIN_POSITION)) {
-            return tr("Rosegarden: %1").arg(strtoqstr(container->getPresentationName()));
+            return tr("Rosegarden: %1").arg(strtoqstr(container->getAlias()));
         } else {
-            return tr("Rosegarden: %1: %2").arg(strtoqstr(container->getPresentationName()))
-                    .arg(tr("Plugin slot %1").arg(position));
+            return tr("Rosegarden: %1: %2").arg(strtoqstr(container->getAlias()))
+                    .arg(tr("Plugin slot %1").arg(position + 1));
         }
     }
 }
@@ -453,7 +452,6 @@ AudioPluginOSCGUIManager::timerCallback(void *data)
 void
 AudioPluginOSCGUIManager::dispatch()
 {
-    /*
     if (!m_studio)
         return ;
 
@@ -598,7 +596,7 @@ AudioPluginOSCGUIManager::dispatch()
             for (PortInstanceIterator i = pluginInstance->begin();
                     i != pluginInstance->end(); ++i) {
                 gui->sendPortValue((*i)->number, (*i)->value);
-                // Avoid overloading the GUI if there are lots and lots of ports
+                /* Avoid overloading the GUI if there are lots and lots of ports */
                 if (++controlCount % 50 == 0)
                     usleep(300000);
             }
@@ -695,7 +693,7 @@ AudioPluginOSCGUIManager::dispatch()
 
 done:
         delete message;
-    }*/
+    }
 }
 
 }

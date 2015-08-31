@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,12 +22,13 @@
 #include "misc/Debug.h"
 #include "commands/segment/SegmentEraseCommand.h"
 #include "CompositionView.h"
-#include "CompositionItem.h"
+#include "ChangingSegment.h"
 #include "document/RosegardenDocument.h"
 #include "gui/general/BaseTool.h"
 #include "gui/general/RosegardenScrollView.h"
 #include "SegmentTool.h"
 #include "document/Command.h"
+#include "document/CommandHistory.h"
 #include <QPoint>
 #include <QString>
 #include <QMouseEvent>
@@ -35,6 +36,9 @@
 
 namespace Rosegarden
 {
+
+
+const QString SegmentEraser::ToolName = "segmenteraser";
 
 SegmentEraser::SegmentEraser(CompositionView *c, RosegardenDocument *d)
         : SegmentTool(c, d)
@@ -48,26 +52,51 @@ void SegmentEraser::ready()
     setBasicContextHelp();
 }
 
-void SegmentEraser::handleMouseButtonPress(QMouseEvent *e)
+void SegmentEraser::mousePressEvent(QMouseEvent *e)
 {
-    setCurrentIndex(m_canvas->getFirstItemAt(e->pos()));
+    // Let the baseclass have a go.
+    SegmentTool::mousePressEvent(e);
+
+    // We only care about the left mouse button.
+    if (e->button() != Qt::LeftButton)
+        return;
+
+    // No need to propagate.
+    e->accept();
+
+    QPoint pos = m_canvas->viewportToContents(e->pos());
+
+    // Save the Segment for the mouse release event.
+    setChangingSegment(m_canvas->getModel()->getSegmentAt(pos));
 }
 
-void SegmentEraser::handleMouseButtonRelease(QMouseEvent*)
+void SegmentEraser::mouseReleaseEvent(QMouseEvent *e)
 {
-    if (m_currentIndex) {
-        // no need to test the result, we know it's good (see handleMouseButtonPress)
-        CompositionItem* item = m_currentIndex;
+    // We only care about the left mouse button.
+    if (e->button() != Qt::LeftButton)
+        return;
 
-        addCommandToHistory(new SegmentEraseCommand(item->getSegment()));
+    // No need to propagate.
+    e->accept();
+
+    // If a Segment was selected by the press event
+    if (getChangingSegment()) {
+        // Erase it
+        CommandHistory::getInstance()->addCommand(
+                new SegmentEraseCommand(getChangingSegment()->getSegment()));
     }
 
-    setCurrentIndex(CompositionItemPtr());
+    // Clear the current Segment.
+    setChangingSegment(ChangingSegmentPtr());
 }
 
-int SegmentEraser::handleMouseMove(QMouseEvent*)
+int SegmentEraser::mouseMoveEvent(QMouseEvent *e)
 {
+    // No need to propagate.
+    e->accept();
+
     setBasicContextHelp();
+
     return RosegardenScrollView::NoFollow;
 }
 
@@ -76,7 +105,6 @@ void SegmentEraser::setBasicContextHelp()
     setContextHelp(tr("Click on a segment to delete it"));
 }    
 
-const QString SegmentEraser::ToolName   = "segmenteraser";
 
 }
-#include "moc_SegmentEraser.cpp"
+#include "SegmentEraser.moc"

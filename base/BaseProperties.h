@@ -1,7 +1,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -73,6 +73,7 @@ extern const PropertyName INVISIBLE;
 extern const PropertyName TMP;         /// TODO : TMP->REPEATING
 extern const PropertyName LINKED_SEGMENT_IGNORE_UPDATE;
 
+extern const PropertyName MEMBER_OF_PARALLEL;
 }
 
 }

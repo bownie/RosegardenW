@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -247,14 +247,6 @@
 namespace Rosegarden
 {
 
-// Interval (in msecs) for m_playTimer.
-// To keep the transport's time display from looking like it is stuck, avoid
-// multiples of 10.
-// ??? Original value was 23.  53 results in a significant reduction in CPU
-//   usage.  But are there any serious drawbacks to this?  Is this timer
-//   used to drive anything other than the UI?  I tried 253 and I was able to
-//   play a MIDI-only sequence without incident.
-//#define PLAYTIMER_INTERVAL 23
 
 RosegardenMainWindow::RosegardenMainWindow(bool useSequencer,
                                            QObject *startupStatusMessageReceiver) :
@@ -274,7 +266,7 @@ RosegardenMainWindow::RosegardenMainWindow(bool useSequencer,
     m_cpuBar(0),
     m_zoomSlider(0),
     m_zoomLabel(0),
-    m_statusBarLabel1(0),
+//    m_statusBarLabel1(0),
     m_seqManager(0),
     m_transport(0),
     m_audioManagerDialog(0),
@@ -294,8 +286,6 @@ RosegardenMainWindow::RosegardenMainWindow(bool useSequencer,
     m_tempoView(0),
     m_triggerSegmentManager(0),
     m_pluginGUIManager(new AudioPluginOSCGUIManager(this)),
-//    m_playTimer(new QTimer(static_cast<QObject *>(this))),
-//    m_stopTimer(new QTimer(static_cast<QObject *>(this))),
     m_updateUITimer(new QTimer(static_cast<QObject *>(this))),
     m_inputTimer(new QTimer(static_cast<QObject *>(this))),
     m_startupTester(0),
@@ -307,7 +297,7 @@ RosegardenMainWindow::RosegardenMainWindow(bool useSequencer,
     m_lircCommander(0),
 #endif
     m_tranzport(0),
-    m_deviceManager(0),
+//  m_deviceManager(),  QPointer inits itself to 0.
     m_warningWidget(0),
     m_cpuMeterTimer(new QTimer(static_cast<QObject *>(this)))
 {
@@ -454,7 +444,7 @@ RosegardenMainWindow::RosegardenMainWindow(bool useSequencer,
         if(! mipp){
             RG_DEBUG << "Error: m_instrumentParameterBox->getMIDIInstrumentParameterPanel() is NULL in RosegardenMainWindow.cpp 445 \n";
         }
-        connect(m_seqManager, SIGNAL(signalSelectProgramNoSend(int,int,int)), (QObject*)mipp, SLOT(slotSelectProgramNoSend(int,int,int)));
+        connect(m_seqManager, SIGNAL(signalSelectProgramNoSend(int,int,int)), (QObject*)mipp, SLOT(slotExternalProgramChange(int,int,int)));
                 
     }
 
@@ -546,10 +536,6 @@ RosegardenMainWindow::RosegardenMainWindow(bool useSequencer,
     settings.endGroup();
 
     // Connect the various timers to their handlers.
-//    connect(m_playTimer, SIGNAL(timeout()), this, SLOT(slotUpdatePlaybackPosition()));
-//    connect(m_stopTimer, SIGNAL(timeout()), this, SLOT(slotUpdateMonitoring()));
-//    connect(m_playTimer, SIGNAL(timeout()), this, SLOT(slotCheckTransportStatus()));
-//    connect(m_stopTimer, SIGNAL(timeout()), this, SLOT(slotCheckTransportStatus()));
     connect(m_updateUITimer, SIGNAL(timeout()), this, SLOT(slotUpdateUI()));
     m_updateUITimer->start(updateUITime);
     connect(m_inputTimer, SIGNAL(timeout()), this, SLOT(slotHandleInputs()));
@@ -593,8 +579,6 @@ RosegardenMainWindow::~RosegardenMainWindow()
     // ??? I don't think any of these need to be deleted.  They were created
     //     and passed the "this" pointer as their parent QObject.  That means
     //     that they will be deleted when their parent (this) goes away.
-//    delete m_playTimer;
-//    delete m_stopTimer;
     delete m_inputTimer;
     delete m_updateUITimer;
     delete m_autoSaveTimer;
@@ -622,26 +606,26 @@ bool
 RosegardenMainWindow::installSignalHandlers()
 {
     /*install pipe to forward received system signals*/
-    //if (pipe(sigpipe) < 0) {
-        //qWarning("pipe() failed: %s", std::strerror(errno));
-        //return false;
-    //}
+    if (pipe(sigpipe) < 0) {
+        qWarning("pipe() failed: %s", std::strerror(errno));
+        return false;
+    }
 
     /*install notifier to handle pipe messages*/
-    //QSocketNotifier* signalNotifier = new QSocketNotifier(sigpipe[0],
-    //        QSocketNotifier::Read, this);
-    //connect(signalNotifier, SIGNAL(activated(int)),
-    //        this, SLOT(signalAction(int)));
+    QSocketNotifier* signalNotifier = new QSocketNotifier(sigpipe[0],
+            QSocketNotifier::Read, this);
+    connect(signalNotifier, SIGNAL(activated(int)),
+            this, SLOT(signalAction(int)));
 
     /*install signal handlers*/
-    //struct sigaction action;
-    //memset(&action, 0, sizeof(action));
-    //action.sa_handler = handleSignal;
+    struct sigaction action;
+    memset(&action, 0, sizeof(action));
+    action.sa_handler = handleSignal;
 
-    //if (sigaction(SIGUSR1, &action, NULL) == -1) {
-        //qWarning("sigaction() failed: %s", std::strerror(errno));
-        //return false;
-    //}
+    if (sigaction(SIGUSR1, &action, NULL) == -1) {
+        qWarning("sigaction() failed: %s", std::strerror(errno));
+        return false;
+    }
 
     return true;
 }
@@ -658,14 +642,14 @@ RosegardenMainWindow::signalAction(int fd)
         return;
     }
 
-    //switch (message) {
-        //case SIGUSR1:
-            //slotFileSave();
-            //break;
-        //default:
-            //qWarning("Unexpected signal received: %d", message);
-            //break;
-    //}
+    switch (message) {
+        case SIGUSR1:
+            slotFileSave();
+            break;
+        default:
+            qWarning("Unexpected signal received: %d", message);
+            break;
+    }
 }
 
 void
@@ -685,20 +669,9 @@ RosegardenMainWindow::connectOutsideCtorHack()
 
     // relay this through our own signal so that others can use it too
     connect(m_instrumentParameterBox,
-            SIGNAL(instrumentParametersChanged(InstrumentId)),
-            this,
-            SIGNAL(instrumentParametersChanged(InstrumentId)));
-
-    // relay this through our own signal so that others can use it too
-    connect(m_instrumentParameterBox,
             SIGNAL(instrumentPercussionSetChanged(Instrument *)),
             this,
             SIGNAL(instrumentPercussionSetChanged(Instrument *)));
-
-    connect(this,
-            SIGNAL(instrumentParametersChanged(InstrumentId)),
-            m_instrumentParameterBox,
-            SLOT(slotInstrumentParametersChanged(InstrumentId)));
 
     connect(this,
             SIGNAL(pluginSelected(InstrumentId, int, int)),
@@ -962,7 +935,6 @@ RosegardenMainWindow::setupRecentFilesMenu()
     }
 }
 
-
 void
 RosegardenMainWindow::setRewFFwdToAutoRepeat()
 {
@@ -1146,10 +1118,6 @@ RosegardenMainWindow::initView()
     disconnect(m_instrumentParameterBox, 0, oldView, 0);
     disconnect(m_trackParameterBox, 0, oldView, 0);
 
-    // and ensure we don't pass on this signal:
-    //
-    disconnect(this, SIGNAL(instrumentParametersChanged(InstrumentId)), 0, 0);
-
     RosegardenMainViewWidget *swapView = new RosegardenMainViewWidget
         (findAction("show_tracklabels")->isChecked(),
          m_segmentParameterBox,
@@ -1214,9 +1182,6 @@ RosegardenMainWindow::initView()
     connect(m_view, SIGNAL(stateChange(QString, bool)),
             this, SLOT (slotStateChanged(QString, bool)));
 
-    connect(m_view, SIGNAL(instrumentParametersChanged(InstrumentId)),
-            this, SIGNAL(instrumentParametersChanged(InstrumentId)));
-
     // We only check for the SequenceManager to make sure
     // we're not on the first pass though - we don't want
     // to send these toggles twice on initialisation.
@@ -1280,7 +1245,7 @@ RosegardenMainWindow::initView()
     //                                (actionCollection()->action("toggle_tracking"));
     QAction *trackingAction = findAction("toggle_tracking");
     if (trackingAction && !trackingAction->isChecked()) {
-        m_view->getTrackEditor()->slotToggleTracking();
+        m_view->getTrackEditor()->toggleTracking();
     }
 
     m_view->show();
@@ -1420,6 +1385,22 @@ RosegardenMainWindow::setDocument(RosegardenDocument* newDocument)
     // start the autosave timer
     m_autoSaveTimer->start(m_doc->getAutoSavePeriod() * 1000);
 
+#if 1
+    // Moving these three lines prior to the initView() call ensures that
+    // the Instruments are properly connected to their devices prior to
+    // the MIPP attempting to display the connection field.  With this
+    // after initView(), you will see "No connection" on the MIPP until
+    // you change tracks.
+
+    connect(m_doc, SIGNAL(devicesResyncd()),
+            this, SLOT(slotDocumentDevicesResyncd()));
+
+    // Connect the devices prior to calling initView() to make sure there
+    // is connection information for the MIPP to display.
+    RosegardenSequencer::getInstance()->connectSomething();
+    newDocument->getStudio().resyncDeviceConnections();
+#endif
+
     // finally recreate the main view
     //
     initView();
@@ -1429,11 +1410,18 @@ RosegardenMainWindow::setDocument(RosegardenDocument* newDocument)
                 getView()->getTrackEditor(), SLOT(slotScrollToTrack(int)));
     }
 
+#if 0
+    // These three lines have been moved prior to the call to initView().
+    // See the comments above for discussion.
+    // ??? This was done April 2015.  If there have been no problems after
+    //     a year, it's probably safe to clean this up.
+
     connect(m_doc, SIGNAL(devicesResyncd()),
             this, SLOT(slotDocumentDevicesResyncd()));
 
     RosegardenSequencer::getInstance()->connectSomething();
     newDocument->getStudio().resyncDeviceConnections();
+#endif
 
     m_doc->checkSequencerTimer();
     m_doc->clearModifiedStatus();
@@ -1473,9 +1461,7 @@ RosegardenMainWindow::setDocument(RosegardenDocument* newDocument)
 
     // Readjust canvas size
     //
-    m_view->getTrackEditor()->slotReadjustCanvasSize();
-
-//    m_stopTimer->start(100);
+    m_view->getTrackEditor()->updateCanvasSize();
 }
 
 void
@@ -1858,32 +1844,12 @@ RosegardenMainWindow::showEvent(QShowEvent*)
 bool
 RosegardenMainWindow::queryClose()
 {
-    RG_DEBUG << "RosegardenMainWindow::queryClose" << endl;
+    // If we are recording, don't let the user close.
+    if (m_seqManager->getTransportStatus() == RECORDING)
+        return false;
 
-#ifdef SETTING_LOG_DEBUG
-    RG_DEBUG << "SETTING 1 : transport flap extended = " << getTransport()->isExpanded();
-    RG_DEBUG << "SETTING 1 : show track labels = " << findAction("show_tracklabels")->isChecked();
-#endif
-
-    QString errMsg;
-
-    bool canClose = m_doc->saveIfModified();
-
-    /*
-    if (canClose && m_transport) {
-
-        // or else the closing of the transport will toggle off the 
-        // 'view transport' action, and its state will be saved as 
-        // 'off'
-        //
-
-        disconnect(m_transport, SIGNAL(closed()),
-                   this, SLOT(slotCloseTransport()));
-    }
-    */
-
-    return canClose;
-
+    // Let the user save any unsaved changes.
+    return m_doc->saveIfModified();
 }
 
 void
@@ -2539,7 +2505,7 @@ RosegardenMainWindow::slotSelectAll()
 void
 RosegardenMainWindow::slotDeleteSelectedSegments()
 {
-    m_view->getTrackEditor()->slotDeleteSelectedSegments();
+    m_view->getTrackEditor()->deleteSelectedSegments();
 }
 
 void
@@ -2649,7 +2615,7 @@ RosegardenMainWindow::slotJoinSegments()
     }
 
     m_view->slotAddCommandToHistory(new SegmentJoinCommand(selection));
-    m_view->updateSelectionContents();
+    m_view->updateSelectedSegments();
 }
 
 void
@@ -2675,7 +2641,7 @@ RosegardenMainWindow::slotExpandFiguration()
     }
 
     m_view->slotAddCommandToHistory(new ExpandFigurationCommand(selection));
-    m_view->updateSelectionContents();
+    m_view->updateSelectedSegments();
 }
 
 void
@@ -2742,7 +2708,7 @@ RosegardenMainWindow::slotRescaleSelection()
     }
     
     
-    //cc 20140508: avoid dereferencing self-deleted progress dialog
+    //cc 20150508: avoid dereferencing self-deleted progress dialog
     //after user has closed it, by using a QPointer
     QPointer<ProgressDialog> progressDlg = 0;
 
@@ -2769,8 +2735,9 @@ RosegardenMainWindow::slotRescaleSelection()
 
             connect(&m_doc->getAudioFileManager(), SIGNAL(setValue(int)),
                     progressDlg, SLOT(setValue(int)));
-            connect(progressDlg, SIGNAL(cancelClicked()),
-                    &m_doc->getAudioFileManager(), SLOT(slotStopPreview()));
+            // Removed since ProgressDialog::cancelClicked() does not exist.
+            //connect(progressDlg, SIGNAL(cancelClicked()),
+            //        &m_doc->getAudioFileManager(), SLOT(slotStopPreview()));
         }
 
         for (size_t i = 0; i < asrcs.size(); ++i) {
@@ -3791,34 +3758,12 @@ RosegardenMainWindow::slotDeleteTrack()
     TrackId trackId = comp.getSelectedTrack();
     Track *track = comp.getTrackById(trackId);
 
-    //RG_DEBUG << "RosegardenMainWindow::slotDeleteTrack() : about to delete track id " << trackId;
-
     if (track == 0)
         return ;
 
-    // Always have at least one track in a composition
-    //
+    // Don't let the user delete the last track.
     if (comp.getNbTracks() == 1)
         return ;
-
-    // Delete the segments on the selected tracks.
-    // VLADA
-    if (m_view->haveSelection()) {
-
-        // ??? If this will work fine when there is no selection, we
-        //     can get rid of the if and the else and just do these
-        //     four lines.  Try it sometime and see if it works.
-        SegmentSelection selection = m_view->getSelection();
-        m_view->slotSelectTrackSegments(trackId);
-        m_view->getTrackEditor()->slotDeleteSelectedSegments();
-        m_view->slotPropagateSegmentSelection(selection);
-
-    } else {
-
-        m_view->slotSelectTrackSegments(trackId);
-        m_view->getTrackEditor()->slotDeleteSelectedSegments();
-    }
-    //VLADA
 
     int position = track->getPosition();
 
@@ -4727,58 +4672,6 @@ RosegardenMainWindow::mergeFile(QString filePath, ImportType type)
     }
 }
 
-#if 0
-void
-RosegardenMainWindow::slotCheckTransportStatus()
-{
-    ExternalTransport::TransportRequest req;
-    RealTime rt;
-    bool have = RosegardenSequencer::getInstance()->
-        getNextTransportRequest(req, rt);
-
-    if (have) {
-        switch (req) {
-        case ExternalTransport::TransportNoChange:    break;
-        case ExternalTransport::TransportStop:        stop(); break;
-        case ExternalTransport::TransportStart:       play(); break;
-        case ExternalTransport::TransportPlay:        play(); break;
-        case ExternalTransport::TransportRecord:      record(); break;
-        case ExternalTransport::TransportJumpToTime:  jumpToTime(rt); break;
-        case ExternalTransport::TransportStartAtTime: startAtTime(rt); break;
-        case ExternalTransport::TransportStopAtTime:  stop(); jumpToTime(rt); break;
-        }
-    }
-
-    TransportStatus status = RosegardenSequencer::getInstance()->
-        getStatus();
-
-    if (status == PLAYING || status == RECORDING) { //@@@ JAS orig ? KXMLGUIClient::StateReverse : KXMLGUIClient::StateNoReverse
-        leaveActionState("not_playing");
-    } else {
-        enterActionState("not_playing");
-    }
-
-    if (m_seqManager) {
-
-        m_seqManager->setTransportStatus(status);
-
-        MappedEventList asynchronousQueue =
-            RosegardenSequencer::getInstance()->pullAsynchronousMidiQueue();
-
-        if (!asynchronousQueue.empty()) {
-            
-            m_seqManager->processAsynchronousMidi(asynchronousQueue, 0);
-
-            if (m_view) {
-                m_view->updateMeters();
-            }
-        }
-    }
-    
-    return;
-}
-#endif
-
 void RosegardenMainWindow::processRecordedEvents()
 {
     if (!m_seqManager)
@@ -4802,75 +4695,6 @@ void RosegardenMainWindow::processRecordedEvents()
     m_doc->updateRecordingAudioSegments();
 }
 
-#if 0
-void
-RosegardenMainWindow::slotUpdatePlaybackPosition()
-{
-    // Either sequencer mappper or the sequence manager could be missing at
-    // this point.
-    //
-    if (!m_seqManager) return;
-
-
-    // Update display of the current MIDI out event on the transport
-
-    MappedEvent ev;
-    bool haveEvent = SequencerDataBlock::getInstance()->getVisual(ev);
-    if (haveEvent) getTransport()->setMidiOutLabel(&ev);
-
-
-    // Update the playback position pointer (part 1)
-
-    RealTime position = SequencerDataBlock::getInstance()->getPositionPointer();
-    Composition &comp = m_doc->getComposition();
-    timeT elapsedTime = comp.getElapsedTimeForRealTime(position);
-
-
-    // Handle recorded MIDI events
-
-    // If we're recording, gather the recorded events and put them where they
-    // belong in the document.
-    // ??? Why is this prior to the update of the playback position pointer,
-    //   but after the computation of elapsedTime?
-    if (m_seqManager->getTransportStatus() == RECORDING) {
-
-        MappedEventList mC;
-        if (SequencerDataBlock::getInstance()->getRecordedEvents(mC) > 0) {
-            m_seqManager->processAsynchronousMidi(mC, 0);
-            m_doc->insertRecordedMidi(mC);
-        }
-
-        m_doc->updateRecordingMIDISegment();
-        m_doc->updateRecordingAudioSegments();
-    }
-
-
-    // Update the playback position pointer (part 2)
-
-    // We don't want slotSetPointerPosition() to affect the sequencer.
-    // Setting m_originatingJump to true causes slotSetPointerPosition()
-    // to not tell the sequencer to jump to this new position.  This
-    // might be renamed m_seqJump and reverse its value.
-    // ??? This should just be an argument to slotSetPointerPosition().
-    //   slotSetPointerPosition(elapsedTime, bool jumpSequencer = true);
-    //   (Can we have default args in a slot?  Seems unlikely.)
-    m_originatingJump = true;
-    // Move the pointer to the current position.
-    m_doc->slotSetPointerPosition(elapsedTime);
-    // Future moves (jumps) won't be coming from here.
-    m_originatingJump = false;
-
-
-    // Update the VU meters
-    if (m_audioMixer && m_audioMixer->isVisible()) m_audioMixer->updateMeters();
-    if (m_midiMixer && m_midiMixer->isVisible()) m_midiMixer->updateMeters();
-    m_view->updateMeters();
-}
-#endif
-
-#if 1
-// New handlers to replace slotUpdatePlaybackPosition() and
-// slotCheckTransportStatus().
 void
 RosegardenMainWindow::slotHandleInputs()
 {
@@ -4972,7 +4796,6 @@ RosegardenMainWindow::slotUpdateUI()
     if (m_midiMixer && m_midiMixer->isVisible()) m_midiMixer->updateMeters();
     if (m_view) m_view->updateMeters();
 }
-#endif
 
 void
 RosegardenMainWindow::slotUpdateCPUMeter()
@@ -5076,7 +4899,7 @@ RosegardenMainWindow::slotSetPointerPosition(timeT t)
                     timeT barDuration = timeRange.second - timeRange.first;
                     timeT newEndMarker = t + 10 * barDuration;
                     comp.setEndMarker(newEndMarker);
-                    getView()->getTrackEditor()->slotReadjustCanvasSize();
+                    getView()->getTrackEditor()->updateCanvasSize();
                     getView()->getTrackEditor()->updateRulers();
                 }
             }
@@ -5198,7 +5021,7 @@ RosegardenMainWindow::isTrackEditorPlayTracking() const
 void
 RosegardenMainWindow::slotToggleTracking()
 {
-    m_view->getTrackEditor()->slotToggleTracking();
+    m_view->getTrackEditor()->toggleTracking();
 }
 
 void
@@ -5808,11 +5631,6 @@ RosegardenMainWindow::slotRecord()
 
     connect(m_seqManager->getCountdownDialog(), SIGNAL(stopped()),
             this, SLOT(slotStop()));
-
-    // Start the playback timer - this fetches the current sequencer position &c
-    //
-//    m_stopTimer->stop();
-//    m_playTimer->start(PLAYTIMER_INTERVAL);
 }
 
 void
@@ -5914,32 +5732,12 @@ RosegardenMainWindow::slotPlay()
         return ;
     }
 
-    bool pausedPlayback = false;
-
     try {
-        pausedPlayback = m_seqManager->play(); // this will stop playback (pause) if it's already running
-
-        // Check the new state of the transport and start or stop timer
-        // accordingly
-        //
-        if (!pausedPlayback) {
-
-            // Start the playback timer - this fetches the current sequencer position &c
-            //
-//            m_stopTimer->stop();
-//            m_playTimer->start(PLAYTIMER_INTERVAL);
-        } else {
-//            m_playTimer->stop();
-//            m_stopTimer->start(100);
-        }
+        m_seqManager->play(); // this will stop playback (pause) if it's already running
     } catch (QString s) {
         QMessageBox::critical(0, tr("Rosegarden"), s);
-//        m_playTimer->stop();
-//        m_stopTimer->start(100);
     } catch (Exception e) {
         QMessageBox::critical(0, tr("Rosegarden"), strtoqstr(e.getMessage()));
-//        m_playTimer->stop();
-//        m_stopTimer->start(100);
     }  
 }
 
@@ -5975,10 +5773,6 @@ RosegardenMainWindow::slotStop()
     } catch (Exception e) {
         QMessageBox::critical(0, tr("Rosegarden"), strtoqstr(e.getMessage()));
     }
-
-    // stop the playback timer
-//    m_playTimer->stop();
-//    m_stopTimer->start(100);
 }
 
 void
@@ -7068,13 +6862,13 @@ RosegardenMainWindow::slotDeleteAllAudioFiles()
 void
 RosegardenMainWindow::slotRepeatingSegments()
 {
-    m_view->getTrackEditor()->slotTurnRepeatingSegmentToRealCopies();
+    m_view->getTrackEditor()->turnRepeatingSegmentToRealCopies();
 }
 
 void
 RosegardenMainWindow::slotLinksToCopies()
 {
-    m_view->getTrackEditor()->slotTurnLinkedSegmentsToRealCopies();
+    m_view->getTrackEditor()->turnLinkedSegmentsToRealCopies();
 }
 
 void
@@ -7145,7 +6939,7 @@ RosegardenMainWindow::slotChangeCompositionLength()
               dialog.getEndMarker(),
               dialog.autoExpandEnabled());
 
-        m_view->getTrackEditor()->getCompositionView()->clearSegmentRectsCache(true);
+        m_view->getTrackEditor()->getCompositionView()->deleteCachedPreviews();
         CommandHistory::getInstance()->addCommand(command);
 
         // If you change the composition length to 50 while the pointer is still
@@ -7178,9 +6972,6 @@ RosegardenMainWindow::slotManageMIDIDevices()
         connect(m_deviceManager, SIGNAL(editControllers(DeviceId)),
                 this, SLOT(slotEditControlParameters(DeviceId)));
         
-        connect(m_deviceManager, SIGNAL(closing()),
-                this, SLOT(slotDeviceManagerClosed()));
-
         connect(this, SIGNAL(documentAboutToChange()),
                 m_deviceManager, SLOT(close()));
 
@@ -7304,16 +7095,6 @@ RosegardenMainWindow::slotOpenAudioMixer()
     connect(m_audioMixer, SIGNAL(panic()),
             this, SLOT(slotPanic()));
 
-    connect(m_audioMixer,
-            SIGNAL(instrumentParametersChanged(InstrumentId)),
-            this,
-            SIGNAL(instrumentParametersChanged(InstrumentId)));
-
-    connect(this,
-            SIGNAL(instrumentParametersChanged(InstrumentId)),
-            m_audioMixer,
-            SLOT(slotUpdateInstrument(InstrumentId)));
-
     if (m_synthManager) {
         connect(m_synthManager,
                 SIGNAL(pluginSelected(InstrumentId, int, int)),
@@ -7366,16 +7147,6 @@ RosegardenMainWindow::slotOpenMidiMixer()
             this, SLOT(slotRecord()));
     connect(m_midiMixer, SIGNAL(panic()),
             this, SLOT(slotPanic()));
-
-    connect(m_midiMixer,
-            SIGNAL(instrumentParametersChanged(InstrumentId)),
-            this,
-            SIGNAL(instrumentParametersChanged(InstrumentId)));
-
-    connect(this,
-            SIGNAL(instrumentParametersChanged(InstrumentId)),
-            m_midiMixer,
-            SLOT(slotUpdateInstrument(InstrumentId)));
 
     plugShortcuts(m_midiMixer, m_midiMixer->getShortcuts());
 
@@ -8298,26 +8069,6 @@ RosegardenMainWindow::slotBankEditorClosed()
 }
 
 void
-RosegardenMainWindow::slotDeviceManagerClosed()
-{
-    RG_DEBUG << "RosegardenMainWindow::slotDeviceManagerClosed()";
-
-    if (m_doc->isModified()) {
-        if (m_view) {
-            // ??? Can't just remove this when the time comes.
-            // ??? I suspect this call is being made because the Track and
-            //     Instrument Parameters boxes need to be updated.  It
-            //     would be better to call
-            //     m_doc->getComposition().notifyTrackChanged() and have
-            //     the parameter boxes respond by updating.
-            m_view->slotSelectTrackSegments(m_doc->getComposition().getSelectedTrack());
-        }
-    }
-
-    m_deviceManager = 0;
-}
-
-void
 RosegardenMainWindow::slotSynthPluginManagerClosed()
 {
     RG_DEBUG << "RosegardenMainWindow::slotSynthPluginManagerClosed()\n";
@@ -8910,8 +8661,21 @@ RosegardenMainWindow::checkAudioPath()
 }
 
 
+void
+RosegardenMainWindow::uiUpdateKludge()
+{
+    // Force an update to the UI.
+    // ??? This is a kludge.  Callers to this should be using
+    //     notification mechanisms (e.g. hasChanged()) within the
+    //     objects they are modifying.  That, in turn, would cause
+    //     relevant portions of the UI (observers) to update.
+    m_view->slotSelectTrackSegments(
+            m_doc->getComposition().getSelectedTrack());
+}
+
+
 RosegardenMainWindow *RosegardenMainWindow::m_myself = 0;
 
 }// end namespace Rosegarden
 
-#include "moc_RosegardenMainWindow.cpp"
+#include "RosegardenMainWindow.moc"

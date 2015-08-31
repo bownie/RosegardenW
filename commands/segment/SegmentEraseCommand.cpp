@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -85,15 +85,23 @@ SegmentEraseCommand::unexecute()
     m_composition->addSegment(m_segment);
     m_detached = false;
 
+    // If we are bringing back an audio segment
     if (m_segment->getType() == Segment::Audio &&
             m_audioFileName != "" &&
             m_mgr) {
+        // Use the stashed audio filename to get the audio file ID.
+        // The user may have deleted and re-added the audio file, which
+        // would cause its ID to change.
         int id = m_mgr->fileExists(m_audioFileName);
 
-        RG_DEBUG << "SegmentEraseCommand::unexecute: file is " << m_audioFileName << endl;
-
+        // If the audio file wasn't found, it may have been deleted
+        // by the user.  Re-add it.
+        // (When some parts of a system use the command history and others
+        // don't (AudioFileManager), expect evil kludges such as this.)
+        // In my testing, the audio file no longer plays after this.
         if (id == -1)
             id = (int)m_mgr->addFile(m_audioFileName);
+
         m_segment->setAudioFileId(id);
     }
 }

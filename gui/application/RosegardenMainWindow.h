@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,10 +23,11 @@
 #include "gui/widgets/ZoomSlider.h"
 #include "gui/general/RecentFiles.h"
 #include "base/Event.h"
+#include "base/Selection.h"
 #include "sound/AudioFile.h"
 #include "sound/Midi.h"
 #include "gui/general/ActionFileClient.h"
-#include "ui_DeviceManagerDialogUi.h"
+#include "gui/studio/DeviceManagerDialogUi.h"
 
 #include <QDockWidget>
 #include <QString>
@@ -36,6 +37,7 @@
 #include <QMenuBar>
 #include <QAction>
 #include <QToolBar>
+#include <QPointer>
 
 #include <map>
 #include <set>
@@ -63,7 +65,6 @@ class TempoView;
 class SynthPluginManagerDialog;
 class StartupTester;
 class SequenceManager;
-class SegmentSelection;
 class SegmentParameterBox;
 class RosegardenParameterArea;
 class RosegardenMainViewWidget;
@@ -90,12 +91,26 @@ class AudioManagerDialog;
 class SequencerThread;
 class TranzportClient;
 class WarningWidget;
-    
+
+/// The main Rosegarden application window.
 /**
-  * The base class for the main Rosegarden application window.  This
-  * sets up the main window and reads the config file as well as
-  * providing a menubar, toolbar and statusbar.  The central widget
-  * is a RosegardenMainViewWidget, connected to the window's document.
+  * This class sets up the main window and reads the config file as well as
+  * providing a menubar, toolbar and statusbar.  The main widget
+  * is a RosegardenMainViewWidget, connected to the RosegardenDocument.
+  *
+  * An instance of this class is created by main() in main.cpp.  That
+  * instance can be accessed from anywhere via RosegardenMainWindow::self().
+  *
+  * This class owns many of the key objects in the system, including:
+  *
+  *   * getDocument() returns the RosegardenDocument instance.
+  *   * m_sequencerThread is the SequencerThread.
+  *   * m_segmentParameterBox is the "Segment Parameters" box.
+  *   * m_trackParameterBox is the "Track Parameters" box.
+  *   * m_instrumentParameterBox is the "Instrument Parameters" box.
+  *   * getView() returns the RosegardenMainViewWidget instance which
+  *     contains the TrackEditor.
+  *   * getTransport() returns the TransportDialog instance.
   */
 class RosegardenMainWindow : public QMainWindow, public ActionFileClient
 {
@@ -106,7 +121,7 @@ class RosegardenMainWindow : public QMainWindow, public ActionFileClient
 public:
 
     /**
-     * construtor of RosegardenMainWindow, calls all init functions to
+     * constructor of RosegardenMainWindow, calls all init functions to
      * create the application.
      * \arg useSequencer : if true, the sequencer is launched
      * @see initMenuBar initToolBar
@@ -135,15 +150,11 @@ public:
      */
     void closeEvent(QCloseEvent *event);
 
-    /*
-     * Get the current copy of the app object
-     */
+    /// Global access to the single instance of this class.
     static RosegardenMainWindow *self() { return m_myself; }
     
-    /**
-     * Return current Main Toolbar
-     */
-    QToolBar* toolBar( const char* name="\0" );
+    /// Return current Main Toolbar
+//    QToolBar* toolBar( const char* name="\0" );
     
     /**
      * returns a pointer to the current document connected to the
@@ -231,7 +242,7 @@ public:
     /**
      * Get a device manager object
      */
-    DeviceManagerDialog *getDeviceManager() { return m_deviceManager; }
+    QPointer<DeviceManagerDialog> getDeviceManager()  { return m_deviceManager; }
 
 
 
@@ -349,9 +360,10 @@ public:
     bool testAudioPath(QString op); // and open the dialog to set it if unset
 
     bool haveAudioImporter() const { return m_haveAudioImporter; }
-    
-    
-    
+
+    void uiUpdateKludge();
+
+
 
 protected:
 
@@ -528,9 +540,6 @@ signals:
 
     /// emitted when the composition state (selected track, solo, etc...) changes
     void compositionStateUpdate();
-
-    /// emitted when instrument parameters change (relayed from InstrumentParameterBox)
-    void instrumentParametersChanged(InstrumentId);
 
     /// emitted when instrument percussion set changes (relayed from InstrumentParameterBox)
     void instrumentPercussionSetChanged(Instrument *);
@@ -1469,11 +1478,6 @@ public slots:
     void slotBankEditorClosed();
 
     /**
-     * called when the Device Manager is being closed
-     */
-    void slotDeviceManagerClosed();
-
-    /**
      * called when the synth manager is being closed
      */
     void slotSynthPluginManagerClosed();
@@ -1510,8 +1514,8 @@ public slots:
     void slotAudioManagerClosed();
 
     /**
-     * Update the monitor levels from the sequencer mmapped file when not playing
-     * (slotUpdatePlaybackPosition does this among other things when playing)
+     * Update the monitor levels from the sequencer mmapped file when not
+     * playing.  Called by slotUpdateUI().
      */
     void slotUpdateMonitoring();
 
@@ -1664,7 +1668,7 @@ private:
     QLabel             *m_zoomLabel;
 
     
-    QLabel* m_statusBarLabel1;
+//    QLabel* m_statusBarLabel1;
     // SequenceManager
     //
     SequenceManager *m_seqManager;
@@ -1716,16 +1720,6 @@ private:
 
     static std::map<QProcess *, QTemporaryFile *> m_lilyTempFileMap;
 
-    // Used to fetch the current sequencer position from the mmapped sequencer
-    // information file.
-    // Runs when playing or recording.  Drives slotUpdatePlaybackPosition()
-    // and slotCheckTransportStatus().
-//    QTimer *m_playTimer;
-
-    // Runs when the sequence is stopped.  Drives slotUpdateMonitoring() and
-    // slotCheckTransportStatus().
-//    QTimer *m_stopTimer;
-
     QTimer *m_updateUITimer;
     QTimer *m_inputTimer;
 
@@ -1742,7 +1736,7 @@ private:
 #endif     
     TranzportClient *m_tranzport;
         
-    DeviceManagerDialog *m_deviceManager;    
+    QPointer<DeviceManagerDialog> m_deviceManager;
 
     WarningWidget *m_warningWidget;
 
@@ -1760,13 +1754,6 @@ private:
 
 private slots:
     void signalAction(int);
-
-    /**
-     * Update the pointer position from the sequencer mmapped file when playing
-     */
-//    void slotUpdatePlaybackPosition();
-
-//    void slotCheckTransportStatus();
 
     // New routines to handle inputs and UI updates
     void slotHandleInputs();

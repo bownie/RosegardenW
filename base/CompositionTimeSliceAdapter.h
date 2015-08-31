@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file is Copyright 2002
@@ -24,12 +24,14 @@
 #include <utility>
 
 #include "base/Segment.h"
+#include "base/Selection.h"
 
 namespace Rosegarden {
 
+
 class Event;
 class Composition;
-class SegmentSelection;
+
 
 /**
  * CompositionTimeSliceAdapter provides the ability to iterate through

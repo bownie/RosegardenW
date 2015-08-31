@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -114,7 +114,6 @@ NotationWidget::NotationWidget() :
     m_headersNeedRegeneration(false),
     m_headersTimer(0),
     m_layout(0),
-    m_linearMode(true),
     m_tempoRulerIsVisible(false),
     m_rawNoteRulerIsVisible(false),
     m_chordNameRulerIsVisible(false),
@@ -602,6 +601,8 @@ NotationWidget::resumeLayoutUpdates()
 void
 NotationWidget::slotGenerateHeaders()
 {
+    if (!linearMode()) return;  // Staff headers don't exist out of linear mode
+    
     m_headersNeedRegeneration = false;
 
     if (m_headersGroup) disconnect(m_headersGroup, SIGNAL(headersResized(int)),
@@ -680,6 +681,13 @@ NotationWidget::locatePanner(bool tall)
     }
 }
 
+bool
+NotationWidget::linearMode()
+{
+    if (!m_scene) return true;    // Default to true when no scene
+    return m_scene->getPageMode() == StaffLayout::LinearMode;
+}
+
 void
 NotationWidget::slotSetLinearMode()
 {
@@ -688,7 +696,6 @@ NotationWidget::slotSetLinearMode()
         locatePanner(false);
     }
     m_scene->setPageMode(StaffLayout::LinearMode);
-    m_linearMode = true;
     hideOrShowRulers();
 }
 
@@ -699,7 +706,6 @@ NotationWidget::slotSetContinuousPageMode()
     if (m_scene->getPageMode() == StaffLayout::ContinuousPageMode) return;
     locatePanner(true);
     m_scene->setPageMode(StaffLayout::ContinuousPageMode);
-    m_linearMode = false;
     hideOrShowRulers();
 }
 
@@ -711,7 +717,6 @@ NotationWidget::slotSetMultiPageMode()
         locatePanner(false);
     }
     m_scene->setPageMode(StaffLayout::MultiPageMode);
-    m_linearMode = false;
     hideOrShowRulers();
 }
 
@@ -964,11 +969,11 @@ NotationWidget::slotDispatchMouseMove(const NotationMouseEvent *e)
 if (getCanvasView()->isTimeForSmoothScroll()) {
 
             if (follow & RosegardenScrollView::FollowHorizontal) {
-                getCanvasView()->slotScrollHorizSmallSteps(e->x());
+                getCanvasView()->scrollHorizSmallSteps(e->x());
             }
 
             if (follow & RosegardenScrollView::FollowVertical) {
-                getCanvasView()->slotScrollVertSmallSteps(e->y());
+                getCanvasView()->scrollVertSmallSteps(e->y());
             }
 
         }
@@ -1229,7 +1234,7 @@ NotationWidget::slotHScrollBarRangeChanged(int min, int max)
 void
 NotationWidget::setTempoRulerVisible(bool visible)
 {
-    if (visible && m_linearMode) m_tempoRuler->show();
+    if (visible && linearMode()) m_tempoRuler->show();
     else m_tempoRuler->hide();
     m_tempoRulerIsVisible = visible;
 }
@@ -1237,7 +1242,7 @@ NotationWidget::setTempoRulerVisible(bool visible)
 void
 NotationWidget::setChordNameRulerVisible(bool visible)
 {
-    if (visible && m_linearMode) m_chordNameRuler->show();
+    if (visible && linearMode()) m_chordNameRuler->show();
     else m_chordNameRuler->hide();
     m_chordNameRulerIsVisible = visible;
 }
@@ -1245,7 +1250,7 @@ NotationWidget::setChordNameRulerVisible(bool visible)
 void
 NotationWidget::setRawNoteRulerVisible(bool visible)
 {
-    if (visible && m_linearMode) m_rawNoteRuler->show();
+    if (visible && linearMode()) m_rawNoteRuler->show();
     else m_rawNoteRuler->hide();
     m_rawNoteRulerIsVisible = visible;
 }
@@ -1254,7 +1259,7 @@ void
 NotationWidget::setHeadersVisible(bool visible)
 {
     // Headers are shown in linear mode only
-    if (visible && m_linearMode) {
+    if (visible && linearMode()) {
         if (m_headersNeedRegeneration) slotGenerateHeaders();
         m_headersView->show();
         m_headersButtons->show();
@@ -1283,7 +1288,7 @@ NotationWidget::toggleHeadersView()
 {
     m_headersAreVisible = !m_headersAreVisible;
     emit headersVisibilityChanged(m_headersAreVisible);
-    if (m_headersAreVisible && m_linearMode) {
+    if (m_headersAreVisible && linearMode()) {
         if (m_headersNeedRegeneration) slotGenerateHeaders();
         m_headersView->show();
         m_headersButtons->show();
@@ -1302,7 +1307,7 @@ NotationWidget::slotCloseHeaders()
 void
 NotationWidget::hideOrShowRulers()
 {
-    if (m_linearMode) {
+    if (linearMode()) {
         if (m_tempoRulerIsVisible) m_tempoRuler->show();
         if (m_rawNoteRulerIsVisible) m_rawNoteRuler->show();
         if (m_chordNameRulerIsVisible) m_chordNameRuler->show();
@@ -1757,7 +1762,7 @@ NotationWidget::slotUpdateRawNoteRuler(ViewSegment *vs)
 void
 NotationWidget::slotRegenerateHeaders() {
     // Don't use CPU time to regenerate headers if they are not visible
-    if (m_linearMode && m_headersAreVisible) {
+    if (linearMode() && m_headersAreVisible) {
         // When a clef or a key is modified, the signal "staffModified()" is
         // emitted three times. A 100 ms delay, which should not be noticeable
         // too much, is introduced here to avoid unnecessarily destroying and
@@ -1773,4 +1778,4 @@ NotationWidget::slotRegenerateHeaders() {
 
 }
 
-#include "moc_NotationWidget.cpp"
+#include "NotationWidget.moc"

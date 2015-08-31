@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -88,6 +88,8 @@ public:
         m_tieAbove = above;
     }
 
+    void setMemberOfParallel(bool memberOfParallel) { m_memberOfParallel = memberOfParallel; }
+
     void setMarks(const std::vector<Mark> &marks);
     void removeMarks();
 
@@ -149,7 +151,9 @@ public:
 		m_tieAbove == p.m_tieAbove &&
 
 		m_inRange == p.m_inRange &&
-		m_marks == p.m_marks);
+		m_marks == p.m_marks &&
+
+		m_memberOfParallel == p.m_memberOfParallel);
     }
 
 private:
@@ -202,6 +206,8 @@ private:
     bool    m_inRange;
 
     std::vector<Mark> m_marks;
+
+    bool    m_memberOfParallel;
 };
 
 

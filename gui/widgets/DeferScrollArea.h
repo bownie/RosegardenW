@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,12 +23,15 @@
 namespace Rosegarden
 {
 
+/// QScrollArea that emits a signal on wheel events.
 /**
+ * This class allows for a connection between wheel scrolling events
+ * in the TrackButtons and scrolling in the CompositionView.
+ *
  * Replaces QDeferScrollView
  *
  * \author Chris J. Fryer
  */
-
 class DeferScrollArea : public QScrollArea
 {
     Q_OBJECT

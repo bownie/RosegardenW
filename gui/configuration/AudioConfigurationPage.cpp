@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -188,7 +188,6 @@ AudioConfigurationPage::AudioConfigurationPage(
     connect(m_connectDefaultAudioInputs, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
     m_connectDefaultAudioInputs->setChecked(qStrToBool(settings.value("connect_default_jack_inputs", "true")));
     layout->addWidget(m_connectDefaultAudioInputs, row, 1);
-    settings.endGroup();
     ++row;
 
     layout->addWidget(new QLabel(tr("Start JACK automatically"),frame), row, 0);
@@ -197,6 +196,8 @@ AudioConfigurationPage::AudioConfigurationPage(
     m_autoStartJackServer->setChecked(settings.value("autostartjack", "true").toBool());
     layout->addWidget(m_autoStartJackServer, row, 1);
     ++row;
+
+    settings.endGroup();
 #endif
 
     layout->setRowStretch(row, 10);
@@ -305,5 +306,5 @@ AudioConfigurationPage::getBestAvailableAudioEditor()
 }
 
 }
-#include "moc_AudioConfigurationPage.cpp"
+#include "AudioConfigurationPage.moc"
 

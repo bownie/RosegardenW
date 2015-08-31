@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2015 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -419,7 +419,7 @@ TempoRuler::mouseMoveEvent(QMouseEvent *e)
         int bar, beat, fraction, remainder;
         m_composition->getMusicalTimeForAbsoluteTime(tc.first, bar, beat,
                 fraction, remainder);
-        RG_DEBUG << "Tempo change: tempo " << m_composition->getTempoQpm(tc.second) << " at " << bar << ":" << beat << ":" << fraction << ":" << remainder << endl;
+        //RG_DEBUG << "Tempo change: tempo " << m_composition->getTempoQpm(tc.second) << " at " << bar << ":" << beat << ":" << fraction << ":" << remainder << endl;
 
         m_illuminate = tcn;
         m_illuminatePoint = false;
@@ -1039,4 +1039,4 @@ TempoRuler::createMenu()
 
 
 }
-#include "moc_TempoRuler.cpp"
+#include "TempoRuler.moc"
