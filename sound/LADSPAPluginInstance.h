@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -34,32 +34,32 @@ namespace Rosegarden
 class LADSPAPluginInstance : public RunnablePluginInstance
 {
 public:
-    virtual ~LADSPAPluginInstance();
+    ~LADSPAPluginInstance() override;
 
-    //virtual bool isOK() const { return !m_instanceHandles.empty(); }
+    bool isOK() const override { return true; /*!m_instanceHandles.empty();*/ }
 
     InstrumentId getInstrument() const { return m_instrument; }
-    virtual QString getIdentifier() const { return m_identifier; }
+    QString getIdentifier() const override { return m_identifier; }
     int getPosition() const { return m_position; }
 
-    virtual void run(const RealTime &rt);
+    void run(const RealTime &rt) override;
 
-    virtual void setPortValue(unsigned int portNumber, float value);
-    virtual float getPortValue(unsigned int portNumber);
+    void setPortValue(unsigned int portNumber, float value) override;
+    float getPortValue(unsigned int portNumber) override;
 
-    virtual size_t getBufferSize() { return m_blockSize; }
-    virtual size_t getAudioInputCount() { return m_instanceCount * m_audioPortsIn.size(); }
-    virtual size_t getAudioOutputCount() { return m_instanceCount * m_audioPortsOut.size(); }
-    virtual sample_t **getAudioInputBuffers() { return m_inputBuffers; }
-    virtual sample_t **getAudioOutputBuffers() { return m_outputBuffers; }
+    size_t getBufferSize() override { return m_blockSize; }
+    size_t getAudioInputCount() override { return m_instanceCount * m_audioPortsIn.size(); }
+    size_t getAudioOutputCount() override { return m_instanceCount * m_audioPortsOut.size(); }
+    sample_t **getAudioInputBuffers() override { return m_inputBuffers; }
+    sample_t **getAudioOutputBuffers() override { return m_outputBuffers; }
 
-    virtual bool isBypassed() const { return m_bypassed; }
-    virtual void setBypassed(bool bypassed) { m_bypassed = bypassed; }
+    bool isBypassed() const override { return m_bypassed; }
+    void setBypassed(bool bypassed) override { m_bypassed = bypassed; }
 
-    virtual size_t getLatency();
+    size_t getLatency() override;
 
-    virtual void silence();
-    virtual void setIdealChannelCount(size_t channels); // may re-instantiate
+    void silence() override;
+    void setIdealChannelCount(size_t channels) override; // may re-instantiate
 
 protected:
     // To be constructed only by LADSPAPluginFactory
@@ -74,7 +74,7 @@ protected:
                          unsigned long sampleRate,
                          size_t blockSize,
                          int idealChannelCount
-                         /* const LADSPA_Descriptor* descriptor */);
+                         /*const LADSPA_Descriptor* descriptor*/);
 
     // Constructor that uses shared buffers
     // 
@@ -86,7 +86,7 @@ protected:
                          size_t blockSize,
                          sample_t **inputBuffers,
                          sample_t **outputBuffers
-                         /* const LADSPA_Descriptor* descriptor */);
+                         /*const LADSPA_Descriptor* descriptor*/);
 
     void init(int idealChannelCount = 0);
     void instantiate(unsigned long sampleRate);

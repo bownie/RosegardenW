@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -57,21 +57,21 @@ void
 Panner::setScene(QGraphicsScene *s)
 {
     if (scene()) {
-        disconnect(scene(), SIGNAL(sceneRectChanged(const QRectF &)),
-                   this, SLOT(slotSceneRectChanged(const QRectF &)));
+        disconnect(scene(), &QGraphicsScene::sceneRectChanged,
+                   this, &Panner::slotSceneRectChanged);
     }
     QGraphicsView::setScene(s);
     if (scene()) fitInView(sceneRect(), Qt::KeepAspectRatio);
     m_cache = QPixmap();
-    connect(scene(), SIGNAL(sceneRectChanged(const QRectF &)),
-            this, SLOT(slotSceneRectChanged(const QRectF &)));
-    RG_DEBUG << "Panner::setScene: scene is " << scene() << endl;
+    connect(scene(), &QGraphicsScene::sceneRectChanged,
+            this, &Panner::slotSceneRectChanged);
+    RG_DEBUG << "Panner::setScene: scene is " << scene();
 }
 
 void
 Panner::slotSetPannedRect(QRectF rect) 
 {
-    RG_DEBUG << "Panner::slotSetPannedRect(" << rect << ")" << endl;
+    RG_DEBUG << "Panner::slotSetPannedRect(" << rect << ")";
     
     m_pannedRect = rect;
     viewport()->update();
@@ -121,10 +121,15 @@ Panner::slotSceneRectChanged(const QRectF &newRect)
 void
 Panner::paintEvent(QPaintEvent *e)
 {
+    RG_DEBUG << "paintEvent()";
+    RG_DEBUG << "  region bounding rect:" << e->region().boundingRect();
+
     Profiler profiler("Panner::paintEvent");
 
     QPaintEvent *e2 = new QPaintEvent(e->region().boundingRect());
     QGraphicsView::paintEvent(e2);
+    delete e2;
+    e2 = nullptr;
 
     QPainter paint;
     paint.begin(viewport());
@@ -154,7 +159,7 @@ Panner::paintEvent(QPaintEvent *e)
         paint.drawLine(top, bottom);
     }
 
-    RG_DEBUG << "draw polygon: " << mapFromScene(m_pannedRect) << endl;
+    RG_DEBUG << "draw polygon: " << mapFromScene(m_pannedRect);
     paint.end();
 
     emit pannerChanged(m_pannedRect);
@@ -163,6 +168,12 @@ Panner::paintEvent(QPaintEvent *e)
 void
 Panner::updateScene(const QList<QRectF> &rects)
 {
+    // ??? This is not virtual in QGraphicsView, so this is not actually
+    //     an override.  It never gets called.  At least I can't get it to
+    //     be called.
+
+    RG_DEBUG << "updateScene()";
+
     if (!m_cache.isNull()) m_cache = QPixmap();
     QGraphicsView::updateScene(rects);
 }
@@ -172,6 +183,8 @@ Panner::drawItems(QPainter *painter, int numItems,
                   QGraphicsItem *items[],
                   const QStyleOptionGraphicsItem options[])
 {
+    RG_DEBUG << "drawItems()";
+
     Profiler profiler("Panner::drawItems");
 
     if (m_cache.size() != viewport()->size()) {
@@ -251,11 +264,13 @@ Panner::mouseReleaseEvent(QMouseEvent *e)
 void
 Panner::wheelEvent(QWheelEvent *e)
 {
-    if (e->delta() > 0) {
+    // We'll handle this.  Don't pass to parent.
+    e->accept();
+
+    if (e->angleDelta().y() > 0)
         emit zoomOut();
-    } else {
+    else if (e->angleDelta().y() < 0)
         emit zoomIn();
-    }
 }
 
 void
@@ -272,4 +287,3 @@ Panner::moveTo(QPoint p)
    
 }
 
-#include "Panner.moc"

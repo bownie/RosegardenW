@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -28,6 +28,7 @@ class EventSelection;
 	
 class EventSelectionObserver {
 public:
+    virtual ~EventSelectionObserver();
     virtual void eventSelected(EventSelection *e,Event *)=0;
     virtual void eventDeselected(EventSelection *e,Event *)=0; 
     virtual void eventSelectionDestroyed(EventSelection *e)=0;
@@ -39,7 +40,7 @@ public:
  * does not take a copy of those Events, it just remembers which ones they are.
  */
 
-class EventSelection : public SegmentObserver
+class ROSEGARDENPRIVATE_EXPORT EventSelection : public SegmentObserver
 {
 public:
     typedef EventContainer eventcontainer;
@@ -58,7 +59,7 @@ public:
 
     EventSelection(const EventSelection&);
 
-    virtual ~EventSelection();
+    ~EventSelection() override;
 
     bool operator==(const EventSelection &);
 
@@ -73,20 +74,26 @@ public:
      * Add an Event to the selection.  The Event should come from
      * the Segment that was passed to the constructor.  Will
      * silently drop any event that is already in the selection.
+     *
+     * Returns the number of events removed (could be > 1 if ties were
+     * encountered) in the selected direction.
      */
-    void addEvent(Event* e, bool ties = true);
+    int addEvent(Event* e, bool ties = true, bool forward = true);
 
     /**
      * Add all the Events in the given Selection to this one.
      * Will silently drop any events that are already in the
      * selection.
      */
-    void addFromSelection(EventSelection *sel, bool ties = true);
+    void addFromSelection(EventSelection *sel);
 
     /**
      * If the given Event is in the selection, take it out.
+     *
+     * Returns the number of events removed (could be > 1 if ties were
+     * encountered)
      */
-    void removeEvent(Event *e, bool ties = true);
+    int removeEvent(Event *e, bool ties = true, bool forward = true);
 
     /**
      * Test whether a given Event (in the Segment) is part of
@@ -160,10 +167,10 @@ public:
     Segment &getSegment()             { return m_originalSegment; }
 
     // SegmentObserver methods
-    virtual void eventAdded(const Segment *, Event *) { }
-    virtual void eventRemoved(const Segment *, Event *);
-    virtual void endMarkerTimeChanged(const Segment *, bool) { }
-    virtual void segmentDeleted(const Segment *);
+    void eventAdded(const Segment *, Event *) override { }
+    void eventRemoved(const Segment *, Event *) override;
+    void endMarkerTimeChanged(const Segment *, bool) override { }
+    void segmentDeleted(const Segment *) override;
     
     // Debug
     void dump() const;
@@ -189,9 +196,12 @@ private:
     /**
      * This method encapsulates all of the logic needed to add and remove events
      * from the selection set.
+     *
+     * Returns the number of events removed (could be > 1 if ties were
+     * encountered) in the selected direction (forward or !forward).
      */
-    void addRemoveEvent(Event *e, EventFuncPtr insertEraseFn,
-                        bool ties = true);
+    int addRemoveEvent(Event *e, EventFuncPtr insertEraseFn,
+                       bool ties, bool forward);
         
     typedef std::list<EventSelectionObserver *> ObserverSet;
     ObserverSet m_observers;
@@ -378,7 +388,7 @@ class MarkerElementInfo
 class MarkerSelection : public TimewiseSelection<MarkerElementInfo>
 {
 public:
-   MarkerSelection(void) : TimewiseSelection<MarkerElementInfo>() {};
+   MarkerSelection() : TimewiseSelection<MarkerElementInfo>() {};
    MarkerSelection(Composition &, timeT beginTime, timeT endTime);
 
 };

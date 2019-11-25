@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -30,6 +30,10 @@ class Composition;
 class Segment;
 class SegmentRect;
 
+/**
+ * ??? If audio previews are ever split off from CompositionModelImpl,
+ *     might want to move all of this into that new audio preview class.
+ */
 class AudioPreviewPainter {
 public:
     AudioPreviewPainter(CompositionModelImpl& model,
@@ -37,7 +41,10 @@ public:
 			const Composition &composition,
 			const Segment* segment);
 
+    // ??? This is the only function.  It could be called by the ctor and
+    //     made private.  Then construction would generate the preview image.
     void paintPreviewImage();
+
     CompositionModelImpl::QImageVector getPreviewImage();
     const SegmentRect& getSegmentRect() { return m_rect; }
 

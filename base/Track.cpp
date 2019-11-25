@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -14,50 +14,36 @@
 */
 
 #include "Track.h"
-#include <iostream>
-#include <cstdio>
-
-#include <sstream>
 
 #include "Composition.h"
-#include "StaffExportTypes.h"
+#include "StaffExportTypes.h"  // StaffTypes and Brackets
+
+#include <sstream>  // std::stringstream
+
 
 namespace Rosegarden
 {
 
-Track::Track():
-   m_id(0),
-   m_muted(false),
-   m_position(-1),
-   m_instrument(0),
-   m_owningComposition(0),
-   m_input_device(Device::ALL_DEVICES),
-   m_input_channel(-1),
-   m_armed(false),
-   m_clef(0),
-   m_transpose(0),
-   m_color(0),
-   m_highestPlayable(127),
-   m_lowestPlayable(0),
-   m_staffSize(StaffTypes::Normal),
-   m_staffBracket(Brackets::None)
-{
-}
+
+const TrackId NO_TRACK = 0xDEADBEEF;
 
 Track::Track(TrackId id,
              InstrumentId instrument,
              int position,
              const std::string &label,
-             bool muted):
+             bool muted) :
    m_id(id),
    m_muted(muted),
+   m_archived(false),
+   m_solo(false),
    m_label(label),
    m_shortLabel(""),
    m_position(position),
    m_instrument(instrument),
-   m_owningComposition(0),
+   m_owningComposition(nullptr),
    m_input_device(Device::ALL_DEVICES),
    m_input_channel(-1),
+   m_thruRouting(Auto),
    m_armed(false),
    m_clef(0),
    m_transpose(0),
@@ -67,25 +53,6 @@ Track::Track(TrackId id,
    m_staffSize(StaffTypes::Normal),
    m_staffBracket(Brackets::None)
 {
-}
-
-Track::~Track()
-{
-}
-
-void Track::setMuted(bool muted)
-{
-    m_muted = muted;
-}
-
-void Track::setLabel(const std::string &label)
-{
-    m_label = label;
-}
-
-void Track::setShortLabel(const std::string &shortLabel)
-{
-    m_shortLabel = shortLabel;
 }
 
 void Track::setPresetLabel(const std::string &label)
@@ -108,12 +75,6 @@ void Track::setInstrument(InstrumentId instrument)
         m_owningComposition->notifyTrackChanged(this);
 }
 
-
-void Track::setArmed(bool armed) 
-{ 
-    m_armed = armed; 
-} 
-
 void Track::setMidiInputDevice(DeviceId id) 
 { 
     if (m_input_device == id) return;
@@ -134,11 +95,23 @@ void Track::setMidiInputChannel(char ic)
         m_owningComposition->notifyTrackChanged(this);
 }
 
+void Track::setThruRouting(ThruRouting thruRouting)
+{
+    // No change, bail.
+    if (m_thruRouting == thruRouting)
+        return;
+
+    m_thruRouting = thruRouting;
+
+    if (m_owningComposition)
+        m_owningComposition->notifyTrackChanged(this);
+}
+
 
 // Our virtual method for exporting Xml.
 //
 //
-std::string Track::toXmlString()
+std::string Track::toXmlString() const
 {
 
     std::stringstream track;
@@ -146,14 +119,13 @@ std::string Track::toXmlString()
     track << "<track id=\"" << m_id;
     track << "\" label=\"" << encode(m_label);
     track << "\" shortLabel=\"" << encode(m_shortLabel);
-    track << "\" position=\"" << m_position;
+    track << "\" position=\"" << m_position << "\"";
 
-    track << "\" muted=";
+    track << " muted=\"" << (m_muted ? "true" : "false") << "\"";
 
-    if (m_muted)
-        track << "\"true\"";
-    else
-        track << "\"false\"";
+    track << " archived=\"" << (m_archived ? "true" : "false") <<"\"";
+
+    track << " solo=\"" << (m_solo ? "true" : "false") << "\"";
 
     track << " instrument=\"" << m_instrument << "\"";
 
@@ -166,12 +138,16 @@ std::string Track::toXmlString()
 
     track << " staffSize=\"" << m_staffSize << "\"";
     track << " staffBracket=\"" << m_staffBracket << "\"";
+
+    track << " inputDevice=\"" << m_input_device << "\"";
+    track << " inputChannel=\"" << static_cast<int>(m_input_channel) << "\"";
+    track << " thruRouting=\"" << static_cast<int>(m_thruRouting) << "\"";
+
     track << "/>";
 
     return track.str();
 
 }
 
+
 }
-
-

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -115,8 +115,11 @@ CreateTempoMapFromSegmentCommand::initialise(Segment *s)
 
     // set up m_oldTempi and prevTempo
 
-    for (int i = m_composition->getTempoChangeNumberAt(*beatTimeTs.begin() - 1) + 1;
-            i <= m_composition->getTempoChangeNumberAt(*beatTimeTs.end() - 1); ++i) {
+    timeT firstBeatTimeT = *beatTimeTs.begin();
+    timeT lastBeatTimeT = *(beatTimeTs.end() - 1);
+    
+    for (int i = m_composition->getTempoChangeNumberAt(firstBeatTimeT - 1) + 1;
+            i <= m_composition->getTempoChangeNumberAt(lastBeatTimeT - 1); ++i) {
 
         std::pair<timeT, tempoT> tempoChange =
             m_composition->getTempoChange(i);
@@ -125,7 +128,7 @@ CreateTempoMapFromSegmentCommand::initialise(Segment *s)
             prevTempo = tempoChange.second;
     }
 
-    RG_DEBUG << "starting tempo: " << prevTempo << endl;
+    RG_DEBUG << "starting tempo: " << prevTempo;
 
     timeT quarter = Note(Note::Crotchet).getDuration();
 
@@ -145,8 +148,8 @@ CreateTempoMapFromSegmentCommand::initialise(Segment *s)
         double qpm = (60.0 * beatTime) / (beatSec * quarter);
         tempoT tempo = Composition::getTempoForQpm(int(qpm + 0.001));
 
-        RG_DEBUG << "prev beat: " << beatTimeTs[beat] << ", prev beat real time " << beatRealTimes[beat] << endl;
-        RG_DEBUG << "time " << beatTime << ", rt " << beatRealTime << ", beatSec " << beatSec << ", tempo " << tempo << endl;
+        RG_DEBUG << "prev beat: " << beatTimeTs[beat] << ", prev beat real time " << beatRealTimes[beat];
+        RG_DEBUG << "time " << beatTime << ", rt " << beatRealTime << ", beatSec " << beatSec << ", tempo " << tempo;
 
         if (tempo != prevTempo) {
             m_newTempi[beatTimeTs[beat - 1]] = tempo;

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -177,7 +177,7 @@ NotationStrings::getNoteForName(QString name)
     int dots = 0;
 
     if (pos > 0 && pos < 6 && pos < name.length() - 1) {
-        dots = name.left(pos).toInt();
+        dots = name.leftRef(pos).toInt();
         name = name.right(name.length() - pos - 1);
         if (dots < 2) {
             throw MalformedNoteName("Non-numeric or invalid dot count in \"" +
@@ -207,11 +207,11 @@ NotationStrings::getNoteForName(QString name)
         { "64th", "sixty-fourth", "hemidemisemi", "hemidemisemiquaver" },
         { "32nd", "thirty-second", "demisemi", "demisemiquaver"	},
         { "16th", "sixteenth", "semi", "semiquaver"	},
-        { "8th", "eighth", 0, "quaver"	},
-        { "quarter", 0, 0, "crotchet", },
-        { "half", 0, 0, "minim"	},
-        { "whole", 0, 0, "semibreve"	},
-        { "double whole", 0, 0, "breve"	}
+        { "8th", "eighth", nullptr, "quaver"	},
+        { "quarter", nullptr, nullptr, "crotchet", },
+        { "half", nullptr, nullptr, "minim"	},
+        { "whole", nullptr, nullptr, "semibreve"	},
+        { "double whole", nullptr, nullptr, "breve"	}
     };
 
     for (type = Note::Shortest; type <= Note::Longest; ++type) {

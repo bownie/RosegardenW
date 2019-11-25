@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -12,6 +12,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[Studio]"
 
 #include <iostream>
 
@@ -33,7 +35,6 @@
 #include <QString>
 
 
-using std::cerr;
 using std::endl;
 
 
@@ -41,9 +42,12 @@ namespace Rosegarden
 {
 
 Studio::Studio() :
+    amwShowAudioFaders(true),
+    amwShowSynthFaders(true),
+    amwShowAudioSubmasters(true),
+    amwShowUnassignedFaders(false),
     m_midiThruFilter(0),
     m_midiRecordFilter(0),
-    m_mixerDisplayOptions(0),
     m_metronomeDevice(0)
 {
     // We _always_ have a buss with id zero, for the master out
@@ -56,11 +60,11 @@ Studio::Studio() :
     // IDs match the base instrument numbers (for no good reason
     // except easy identifiability)
     addDevice(QObject::tr("Audio").toUtf8().data(),
-	      AudioInstrumentBase, AudioInstrumentBase,
-	      Device::Audio);
+              AudioInstrumentBase, AudioInstrumentBase,
+              Device::Audio);
     addDevice(QObject::tr("Synth plugin").toUtf8().data(),
-	      SoftSynthInstrumentBase, SoftSynthInstrumentBase,
-	      Device::SoftSynth);
+              SoftSynthInstrumentBase, SoftSynthInstrumentBase,
+              Device::SoftSynth);
 }
 
 Studio::~Studio()
@@ -73,21 +77,21 @@ Studio::~Studio()
     m_devices.clear();
 
     for (size_t i = 0; i < m_busses.size(); ++i) {
-	delete m_busses[i];
+        delete m_busses[i];
     }
 
     for (size_t i = 0; i < m_recordIns.size(); ++i) {
-	delete m_recordIns[i];
+        delete m_recordIns[i];
     }
 }
 
 void
 Studio::addDevice(const std::string &name,
                   DeviceId id,
-		  InstrumentId baseInstrumentId,
+                  InstrumentId baseInstrumentId,
                   Device::DeviceType type)
 {
-    Device *d = 0;
+    Device *d = nullptr;
 
     switch (type) {
 
@@ -104,8 +108,7 @@ Studio::addDevice(const std::string &name,
             break;
 
         default:
-            std::cerr << "Studio::addDevice() - unrecognised device"
-                      << endl;
+            RG_WARNING << "addDevice(): WARNING: unrecognised device type " << type;
             return;
     }
 
@@ -117,17 +120,17 @@ Studio::removeDevice(DeviceId id)
 {
     DeviceListIterator it;
     for (it = m_devices.begin(); it != m_devices.end(); it++) {
-	if ((*it)->getId() == id) {
-	    delete *it;
-	    m_devices.erase(it);
-	    return;
-	}
+        if ((*it)->getId() == id) {
+            delete *it;
+            m_devices.erase(it);
+            return;
+        }
     }
 }
 
 void
 Studio::
-resyncDeviceConnections(void)
+resyncDeviceConnections()
 {
     // Sync all the device connections
     DeviceList *devices = getDevices();
@@ -148,22 +151,22 @@ Studio::getSpareDeviceId(InstrumentId &baseInstrumentId)
     std::set<DeviceId> ids;
     DeviceListIterator it;
     for (it = m_devices.begin(); it != m_devices.end(); it++) {
-	ids.insert((*it)->getId());
-	if ((*it)->getType() == Device::Midi) {
-	    InstrumentList il = (*it)->getAllInstruments();
-	    for (size_t i = 0; i < il.size(); ++i) {
-		if (il[i]->getId() > highestMidiInstrumentId) {
-		    highestMidiInstrumentId = il[i]->getId();
-		    foundInstrument = true;
-		}
-	    }
-	}
+        ids.insert((*it)->getId());
+        if ((*it)->getType() == Device::Midi) {
+            InstrumentList il = (*it)->getAllInstruments();
+            for (size_t i = 0; i < il.size(); ++i) {
+                if (il[i]->getId() > highestMidiInstrumentId) {
+                    highestMidiInstrumentId = il[i]->getId();
+                    foundInstrument = true;
+                }
+            }
+        }
     }
 
     if (!foundInstrument) {
-	baseInstrumentId = MidiInstrumentBase;
+        baseInstrumentId = MidiInstrumentBase;
     } else {
-	baseInstrumentId = ((highestMidiInstrumentId / 128) + 1) * 128;
+        baseInstrumentId = ((highestMidiInstrumentId / 128) + 1) * 128;
     }
 
     DeviceId id = 0;
@@ -194,35 +197,30 @@ Studio::getAllInstruments()
 }
 
 InstrumentList
-Studio::getPresentationInstruments()
+Studio::getPresentationInstruments() const
 {
-    InstrumentList list, subList;
+    InstrumentList list;
 
-    std::vector<Device*>::iterator it;
-    MidiDevice *midiDevice;
+    // For each device...
+    for (DeviceList::const_iterator it = m_devices.begin();
+         it != m_devices.end();
+         ++it) {
+        const MidiDevice *midiDevice = dynamic_cast<MidiDevice *>(*it);
 
-    // Append lists
-    //
-    for (it = m_devices.begin(); it != m_devices.end(); ++it)
-    {
-        midiDevice = dynamic_cast<MidiDevice*>(*it);
+        if (midiDevice) {
+            // skip read-only devices
+            if (midiDevice->getDirection() == MidiDevice::Record)
+                continue;
+        }
 
-        if (midiDevice)
-	{
-	    // skip read-only devices
-	    if (midiDevice->getDirection() == MidiDevice::Record)
-		continue;
-	}
-	
         // get sub list
-        subList = (*it)->getPresentationInstruments();
+        InstrumentList subList = (*it)->getPresentationInstruments();
 
         // concatenate
         list.insert(list.end(), subList.begin(), subList.end());
     }
 
     return list;
-
 }
 
 Instrument*
@@ -241,7 +239,7 @@ Studio::getInstrumentById(InstrumentId id)
                 return (*iit);
     }
 
-    return 0;
+    return nullptr;
 
 }
 
@@ -261,7 +259,7 @@ Studio::getInstrumentFromList(int index)
         MidiDevice *midiDevice = dynamic_cast<MidiDevice*>(*it);
 
         if (midiDevice)
-	{
+        {
           // skip read-only devices
           if (midiDevice->getDirection() == MidiDevice::Record)
               continue;
@@ -278,25 +276,25 @@ Studio::getInstrumentFromList(int index)
         }
     }
 
-    return 0;
+    return nullptr;
 
 }
 
 Instrument *
 Studio::getInstrumentFor(Segment *segment)
 {
-    if (!segment) return 0;
-    if (!segment->getComposition()) return 0;
+    if (!segment) return nullptr;
+    if (!segment->getComposition()) return nullptr;
     TrackId tid = segment->getTrack();
     Track *track = segment->getComposition()->getTrackById(tid);
-    if (!track) return 0;
+    if (!track) return nullptr;
     return getInstrumentFor(track);
 }
 
 Instrument *
 Studio::getInstrumentFor(Track *track)
 {
-    if (!track) return 0;
+    if (!track) return nullptr;
     InstrumentId iid = track->getInstrument();
     return getInstrumentById(iid);
 }
@@ -311,17 +309,22 @@ Buss *
 Studio::getBussById(BussId id)
 {
     for (BussList::iterator i = m_busses.begin(); i != m_busses.end(); ++i) {
-	if ((*i)->getId() == id) return *i;
+        if ((*i)->getId() == id) return *i;
     }
-    return 0;
+    return nullptr;
 }
 
 void
 Studio::addBuss(Buss *buss)
 {
+    if (buss->getId() != m_busses.size()) {
+        RG_WARNING << "addBuss() Precondition: Incoming buss has wrong ID.";
+    }
+
     m_busses.push_back(buss);
 }
 
+#if 0
 void
 Studio::removeBuss(BussId id)
 {
@@ -332,6 +335,53 @@ Studio::removeBuss(BussId id)
             return;
         }
     }
+}
+#endif
+
+void
+Studio::setBussCount(unsigned newBussCount)
+{
+    // We have to have at least one for the master.
+    if (newBussCount < 1)
+        return;
+    // Reasonable limit.  Adjust if needed.
+    if (newBussCount > 16)
+        return;
+    // No change?  Bail.
+    if (newBussCount == m_busses.size())
+        return;
+
+    // If we need to remove busses
+    if (newBussCount < m_busses.size()) {
+        int removeCount = m_busses.size() - newBussCount;
+
+        // For each one that needs removing.
+        for (int i = 0; i < removeCount; ++i) {
+            // Delete the last buss.
+            delete m_busses.back();
+            // Remove it from the list.
+            m_busses.pop_back();
+        }
+    } else {  // We need to add busses
+        int addCount = newBussCount - m_busses.size();
+
+        for (int i = 0; i < addCount; ++i) {
+            unsigned bussId = m_busses.size();
+            m_busses.push_back(new Buss(bussId));
+        }
+    }
+
+#if 0
+    Q_ASSERT_X(m_busses.size() == newBussCount,
+               "Studio::setBussCount()",
+               "Postcondition: Buss count is not as expected.");
+
+    for (BussId bussId = 0; bussId < m_busses.size(); ++bussId) {
+        Q_ASSERT_X(m_busses[bussId]->getId() == bussId,
+                   "Studio::setBussCount()",
+                   "Postcondition: Buss has wrong ID.");
+    }
+#endif
 }
 
 PluginContainer *
@@ -345,8 +395,47 @@ Studio::getContainerById(InstrumentId id)
 RecordIn *
 Studio::getRecordIn(int number)
 {
-    if (number >= 0 && number < int(m_recordIns.size())) return m_recordIns[number];
-    else return 0;
+    if (number >= 0  &&  number < int(m_recordIns.size()))
+        return m_recordIns[number];
+    else
+        return nullptr;
+}
+
+void
+Studio::setRecordInCount(unsigned newRecordInCount)
+{
+    // Can't have zero.
+    if (newRecordInCount < 1)
+        return;
+    if (newRecordInCount > 32)
+        return;
+    // No change?  Bail.
+    if (newRecordInCount == m_recordIns.size())
+        return;
+
+    // If we need to add some RecordIns.
+    if (newRecordInCount > m_recordIns.size()) {
+
+        unsigned addCount = newRecordInCount - m_recordIns.size();
+
+        for (unsigned i = 0; i < addCount; ++i) {
+            m_recordIns.push_back(new RecordIn());
+        }
+
+    } else {  // We need to remove some.
+
+        unsigned removeCount = m_recordIns.size() - newRecordInCount;
+
+        // For each one that needs removing.
+        for (unsigned i = 0; i < removeCount; ++i) {
+            // Delete the last RecordIn.
+            delete m_recordIns.back();
+            // Remove it from the list.
+            m_recordIns.pop_back();
+        }
+    }
+
+    // The mapped IDs get set by RosegardenDocument::initialiseStudio().
 }
 
 // Clear down the devices  - the devices will clear down their
@@ -365,52 +454,54 @@ Studio::clear()
 }
 
 std::string
-Studio::toXmlString()
+Studio::toXmlString() const
 {
     return toXmlString(std::vector<DeviceId>());
 }
 
 std::string
-Studio::toXmlString(const std::vector<DeviceId> &devices)
+Studio::toXmlString(const std::vector<DeviceId> &devices) const
 {
+    // See RoseXmlHandler for the read side of this.
+
     std::stringstream studio;
 
     studio << "<studio thrufilter=\"" << m_midiThruFilter
            << "\" recordfilter=\"" << m_midiRecordFilter
-	   << "\" audioinputpairs=\"" << m_recordIns.size()
-	   << "\" mixerdisplayoptions=\"" << m_mixerDisplayOptions
+           << "\" audioinputpairs=\"" << m_recordIns.size()
            << "\" metronomedevice=\"" << m_metronomeDevice
+           << "\" amwshowaudiofaders=\"" << amwShowAudioFaders
+           << "\" amwshowsynthfaders=\"" << amwShowSynthFaders
+           << "\" amwshowaudiosubmasters=\"" << amwShowAudioSubmasters
+           << "\" amwshowunassignedfaders=\"" << amwShowUnassignedFaders
            << "\">" << endl << endl;
 
     studio << endl;
-
-    InstrumentList list;
 
     // Get XML version of devices
     //
     if (devices.empty()) { // export all devices and busses
 
-	for (DeviceListIterator it = m_devices.begin();
-	     it != m_devices.end(); it++) {
-	    studio << (*it)->toXmlString() << endl << endl;
-	}
+        for (DeviceListConstIterator it = m_devices.begin();
+             it != m_devices.end(); it++) {
+            studio << (*it)->toXmlString() << endl << endl;
+        }
 
-	for (BussList::iterator it = m_busses.begin();
-	     it != m_busses.end(); ++it) {
-	    studio << (*it)->toXmlString() << endl << endl;
-	}
+        for (BussList::const_iterator it = m_busses.begin();
+             it != m_busses.end(); ++it) {
+            studio << (*it)->toXmlString() << endl << endl;
+        }
 
     } else {
-	for (std::vector<DeviceId>::const_iterator di(devices.begin());
-	     di != devices.end(); ++di) {
-	    Device *d = getDevice(*di);
-	    if (!d) {
-		std::cerr << "WARNING: Unknown device id " << (*di)
-			  << " in Studio::toXmlString" << std::endl;
-	    } else {
-		studio << d->toXmlString() << endl << endl;
-	    }
-	}
+        for (std::vector<DeviceId>::const_iterator di(devices.begin());
+             di != devices.end(); ++di) {
+            Device *d = getDevice(*di);
+            if (!d) {
+                RG_WARNING << "toXmlString(): WARNING: Unknown device id " << (*di);
+            } else {
+                studio << d->toXmlString() << endl << endl;
+            }
+        }
     }
 
     studio << endl << endl;
@@ -420,36 +511,40 @@ Studio::toXmlString(const std::vector<DeviceId> &devices)
     return studio.str();
 }
 
-// Run through the Devices checking for MidiDevices and
-// returning the first Metronome we come across
-//
-const MidiMetronome*
+const MidiMetronome *
 Studio::getMetronomeFromDevice(DeviceId id)
 {
-    std::vector<Device*>::iterator it;
+    // For each Device
+    for (std::vector<Device *>::const_iterator deviceIter = m_devices.begin();
+         deviceIter != m_devices.end();
+         ++deviceIter) {
 
-    for (it = m_devices.begin(); it != m_devices.end(); ++it) {
+        //RG_DEBUG << "getMetronomeFromDevice(): Having a look at device " << (*it)->getId();
 
-	std::cerr << "Studio::getMetronomeFromDevice: Having a look at device " << (*it)->getId() << std::endl;
+        // No ID match?  Try the next.
+        if ((*deviceIter)->getId() != id)
+            continue;
 
-        MidiDevice *midiDevice = dynamic_cast<MidiDevice*>(*it);
-        if (midiDevice && 
-            midiDevice->getId() == id &&
+        MidiDevice *midiDevice = dynamic_cast<MidiDevice *>(*deviceIter);
+
+        // If it's a MidiDevice and it has a metronome, return it.
+        if (midiDevice  &&
             midiDevice->getMetronome()) {
-	    std::cerr << "Studio::getMetronomeFromDevice(" << id << "): device is a MIDI device" << std::endl;
+            //RG_DEBUG << "getMetronomeFromDevice(" << id << "): device is a MIDI device";
             return midiDevice->getMetronome();
         }
 
-	SoftSynthDevice *ssDevice = dynamic_cast<SoftSynthDevice *>(*it);
-        if (ssDevice && 
-            ssDevice->getId() == id &&
+        SoftSynthDevice *ssDevice = dynamic_cast<SoftSynthDevice *>(*deviceIter);
+
+        // If it's a SoftSynthDevice and it has a metronome, return it.
+        if (ssDevice  &&
             ssDevice->getMetronome()) {
-	    std::cerr << "Studio::getMetronomeFromDevice(" << id << "): device is a soft synth device" << std::endl;
+            //RG_DEBUG << "getMetronomeFromDevice(" << id << "): device is a soft synth device";
             return ssDevice->getMetronome();
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 // Scan all MIDI devices for available channels and map
@@ -457,8 +552,8 @@ Studio::getMetronomeFromDevice(DeviceId id)
 
 Instrument*
 Studio::assignMidiProgramToInstrument(MidiByte program,
-				      int msb, int lsb,
-				      bool percussion)
+                                      int msb, int lsb,
+                                      bool percussion)
 {
     MidiDevice *midiDevice;
     std::vector<Device*>::iterator it;
@@ -467,13 +562,13 @@ Studio::assignMidiProgramToInstrument(MidiByte program,
 
     // Instruments that we may return
     //
-    Rosegarden::Instrument *newInstrument = 0;
-    Rosegarden::Instrument *firstInstrument = 0;
+    Rosegarden::Instrument *newInstrument = nullptr;
+    Rosegarden::Instrument *firstInstrument = nullptr;
 
     bool needBank = (msb >= 0 || lsb >= 0);
     if (needBank) {
-	if (msb < 0) msb = 0;
-	if (lsb < 0) lsb = 0;
+        if (msb < 0) msb = 0;
+        if (lsb < 0) lsb = 0;
     }
 
     // Pass one - search through all MIDI instruments looking for
@@ -490,17 +585,17 @@ Studio::assignMidiProgramToInstrument(MidiByte program,
 
             for (iit = instList.begin(); iit != instList.end(); ++iit)
             {
-                if (firstInstrument == 0)
+                if (firstInstrument == nullptr)
                     firstInstrument = *iit;
 
                 // If we find an Instrument sending the right program already.
                 //
                 if ((*iit)->sendsProgramChange() &&
                     (*iit)->getProgramChange() == program &&
-		    (!needBank || ((*iit)->sendsBankSelect() &&
-				   (*iit)->getMSB() == msb &&
-				   (*iit)->getLSB() == lsb &&
-				   (*iit)->isPercussion() == percussion)))
+                    (!needBank || ((*iit)->sendsBankSelect() &&
+                                   (*iit)->getMSB() == msb &&
+                                   (*iit)->getLSB() == lsb &&
+                                   (*iit)->isPercussion() == percussion)))
                 {
                     return (*iit);
                 }
@@ -517,10 +612,10 @@ Studio::assignMidiProgramToInstrument(MidiByte program,
                     // Otherwise store the first Instrument for
                     // possible use later.
                     //
-                    if (newInstrument == 0 &&
+                    if (newInstrument == nullptr &&
                         (*iit)->sendsProgramChange() == false &&
-			(*iit)->sendsBankSelect() == false &&
-			(*iit)->isPercussion() == percussion)
+                        (*iit)->sendsBankSelect() == false &&
+                        (*iit)->isPercussion() == percussion)
                         newInstrument = *iit;
                 }
             }
@@ -531,17 +626,17 @@ Studio::assignMidiProgramToInstrument(MidiByte program,
     // Okay, if we've got this far and we have a new Instrument to use
     // then use it.
     //
-    if (newInstrument != 0)
+    if (newInstrument != nullptr)
     {
         newInstrument->setSendProgramChange(true);
         newInstrument->setProgramChange(program);
 
-	if (needBank) {
-	    newInstrument->setSendBankSelect(true);
-	    newInstrument->setPercussion(percussion);
-	    newInstrument->setMSB(msb);
-	    newInstrument->setLSB(lsb);
-	}
+        if (needBank) {
+            newInstrument->setSendBankSelect(true);
+            newInstrument->setPercussion(percussion);
+            newInstrument->setMSB(msb);
+            newInstrument->setLSB(lsb);
+        }
     }
     else // Otherwise we just reuse the first Instrument we found
         newInstrument = firstInstrument;
@@ -587,6 +682,10 @@ Studio::unassignAllInstruments()
                     (*iit)->setNaturalChannel(channel);
                     channel = ( channel + 1 ) % 16;
                     (*iit)->setFixedChannel();
+                    // ??? This is a "reset" of the instrument.  It doesn't
+                    //     seem to make sense that we should send out the
+                    //     default values.
+                    //(*iit)->sendChannelSetup();
 
                     (*iit)->setSendPan(false);
                     (*iit)->setSendVolume(false);
@@ -633,7 +732,7 @@ void
 Studio::clearBusses()
 {
     for (size_t i = 0; i < m_busses.size(); ++i) {
-	delete m_busses[i];
+        delete m_busses[i];
     }
     m_busses.clear();
     m_busses.push_back(new Buss(0));
@@ -643,38 +742,38 @@ void
 Studio::clearRecordIns()
 {
     for (size_t i = 0; i < m_recordIns.size(); ++i) {
-	delete m_recordIns[i];
+        delete m_recordIns[i];
     }
     m_recordIns.clear();
     m_recordIns.push_back(new RecordIn());
 }
 
 Device *
-Studio::getDevice(DeviceId id)
+Studio::getDevice(DeviceId id) const
 {
-    //cerr << "Studio[" << this << "]::getDevice(" << id << ")... ";
+    //RG_DEBUG << "Studio[" << this << "]::getDevice(" << id << ")... ";
     
-    std::vector<Device*>::iterator it;
+    std::vector<Device*>::const_iterator it;
     
     for (it = m_devices.begin(); it != m_devices.end(); ++it) {
         
         // possibly fix a following seg.fault :
         if( ! (*it) ){ 
-            cerr << "WARNING: (*it) is NULL in Studio::getDevice() " << endl;
+            RG_WARNING << "getDevice(): WARNING: (*it) is nullptr";
             continue;
         }
         
-        // if (it != m_devices.begin()) cerr << ", ";
-        //	cerr << (*it)->getId();
+        //RG_DEBUG << (*it)->getId();
+
         if ((*it)->getId() == id) {
-            //cerr << ". Found" << endl;
+            //RG_DEBUG << "Found";
             return (*it);
         }
     }
     
-    //cerr << ". Not found" << endl;
+    //RG_DEBUG << "NOT found";
     
-    return 0;
+    return nullptr;
 }
 
 Device *
@@ -683,10 +782,10 @@ Studio::getAudioDevice()
     std::vector<Device*>::iterator it;
 
     for (it = m_devices.begin(); it != m_devices.end(); ++it) {
-	if ((*it)->getType() == Device::Audio) return *it;
+        if ((*it)->getType() == Device::Audio) return *it;
     }
 
-    return 0;
+    return nullptr;
 }
 
 Device *
@@ -695,10 +794,10 @@ Studio::getSoftSynthDevice()
     std::vector<Device*>::iterator it;
 
     for (it = m_devices.begin(); it != m_devices.end(); ++it) {
-	if ((*it)->getType() == Device::SoftSynth) return *it;
+        if ((*it)->getType() == Device::SoftSynth) return *it;
     }
 
-    return 0;
+    return nullptr;
 }
 
 std::string
@@ -723,7 +822,7 @@ Studio::getSegmentName(InstrumentId id)
                 {
                     if ((*iit)->sendsProgramChange())
                     {
-			return (*iit)->getProgramName();
+                        return (*iit)->getProgramName();
                     }
                     else
                     {

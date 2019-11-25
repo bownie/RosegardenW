@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -32,7 +32,7 @@ SoftSynthDevice::m_controlList;
 
 SoftSynthDevice::SoftSynthDevice() :
     Device(0, "Default Soft Synth Device", Device::SoftSynth),
-    m_metronome(0)
+    m_metronome(nullptr)
 {
     createInstruments();
     checkControlList();
@@ -40,7 +40,7 @@ SoftSynthDevice::SoftSynthDevice() :
 
 SoftSynthDevice::SoftSynthDevice(DeviceId id, const std::string &name) :
     Device(id, name, Device::SoftSynth),
-    m_metronome(0)
+    m_metronome(nullptr)
 {
     createInstruments();
     checkControlList();
@@ -50,7 +50,7 @@ SoftSynthDevice::SoftSynthDevice(DeviceId id, const std::string &name) :
 SoftSynthDevice::SoftSynthDevice(const SoftSynthDevice &dev) :
     Device(dev.getId(), dev.getName(), dev.getType()),
     Controllable(),
-    m_metronome(0)
+    m_metronome(nullptr)
 {
     // Copy the instruments
     //
@@ -126,7 +126,7 @@ SoftSynthDevice::getControlParameter(int index) const
 {
     if (index >= 0 && ((unsigned int)index) < ((unsigned int)m_controlList.size()))
         return &m_controlList[index];
-    return 0;
+    return nullptr;
 }
 
 const ControlParameter *
@@ -151,7 +151,7 @@ SoftSynthDevice::getControlParameter(const std::string &type,
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 void
@@ -162,10 +162,10 @@ SoftSynthDevice::setMetronome(const MidiMetronome &metronome)
 }
 
 std::string
-SoftSynthDevice::toXmlString()
+SoftSynthDevice::toXmlString() const
 {
     std::stringstream ssiDevice;
-    InstrumentList::iterator iit;
+    InstrumentList::const_iterator iit;
 
     ssiDevice << "    <device id=\""  << m_id
                 << "\" name=\""         << m_name
@@ -204,11 +204,5 @@ SoftSynthDevice::addInstrument(Instrument *instrument)
     m_instruments.push_back(instrument);
 }
 
-// !!! It appears to me that this doesn't need to do anything.
-void
-SoftSynthDevice::
-refreshForConnection(void) {}
 
 }
-
-

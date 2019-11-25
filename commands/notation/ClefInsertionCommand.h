@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -44,17 +44,17 @@ public:
                          Clef clef,
                          bool shouldChangeOctave = false,
                          bool shouldTranspose = false);
-    virtual ~ClefInsertionCommand();
+    ~ClefInsertionCommand() override;
 
-    virtual QString getThisGlobalName(Clef *clef = 0);
-    static QString getGlobalName(Clef *clef = 0);
-    virtual timeT getRelayoutEndTime();
+    virtual QString getThisGlobalName(Clef *clef = nullptr);
+    static QString getGlobalName(Clef *clef = nullptr);
+    timeT getRelayoutEndTime() override;
 
-    virtual EventSelection *getSubsequentSelection();
+    EventSelection *getSubsequentSelection() override;
     Event *getLastInsertedEvent() { return m_lastInsertedEvent; }
 
 protected:
-    virtual void modifySegment();
+    void modifySegment() override;
 
     Clef m_clef;
     bool m_shouldChangeOctave;
@@ -73,13 +73,13 @@ public:
                             Clef clef,
                             bool shouldChangeOctave = false,
                             bool shouldTranspose = false);
-    virtual ~ClefLinkInsertionCommand();
+    ~ClefLinkInsertionCommand() override;
 
-    virtual QString getThisGlobalName(Clef *clef = 0);
-    static QString getGlobalName(Clef *clef = 0);
+    QString getThisGlobalName(Clef *clef = nullptr) override;
+    static QString getGlobalName(Clef *clef = nullptr);
 
 protected:
-    virtual void modifySegment();
+    void modifySegment() override;
 };
 
 }

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -29,6 +29,10 @@ class MappedEventList;
 /**
  * This is primarily used by RosegardenSequencer::getSlice() during playback
  * to generate a MappedEventList to send off to ALSA.
+ *
+ * ??? This inside-out thinking hurts my brain.  Can we instead just send
+ *     a MappedEventList & to whoever needs to insert things, and let them
+ *     call a MappedEventList::insertCopy()?
  */
 class MappedEventInserter : public MappedInserterBase
 {
@@ -38,7 +42,7 @@ public:
     { }
 
     /// Inserts an event into the MappedEventList (m_list).
-    virtual void insertCopy(const MappedEvent &evt);
+    void insertCopy(const MappedEvent &evt) override;
 
 private:
     MappedEventList &m_list;

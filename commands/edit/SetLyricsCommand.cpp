@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -94,7 +94,7 @@ SetLyricsCommand::execute()
 
     QStringList::Iterator bsi = barStrings.begin();
     while ( bsi != barStrings.end() ) {
-        NOTATION_DEBUG << "Parsing lyrics for bar number " << barNo << ": \"" << *bsi << "\"" << endl;
+        NOTATION_DEBUG << "Parsing lyrics for bar number " << barNo << ": \"" << *bsi << "\"";
 
         std::pair<timeT, timeT> barRange = comp->getBarRange(barNo++);
         QString syllables = *bsi;
@@ -138,7 +138,7 @@ SetLyricsCommand::execute()
             if (syllable == ".")
                 continue;
 
-            NOTATION_DEBUG << "Syllable \"" << syllable << "\" at time " << time << endl;
+            NOTATION_DEBUG << "Syllable \"" << syllable << "\" at time " << time;
 
             Text text(qstrtostr(syllable), Text::Lyric);
             Event *event = text.getAsEvent(time);
@@ -146,6 +146,9 @@ SetLyricsCommand::execute()
             m_segment->insert(event);
         }
     }
+
+    // The verse count changed
+    m_segment->invalidateVerseCount();
 }
 
 void

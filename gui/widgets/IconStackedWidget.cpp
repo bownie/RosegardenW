@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -36,17 +36,15 @@ IconStackedWidget::IconStackedWidget(QWidget *parent) :
 {
     
     // Use a frame widget for the icon panel, it will hold a bunch of buttons
-    m_iconPanel = new QFrame(this);
+    m_iconPanel = new QFrame;
     m_iconPanel->setFrameStyle(QFrame::Panel | QFrame::Sunken);
     m_iconPanel->setLineWidth(2);
 
-    // Since this code was born with hard coded colors anyway, and since we live
-    // in a stylesheet world now, let's dump the original QPalette
-    // implementation in favor of a spot stylesheet.  (I've never gotten
-    // QPalette backgrounds to play nice with stylesheets elsewhere, and this is
-    // probably the best solution anyway.)
-    QString localStyle("background-color: #FFFFFF; color: #000000;");
-    m_iconPanel->setStyleSheet(localStyle);
+    // Set a bright background so that the icons are visible.
+    QPalette palette = m_iconPanel->palette();
+    palette.setColor(m_iconPanel->backgroundRole(), QColor(221,221,221));
+    m_iconPanel->setPalette(palette);
+    m_iconPanel->setAutoFillBackground(true);
 
     // Use a VBoxLayout for the icon buttons
     m_iconLayout = new QVBoxLayout;
@@ -67,7 +65,7 @@ IconStackedWidget::IconStackedWidget(QWidget *parent) :
     m_iconPanel->setLayout(m_iconLayout);
     
     // Use a stacked widget for the pages so the selected on is displayed
-    m_pagePanel = new QStackedWidget(this);
+    m_pagePanel = new QStackedWidget;
 
     // Use a QHBoxLayout for icon and page panels
     m_layout = new QHBoxLayout;
@@ -116,7 +114,7 @@ IconStackedWidget::addPage(const QString& name, QWidget *page, const QPixmap& ic
     m_pagePanel->addWidget(page);
 
     // Connect the button's clicked data signal to the page select slot
-    connect(iconButton, SIGNAL(clicked()), this, SLOT(slotPageSelect()));
+    connect(iconButton, &QAbstractButton::clicked, this, &IconStackedWidget::slotPageSelect);
 }
 
 void
@@ -125,7 +123,7 @@ IconStackedWidget::slotPageSelect()
     // Cycle through the buttons to find the one that is checked
     iconbuttons::iterator i = m_iconButtons.begin();
     int index = 0;
-    while (((*i)->isChecked() == false) && (i != m_iconButtons.end())) {
+    while ((i != m_iconButtons.end()) && ((*i)->isChecked() == false)) {
         ++i;
         index++;
     }
@@ -157,4 +155,3 @@ IconStackedWidget::setPageByIndex(int index)
     slotPageSelect();
 }
 
-#include "IconStackedWidget.moc"

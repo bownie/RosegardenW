@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -19,8 +19,6 @@
 #include "misc/Strings.h"
 #include "misc/Debug.h"
 #include "gui/application/RosegardenMainWindow.h"
-#include "gui/widgets/ProgressDialog.h"
-#include "gui/widgets/CurrentProgressDialog.h"
 #include "document/RosegardenDocument.h"
 #include "gui/widgets/StartupLogo.h"
 #include "gui/general/ResourceFinder.h"
@@ -28,6 +26,15 @@
 #include "gui/general/ThornStyle.h"
 #include "gui/application/RosegardenApplication.h"
 #include "base/RealTime.h"
+
+#include "sound/MidiFile.h"
+#include "sound/audiostream/WavFileReadStream.h"
+#include "sound/audiostream/WavFileWriteStream.h"
+#include "sound/audiostream/OggVorbisReadStream.h"
+#include "sound/audiostream/SimpleWavFileWriteStream.h"
+
+//#include <svnversion.h> // generated file
+#include "rosegarden-version.h"
 
 #include <QSettings>
 #include <QDesktopWidget>
@@ -50,6 +57,7 @@
 #include <QPixmapCache>
 #include <QStringList>
 
+#include <sound/SoundDriverFactory.h>
 #include <sys/time.h>
 #include <unistd.h>
 
@@ -318,46 +326,78 @@ The main Sequencer state machine is a good starting point and clearly
 visible at the bottom of rosegarden/sequencer/main.cpp.
 */
 
-static QString description =
-       QObject::tr("Rosegarden - A sequencer and musical notation editor");
-
 // -----------------------------------------------------------------
 
-#ifdef Q_WS_X11
-#include <X11/Xlib.h>
-#include <X11/Xutil.h>
-#include <X11/Xatom.h>
-#include <X11/SM/SMlib.h>
-
-static int xErrorHandler(Display *dpy, XErrorEvent *err)
+static void usage()
 {
-    char errstr[256];
-    XGetErrorText(dpy, err->error_code, errstr, 256);
-    if (err->error_code != BadWindow) {
-        std::cerr << "Rosegarden: detected X Error: " << errstr << " " << err->error_code
-                  << "\n  Major opcode:  " << err->request_code << std::endl;
-    }
-    return 0;
-}
-#endif
-
-enum GraphicsSystem
-{
-    Raster,
-    Native,
-    OpenGL
-};
-
-void usage()
-{
-    std::cerr << "Rosegarden: A sequencer and musical notation editor" << std::endl;
-    std::cerr << "Usage: rosegarden [--nosplash] [--nosequencer] [file.rg]" << std::endl;
-    std::cerr << "       rosegarden --version" << std::endl;
+    std::cerr << "Rosegarden: A sequencer and musical notation editor\n";
+    std::cerr << "Usage: rosegarden [--nosplash] [--nosound] [file.rg]\n";
+    std::cerr << "       rosegarden --convert source.rg dest.mid\n";
+    std::cerr << "       rosegarden --version\n";
     exit(2);
+}
+
+static void convert(const QStringList &args)
+{
+    QString inFile  = args[2];
+    QString outFile = args[3];
+
+    std::cout << "Converting from \"" << inFile << "\" to \"" << outFile << "\"\n";
+
+    RosegardenDocument doc(
+            nullptr,  // parent
+            nullptr,  // audioPluginManager
+            true,  // skipAutoload
+            true,  // clearCommandHistory
+            false);  // m_useSequencer
+
+    bool ok;
+
+    ok = doc.openDocument(
+            inFile,
+            false,  // permanent
+            true,  // squelchProgressDialog
+            false);  // enableLock
+    if (!ok) {
+        std::cerr << "Error opening rg file: " << inFile << "\n";
+        exit(1);
+    }
+
+    MidiFile midiFile;
+    ok = midiFile.convertToMidi(&doc, outFile);
+    if (!ok) {
+        std::cerr << "Error writing MIDI file: " << outFile << "\n";
+        exit(1);
+    }
+
+    exit(0);
 }
 
 int main(int argc, char *argv[])
 {
+
+    // Initialization of static objects related to read and write of audio
+    // files.
+    // This fixes bug #1503 (Audio files can't be read when RG is built in
+    // release mode).
+
+#ifdef HAVE_LIBSNDFILE
+    WavFileReadStream::initStaticObjects();
+    WavFileWriteStream::initStaticObjects();
+#endif
+
+#ifdef HAVE_OGGZ
+#ifdef HAVE_FISHSOUND
+    OggVorbisReadStream::initStaticObjects();
+#endif
+#endif
+
+#ifndef HAVE_LIBSNDFILE
+    SimpleWavFileWriteStream::initStaticObjects();
+#endif
+
+
+
     for (int i = 1; i < argc; ++i) {
         if (!strcmp(argv[i], "--version")) {
             std::cout << "Rosegarden version: " << VERSION << " (\"" << CODENAME << "\")" << std::endl;
@@ -369,104 +409,47 @@ int main(int argc, char *argv[])
 
     QPixmapCache::setCacheLimit(8192); // KB
 
-    setsid(); // acquire shiny new process group
+    //setsid(); // acquire shiny new process group
 
-    srandom((unsigned int)time(0) * (unsigned int)getpid());
-
-    // we have to set the graphics system before creating theApp, or it
-    // won't work, so we have to use an unusual QSettings ctor here.
-    //
-    // (this has to be outside the ifdef block below)
-    QSettings preAppSettings("rosegardenmusic", "Rosegarden");
-    preAppSettings.beginGroup(GeneralOptionsConfigGroup);
-    unsigned int graphicsSystem = preAppSettings.value("graphics_system", Native).toUInt();
-    preAppSettings.endGroup();
-
+    //srandom((unsigned int)time(nullptr) * (unsigned int)getpid());
 
     bool styleSpecified = false;
-#ifdef Q_WS_X11
-#if QT_VERSION >= 0x040500
-    bool systemSpecified = false;
     for (int i = 1; i < argc; ++i) {
-        if (!strcmp(argv[i], "-graphicssystem")) {
-            systemSpecified = true;
-            break;
-        }
         if (!strcmp(argv[i], "-style")) {
             styleSpecified = true;
             break;
         }
     }
 
-    if (!systemSpecified) {
-        // Set the graphics system specified in QSettings unless the user has
-        // overridden this on the command line.
-        //
-        // We prefer the "raster" graphics system available since Qt 4.5.0,
-        // because it is dramatically faster on X11 than the "native" system.
-        // Unfortunately, users have reported a variety of crashes and horrible
-        // rendering problems, and it's just such a mixed bag we've got to offer
-        // the option.  (And after two more users with reports of crashes in Qt
-        // code that have "Raster" written all over them, it's time to make the
-        // only reliable system the default out of the box, and do up a FAQ
-        // about bad graphics performance suggesting to give the less stable
-        // alternatives a shot.)
+    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 
-        std::cerr << "Setting graphics system for Qt 4.5+ to: ";
-        switch (graphicsSystem) {
-        case Raster:
-            QApplication::setGraphicsSystem("raster");
-            std::cerr << "raster" << std::endl;
-            break;
+    RosegardenApplication theApp(argc, argv);
 
-        case Native:
-            QApplication::setGraphicsSystem("native");
-            std::cerr << "native" << std::endl;
-            break;
+    theApp.setOrganizationName("rosegardenmusic");
+    theApp.setOrganizationDomain("rosegardenmusic.com");
+    theApp.setApplicationName(QObject::tr("Rosegarden"));
 
-        case OpenGL:
-            QApplication::setGraphicsSystem("opengl");
-            std::cerr << "opengl" << std::endl;
-            break;
-
-        default:
-            QApplication::setGraphicsSystem("raster");
-            std::cerr << "raster (DEFAULTED!)" << std::endl;
-        }
-    }
-#endif
-#endif
-
-    preAppSettings.beginGroup(GeneralOptionsConfigGroup);
-    bool Thorn = preAppSettings.value("use_thorn_style", true).toBool();
+    QSettings settings;
+    settings.beginGroup(GeneralOptionsConfigGroup);
+    bool Thorn = settings.value("use_thorn_style", true).toBool();
 
     // If the option was turned on in settings, but the user has specified a
     // style on the command line (obnoxious user!) then we must turn this option
     // _off_ in settings as though the user had un-checked it on the config
     // page, or else mayhem and chaos will reign.
     if (Thorn && styleSpecified) {
-        preAppSettings.setValue("use_thorn_style", false);
+        settings.setValue("use_thorn_style", false);
         Thorn = false;
     }
 
-    preAppSettings.endGroup();
+    settings.endGroup();
 
-    std::cout << "Thorn - " << std::boolalpha << Thorn << std::endl;
+    ThornStyle::setEnabled(Thorn);
 
-    // In order to ensure the Thorn style comes out right, we need to set our
-    // custom style, which is based on QPlastiqueStyle
-    if (Thorn) QApplication::setStyle(new ThornStyle);
-
-    RosegardenApplication theApp(argc, argv);    
-
-    theApp.setOrganizationName("rosegardenmusic");
-    theApp.setOrganizationDomain("rosegardenmusic.com");
-    theApp.setApplicationName(QObject::tr("Rosegarden"));
     // This allows icons to appear in the instrument popup menu in
     // TrackButtons.
     theApp.setAttribute(Qt::AA_DontShowIconsInMenus, false);
     QStringList args = theApp.arguments();
-    QSettings settings;
 
     // enable to load resources from rcc file (if not compiled in)
 #ifdef RESOURCE_FILE_NOT_COMPILED_IN
@@ -476,8 +459,8 @@ int main(int argc, char *argv[])
     }
 #endif
 
-    std::cerr << "System Locale: " << QLocale::system().name() << std::endl;
-    std::cerr << "Qt translations path: " << QLibraryInfo::location(QLibraryInfo::TranslationsPath) << std::endl;
+    RG_DEBUG << "System Locale:" << QLocale::system().name();
+    RG_DEBUG << "Qt translations path: " << QLibraryInfo::location(QLibraryInfo::TranslationsPath);
 
     QTranslator qtTranslator;
     bool qtTranslationsLoaded = 
@@ -485,30 +468,33 @@ int main(int argc, char *argv[])
             QLibraryInfo::location(QLibraryInfo::TranslationsPath));
     if (qtTranslationsLoaded) {
         theApp.installTranslator(&qtTranslator);
-        std::cerr << "Qt translations loaded successfully." << std::endl;
+        RG_DEBUG << "Qt translations loaded successfully.";
     } else {
-        std::cerr << "Qt translations not loaded." << std::endl;
+        RG_WARNING << "Qt translations not loaded.";
     }
 
     QTranslator rgTranslator;
-    std::cerr << "RG Translation: trying to load :locale/" << QLocale::system().name() << std::endl;
+    RG_DEBUG << "RG Translation: trying to load :locale/" << QLocale::system().name();
     bool rgTranslationsLoaded = 
       rgTranslator.load(QLocale::system().name(), ":locale/");
     if (rgTranslationsLoaded) {
-        std::cerr << "RG Translations loaded successfully." << std::endl;
+        RG_DEBUG << "RG Translations loaded successfully.";
         theApp.installTranslator(&rgTranslator);
     } else {
-        std::cerr << "RG Translations not loaded." << std::endl;
+        RG_WARNING << "RG Translations not loaded.";
     }
 
+    // *** Process Command Line Options
+
     bool nosplash = false;
-    bool nosequencer = false;
+    bool nosound = false;
     int nonOptArgs = 0;
 
     for (int i = 1; i < args.size(); ++i) {
         if (args[i].startsWith("-")) {
             if (args[i] == "--nosplash") nosplash = true;
-            else if (args[i] == "--nosequencer") nosequencer = true;
+            else if (args[i] == "--nosound") nosound = true;
+            else if (args[i] == "--convert") convert(args);
             else usage();
         } else {
             ++nonOptArgs;
@@ -517,64 +503,23 @@ int main(int argc, char *argv[])
     if (nonOptArgs > 1) usage();
 
     QIcon icon;
-    int sizes[] = { 16, 22, 24, 32, 48, 64, 128 };
+    static const int sizes[] = { 16, 22, 24, 32, 48, 64, 128 };
     for (size_t i = 0; i < sizeof(sizes)/sizeof(sizes[0]); ++i) {
         QString name = QString("rg-rwb-rose3-%1x%2").arg(sizes[i]).arg(sizes[i]);
         QPixmap pixmap = IconLoader().loadPixmap(name);
         if (!pixmap.isNull()) {
-            std::cerr << "Loaded application icon \"" << name << "\"" << std::endl;
+            RG_DEBUG << "Loaded application icon \"" << name << "\"";
             icon.addPixmap(pixmap);
         }
     }
     theApp.setWindowIcon(icon);
 
-    QString stylepath = ResourceFinder().getResourcePath("", "rosegarden.qss");
-    if (stylepath != "") {
-        std::cerr << "NOTE: Found stylesheet at \"" << stylepath << "\", applying it" << std::endl;
-        QFile file(stylepath);
-        if (!file.open(QFile::ReadOnly)) {
-            std::cerr << "Failed to open stylesheet" << std::endl;
-        } else {
-            if (Thorn) {
-                QString styleSheet = QLatin1String(file.readAll());
-                theApp.setStyleSheet(styleSheet);
-
-                //  QPalette::QPalette ( const QBrush & windowText, const QBrush & button, const QBrush & light,
-                //                       const QBrush & dark, const QBrush & mid, const QBrush & text,
-                //                       const QBrush & bright_text, const QBrush & base, const QBrush & window )
-                //
-                // Let's try attacking all these assorted problems with Qt
-                // taking cues from the underlying system colors instead of
-                // those defined in the Thorn stylesheet by setting an
-                // application-wide fake palette to help Qt make better choices
-                // in all the bits we have no direct control over (such as
-                // disabled button texts)
-                QPalette pal(Qt::white, Qt::gray, Qt::white, Qt::black, Qt::gray, Qt::white, Qt::white, Qt::black, Qt::black);
-                theApp.setPalette(pal);
-            } else {
-                std::cerr << "Not loading stylesheet per user request.  Caveat emptor." << std::endl;
-            }
-//            settings.endGroup();
-        }
-    }
-
-    // Ensure quit on last window close
-    //@@@ ???
-    //
-    QObject::connect(&theApp, SIGNAL(lastWindowClosed()), &theApp, SLOT(quit()));
-
     settings.beginGroup(GeneralOptionsConfigGroup);
-
-//#define DEBUG_PROGRESS
-#ifdef DEBUG_PROGRESS
-    ProgressDialog *pd = new ProgressDialog("Hoopty!", 300, 0);
-    pd->show();
-#endif
 
     QString lastVersion = settings.value("lastversion", "").toString();
     bool newVersion = (lastVersion != VERSION);
     if (newVersion) {
-        std::cerr << "*** This is the first time running this Rosegarden version" << std::endl;
+        RG_WARNING << "*** This is the first time running this Rosegarden version";
         settings.setValue("lastversion", VERSION);
 
     }
@@ -582,9 +527,8 @@ int main(int argc, char *argv[])
     RG_INFO << "Unbundling examples...";
     
     // unbundle examples
-    QStringList exampleFiles;
-    exampleFiles << ResourceFinder().getResourceFiles("examples", "rg");
-    for (QStringList::const_iterator i = exampleFiles.begin(); i != exampleFiles.end(); ++i) {
+    const QStringList exampleFiles = ResourceFinder().getResourceFiles("examples", "rg");
+    for (QStringList::const_iterator i = exampleFiles.constBegin(); i != exampleFiles.constEnd(); ++i) {
         QString exampleFile(*i);
         QString name = QFileInfo(exampleFile).fileName();
         if (exampleFile.startsWith(":")) {
@@ -599,8 +543,7 @@ int main(int argc, char *argv[])
     RG_INFO << "Unbundling templates...";
 
     // unbundle templates
-    QStringList templateFiles;
-    templateFiles << ResourceFinder().getResourceFiles("templates", "rgt");
+    const QStringList templateFiles = ResourceFinder().getResourceFiles("templates", "rgt");
     for (QStringList::const_iterator i = templateFiles.begin(); i != templateFiles.end(); ++i) {
         QString templateFile(*i);
         QString name = QFileInfo(templateFile).fileName();
@@ -616,8 +559,7 @@ int main(int argc, char *argv[])
     RG_INFO << "Unbundling libraries (device files)...";
 
     // unbundle libraries
-    QStringList libraryFiles;
-    libraryFiles << ResourceFinder().getResourceFiles("library", "rgd");
+    const QStringList libraryFiles = ResourceFinder().getResourceFiles("library", "rgd");
     for (QStringList::const_iterator i = libraryFiles.begin(); i != libraryFiles.end(); ++i) {
         QString libraryFile(*i);
         QString name = QFileInfo(libraryFile).fileName();
@@ -649,7 +591,7 @@ int main(int argc, char *argv[])
     settings.endGroup();
     settings.beginGroup(GeneralOptionsConfigGroup);
 
-    StartupLogo* startLogo = 0L;
+    StartupLogo* startLogo = nullptr;
 
     if (qStrToBool(settings.value("Logo", "true")) && !nosplash) {
         startLogo = StartupLogo::getInstance();
@@ -661,32 +603,20 @@ int main(int argc, char *argv[])
     }
 
     struct timeval logoShowTime;
-    gettimeofday(&logoShowTime, 0);
+    gettimeofday(&logoShowTime, nullptr);
 
-    //
-    // Start application
-    //
-    RosegardenMainWindow *rosegardengui = 0;
-
-#ifndef NO_SOUND
-    theApp.setNoSequencerMode(nosequencer);
-#else
-    theApp.setNoSequencerMode(true);
-#endif // NO_SOUND
+    SoundDriverFactory::setSoundEnabled(!nosound);
 
     RG_INFO << "Creating RosegardenMainWindow instance...";
 
-    rosegardengui = new RosegardenMainWindow(!theApp.noSequencerMode(), startLogo);
+    RosegardenMainWindow *mainWindow =
+            new RosegardenMainWindow(!nosound, startLogo);
 
-    rosegardengui->setIsFirstRun(newVersion);
+    mainWindow->setIsFirstRun(newVersion);
 
-    //@@@ QApplication.setMainWidget() is no longer supported.
-    //@@@ The documentation suggests connecting the lastWindowsClosed() signal
-    //@@@ to the quit() slot, but QApplication has a boolean quitOnLastWindowClosed
-    //@@@ property that defaults to true, so calling quit() should not be needed.
-    //theApp.setMainWidget(rosegardengui);
-
-    rosegardengui->show();
+    // This parentless/shown window will become the main window when
+    // QApplication::exec() is called.
+    mainWindow->show();
 
     // raise start logo
     //
@@ -699,13 +629,13 @@ int main(int argc, char *argv[])
 
     for (int i = 1; i < args.size(); ++i) {
         if (args[i].startsWith("-")) continue;
-        rosegardengui->openFile(args[i], RosegardenMainWindow::ImportCheckType);
+        mainWindow->openFile(args[i], RosegardenMainWindow::ImportCheckType);
         break;
     }
 
     //@@@???
-    QObject::connect(&theApp, SIGNAL(aboutToSaveState()),
-                     rosegardengui, SLOT(slotDeleteTransport()));
+    QObject::connect(&theApp, &RosegardenApplication::aboutToSaveState,
+                     mainWindow, &RosegardenMainWindow::slotDeleteTransport);
 
     // Now that we've started up, raise start logo
     //
@@ -728,7 +658,7 @@ int main(int argc, char *argv[])
             // setup sfxload Process
             QProcess* sfxLoadProcess = new QProcess;
 
-            RG_DEBUG << "Starting sfxload : " << sfxLoadPath << " " << soundFontPath << endl;
+            RG_DEBUG << "Starting sfxload : " << sfxLoadPath << " " << soundFontPath;
 
             // NOTE: we used to have a broken connect here to hook to a slot
             // that never existed.  This omission doesn't seem to have ever
@@ -748,10 +678,6 @@ int main(int argc, char *argv[])
     }
 
 
-#ifdef Q_WS_X11
-    XSetErrorHandler(xErrorHandler);
-#endif
-
     if (startLogo) {
 
         // pause to ensure the logo has been visible for a reasonable
@@ -759,7 +685,7 @@ int main(int argc, char *argv[])
         // and remove it immediately
 
         struct timeval now;
-        gettimeofday(&now, 0);
+        gettimeofday(&now, nullptr);
 
         RealTime visibleFor =
             RealTime(now.tv_sec, now.tv_usec * 1000) -
@@ -784,7 +710,6 @@ int main(int argc, char *argv[])
 
     if (newVersion) {
         StartupLogo::hideIfStillThere();
-        CurrentProgressDialog::freeze();
 
         QDialog *dialog = new QDialog;
         dialog->setModal(true);
@@ -814,30 +739,36 @@ int main(int argc, char *argv[])
         QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok);
         metagrid->addWidget(buttonBox, 1, 0);
         metagrid->setRowStretch(0, 10);
-        QObject::connect(buttonBox, SIGNAL(accepted()), dialog, SLOT(accept()));
-        QObject::connect(buttonBox, SIGNAL(rejected()), dialog, SLOT(reject()));
+        QObject::connect(buttonBox, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
+        QObject::connect(buttonBox, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
 
-        rosegardengui->awaitDialogClearance();
+        mainWindow->awaitDialogClearance();
         dialog->exec();
-
-        CurrentProgressDialog::thaw();
     }
     settings.endGroup();
 
     RG_INFO << "Launching the sequencer...";
 
     try {
-        rosegardengui->launchSequencer();
-    } catch (std::string e) {
-        RG_DEBUG << "RosegardenGUI - " << e << endl;
-    } catch (QString e) {
-        RG_DEBUG << "RosegardenGUI - " << e << endl;
-    } catch (Exception e) {
-        RG_DEBUG << "RosegardenGUI - " << e.getMessage() << endl;
+        mainWindow->launchSequencer();
+    } catch (const std::string &e) {
+        RG_DEBUG << "mainWindow->launchSequencer() - " << e;
+    } catch (const QString &e) {
+        RG_DEBUG << "mainWindow->launchSequencer() - " << e;
+    } catch (const Exception &e) {
+        RG_DEBUG << "mainWindow->launchSequencer() - " << e.getMessage();
     }
 
 //#define STYLE_TEST
 #ifdef STYLE_TEST
+    QProgressDialog dialog;
+    dialog.setMaximum(500);
+    for (int i = 0; i <= 500; ++i) {
+        dialog.setValue(i);
+        QThread::msleep(1);
+        qApp->processEvents();
+    }
+
     QMessageBox::information(0, "Rosegarden", "Information.", QMessageBox::Ok, QMessageBox::Ok);
     QMessageBox::critical(0, "Rosegarden", "Critical!", QMessageBox::Ok, QMessageBox::Ok);
     QMessageBox::question(0, "Rosegarden", "Question?", QMessageBox::Ok, QMessageBox::Ok);

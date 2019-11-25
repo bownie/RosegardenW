@@ -143,4 +143,4 @@ bool AudioPreviewUpdater::event(QEvent *e)
 }
 
 }
-#include "AudioPreviewUpdater.moc"
+#include "moc_AudioPreviewUpdater.cpp"

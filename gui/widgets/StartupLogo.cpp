@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file contains code borrowed from KDevelop 2.0
@@ -22,6 +22,8 @@
 #include "misc/Debug.h"
 #include "gui/general/IconLoader.h"
 #include "gui/general/ResourceFinder.h"
+
+#include "rosegarden-version.h"
 
 #include <QApplication>
 #include <QDesktopWidget>
@@ -51,12 +53,14 @@ StartupLogo::StartupLogo(QWidget * parent) :
     setGeometry(QApplication::desktop()->width() / 2 - m_pixmap.width() / 2,
                 QApplication::desktop()->height() / 2 - m_pixmap.height() / 2,
                 m_pixmap.width(), m_pixmap.height());
+
+    setAttribute(Qt::WA_DeleteOnClose);
 }
 
 StartupLogo::~StartupLogo()
 {
     m_wasClosed = true;
-    m_instance = 0;
+    m_instance = nullptr;
 }
 
 void StartupLogo::paintEvent(QPaintEvent*)
@@ -107,8 +111,7 @@ void StartupLogo::paintEvent(QPaintEvent*)
 void StartupLogo::slotShowStatusMessage(QString message)
 {
     m_statusMessage = message;
-    repaint(); //paintEvent(0);
-    QApplication::flush();
+    repaint();
 }
 
 void StartupLogo::close()
@@ -130,7 +133,7 @@ void StartupLogo::mousePressEvent(QMouseEvent*)
 StartupLogo* StartupLogo::getInstance()
 {
     if (m_wasClosed)
-        return 0;
+        return nullptr;
 
     if (!m_instance)
         m_instance = new StartupLogo;
@@ -146,10 +149,9 @@ void StartupLogo::hideIfStillThere()
 }
 
 
-StartupLogo* StartupLogo::m_instance = 0;
+StartupLogo* StartupLogo::m_instance = nullptr;
 bool StartupLogo::m_wasClosed = false;
 
-#include "StartupLogo.moc"
 
 }
 

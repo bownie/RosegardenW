@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,7 +38,7 @@ class PlayListDialog : public QDialog
     Q_OBJECT
 
 public:
-    PlayListDialog( QString caption, QWidget* parent = 0, const char* name = 0);
+    PlayListDialog( QString caption, QWidget* parent = nullptr, const char* name = nullptr);
 
     PlayList* getPlayList() { return m_playList; }
 
@@ -49,7 +49,7 @@ signals:
     void closing();
 
 protected:    
-    virtual void closeEvent(QCloseEvent *e);
+    void closeEvent(QCloseEvent *e) override;
 
     void save();
     void restore();

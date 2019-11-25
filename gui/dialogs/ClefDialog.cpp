@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -21,7 +21,7 @@
 #include "base/NotationTypes.h"
 #include "gui/editors/notation/NotePixmapFactory.h"
 #include "gui/widgets/BigArrowButton.h"
-#include "gui/general/GUIPalette.h"
+#include "gui/general/ThornStyle.h"
 #include "misc/ConfigGroups.h"
 
 #include <QDialog>
@@ -84,19 +84,7 @@ ClefDialog::ClefDialog(QWidget *parent,
     midChunkLayout->addWidget(clefDown);
     clefDown->setToolTip(tr("Lower clef"));
 
-    QSettings settings;
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    m_Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
-    
     m_clefPixmap = new QLabel;
-    // if no stylesheet, force a white background anyway, because the foreground
-    // will be dark, and this used to be bordering on illegible in Classic
-    QString localStyle = (m_Thorn ? 
-            QString("background: #404040; color: white;")
-                                :
-            QString("background: white; color: black;"));
-    m_clefPixmap->setStyleSheet(localStyle);
     midChunkLayout->addWidget(m_clefPixmap);
 
     BigArrowButton *clefUp = new BigArrowButton(Qt::RightArrow);
@@ -140,7 +128,7 @@ ClefDialog::ClefDialog(QWidget *parent,
         m_changeOctaveButton = new QRadioButton(tr("Transpose into appropriate octave"));
         conversionFrameLayout->addWidget(m_changeOctaveButton);
 
-        m_transposeButton = 0;
+        m_transposeButton = nullptr;
 
         //!!! why aren't we offering this option? does it not work? too difficult to describe?
         //
@@ -149,22 +137,23 @@ ClefDialog::ClefDialog(QWidget *parent,
         //
         //m_transposeButton = new QRadioButton(tr("Maintain current positions on the staff"));
         
+        QSettings settings;
         settings.beginGroup("Clef_Dialog");        	
         m_changeOctaveButton->setChecked(settings.value("change_octave", true).toBool());
         m_noConversionButton->setChecked(settings.value("transpose", false).toBool());
         settings.endGroup();
     } else {
-        m_noConversionButton = 0;
-        m_changeOctaveButton = 0;
-        m_transposeButton = 0;
+        m_noConversionButton = nullptr;
+        m_changeOctaveButton = nullptr;
+        m_transposeButton = nullptr;
         conversionFrame->hide();
     }
 
     // hook up the up/down left/right buttons
-    QObject::connect(clefUp, SIGNAL(clicked()), this, SLOT(slotClefUp()));
-    QObject::connect(clefDown, SIGNAL(clicked()), this, SLOT(slotClefDown()));
-    QObject::connect(m_octaveUp, SIGNAL(clicked()), this, SLOT(slotOctaveUp()));
-    QObject::connect(m_octaveDown, SIGNAL(clicked()), this, SLOT(slotOctaveDown()));
+    QObject::connect(clefUp, &QAbstractButton::clicked, this, &ClefDialog::slotClefUp);
+    QObject::connect(clefDown, &QAbstractButton::clicked, this, &ClefDialog::slotClefDown);
+    QObject::connect(m_octaveUp, &QAbstractButton::clicked, this, &ClefDialog::slotOctaveUp);
+    QObject::connect(m_octaveDown, &QAbstractButton::clicked, this, &ClefDialog::slotOctaveDown);
 
     redrawClefPixmap();
 
@@ -175,7 +164,7 @@ ClefDialog::ClefDialog(QWidget *parent,
     vboxLayout->addWidget(buttonBox);
 
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 Clef
@@ -279,7 +268,7 @@ void
 ClefDialog::redrawClefPixmap()
 {
     NotePixmapFactory::ColourType ct =
-        m_Thorn ? NotePixmapFactory::PlainColourLight
+        ThornStyle::isEnabled() ? NotePixmapFactory::PlainColourLight
                 : NotePixmapFactory::PlainColour;
     m_notePixmapFactory->setSelected(false);
     m_notePixmapFactory->setShaded(false);
@@ -334,6 +323,8 @@ ClefDialog::translatedClefName(Clef clef)
         name = name.arg(tr("Bass"));
     else if (type == Clef::Subbass)
         name = name.arg(tr("Sub-bass"));
+    else if (type == Clef::TwoBar)
+        name = name.arg(tr("Two-bar"));
 
     return name;
 }
@@ -351,4 +342,3 @@ ClefDialog::accept()
 
 
 }
-#include "ClefDialog.moc"

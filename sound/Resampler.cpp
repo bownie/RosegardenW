@@ -3,8 +3,8 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
-
+    Copyright 2000-2018 the Rosegarden development team.
+ 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
@@ -12,6 +12,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[Resampler]"
 
 #include "Resampler.h"
 #include "base/Profiler.h"
@@ -19,9 +20,8 @@
 #include <cstdlib>
 #include <cmath>
 
-#include <iostream>
-
 //#include <samplerate.h>
+#include <misc/Debug.h>
 
 namespace Rosegarden {
 
@@ -29,14 +29,14 @@ class ResamplerImpl
 {
 public:
     virtual ~ResamplerImpl() { }
-
-    virtual int resample(const float *const *const in,
+    
+    virtual int resample(const float *const *const in, 
                          float *const *const out,
                          int incount,
                          float ratio,
                          bool final) = 0;
-
-    virtual int resampleInterleaved(const float *const in,
+    
+    virtual int resampleInterleaved(const float *const in, 
                                     float *const out,
                                     int incount,
                                     float ratio,
@@ -54,23 +54,23 @@ class D_SRC : public ResamplerImpl
 public:
     D_SRC(Resampler::Quality quality, int channels, int maxBufferSize,
           int m_debugLevel);
-    ~D_SRC();
+    ~D_SRC() override;
 
     int resample(const float *const *const in,
                  float *const *const out,
                  int incount,
                  float ratio,
-                 bool final);
+                 bool final) override;
 
     int resampleInterleaved(const float *const in,
                             float *const out,
                             int incount,
                             float ratio,
-                            bool final = false);
+                            bool final = false) override;
 
-    int getChannelCount() const { return m_channels; }
+    int getChannelCount() const override { return m_channels; }
 
-    void reset();
+    void reset() override;
 
 protected:
     //SRC_STATE *m_src;
@@ -85,9 +85,9 @@ protected:
 
 D_SRC::D_SRC(Resampler::Quality quality, int channels, int maxBufferSize,
              int debugLevel) :
-    //m_src(0),
-    m_iin(0),
-    m_iout(0),
+    //m_src(nullptr),
+    m_iin(nullptr),
+    m_iout(nullptr),
     m_lastRatio(1.f),
     m_channels(channels),
     m_iinsize(0),
@@ -95,22 +95,22 @@ D_SRC::D_SRC(Resampler::Quality quality, int channels, int maxBufferSize,
     m_debugLevel(debugLevel)
 {
     if (m_debugLevel > 0) {
-        std::cerr << "Resampler::Resampler: using libsamplerate implementation"
-                  << std::endl;
+        RG_DEBUG << "Resampler::Resampler: using libsamplerate implementation";
     }
 
     int err = 0;
-    /*m_src = src_new(quality == Resampler::Best ? SRC_SINC_BEST_QUALITY :
+    /*
+    m_src = src_new(quality == Resampler::Best ? SRC_SINC_BEST_QUALITY :
                     quality == Resampler::Fastest ? SRC_LINEAR :
                     SRC_SINC_FASTEST,
                     channels, &err);
-
+*/
     if (err) {
-        std::cerr << "Resampler::Resampler: failed to create libsamplerate resampler: "
-                  << src_strerror(err) << std::endl;
+/*        RG_WARNING << "Resampler::Resampler: failed to create libsamplerate resampler: "
+                  << src_strerror(err);*/
         throw Resampler::ImplementationError; //!!! of course, need to catch this!
     }
-*/
+
     if (maxBufferSize > 0 && m_channels > 1) {
         m_iinsize = maxBufferSize * m_channels;
         m_ioutsize = maxBufferSize * m_channels * 2;
@@ -140,8 +140,8 @@ D_SRC::resample(const float *const *const in,
     int outcount = lrintf(ceilf(incount * ratio));
 
     if (m_channels == 1) {
-        //data.data_in = const_cast<float *>(*in); //!!!???
-       // data.data_out = *out;
+      //  data.data_in = const_cast<float *>(*in); //!!!???
+      //  data.data_out = *out;
     } else {
         if (incount * m_channels > m_iinsize) {
             m_iin = (float *)realloc(m_iin, sizeof(float) * incount * m_channels);
@@ -157,20 +157,22 @@ D_SRC::resample(const float *const *const in,
                 m_iin[idx++] = in[j][i];
             }
         }
-        //data.data_in = m_iin;
-       // data.data_out = m_iout;
+
+        /*data.data_in = m_iin;
+        data.data_out = m_iout;
+*/
     }
-
-  //  data.input_frames = incount;
-   // data.output_frames = outcount;
-   // data.src_ratio = ratio;
-   // data.end_of_input = (final ? 1 : 0);
-
-    int err = 0; //src_process(m_src, &data);
 /*
+    data.input_frames = incount;
+    data.output_frames = outcount;
+    data.src_ratio = ratio;
+    data.end_of_input = (final ? 1 : 0);
+
+    int err = src_process(m_src, &data);
+
     if (err) {
-        std::cerr << "Resampler::process: libsamplerate error: "
-                  << src_strerror(err) << std::endl;
+        RG_WARNING << "Resampler::process: libsamplerate error: "
+                  << src_strerror(err);
         throw Resampler::ImplementationError; //!!! of course, need to catch this!
     }
 
@@ -184,8 +186,8 @@ D_SRC::resample(const float *const *const in,
     }
 
     m_lastRatio = ratio;
-
-    return data.output_frames_gen;*/
+*/
+    return 0; //data.output_frames_gen;
 }
 
 int
@@ -210,14 +212,15 @@ D_SRC::resampleInterleaved(const float *const in,
     int err = src_process(m_src, &data);
 
     if (err) {
-        std::cerr << "Resampler::process: libsamplerate error: "
-                  << src_strerror(err) << std::endl;
+        RG_WARNING << "Resampler::process: libsamplerate error: "
+                  << src_strerror(err);
         throw Resampler::ImplementationError; //!!! of course, need to catch this!
     }
-
+*/
     m_lastRatio = ratio;
 
-    return data.output_frames_gen;*/
+    //return data.output_frames_gen;
+    return 0;
 }
 
 void
@@ -240,7 +243,7 @@ Resampler::~Resampler()
     delete d;
 }
 
-int
+int 
 Resampler::resample(const float *const *const in,
                     float *const *const out,
                     int incount, float ratio, bool final)
@@ -249,7 +252,7 @@ Resampler::resample(const float *const *const in,
     return d->resample(in, out, incount, ratio, final);
 }
 
-int
+int 
 Resampler::resampleInterleaved(const float *const in,
                                float *const out,
                                int incount, float ratio, bool final)

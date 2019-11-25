@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -30,11 +30,24 @@ MidiBank::MidiBank(bool percussion, MidiByte msb, MidiByte lsb, std::string name
 }
 
 bool
-MidiBank::operator==(const MidiBank &b) const
+MidiBank::operator==(const MidiBank &rhs) const
 {
-    return m_percussion == b.m_percussion && m_msb == b.m_msb && m_lsb == b.m_lsb;
+    // Complete compare.
+    // If you need to compare everything except the name, use partialCompare().
+    return (m_percussion == rhs.m_percussion  &&
+            m_msb == rhs.m_msb  &&
+            m_lsb == rhs.m_lsb  &&
+            m_name == rhs.m_name);  // See partialCompare() which doesn't compare the name.
 }
-    
+
+bool
+MidiBank::partialCompare(const MidiBank &rhs) const
+{
+    return (m_percussion == rhs.m_percussion  &&
+            m_msb == rhs.m_msb  &&
+            m_lsb == rhs.m_lsb);
+}
+
 bool
 MidiBank::isPercussion() const
 {
@@ -79,11 +92,20 @@ MidiProgram::MidiProgram(const MidiBank &bank, MidiByte program, std::string nam
 }
 
 bool
-MidiProgram::operator==(const MidiProgram &p) const
+MidiProgram::partialCompare(const MidiProgram &rhs) const
 {
-    return m_bank == p.m_bank && m_program == p.m_program;
+    return m_bank.partialCompare(rhs.m_bank)  &&  m_program == rhs.m_program;
 }
-    
+
+bool
+MidiProgram::partialCompareWithName(const MidiProgram &rhs) const
+{
+    return (m_name == rhs.m_name  &&
+            m_program == rhs.m_program  &&
+            m_bank.getMSB() == rhs.m_bank.getMSB()  &&
+            m_bank.getLSB() == rhs.m_bank.getLSB());
+}
+
 const MidiBank &
 MidiProgram::getBank() const
 {

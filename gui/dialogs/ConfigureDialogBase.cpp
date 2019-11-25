@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -40,12 +40,12 @@ namespace Rosegarden
 {
 
 
-    ConfigureDialogBase::ConfigureDialogBase(QWidget *parent, QString /*label*/, const char *name  )
+ConfigureDialogBase::ConfigureDialogBase(QWidget *parent, const QString &label, const char *name  )
 : QDialog(parent)
 {
     this->setAttribute( Qt::WA_DeleteOnClose );
-    
-    this->setWindowTitle( tr("Configure Rosegarden") );
+
+    this->setWindowTitle(label);
     this->setObjectName( (name) );
 
     QVBoxLayout *dlgLayout = new QVBoxLayout(this);
@@ -61,12 +61,12 @@ namespace Rosegarden
     dlgLayout->addWidget(buttonBox);
 
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(slotCancelOrClose()));
-    connect(buttonBox, SIGNAL( helpRequested() ), this, SLOT ( slotHelpRequested() ) );
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &ConfigureDialogBase::slotCancelOrClose);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &ConfigureDialogBase::slotHelpRequested );
 
     m_applyButton = buttonBox->button(QDialogButtonBox::Apply);
     m_applyButton->setEnabled(false);
-    connect(m_applyButton, SIGNAL(clicked()), this, SLOT(slotApply()));
+    connect(m_applyButton, &QAbstractButton::clicked, this, &ConfigureDialogBase::slotApply);
 
 }
 
@@ -112,7 +112,7 @@ ConfigureDialogBase::~ConfigureDialogBase()
 void
 ConfigureDialogBase::slotApply()
 {
-    RG_DEBUG << "CONFIGUREDIALOGBASE SLOTAPPLY()" << endl;
+    RG_DEBUG << "CONFIGUREDIALOGBASE SLOTAPPLY()";
     for (configurationpages::iterator i = m_configurationPages.begin();
             i != m_configurationPages.end(); ++i)
         (*i)->apply();
@@ -124,6 +124,12 @@ void
 ConfigureDialogBase::slotActivateApply()
 {
     m_applyButton->setEnabled(true);
+}
+
+void
+ConfigureDialogBase::deactivateApply()
+{
+    m_applyButton->setEnabled(false);
 }
 
 void
@@ -163,4 +169,3 @@ ConfigureDialogBase::setPageByIndex(int index)
 
 
 }
-#include "ConfigureDialogBase.moc"

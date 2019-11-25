@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -78,8 +78,8 @@ RecordableAudioFile::write()
     // Use a static buffer -- this obviously requires that write() is
     // only called from a single thread
     static size_t bufferSize = 0;
-    static sample_t *buffer = 0;
-    static char *encodeBuffer = 0;
+    static sample_t *buffer = nullptr;
+    static char *encodeBuffer = nullptr;
 
     unsigned int bits = m_audioFile->getBitsPerSample();
 

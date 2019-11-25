@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,37 +15,34 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[AudioFileManager]"
 
-#include <iostream>
-#include <fstream>
+#include <pthread.h>  // pthread_mutex_lock() and friends
+
 #include <string>
-#include <dirent.h> // for new recording file
-#include <cstdio>   // sprintf
-#include <cstdlib>
-#include <pthread.h>
-#include <signal.h>
-#include <sstream>
+#include <sstream>  // std::stringstream
 
-
-#include <QApplication>
 #include <QMessageBox>
-#include <QProcess>
 #include <QPixmap>
 #include <QPainter>
 #include <QDateTime>
 #include <QFile>
+#include <QFileInfo>
+#include <QDir>
 
 #include "gui/general/FileSource.h"
 #include "AudioFile.h"
-#include "AudioFileManager.h"
 #include "WAVAudioFile.h"
 #include "BWFAudioFile.h"
-#include "misc/Strings.h"
+#include "misc/Debug.h"
+#include "misc/Strings.h"  // qstrtostr() and friends
 #include "sequencer/RosegardenSequencer.h"
 #include "sound/audiostream/AudioReadStream.h"
 #include "sound/audiostream/AudioReadStreamFactory.h"
 #include "sound/audiostream/AudioWriteStream.h"
 #include "sound/audiostream/AudioWriteStreamFactory.h"
+
+#include "AudioFileManager.h"
 
 // #define DEBUG_AUDIOFILEMANAGER
 // #define DEBUG_AUDIOFILEMANAGER_INSERT_FILE
@@ -55,6 +52,8 @@ namespace Rosegarden
 
 static pthread_mutex_t audioFileManagerLock;
 
+// ??? Why not use QMutexLocker and QMutex?  Probably need to go through
+//     all the code and replace pthread_mutex_lock() with QMutex/QMutexLocker.
 class MutexLock
 {
 public:
@@ -70,9 +69,10 @@ private:
     pthread_mutex_t *m_mutex;
 };
 
+
 AudioFileManager::AudioFileManager() :
-    m_expectedSampleRate(0),
-    m_lastAudioFileID(0)
+    m_lastAudioFileID(0),
+    m_expectedSampleRate(0)
 {
     pthread_mutexattr_t attr;
     pthread_mutexattr_init(&attr);
@@ -95,11 +95,6 @@ AudioFileManager::AudioFileManager() :
     // shaken out.
     //
     setAudioPath("~/rosegarden");
-
-    // Retransmit value()
-    //
-    connect(&m_peakManager, SIGNAL(setValue(int)),
-            this, SIGNAL(setValue(int)));
 }
 
 AudioFileManager::~AudioFileManager()
@@ -107,17 +102,17 @@ AudioFileManager::~AudioFileManager()
     clear();
 }
 
-// Add a file from an absolute path
-//
 AudioFileId
 AudioFileManager::addFile(const QString &filePath)
 {
-    MutexLock lock (&audioFileManagerLock);
+    MutexLock lock (&audioFileManagerLock)
+        ;
 
     QString ext;
 
     if (filePath.length() > 3) {
-	ext = filePath.mid(filePath.length() - 3, 3).toLower();
+        // ??? Use QFileInfo::suffix().
+        ext = filePath.mid(filePath.length() - 3, 3).toLower();
     }
 
     // Check for file existing already in manager by path
@@ -128,7 +123,7 @@ AudioFileManager::addFile(const QString &filePath)
     }
 
     // prepare for audio file
-    AudioFile *aF = 0;
+    AudioFile *aF = nullptr;
     AudioFileId id = getUniqueAudioFileID();
 
     if (ext == "wav") {
@@ -137,19 +132,19 @@ AudioFileManager::addFile(const QString &filePath)
 
         if (subType == BWF) {
 #ifdef DEBUG_AUDIOFILEMANAGER
-            std::cout << "FOUND BWF" << std::endl;
+            RG_DEBUG << "FOUND BWF";
 #endif
 
             try {
                 aF = new BWFAudioFile(id, qstrtostr(getShortFilename(filePath)), filePath);
-            } catch (SoundFile::BadSoundFileException e) {
+            } catch (const SoundFile::BadSoundFileException &e) {
                 delete aF;
                 throw BadAudioPathException(e);
             }
         } else if (subType == WAV) {
             try {
                 aF = new WAVAudioFile(id, qstrtostr(getShortFilename(filePath)), filePath);
-            } catch (SoundFile::BadSoundFileException e) {
+            } catch (const SoundFile::BadSoundFileException &e) {
                 delete aF;
                 throw BadAudioPathException(e);
             }
@@ -157,8 +152,8 @@ AudioFileManager::addFile(const QString &filePath)
 
         // Ensure we have a valid file handle
         //
-        if (aF == 0) {
-            std::cerr << "AudioFileManager: Unknown WAV audio file subtype in " << filePath << std::endl;
+        if (aF == nullptr) {
+            RG_WARNING << "addFile(): Unknown WAV audio file subtype in " << filePath;
             throw BadAudioPathException(filePath, __FILE__, __LINE__);
         }
 
@@ -166,16 +161,16 @@ AudioFileManager::addFile(const QString &filePath)
         try {
             if (aF->open() == false) {
                 delete aF;
-                std::cerr << "AudioFileManager: Malformed audio file in " << filePath << std::endl;
+                RG_WARNING << "addFile(): Malformed audio file in " << filePath;
                 throw BadAudioPathException(filePath, __FILE__, __LINE__);
             }
-        } catch (SoundFile::BadSoundFileException e) {
+        } catch (const SoundFile::BadSoundFileException &e) {
             delete aF;
             throw BadAudioPathException(e);
         }
     }
     else {
-        std::cerr << "AudioFileManager: Unsupported audio file extension in " << filePath << std::endl;
+        RG_WARNING << "addFile(): Unsupported audio file extension in " << filePath;
         throw BadAudioPathException(filePath, __FILE__, __LINE__);
     }
 
@@ -187,10 +182,11 @@ AudioFileManager::addFile(const QString &filePath)
     return 0;
 }
 
-// Convert long filename to shorter version
 QString
-AudioFileManager::getShortFilename(const QString &fileName)
+AudioFileManager::getShortFilename(const QString &fileName) const
 {
+    // ??? Use QFileInfo::fileName().
+
     QString rS = fileName;
     int pos = rS.lastIndexOf("/");
 
@@ -200,11 +196,11 @@ AudioFileManager::getShortFilename(const QString &fileName)
     return rS;
 }
 
-// Turn a long path into a directory ending with a slash
-//
 QString
-AudioFileManager::getDirectory(const QString &path)
+AudioFileManager::getDirectory(const QString &path) const
 {
+    // ??? Use QFileInfo::dir().
+
     QString rS = path;
     int pos = rS.lastIndexOf("/");
 
@@ -214,7 +210,7 @@ AudioFileManager::getDirectory(const QString &path)
     return rS;
 }
 
-
+#if 0
 // Create a new AudioFile with unique ID and label - insert from
 // our RG4 file
 //
@@ -227,7 +223,7 @@ AudioFileManager::insertFile(const std::string &name,
 
     // first try to expand any beginning tilde
     //
-    QString foundFileName = substituteTildeForHome(fileName);
+    QString foundFileName = tildeToHome(fileName);
 
     // If we've expanded and we can't find the file
     // then try to find it in audio file directory.
@@ -237,10 +233,7 @@ AudioFileManager::insertFile(const std::string &name,
         foundFileName = getFileInPath(foundFileName);
 
 #ifdef DEBUG_AUDIOFILEMANAGER_INSERT_FILE
-
-    std::cout << "AudioFileManager::insertFile - "
-    << "expanded fileName = \""
-    << foundFileName << "\"" << std::endl;
+    RG_DEBUG << "insertFile() - expanded fileName = \"" << foundFileName << "\"";
 #endif
 
     // bail if we haven't found any reasonable filename
@@ -259,19 +252,19 @@ AudioFileManager::insertFile(const std::string &name,
         //
         if (aF->open() == false) {
             delete aF;
-            std::cerr << "AudioFileManager::insertFile - don't recognise file type in " << foundFileName << std::endl;
+            RG_WARNING << "insertFile() - don't recognise file type in " << foundFileName;
             throw BadAudioPathException(foundFileName, __FILE__, __LINE__);
         }
         m_audioFiles.push_back(aF);
 
-    } catch (SoundFile::BadSoundFileException e) {
+    } catch (const SoundFile::BadSoundFileException &e) {
         delete aF;
         throw BadAudioPathException(e);
     }
 
     return id;
 }
-
+#endif
 
 bool
 AudioFileManager::removeFile(AudioFileId id)
@@ -279,15 +272,14 @@ AudioFileManager::removeFile(AudioFileId id)
     MutexLock lock (&audioFileManagerLock)
         ;
 
-    std::vector<AudioFile*>::iterator it;
-
-    for (it = m_audioFiles.begin();
-            it != m_audioFiles.end();
-            ++it) {
+    // For each AudioFile
+    for (std::vector<AudioFile *>::iterator it = m_audioFiles.begin();
+         it != m_audioFiles.end();
+         ++it) {
         if ((*it)->getId() == id) {
             m_peakManager.removeAudioFile(*it);
             m_recordedAudioFiles.erase(*it);
-	    m_derivedAudioFiles.erase(*it);
+            m_derivedAudioFiles.erase(*it);
             delete(*it);
             m_audioFiles.erase(it);
             return true;
@@ -319,8 +311,8 @@ AudioFileManager::insertFile(const std::string &name,
     MutexLock lock (&audioFileManagerLock)
         ;
 
-    // first try to expany any beginning tilde
-    QString foundFileName = substituteTildeForHome(fileName);
+    // first try to expand any beginning tilde
+    QString foundFileName = tildeToHome(fileName);
 
     // If we've expanded and we can't find the file
     // then try to find it in audio file directory.
@@ -330,10 +322,7 @@ AudioFileManager::insertFile(const std::string &name,
         foundFileName = getFileInPath(foundFileName);
 
 #ifdef DEBUG_AUDIOFILEMANAGER_INSERT_FILE
-
-    std::cout << "AudioFileManager::insertFile - "
-    << "expanded fileName = \""
-    << foundFileName << "\"" << std::endl;
+    RG_DEBUG << "insertFile() - expanded fileName = \"" << foundFileName << "\"";
 #endif
 
     // If no joy here then we can't find this file
@@ -344,7 +333,7 @@ AudioFileManager::insertFile(const std::string &name,
     removeFile(id);
 
     // and insert
-    WAVAudioFile *aF = 0;
+    WAVAudioFile *aF = nullptr;
 
     try {
 
@@ -359,7 +348,7 @@ AudioFileManager::insertFile(const std::string &name,
         m_audioFiles.push_back(aF);
         updateAudioFileID(id);
 
-    } catch (SoundFile::BadSoundFileException e) {
+    } catch (const SoundFile::BadSoundFileException &e) {
         delete aF;
         throw BadAudioPathException(e);
     }
@@ -367,42 +356,38 @@ AudioFileManager::insertFile(const std::string &name,
     return true;
 }
 
-// Add a given path to our sample search path
-//
 void
 AudioFileManager::setAudioPath(const QString &path)
 {
     MutexLock lock (&audioFileManagerLock)
         ;
 
-    if (path.size()!=0) {
+    if (path.size() != 0) {
         QString hPath = path;
         QString homePath = getenv("HOME");
     
         // add a trailing / if we don't have one
-        //
         if (hPath[hPath.size() - 1] != '/')
             hPath += "/";
 
         // get the home directory
+        // ??? Use tildeToHome().
         if (hPath[0] == '~') {
             hPath.remove(0, 1);
             hPath = homePath + hPath;
         }
 
         m_audioPath = hPath;
-    }
-    else {
+    } else {
 #ifdef DEBUG_AUDIOFILEMANAGER
-        std::cout << "AudioFileManager::setAudioPath - zero length path, do nothing"
-        << std::endl;
+        RG_DEBUG << "setAudioPath() - zero length path, do nothing";
 #endif
     }
 
 }
 
 void
-AudioFileManager::testAudioPath() throw (BadAudioPathException)
+AudioFileManager::testAudioPath()
 {
     QFileInfo info(m_audioPath);
     if (!(info.exists() && info.isDir() && !info.isRelative() &&
@@ -410,11 +395,6 @@ AudioFileManager::testAudioPath() throw (BadAudioPathException)
         throw BadAudioPathException(m_audioPath);
 }
 
-
-// See if we can find a given file in our search path
-// return the first occurence of a match or the empty
-// std::string if no match.
-//
 QString
 AudioFileManager::getFileInPath(const QString &file)
 {
@@ -435,26 +415,21 @@ AudioFileManager::getFileInPath(const QString &file)
     if (searchInfo.exists())
         return searchFile.toLatin1().data();
 
-    std::cout << "AudioFileManager::getFileInPath - "
-    << "searchInfo = " << searchFile << std::endl;
+    RG_DEBUG << "getFileInPath() - searchInfo = " << searchFile;
 
     return "";
 }
 
-
-// Check for file path existence
-//
 int
 AudioFileManager::fileExists(const QString &path)
 {
     MutexLock lock (&audioFileManagerLock)
         ;
 
-    std::vector<AudioFile*>::iterator it;
-
-    for (it = m_audioFiles.begin();
-            it != m_audioFiles.end();
-            ++it) {
+    // For each AudioFile
+    for (std::vector<AudioFile *>::const_iterator it = m_audioFiles.begin();
+         it != m_audioFiles.end();
+         ++it) {
         if ((*it)->getFilename() == path)
             return (*it)->getId();
     }
@@ -463,19 +438,16 @@ AudioFileManager::fileExists(const QString &path)
 
 }
 
-// Does a specific file id exist on the manager?
-//
 bool
 AudioFileManager::fileExists(AudioFileId id)
 {
     MutexLock lock (&audioFileManagerLock)
         ;
 
-    std::vector<AudioFile*>::iterator it;
-
-    for (it = m_audioFiles.begin();
-            it != m_audioFiles.end();
-            ++it) {
+    // For each AudioFile
+    for (std::vector<AudioFile *>::const_iterator it = m_audioFiles.begin();
+         it != m_audioFiles.end();
+         ++it) {
         if ((*it)->getId() == id)
             return true;
     }
@@ -490,45 +462,30 @@ AudioFileManager::clear()
     MutexLock lock (&audioFileManagerLock)
         ;
 
-    std::vector<AudioFile*>::iterator it;
-
-    for (it = m_audioFiles.begin();
-            it != m_audioFiles.end();
-            ++it) {
+    // For each AudioFile
+    for (std::vector<AudioFile *>::const_iterator it = m_audioFiles.begin();
+         it != m_audioFiles.end();
+         ++it) {
         m_recordedAudioFiles.erase(*it);
-	m_derivedAudioFiles.erase(*it);
+        m_derivedAudioFiles.erase(*it);
         delete(*it);
     }
 
     m_audioFiles.erase(m_audioFiles.begin(), m_audioFiles.end());
 
-    // Clear the PeakFileManager too
-    //
     m_peakManager.clear();
 }
 
 AudioFile *
 AudioFileManager::createRecordingAudioFile(QString projectName, QString instrumentAlias)
 {
-    MutexLock lock (&audioFileManagerLock);
+    MutexLock lock (&audioFileManagerLock)
+        ;
 
-std::cerr << "XXX createRecordingAudioFile: " << projectName << std::endl;
+    RG_DEBUG << "createRecordingAudioFile(): " << projectName;
 
-    // just throw an _ in place of any characters that should be avoided
-    instrumentAlias.replace(QRegExp("&"),   "_");
-    instrumentAlias.replace(QRegExp("\\\\"),"_");
-    instrumentAlias.replace(QRegExp("\\/"), "_");
-    instrumentAlias.replace(QRegExp("%"),   "_");
-    instrumentAlias.replace(QRegExp("\\*"), "_");
-    instrumentAlias.replace(QRegExp("\\?"), "_");
-    instrumentAlias.replace(QRegExp("\""),  "_");
-    instrumentAlias.replace(QRegExp("'"),   "_");
-    instrumentAlias.replace(QRegExp(">"),   "_");
-    instrumentAlias.replace(QRegExp("<"),   "_");
-    instrumentAlias.replace(QRegExp("\\|"), "_");
-    instrumentAlias.replace(QRegExp("~"),   "_");
-    instrumentAlias.replace(QRegExp(":"),   "_");
-    instrumentAlias.replace(QRegExp(" "),   "_");
+    // Replace invalid filename characters with "_".
+    instrumentAlias.replace(QRegExp("[&\\\\\\/%\\*\\?\"'><\\|~: ]"), "_");
 
     if (instrumentAlias.isEmpty()) instrumentAlias = "not_specified";
 
@@ -550,17 +507,17 @@ std::cerr << "XXX createRecordingAudioFile: " << projectName << std::endl;
     }
 
     // insert file into vector
-    WAVAudioFile *aF = 0;
+    WAVAudioFile *aF = nullptr;
 
-	QString aup( m_audioPath );
-	QString fnm(fileName);
-	const QString fpath = m_audioPath + fileName;
+    QString aup( m_audioPath );
+    QString fnm(fileName);
+    const QString fpath = m_audioPath + fileName;
     try {
-		aF = new WAVAudioFile( static_cast<const unsigned int>(newId), qstrtostr(fileName), fpath );
-		//aF = new WAVAudioFile(newId, fileName.data(), m_audioPath + qstrtostr(fileName) );
-		m_audioFiles.push_back(aF);
+        aF = new WAVAudioFile(newId, qstrtostr(fileName), fpath);
+        //aF = new WAVAudioFile(newId, fileName.data(), m_audioPath + qstrtostr(fileName) );
+        m_audioFiles.push_back(aF);
         m_recordedAudioFiles.insert(aF);
-    } catch (SoundFile::BadSoundFileException e) {
+    } catch (const SoundFile::BadSoundFileException &e) {
         delete aF;
         throw BadAudioPathException(e);
     }
@@ -597,29 +554,30 @@ AudioFileManager::resetRecentlyCreatedFiles()
 
 AudioFile *
 AudioFileManager::createDerivedAudioFile(AudioFileId source,
-					 const char *prefix)
+                                         const char *prefix)
 {
-    MutexLock lock (&audioFileManagerLock);
+    MutexLock lock (&audioFileManagerLock)
+        ;
 
     AudioFile *sourceFile = getAudioFile(source);
-    if (!sourceFile) return 0;
+    if (!sourceFile) return nullptr;
 
     AudioFileId newId = getUniqueAudioFileID();
     QString fileName = "";
 
     QString sourceBase = sourceFile->getShortFilename();
     if (sourceBase.length() > 4 && sourceBase.mid(0, 3) == "rg-") {
-	sourceBase = sourceBase.mid(3);
+        sourceBase = sourceBase.mid(3);
     }
     if (sourceBase.length() > 15) sourceBase = sourceBase.mid(0, 15);
 
     while (fileName == "") {
 
         fileName = QString("%1-%2-%3-%4.wav")
-	    .arg(prefix)
-	    .arg( sourceBase )
-	    .arg(QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss"))
-	    .arg(newId + 1);
+            .arg(prefix)
+            .arg( sourceBase )
+            .arg(QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss"))
+            .arg(newId + 1);
 
         if (QFile(m_audioPath + fileName).exists()) {
             fileName = "";
@@ -628,15 +586,15 @@ AudioFileManager::createDerivedAudioFile(AudioFileId source,
     }
 
     // insert file into vector
-    WAVAudioFile *aF = 0;
+    WAVAudioFile *aF = nullptr;
 
     try {
         aF = new WAVAudioFile(newId,
-			      qstrtostr(fileName),
-			      m_audioPath + fileName );
+                              qstrtostr(fileName),
+                              m_audioPath + fileName );
         m_audioFiles.push_back(aF);
-	m_derivedAudioFiles.insert(aF);
-    } catch (SoundFile::BadSoundFileException e) {
+        m_derivedAudioFiles.insert(aF);
+    } catch (const SoundFile::BadSoundFileException &e) {
         delete aF;
         throw BadAudioPathException(e);
     }
@@ -647,10 +605,18 @@ AudioFileManager::createDerivedAudioFile(AudioFileId source,
 AudioFileId
 AudioFileManager::importURL(const QUrl &url, int sampleRate)
 {
+    if (m_progressDialog) {
+        m_progressDialog->setLabelText(tr("Adding audio file..."));
+        // Switch to indeterminate mode since we do not provide
+        // proper progress.
+        m_progressDialog->setRange(0, 0);
+    }
+
     FileSource source(url);
     if (!source.isAvailable()) {
-	QMessageBox::critical(0, tr("Rosegarden"), tr("Cannot download file %1").arg(url.toString()));
-	throw SoundFile::BadSoundFileException(url.toString());
+        QMessageBox::critical(nullptr, tr("Rosegarden"),
+                tr("Cannot download file %1").arg(url.toString()));
+        throw SoundFile::BadSoundFileException(url.toString());
     }
 
     source.waitForData();
@@ -661,15 +627,17 @@ AudioFileManager::importURL(const QUrl &url, int sampleRate)
 AudioFileId
 AudioFileManager::importFile(const QString &fileName, int sampleRate)
 {
-    std::cerr << "AudioFileManager::importFile("<< fileName << ", " << sampleRate << ")" << std::endl;
+    RG_DEBUG << "importFile("<< fileName << ", " << sampleRate << ")";
 
-    emit setOperationName(tr("Importing audio file..."));
+    if (m_progressDialog)
+        m_progressDialog->setLabelText(tr("Importing audio file..."));
 
     QString targetName = "";
     AudioFileId newId = 0;
 
     {
-        MutexLock lock (&audioFileManagerLock);
+        MutexLock lock (&audioFileManagerLock)
+            ;
 
         newId = getUniqueAudioFileID();
 
@@ -693,21 +661,26 @@ AudioFileManager::importFile(const QString &fileName, int sampleRate)
         }
     }
 
-    emit setOperationName(tr("Converting audio file..."));
+    // ??? We should probably switch to indeterminate mode here.  This
+    //     is closest to the place where we know that we don't support
+    //     actual progress.
+    if (m_progressDialog)
+        m_progressDialog->setLabelText(tr("Converting audio file..."));
 
     QString outFileName = m_audioPath + targetName;
     int ec = convertAudioFile(fileName, outFileName);
 
     if (ec) {
-	throw SoundFile::BadSoundFileException
+        throw SoundFile::BadSoundFileException
             (fileName, qstrtostr(tr("Failed to convert or resample audio file on import")) );
     }
 
     {
-        MutexLock lock (&audioFileManagerLock);
+        MutexLock lock (&audioFileManagerLock)
+            ;
 
         // insert file into vector
-        WAVAudioFile *aF = 0;
+        WAVAudioFile *aF = nullptr;
 
         aF = new WAVAudioFile(newId,
                               qstrtostr(targetName),
@@ -722,21 +695,23 @@ AudioFileManager::importFile(const QString &fileName, int sampleRate)
     }
 }
 
-int AudioFileManager::convertAudioFile(QString inFile, QString outFile)
+int AudioFileManager::convertAudioFile(const QString &inFile, const QString &outFile)
 {
-    std::cerr << "AudioFileManager::convertAudioFile: inFile = "
-              << inFile << ", outFile = " << outFile << std::endl;
+    RG_DEBUG << "convertAudioFile(): inFile = " << inFile << ", outFile = " << outFile;
 
     AudioReadStream *rs = AudioReadStreamFactory::createReadStream( inFile);
     if (!rs || !rs->isOK()) {
-        std::cerr << "ERROR: Failed to read audio file";
-        if (rs) std::cerr << ": " << rs->getError() << std::endl;
-        else std::cerr << std::endl;
+        RG_WARNING << "convertAudioFile(): ERROR: Failed to read audio file";
+        if (rs) RG_WARNING << "convertAudioFile(): Error: " << rs->getError();
+
+        // ??? LEAK!  rs.  Use a QScopedPointer.
         return -1;
     }
 
     int channels = rs->getChannelCount();
     int rate = RosegardenSequencer::getInstance()->getSampleRate();
+    // Block size in number of sample frames.  A sample frame consists of
+    // all the channels for a particular sample.
     int blockSize = 20480; // or anything
 
     rs->setRetrievalSampleRate(rate);
@@ -745,44 +720,68 @@ int AudioFileManager::convertAudioFile(QString inFile, QString outFile)
             (outFile, channels, rate);
 
     if (!ws || !ws->isOK()) {
-        std::cerr << "ERROR: Failed to write audio file";
-        if (ws) std::cerr << ": " << ws->getError() << std::endl;
-        else std::cerr << std::endl;
+        RG_WARNING << "convertAudioFile(): ERROR: Failed to write audio file";
+        if (ws) RG_WARNING << "convertAudioFile(): Error: " << ws->getError();
+
+        // ??? LEAK!  rs and ws.  Use a QScopedPointer.
         return -1;
     }
 
+    // ??? Use a QScopedArrayPointer.
     float *block = new float[blockSize * channels];
 
     int i = 0;
     while (1) {
         int got = rs->getInterleavedFrames(blockSize, block);
+        qApp->processEvents();
         ws->putInterleavedFrames(got, block);
+        qApp->processEvents();
         if (got < blockSize) break;
-        emit setValue(i % 10);
-        qApp->processEvents(QEventLoop::AllEvents);
+
+        // ??? It would be nice if we could provide progress to the
+        //     progress dialog like this:
+        //
+        //       if (m_progressDialog)
+        //           m_progressDialog->setValue(
+        //               static_cast<double>(currentBytes)/totalBytes * 100);
+        //
+        //     However, we don't have any way to get the total bytes from
+        //     AudioReadStream, let alone the current bytes.
+
+        if (m_progressDialog  &&  m_progressDialog->wasCanceled()) {
+            // Clean up the file that we were writing.
+            ws->remove();
+
+            // ??? Cleanup not needed with smart pointers mentioned above.
+            delete[] block;
+            delete ws;
+            delete rs;
+
+            // Failure.
+            return -1;
+        }
+
         ++i;
     }
 
+    // ??? Cleanup not needed with smart pointers mentioned above.
     delete[] block;
     delete ws;
     delete rs;
+
+    // Success.
     return 0;
 }
 
-void
-AudioFileManager::slotStopImport()
-{
-    //!!!
-}
-
-AudioFile*
+#if 0
+AudioFile *
 AudioFileManager::getLastAudioFile()
 {
     MutexLock lock (&audioFileManagerLock)
         ;
 
-    std::vector<AudioFile*>::iterator it = m_audioFiles.begin();
-    AudioFile* audioFile = 0;
+    std::vector<AudioFile *>::iterator it = m_audioFiles.begin();
+    AudioFile * audioFile = 0;
 
     while (it != m_audioFiles.end()) {
         audioFile = (*it);
@@ -791,9 +790,10 @@ AudioFileManager::getLastAudioFile()
 
     return audioFile;
 }
+#endif
 
 QString
-AudioFileManager::substituteHomeForTilde(const QString &path)
+AudioFileManager::homeToTilde(const QString &path) const
 {
     QString rS = path;
     QString homePath = getenv("HOME");
@@ -812,10 +812,10 @@ AudioFileManager::substituteHomeForTilde(const QString &path)
 }
 
 QString
-AudioFileManager::substituteTildeForHome(const QString &path)
+AudioFileManager::tildeToHome(const QString &path) const
 {
     QString rS = path;
-    QString homePath = getenv("HOME");
+    const QString homePath = QDir::homePath();
 
     if (rS.mid(0, 2) == "~/") {
         rS.remove(0, 1); // erase tilde and prepend HOME env
@@ -825,34 +825,28 @@ AudioFileManager::substituteTildeForHome(const QString &path)
     return rS;
 }
 
-
-
-// Export audio files and assorted bits and bobs - make sure
-// that we store the files in a format that's user independent
-// so that people can pack up and swap their songs (including
-// audio files) and shift them about easily.
-//
 std::string
-AudioFileManager::toXmlString()
+AudioFileManager::toXmlString() const
 {
     MutexLock lock (&audioFileManagerLock)
         ;
 
     std::stringstream audioFiles;
-    QString audioPath = substituteHomeForTilde(m_audioPath);
+    QString audioPath = homeToTilde(m_audioPath);
 
     audioFiles << "<audiofiles";
     if (m_expectedSampleRate != 0) {
-	audioFiles << " expectedRate=\"" << m_expectedSampleRate << "\"";
+        audioFiles << " expectedRate=\"" << m_expectedSampleRate << "\"";
     }
     audioFiles << ">" << std::endl;
-    audioFiles << "    <audioPath value=\""
-    << audioPath << "\"/>" << std::endl;
+    audioFiles << "    <audioPath value=\"" << audioPath << "\"/>" << std::endl;
 
     QString fileName;
-    std::vector<AudioFile*>::iterator it;
 
-    for (it = m_audioFiles.begin(); it != m_audioFiles.end(); ++it) {
+    // For each AudioFile
+    for (std::vector<AudioFile *>::const_iterator it = m_audioFiles.begin();
+         it != m_audioFiles.end();
+         ++it) {
         fileName = (*it)->getFilename();
 
         // attempt two substitutions - If the prefix to the filename
@@ -862,23 +856,18 @@ AudioFileManager::toXmlString()
         // then swap this out for a tilde '~'
         //
 #ifdef DEBUG_AUDIOFILEMANAGER
-
-        std::cout << "DIR = " << getDirectory(fileName) << " : "
-        " PATH = " << m_audioPath << std::endl;
+        RG_DEBUG << "toXmlString(): DIR = " << getDirectory(fileName) << " :  PATH = " << m_audioPath;
 #endif
 
         if (getDirectory(fileName) == m_audioPath)
             fileName = getShortFilename(fileName);
         else
-            fileName = substituteHomeForTilde(fileName);
+            fileName = homeToTilde(fileName);
 
-        audioFiles << "    <audio id=\""
-        << (*it)->getId()
-        << "\" file=\""
-        << fileName
-        << "\" label=\""
-        << encode((*it)->getLabel())
-        << "\"/>" << std::endl;
+        audioFiles << "    <audio id=\"" << (*it)->getId()
+                   << "\" file=\"" << fileName
+                   << "\" label=\"" << encode((*it)->getLabel())
+                   << "\"/>" << std::endl;
     }
 
     audioFiles << "</audiofiles>" << std::endl;
@@ -888,84 +877,83 @@ AudioFileManager::toXmlString()
     return audioFiles.str();
 }
 
-// Generate preview peak files or peak chunks according
-// to file type.
-//
 void
 AudioFileManager::generatePreviews()
 {
     MutexLock lock (&audioFileManagerLock)
         ;
 
-#ifdef DEBUG_AUDIOFILEMANAGER
+    if (m_progressDialog) {
+        // Or should we push this all the way down into PeakFile?
+        m_progressDialog->setLabelText(tr("Generating audio previews..."));
+        m_progressDialog->setRange(0, 100);
+    }
 
-    std::cout << "AudioFileManager::generatePreviews - "
-    << "for " << m_audioFiles.size() << " files"
-    << std::endl;
+    m_peakManager.setProgressDialog(m_progressDialog);
+
+#ifdef DEBUG_AUDIOFILEMANAGER
+    RG_DEBUG << "generatePreviews() - for " << m_audioFiles.size() << " files";
 #endif
 
 
     // Generate peaks if we need to
-    //
-    std::vector<AudioFile*>::iterator it;
-    for (it = m_audioFiles.begin(); it != m_audioFiles.end(); ++it) {
+
+    // For each AudioFile
+    for (std::vector<AudioFile *>::const_iterator it = m_audioFiles.begin();
+         it != m_audioFiles.end();
+         ++it) {
         if (!m_peakManager.hasValidPeaks(*it))
-            m_peakManager.generatePeaks(*it, 1);
+            m_peakManager.generatePeaks(*it);
+
+        if (m_progressDialog  &&  m_progressDialog->wasCanceled())
+            break;
     }
 
-    // if we didn't do anything, at least emit a 100% to reset the progress
-    // dialog
-    std::cout << "audio file manager emitting fake setValue(100)" << std::endl;
-    emit setValue(100);
+    // Even if we didn't do anything, reset the progress dialog.
+    if (m_progressDialog)
+        m_progressDialog->setValue(100);
 }
 
-// Attempt to stop a preview
-//
-void
-AudioFileManager::slotStopPreview()
-{
-    MutexLock lock (&audioFileManagerLock);
-    m_peakManager.stopPreview();
-}
-
-
-// Generate a preview for a specific audio file - say if
-// one has just been added to the AudioFileManager.
-// Also used for generating previews if the file has been
-// modified.
-//
 bool
 AudioFileManager::generatePreview(AudioFileId id)
 {
     MutexLock lock (&audioFileManagerLock)
         ;
 
+    if (m_progressDialog) {
+        // Or should we push this all the way down into PeakFile?
+        m_progressDialog->setLabelText(tr("Generating audio preview..."));
+        m_progressDialog->setRange(0, 100);
+    }
+
+    // Pass on any progress dialog we might have.
+    m_peakManager.setProgressDialog(m_progressDialog);
+
     AudioFile *audioFile = getAudioFile(id);
 
-    if (audioFile == 0)
+    if (audioFile == nullptr)
         return false;
 
     if (!m_peakManager.hasValidPeaks(audioFile))
-        m_peakManager.generatePeaks(audioFile, 1);
+        m_peakManager.generatePeaks(audioFile);
 
     return true;
 }
 
-AudioFile*
+AudioFile *
 AudioFileManager::getAudioFile(AudioFileId id)
 {
     MutexLock lock (&audioFileManagerLock)
         ;
 
-    std::vector<AudioFile*>::iterator it;
-
-    for (it = m_audioFiles.begin();
-            it != m_audioFiles.end();
-            ++it) {
+    // For each AudioFile
+    for (std::vector<AudioFile *>::const_iterator it = m_audioFiles.begin();
+         it != m_audioFiles.end();
+         ++it) {
         if ((*it)->getId() == id)
             return (*it);
     }
-    return 0;
+    return nullptr;
 }
 
 std::vector<float>
@@ -980,14 +968,18 @@ AudioFileManager::getPreview(AudioFileId id,
 
     AudioFile *audioFile = getAudioFile(id);
 
-    if (audioFile == 0) {
+    if (audioFile == nullptr) {
         return std::vector<float>();
     }
 
     if (!m_peakManager.hasValidPeaks(audioFile)) {
-        std::cerr << "AudioFileManager::getPreview: No peaks for audio file " << audioFile->getFilename() << std::endl;
-        throw PeakFileManager::BadPeakFileException
-        (audioFile->getFilename(), __FILE__, __LINE__);
+        // ??? This happens a lot when recording audio.  Need to detect
+        //     that we are recording and suppress this.  Or just don't
+        //     call this when recording.  The caller has comments in
+        //     its catch() to this effect.
+        RG_WARNING << "getPreview(): No peaks for audio file" << audioFile->getFilename() << "(this is probably OK when recording)";
+        throw PeakFileManager::BadPeakFileException(
+                audioFile->getFilename(), __FILE__, __LINE__);
     }
 
     return m_peakManager.getPreview(audioFile,
@@ -1008,12 +1000,12 @@ AudioFileManager::drawPreview(AudioFileId id,
 
     AudioFile *audioFile = getAudioFile(id);
     if (!audioFile)
-        return ;
+        return;
 
     if (!m_peakManager.hasValidPeaks(audioFile)) {
-        std::cerr << "AudioFileManager::getPreview: No peaks for audio file " << audioFile->getFilename() << std::endl;
-        throw PeakFileManager::BadPeakFileException
-        (audioFile->getFilename(), __FILE__, __LINE__);
+        RG_WARNING << "drawPreview(): No peaks for audio file " << audioFile->getFilename();
+        throw PeakFileManager::BadPeakFileException(
+                audioFile->getFilename(), __FILE__, __LINE__);
     }
 
     std::vector<float> values = m_peakManager.getPreview
@@ -1031,11 +1023,10 @@ AudioFileManager::drawPreview(AudioFileId id,
 
     if (values.size() == 0) {
 #ifdef DEBUG_AUDIOFILEMANAGER
-        std::cerr << "AudioFileManager::drawPreview - "
-        << "no preview values returned!" << std::endl;
+        RG_WARNING << "drawPreview() - no preview values returned!";
 #endif
 
-        return ;
+        return;
     }
 
     float yStep = pixmap->height() / 2;
@@ -1044,11 +1035,10 @@ AudioFileManager::drawPreview(AudioFileId id,
 
     if (channels == 0) {
 #ifdef DEBUG_AUDIOFILEMANAGER
-        std::cerr << "AudioFileManager::drawPreview - "
-        << "no channels in audio file!" << std::endl;
+        RG_WARNING << "drawPreview() - no channels in audio file!";
 #endif
 
-        return ;
+        return;
     }
 
 
@@ -1084,10 +1074,10 @@ AudioFileManager::drawHighlightedPreview(AudioFileId id,
 
     AudioFile *audioFile = getAudioFile(id);
     if (!audioFile)
-        return ;
+        return;
 
     if (!m_peakManager.hasValidPeaks(audioFile)) {
-        std::cerr << "AudioFileManager::getPreview: No peaks for audio file " << audioFile->getFilename() << std::endl;
+        RG_WARNING << "drawHighlightedPreview(): No peaks for audio file " << audioFile->getFilename();
         throw PeakFileManager::BadPeakFileException
         (audioFile->getFilename(), __FILE__, __LINE__);
     }
@@ -1151,20 +1141,13 @@ AudioFileManager::print()
         ;
 
 #ifdef DEBUG_AUDIOFILEMANAGER
+    RG_DEBUG << "print():" << m_audioFiles.size() << "entries";
 
-    std::cout << "AudioFileManager - " << m_audioFiles.size() << " entr";
-
-    if (m_audioFiles.size() == 1)
-        std::cout << "y";
-    else
-        std::cout << "ies";
-
-    std::cout << std::endl << std::endl;
-
-    std::vector<AudioFile*>::iterator it;
-    for (it = m_audioFiles.begin(); it != m_audioFiles.end(); ++it) {
-        std::cout << (*it)->getId() << " : " << (*it)->getLabel()
-        << " : \"" << (*it)->getFilename() << "\"" << std::endl;
+    // For each AudioFile
+    for (std::vector<AudioFile *>::const_iterator it = m_audioFiles.begin();
+         it != m_audioFiles.end();
+         ++it) {
+        RG_DEBUG << "  " << (*it)->getId() << " : " << (*it)->getLabel() << " : \"" << (*it)->getFilename() << "\"";
     }
 #endif
 }
@@ -1181,7 +1164,7 @@ AudioFileManager::getSplitPoints(AudioFileId id,
 
     AudioFile *audioFile = getAudioFile(id);
 
-    if (audioFile == 0)
+    if (audioFile == nullptr)
         return std::vector<SplitPointPair>();
 
     return m_peakManager.getSplitPoints(audioFile,
@@ -1196,11 +1179,13 @@ AudioFileManager::getActualSampleRates() const
 {
     std::set<int> rates;
 
+    // For each AudioFile
     for (std::vector<AudioFile *>::const_iterator i = m_audioFiles.begin();
-	 i != m_audioFiles.end(); ++i) {
+         i != m_audioFiles.end();
+         ++i) {
 
-	unsigned int sr = (*i)->getSampleRate();
-	if (sr != 0) rates.insert(int(sr));
+        unsigned int sr = (*i)->getSampleRate();
+        if (sr != 0) rates.insert(int(sr));
     }
 
     return rates;
@@ -1209,4 +1194,3 @@ AudioFileManager::getActualSampleRates() const
 }
 
 
-#include "moc_AudioFileManager.cpp"

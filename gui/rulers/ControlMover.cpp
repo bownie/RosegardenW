@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,9 +23,6 @@
 #include "base/Selection.h"
 #include "base/SnapGrid.h"
 #include "base/ViewElement.h"
-//#include "commands/matrix/MatrixModifyCommand.h"
-//#include "commands/matrix/MatrixInsertionCommand.h"
-//#include "commands/notation/NormalizeRestsCommand.h"
 #include "document/CommandHistory.h"
 #include "ControlItem.h"
 #include "EventControlItem.h"
@@ -50,12 +47,6 @@ ControlMover::ControlMover(ControlRuler *parent, QString menuName) :
     m_overCursor(Qt::OpenHandCursor),
     m_notOverCursor(Qt::ArrowCursor)
 {
-//    createAction("select", SLOT(slotSelectSelected()));
-//    createAction("draw", SLOT(slotDrawSelected()));
-//    createAction("erase", SLOT(slotEraseSelected()));
-//    createAction("resize", SLOT(slotResizeSelected()));
-//
-//    createMenu();
 }
 
 void
@@ -64,7 +55,6 @@ ControlMover::handleLeftButtonPress(const ControlMouseEvent *e)
     if (m_overItem) {
         m_ruler->setCursor(Qt::BlankCursor);
 
-        //for (std::vector<ControlItem*>::const_iterator it = e->itemList.begin(); it != e->itemList.end(); it++) {
         std::vector<ControlItem*>::const_iterator it = e->itemList.begin();
         if ((*it)->isSelected()) {
             if (e->modifiers & (Qt::ShiftModifier))
@@ -98,7 +88,7 @@ ControlMover::handleLeftButtonPress(const ControlMouseEvent *e)
     m_ruler->update();
 }
 
-ControlTool::FollowMode
+FollowMode
 ControlMover::handleMouseMove(const ControlMouseEvent *e)
 {
     if (e->buttons == Qt::NoButton) {
@@ -111,8 +101,10 @@ ControlMover::handleMouseMove(const ControlMouseEvent *e)
         float deltaX = (e->x-m_mouseStartX);
         float deltaY = (e->y-m_mouseStartY);
 
-        float dScreenX = deltaX/m_ruler->getXScale();
-        float dScreenY = deltaY/m_ruler->getYScale();        
+        double xscale = m_ruler->getXScale();
+        double yscale = m_ruler->getYScale();
+        float dScreenX = deltaX / xscale;
+        float dScreenY = deltaY / yscale;
 
         if (e->modifiers & Qt::ControlModifier) {
             // If the control key is held down, restrict movement to either horizontal or vertical
@@ -143,8 +135,10 @@ ControlMover::handleMouseMove(const ControlMouseEvent *e)
             item = dynamic_cast <EventControlItem*> (*it);
 
             float x = pIt->x()+deltaX;
-            x = std::max(x,m_ruler->getXMin());
-            x = std::min(x,m_ruler->getXMax());
+            float xmin = m_ruler->getXMin() * xscale;
+            float xmax = (m_ruler->getXMax() - 1) * xscale;
+            x = std::max(x,xmin);
+            x = std::min(x,xmax);
 
             float y = pIt->y()+deltaY;
             y = std::max(y,0.0f);
@@ -152,12 +146,12 @@ ControlMover::handleMouseMove(const ControlMouseEvent *e)
             if (item) item->reconfigure(x,y);
             ++pIt;
         }
-        return FollowHorizontal;
+        return FOLLOW_HORIZONTAL;
     }
 
     m_ruler->update();
     
-    return NoFollow;
+    return NO_FOLLOW;
 }
 
 void
@@ -201,38 +195,12 @@ void ControlMover::ready()
 {
     m_ruler->setCursor(m_notOverCursor);
     m_overItem = false;
-//    connect(this, SIGNAL(hoveredOverNoteChanged(int, bool, timeT)),
-//            m_widget, SLOT(slotHoveredOverNoteChanged(int, bool, timeT)));
-
-//    m_widget->setCanvasCursor(Qt::sizeAllCursor);
-//    setBasicContextHelp();
 }
 
 void ControlMover::stow()
 {
-//    disconnect(this, SIGNAL(hoveredOverNoteChanged(int, bool, timeT)),
-//               m_widget, SLOT(slotHoveredOverNoteChanged(int, bool, timeT)));
 }
 
-//void PropertyAdjuster::setBasicContextHelp(bool ctrlPressed)
-//{
-//    EventSelection *selection = m_scene->getSelection();
-//    if (!selection || selection->getAddedEvents() < 2) {
-//        if (!ctrlPressed) {
-//            setContextHelp(tr("Click and drag to move a note; hold Ctrl as well to copy it"));
-//        } else {
-//            setContextHelp(tr("Click and drag to copy a note"));
-//        }
-//    } else {
-//        if (!ctrlPressed) {
-//            setContextHelp(tr("Click and drag to move selected notes; hold Ctrl as well to copy"));
-//        } else {
-//            setContextHelp(tr("Click and drag to copy selected notes"));
-//        }
-//    }
-//}
-
-const QString ControlMover::ToolName = "mover";
+QString ControlMover::ToolName() { return "mover"; }
 }
 
-#include "ControlMover.moc"

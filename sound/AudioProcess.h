@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -83,7 +83,7 @@ public:
                    unsigned int sampleRate,
                    unsigned int blockSize);
 
-    virtual ~AudioBussMixer();
+    ~AudioBussMixer() override;
 
     void kick(bool wantLock = true, bool signalInstrumentMixer = true);
     
@@ -119,7 +119,7 @@ public:
         if (channel < (unsigned int)m_bufferMap[buss].buffers.size()) {
             return m_bufferMap[buss].buffers[channel];
         } else {
-            return 0;
+            return nullptr;
         }
     }
 
@@ -130,7 +130,7 @@ public:
     void updateInstrumentConnections();
 
 protected:
-    virtual void threadRun();
+    void threadRun() override;
 
     void processBlocks();
     void generateBuffers();
@@ -176,7 +176,7 @@ public:
                          unsigned int sampleRate,
                          unsigned int blockSize);
 
-    virtual ~AudioInstrumentMixer();
+    ~AudioInstrumentMixer() override;
 
     void kick(bool wantLock = true);
 
@@ -268,7 +268,7 @@ public:
         if (channel < (unsigned int)m_bufferMap[id].buffers.size()) {
             return m_bufferMap[id].buffers[channel];
         } else {
-            return 0;
+            return nullptr;
         }
     }
 
@@ -279,9 +279,9 @@ public:
     void updateInstrumentMuteStates();
 
 protected:
-    virtual void threadRun();
+    void threadRun() override;
 
-    virtual int getPriority() { return 3; }
+    int getPriority() override { return 3; }
 
     void processBlocks(bool &readSomething);
     void processEmptyBlocks(InstrumentId id);
@@ -336,7 +336,7 @@ public:
     AudioFileReader(SoundDriver *driver,
                     unsigned int sampleRate);
 
-    virtual ~AudioFileReader();
+    ~AudioFileReader() override;
 
     bool kick(bool wantLock = true);
 
@@ -347,7 +347,7 @@ public:
     void fillBuffers(const RealTime &currentTime);
 
 protected:
-    virtual void threadRun();
+    void threadRun() override;
 };
 
 
@@ -357,7 +357,7 @@ public:
     AudioFileWriter(SoundDriver *driver,
                     unsigned int sampleRate);
 
-    virtual ~AudioFileWriter();
+    ~AudioFileWriter() override;
 
     void kick(bool wantLock = true);
 
@@ -370,7 +370,7 @@ public:
     void write(InstrumentId id, const sample_t *, int channel, size_t samples);
 
 protected:
-    virtual void threadRun();
+    void threadRun() override;
 
     typedef std::pair<AudioFile *, RecordableAudioFile *> FilePair;
     typedef std::map<InstrumentId, FilePair> FileMap;

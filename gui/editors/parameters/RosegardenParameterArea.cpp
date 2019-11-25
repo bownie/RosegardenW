@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file Copyright 2006 Martin Shepherd <mcs@astro.caltech.edu>.
 
@@ -22,46 +22,28 @@
 #include "RosegardenParameterArea.h"
 
 #include "RosegardenParameterBox.h"
-#include <iostream>
-#include <set>
 
-#include <QTabWidget>
+#include <QScrollBar>
+#include <QEvent>
 #include <QFont>
-#include <QFrame>
-#include <QPoint>
-#include <QScrollArea>
-#include <QString>
-#include <QLayout>
 #include <QWidget>
 #include <QVBoxLayout>
-#include <QStackedWidget>
 #include <QGroupBox>
-//#include <QPushButton>
 
 #include "misc/Debug.h"
 
 namespace Rosegarden
 {
 
-RosegardenParameterArea::RosegardenParameterArea(
-    QWidget *parent,
-    const char *name
-    )    //, WFlags f)
-    : QStackedWidget(parent),//, name),//, f),
-        m_style(RosegardenParameterArea::CLASSIC_STYLE),
-        m_scrollArea( new QScrollArea(this) ),
-         m_classic(new QWidget()),
-        m_classicLayout( new QVBoxLayout(m_classic) ),
-        m_tabBox(new QTabWidget(this)),
-        m_active(0),
-        m_spacing(0)
+RosegardenParameterArea::RosegardenParameterArea(QWidget *parent)
+    : QScrollArea(parent),
+        m_boxContainer(new QWidget()),
+        m_boxContainerLayout( new QVBoxLayout(m_boxContainer) )
 {
-    setObjectName( name );
-        
-    m_classic->setLayout(m_classicLayout);
-    
-    // Setting vertical ScrollBarAlwaysOn resolves initial sizing problem
-    m_scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOn);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    // QScrollArea already installs an event filter on widget(), add one on the vertical scrollbar too
+    verticalScrollBar()->installEventFilter(this);
 
     // alleviate a number of really bad problems in the TPB and IPB by allowing
     // QScrollArea to resize as necessary.  This was done to solve the problem
@@ -69,38 +51,36 @@ RosegardenParameterArea::RosegardenParameterArea(
     // expanded, but I expect it also solves the "more than n controllers,
     // everything is hopelessly jammed together" problem too.  For cheap.
     // (Too bad this fix is the last place I looked after a couple lost hours.)
-    m_scrollArea->setWidgetResizable(true);
-    
-    // add 2 wigets as stacked widgets
-    // Install the classic-style VBox widget in the widget-stack.
-    addWidget(m_scrollArea);//, CLASSIC_STYLE);    //&&& 
+    setWidgetResizable(true);
 
-    setCurrentWidget( m_scrollArea );
+    m_boxContainer->setLayout(m_boxContainerLayout);
+
+    setWidget(m_boxContainer);
+
+    m_boxContainerLayout->addStretch(100);
 }
 
 void RosegardenParameterArea::addRosegardenParameterBox(
     RosegardenParameterBox *b)
 {
-    RG_DEBUG << "RosegardenParameterArea::addRosegardenParameterBox" << endl;
+    RG_DEBUG << "RosegardenParameterArea::addRosegardenParameterBox";
     
     // Check that the box hasn't been added before.
 
     for (unsigned int i = 0; i < m_parameterBoxes.size(); i++) {
         if (m_parameterBoxes[i] == b)
-            return ;
+            return;
     }
 
     // Append the parameter box to the list to be displayed.
-     m_parameterBoxes.push_back(b);
+    m_parameterBoxes.push_back(b);
  
-    // Create a titled group box for the parameter box, parented by the
-    // classic layout widget, so that it can be used to provide a title
-    // and outline, in classic mode. Add this container to an array that
+    // Create a titled group box for the parameter box, so that it can be
+    // used to provide a title and outline. Add this container to an array that
     // parallels the above array of parameter boxes.
 
-    QGroupBox *box = new QGroupBox(b->getLongLabel(), m_classic);
-    //box->setMinimumSize( 40,40 );
-    m_classicLayout->addWidget(box);
+    QGroupBox *box = new QGroupBox(b->getLabel(), m_boxContainer);
+    m_boxContainerLayout->insertWidget(m_boxContainerLayout->count() - 1, box); // before the stretch
     
     box->setLayout( new QVBoxLayout(box) );
     box->layout()->setMargin( 4 ); // about half the default value
@@ -112,67 +92,25 @@ void RosegardenParameterArea::addRosegardenParameterBox(
 
     // add the ParameterBox to the Layout
     box->layout()->addWidget(b);
-    
-    if (m_spacing)
-        delete m_spacing;
-    m_spacing = new QFrame(m_classic);
-    m_classicLayout->addWidget(m_spacing);
-    m_classicLayout->setStretchFactor(m_spacing, 100);
 
+    // Strange bug, Qt5 doesn't ever polish the RosegardenParameterArea, so they don't end up getting the Thorn style unless we make it happen
+    box->ensurePolished();
 }
 
-void RosegardenParameterArea::setScrollAreaWidget()
-{
-    m_scrollArea->setWidget(m_classic);
-}
-    
-void RosegardenParameterArea::setArrangement(Arrangement style)
-{
-    RG_DEBUG << "RosegardenParameterArea::setArrangement(" << style << ") is deprecated, and non-functional!" << endl;
-}
 
-void RosegardenParameterArea::hideEvent(QHideEvent *)
+bool RosegardenParameterArea::eventFilter(QObject *object, QEvent *event)
 {
-    emit hidden();
-}
-
-void RosegardenParameterArea::moveWidget(QWidget *old_container,
-        QWidget *new_container,
-        RosegardenParameterBox *box)
-{
-    RG_DEBUG << "RosegardenParameterArea::moveWidget" << endl;
-
-    // Remove any state that is associated with the parameter boxes,
-    // from the active container.
-
-    if (old_container == m_classic) {
-        ;
-    } else if (old_container == m_tabBox) {
-        m_tabBox->removeTab(indexOf(box));
+    // Ensure the full width of the widget is always visible
+    // - when the widget gets resized
+    // - when the vertical scrollbar becomes visible or hidden
+    if ((object == widget() && event->type() == QEvent::Resize)
+            || (object == verticalScrollBar() && (event->type() == QEvent::Show || event->type() == QEvent::Hide))) {
+        const int minWidth = widget()->minimumSizeHint().width();
+        const int vsbWidth = verticalScrollBar()->isVisible() ? verticalScrollBar()->width() : 0;
+        setFixedWidth(minWidth + vsbWidth);
     }
 
-    // Reparent the parameter box, and perform any container-specific
-    // configuration.
-
-    if (new_container == m_classic) {
-        size_t index = 0;
-        while (index < m_parameterBoxes.size()) {
-            if (box == m_parameterBoxes[index])
-                break;
-            ++index;
-        }
-        if (index < m_parameterBoxes.size()) {
-            //box->reparent(m_groupBoxes[index], 0, QPoint(0, 0), FALSE);
-            m_groupBoxes[index]->setParent(this, 0);
-            m_groupBoxes[index]->move(QPoint(0,0));
-        }
-    } else if (new_container == m_tabBox) {
-        //box->reparent(new_container, 0, QPoint(0, 0), FALSE);
-        new_container->setParent(this, 0);
-        new_container->move(QPoint(0,0));
-        m_tabBox->insertTab(-1, box, box->getShortLabel());
-    }
+    return QScrollArea::eventFilter(object, event);
 }
 
-}
-#include "RosegardenParameterArea.moc"
+} // namespace

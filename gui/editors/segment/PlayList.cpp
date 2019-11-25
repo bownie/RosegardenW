@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,10 +22,10 @@
 #include "PlayListView.h"
 #include "PlayListViewItem.h"
 #include "misc/ConfigGroups.h"
+#include "gui/widgets/FileDialog.h"
 
 #include <QLayout>
 #include <QSettings>
-#include <QFileDialog>
 #include <QFrame>
 #include <QPushButton>
 #include <QString>
@@ -45,11 +45,11 @@ PlayList::PlayList(QWidget *parent) : QWidget(parent),
         m_listView(new PlayListView(this)),
         m_buttonBar(new QFrame(this)),
         m_barLayout(new QHBoxLayout(m_buttonBar)),
-        m_playButton(0),
-        m_moveUpButton(0),
-        m_moveDownButton(0),
-        m_deleteButton(0),
-        m_clearButton(0)
+        m_playButton(nullptr),
+        m_moveUpButton(nullptr),
+        m_moveDownButton(nullptr),
+        m_deleteButton(nullptr),
+        m_clearButton(nullptr)
 {
     QVBoxLayout *vLayout = new QVBoxLayout;
     vLayout->addWidget(m_listView);
@@ -78,18 +78,18 @@ PlayList::PlayList(QWidget *parent) : QWidget(parent),
     m_deleteButton ->setText(tr("Remove"));
     m_clearButton ->setText(tr("Clear whole List"));
 
-    connect(m_openButton, SIGNAL(clicked()), SLOT(slotOpenFiles()));
-    connect(m_playButton, SIGNAL(clicked()),SLOT(slotPlay()));
-    connect(m_deleteButton, SIGNAL(clicked()), SLOT(slotDeleteCurrent()));
-    connect(m_clearButton, SIGNAL(clicked()), SLOT(slotClear()));
-    connect(m_moveUpButton, SIGNAL(clicked()), SLOT(slotMoveUp()));
-    connect(m_moveDownButton, SIGNAL(clicked()), SLOT(slotMoveDown()));
+    connect(m_openButton, &QAbstractButton::clicked, this, &PlayList::slotOpenFiles);
+    connect(m_playButton, &QAbstractButton::clicked,this, &PlayList::slotPlay);
+    connect(m_deleteButton, &QAbstractButton::clicked, this, &PlayList::slotDeleteCurrent);
+    connect(m_clearButton, &QAbstractButton::clicked, this, &PlayList::slotClear);
+    connect(m_moveUpButton, &QAbstractButton::clicked, this, &PlayList::slotMoveUp);
+    connect(m_moveDownButton, &QAbstractButton::clicked, this, &PlayList::slotMoveDown);
     
-    connect(m_listView, SIGNAL(droppedURIs(QDropEvent*, QTreeWidget*, QStringList)),
-            SLOT(slotDroppedURIs(QDropEvent*, QTreeWidget*, QStringList)));
+    connect(m_listView, &PlayListView::droppedURIs,
+            this, &PlayList::slotDroppedURIs);
     
-    connect(m_listView, SIGNAL(currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)),
-                this, SLOT(slotCurrentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)));
+    connect(m_listView, &QTreeWidget::currentItemChanged,
+                this, &PlayList::slotCurrentItemChanged);
     
 //     connect(m_listView, SIGNAL(currentChanged(QTreeWidgetItem*)),
 //             SLOT(slotCurrentItemChanged(QTreeWidgetItem*)));
@@ -98,7 +98,7 @@ PlayList::PlayList(QWidget *parent) : QWidget(parent),
 
     restore();
 
-    enableButtons(0);
+    enableButtons(nullptr);
 
 }
 
@@ -109,12 +109,11 @@ PlayList::~PlayList()
 
 void PlayList::slotOpenFiles()
 {
-    QStringList files = QFileDialog::getOpenFileNames( this, tr("Select one or more Rosegarden files"), QDir::currentPath(),
+    QStringList files = FileDialog::getOpenFileNames( this, tr("Select one or more Rosegarden files"), QDir::currentPath(),
                         tr("Rosegarden files") + " (*.rg *.RG)" + ";;" +
                         tr("MIDI files") + " (*.mid *.midi *.MID *.MIDI)" + ";;" +
-//$$$ Typo here: Rosegaden --> Rosegarden
-                        tr("X11 Rosegaden files") + " (*.rose)" + ";;" +
-                        tr("All files") + " (*)", 0, 0 );
+                        tr("X11 Rosegarden files") + " (*.rose)" + ";;" +
+                        tr("All files") + " (*)", nullptr, nullptr );
     
     QString fname;
     
@@ -175,13 +174,13 @@ void PlayList::slotPlay()
     PlayListViewItem *item;
     item = dynamic_cast<PlayListViewItem*>( m_listView->currentItem() );
     
-    RG_DEBUG << "PlayList::slotPlay() - called. " << endl;
+    RG_DEBUG << "PlayList::slotPlay() - called. ";
     if (item){
         fname = item->text(1); // 1==column1==filename
         emit play(fname);
 //         emit play( item->getURL().toString() );
     }else{
-        RG_DEBUG << "PlayList::slotPlay() - No item selected. " << endl;
+        RG_DEBUG << "PlayList::slotPlay() - No item selected. ";
     }
 }
 
@@ -240,7 +239,7 @@ void PlayList::slotMoveDown()
 void PlayList::slotClear()
 {
     m_listView->clear();
-    enableButtons(0);
+    enableButtons(nullptr);
 }
 
 void PlayList::slotDeleteCurrent()
@@ -252,13 +251,13 @@ void PlayList::slotDeleteCurrent()
 
 void PlayList::slotCurrentItemChanged(QTreeWidgetItem* currentItem, QTreeWidgetItem* /* prevItem */)
 {
-//     RG_DEBUG << "PlayList::slotCurrentItemChanged() - selection Changed. " << endl;
+//     RG_DEBUG << "PlayList::slotCurrentItemChanged() - selection Changed. ";
     enableButtons(currentItem);
 }
 
 void PlayList::enableButtons(QTreeWidgetItem* currentIndex)
 {
-    bool enable = (currentIndex != 0);
+    bool enable = (currentIndex != nullptr);
 
     m_playButton->setEnabled(enable);
     m_deleteButton->setEnabled(enable);
@@ -329,4 +328,3 @@ void PlayList::restore()
 
 
 }
-#include "PlayList.moc"

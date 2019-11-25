@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -109,7 +109,7 @@ bool operator<(const ControlParameter &a, const ControlParameter &b)
 
 
 std::string
-ControlParameter::toXmlString()
+ControlParameter::toXmlString() const
 { 
     std::stringstream control;
 
@@ -164,7 +164,7 @@ matches(Event *e) const
 // order to prevent the "static initialization order fiasco".
 const ControlParameter&
 ControlParameter::
-getPitchBend(void)
+getPitchBend()
 {
     static const ControlParameter
         pitchBend(
@@ -175,7 +175,7 @@ getPitchBend(void)
 
 const ControlParameter&
 ControlParameter::
-getExpression(void)
+getExpression()
 {
     static const ControlParameter
         expression(

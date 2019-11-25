@@ -1,7 +1,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2011 Daren Beattie <dtbeattie@gmail.com>
 
@@ -74,9 +74,9 @@ protected:
 class LilyPondSolfege : public LilyPondLanguage
 {
 public:
-    virtual ~LilyPondSolfege() {}
+    ~LilyPondSolfege() override {}
 protected:
-    virtual const std::string getLilyNoteName(const char noteName) const;
+    const std::string getLilyNoteName(const char noteName) const override;
 };
 
 /**
@@ -85,12 +85,12 @@ protected:
 class LilyPondArabic : public LilyPondSolfege
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondArabic() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondArabic() override {}
 protected:
-    virtual const std::string applyAccidental(
+    const std::string applyAccidental(
             const std::string lilyNoteName, const Accidental accidental
-            ) const;
+            ) const override;
 };
 
 /**
@@ -99,8 +99,8 @@ protected:
 class LilyPondItaliano : public LilyPondArabic
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondItaliano() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondItaliano() override {}
 };
 
 /**
@@ -109,12 +109,12 @@ public:
 class LilyPondVlaams : public LilyPondSolfege
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondVlaams() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondVlaams() override {}
 protected:
-    virtual const std::string applyAccidental(
+    const std::string applyAccidental(
             const std::string lilyNoteName, const Accidental accidental
-            ) const;
+            ) const override;
 };
 
 /**
@@ -123,12 +123,12 @@ protected:
 class LilyPondEspanol : public LilyPondSolfege
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondEspanol() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondEspanol() override {}
 protected:
-    virtual const std::string applyAccidental(
+    const std::string applyAccidental(
             const std::string lilyNoteName, const Accidental accidental
-            ) const;
+            ) const override;
 };
 
 /**
@@ -137,8 +137,8 @@ protected:
 class LilyPondCatalan : public LilyPondEspanol
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondCatalan() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondCatalan() override {}
 };
 
 /**
@@ -147,8 +147,8 @@ public:
 class LilyPondPortugues : public LilyPondEspanol
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondPortugues() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondPortugues() override {}
 };
 
 /**
@@ -157,13 +157,13 @@ public:
 class LilyPondDeutsch : public LilyPondLanguage
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondDeutsch() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondDeutsch() override {}
 protected:
-    virtual const std::string getLilyNoteName(const char noteName) const;
-    virtual const std::string applyAccidental(
+    const std::string getLilyNoteName(const char noteName) const override;
+    const std::string applyAccidental(
             const std::string lilyNoteName, const Accidental accidental
-            ) const;
+            ) const override;
 };
 
 /**
@@ -172,13 +172,13 @@ protected:
 class LilyPondNederlands : public LilyPondDeutsch
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondNederlands() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondNederlands() override {}
 protected:
-    virtual const std::string getLilyNoteName(const char noteName) const;
-    virtual const std::string applyAccidental(
+    const std::string getLilyNoteName(const char noteName) const override;
+    const std::string applyAccidental(
             const std::string lilyNoteName, const Accidental accidental
-            ) const;
+            ) const override;
 };
 
 /**
@@ -187,8 +187,8 @@ protected:
 class LilyPondNorsk : public LilyPondDeutsch
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondNorsk() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondNorsk() override {}
 };
 
 /**
@@ -197,8 +197,8 @@ public:
 class LilyPondSuomi : public LilyPondDeutsch
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondSuomi() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondSuomi() override {}
 };
 
 /**
@@ -207,12 +207,12 @@ public:
 class LilyPondSvenska : public LilyPondDeutsch
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondSvenska() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondSvenska() override {}
 protected:
-    virtual const std::string applyAccidental(
+    const std::string applyAccidental(
             const std::string lilyNoteName, const Accidental accidental
-            ) const;
+            ) const override;
 };
 
 /**
@@ -221,13 +221,13 @@ protected:
 class LilyPondEnglish : public LilyPondLanguage
 {
 public:
-    virtual const std::string getImportStatement() const;
-    virtual ~LilyPondEnglish() {}
+    const std::string getImportStatement() const override;
+    ~LilyPondEnglish() override {}
 protected:
-    virtual const std::string getLilyNoteName(const char noteName) const;
-    virtual const std::string applyAccidental(
+    const std::string getLilyNoteName(const char noteName) const override;
+    const std::string applyAccidental(
             const std::string lilyNoteName, const Accidental accidental
-            ) const;
+            ) const override;
 };
 
 }

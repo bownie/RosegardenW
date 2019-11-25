@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -37,8 +37,9 @@
 #include "document/RosegardenDocument.h"
 #include "gui/general/BaseTool.h"
 #include "gui/application/RosegardenMainWindow.h"
+#include "gui/application/TransportStatus.h"
 #include "gui/general/RosegardenScrollView.h"
-#include "gui/widgets/ProgressDialog.h"
+#include "gui/seqmanager/SequenceManager.h"
 #include "SegmentTool.h"
 #include "document/Command.h"
 #include "document/CommandHistory.h"
@@ -56,20 +57,19 @@ namespace Rosegarden
 {
 
 
-const QString SegmentResizer::ToolName = "segmentresizer";
+QString SegmentResizer::ToolName() { return "segmentresizer"; }
 
-SegmentResizer::SegmentResizer(CompositionView *c, RosegardenDocument *d,
-                               int edgeThreshold)
-        : SegmentTool(c, d),
-        m_edgeThreshold(edgeThreshold)
+SegmentResizer::SegmentResizer(CompositionView *c, RosegardenDocument *d) :
+    SegmentTool(c, d),
+    m_resizeStart(false)
 {
-    RG_DEBUG << "SegmentResizer()\n";
+    //RG_DEBUG << "ctor";
 }
 
 void SegmentResizer::ready()
 {
     m_canvas->viewport()->setCursor(Qt::SizeHorCursor);
-    setBasicContextHelp(false);
+    setContextHelp2();
 }
 
 void SegmentResizer::stow()
@@ -78,13 +78,19 @@ void SegmentResizer::stow()
 
 void SegmentResizer::mousePressEvent(QMouseEvent *e)
 {
-    RG_DEBUG << "SegmentResizer::mousePressEvent" << endl;
+    //RG_DEBUG << "mousePressEvent()";
 
     // Let the baseclass have a go.
     SegmentTool::mousePressEvent(e);
 
     // We only care about the left mouse button.
     if (e->button() != Qt::LeftButton)
+        return;
+
+    // Can't rescale a segment while playing, so just refuse to
+    // resize or rescale.
+    if (RosegardenMainWindow::self()->getSequenceManager()->
+            getTransportStatus() == PLAYING)
         return;
 
     // No need to propagate.
@@ -95,7 +101,7 @@ void SegmentResizer::mousePressEvent(QMouseEvent *e)
     ChangingSegmentPtr item = m_canvas->getModel()->getSegmentAt(pos);
 
     if (item) {
-        RG_DEBUG << "SegmentResizer::mousePressEvent - got item" << endl;
+        //RG_DEBUG << "mousePressEvent() - got item";
         setChangingSegment(item);
 
         // Are we resizing from start or end?
@@ -111,6 +117,67 @@ void SegmentResizer::mousePressEvent(QMouseEvent *e)
 
         setSnapTime(e, SnapGrid::SnapToBeat);
     }
+
+    setContextHelp2(e->modifiers());
+}
+
+void SegmentResizer::resizeAudioSegment(
+        Segment *segment,
+        double ratio,
+        timeT newStartTime,
+        timeT newEndTime)
+{
+    try {
+        m_doc->getAudioFileManager().testAudioPath();
+    } catch (const AudioFileManager::BadAudioPathException &) {
+        if (QMessageBox::warning(nullptr, tr("Warning"), //tr("Set audio file path"),
+                tr("The audio file path does not exist or is not writable.\nYou must set the audio file path to a valid directory in Document Properties before rescaling an audio file.\nWould you like to set it now?"),
+                QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) ==
+                    QMessageBox::Yes) {
+            RosegardenMainWindow::self()->slotOpenAudioPathSettings();
+        }
+    }
+
+    AudioSegmentRescaleCommand *command =
+        new AudioSegmentRescaleCommand(m_doc, segment, ratio,
+                                       newStartTime, newEndTime);
+
+    // Progress Dialog
+    // Note: The label text and range will be set later as needed.
+    QProgressDialog progressDialog(
+            tr("Rescaling audio file..."),  // labelText
+            tr("Cancel"),  // cancelButtonText
+            0, 100,  // min, max
+            RosegardenMainWindow::self());  // parent
+
+    progressDialog.setWindowTitle(tr("Rosegarden"));
+    progressDialog.setWindowModality(Qt::WindowModal);
+    // Don't want to auto close since this is a multi-step
+    // process.  Any of the steps may set progress to 100.  We
+    // will close anyway when this object goes out of scope.
+    progressDialog.setAutoClose(false);
+    // Just force the progress dialog up.
+    // Both Qt4 and Qt5 have bugs related to delayed showing of progress
+    // dialogs.  In Qt4, the dialog sometimes won't show.  In Qt5, KDE
+    // based distros might lock up.  See Bug #1546.
+    progressDialog.show();
+
+    command->setProgressDialog(&progressDialog);
+
+    CommandHistory::getInstance()->addCommand(command);
+
+    if (progressDialog.wasCanceled())
+        return;
+
+    int fileId = command->getNewAudioFileId();
+    if (fileId < 0)
+        return;
+
+    // Add to sequencer
+    RosegardenMainWindow::self()->slotAddAudioFile(fileId);
+
+    m_doc->getAudioFileManager().setProgressDialog(&progressDialog);
+    m_doc->getAudioFileManager().generatePreview(fileId);
 }
 
 void SegmentResizer::mouseReleaseEvent(QMouseEvent *e)
@@ -156,56 +223,12 @@ void SegmentResizer::mouseReleaseEvent(QMouseEvent *e)
 
                 if (segment->getType() == Segment::Audio) {
 
-                    try {
-                        m_doc->getAudioFileManager().testAudioPath();
-                    } catch (AudioFileManager::BadAudioPathException) {
-                        if (QMessageBox::warning(0, tr("Warning"), //tr("Set audio file path"), 
-                                 tr("The audio file path does not exist or is not writable.\nYou must set the audio file path to a valid directory in Document Properties before rescaling an audio file.\nWould you like to set it now?"),
-                                QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel
-                                ) 
-                                == QMessageBox::Yes ) {
-                            RosegardenMainWindow::self()->slotOpenAudioPathSettings();
-                        }
-                    }
+                    double ratio =
+                            static_cast<double>(newEndTime - newStartTime) /
+                            (oldEndTime - oldStartTime);
 
-                    float ratio = float(newEndTime - newStartTime) /
-                        float(oldEndTime - oldStartTime);
+                    resizeAudioSegment(segment, ratio, newStartTime, newEndTime);
 
-                    AudioSegmentRescaleCommand *command =
-                        new AudioSegmentRescaleCommand(m_doc, segment, ratio,
-                                                       newStartTime, newEndTime);
-
-                    //cc 20150508: avoid dereferencing self-deleted
-                    //progress dialog after user has closed it, by
-                    //using a QPointer
-                    QPointer<ProgressDialog> progressDlg = new ProgressDialog(
-                            tr("Rescaling audio file..."), (QWidget*)parent());
-                    command->connectProgressDialog(progressDlg);
-                    
-                    CommandHistory::getInstance()->addCommand(command);
-
-                    if (progressDlg) {
-                        command->disconnectProgressDialog(progressDlg);
-                        progressDlg->close();
-                    }
-                    
-                    progressDlg = new ProgressDialog(tr("Generating audio preview..."),
-                                                     (QWidget*)parent());
-
-                    connect(&m_doc->getAudioFileManager(), SIGNAL(setValue(int)),
-                            progressDlg, SLOT(setValue(int)));
-                    // Removed since ProgressDialog::cancelClicked() does not exist.
-                    //connect(progressDlg, SIGNAL(cancelClicked()),
-                    //        &m_doc->getAudioFileManager(), SLOT(slotStopPreview()));
-
-                    int fid = command->getNewAudioFileId();
-                    if (fid >= 0) {
-                        RosegardenMainWindow::self()->slotAddAudioFile(fid);
-                        m_doc->getAudioFileManager().generatePreview(fid);
-                    }
-
-                    if (progressDlg) progressDlg->close();
-                
                 } else {
                     
                     SegmentRescaleCommand *command =
@@ -265,39 +288,23 @@ void SegmentResizer::mouseReleaseEvent(QMouseEvent *e)
     
     //setChangeMade(false);
     setChangingSegment(ChangingSegmentPtr());
-    setBasicContextHelp();
+
+    setContextHelp2(e->modifiers());
 }
 
 int SegmentResizer::mouseMoveEvent(QMouseEvent *e)
 {
-    //     RG_DEBUG << "SegmentResizer::mouseMoveEvent" << endl;
+    //RG_DEBUG << "SegmentResizer::mouseMoveEvent";
 
     // No need to propagate.
     e->accept();
 
     QPoint pos = m_canvas->viewportToContents(e->pos());
 
-    bool rescale = (e->modifiers() & Qt::ControlModifier);
+    setContextHelp2(e->modifiers());
 
     if (!getChangingSegment()) {
-        setBasicContextHelp(rescale);
-        return RosegardenScrollView::NoFollow;
-    }
-
-    if (rescale) {
-        // If shift isn't being held down
-        if ((e->modifiers() & Qt::ShiftModifier) == 0) {
-            setContextHelp(tr("Hold Shift to avoid snapping to beat grid"));
-        } else {
-            clearContextHelp();
-        }
-    } else {
-        // If shift isn't being held down
-        if ((e->modifiers() & Qt::ShiftModifier) == 0) {
-            setContextHelp(tr("Hold Shift to avoid snapping to beat grid; hold Ctrl as well to rescale contents"));
-        } else {
-            setContextHelp(tr("Hold Ctrl to rescale contents"));
-        }
+        return NO_FOLLOW;
     }
 
     Segment* segment = getChangingSegment()->getSegment();
@@ -307,10 +314,10 @@ int SegmentResizer::mouseMoveEvent(QMouseEvent *e)
     /*!!!
         if (segment->getType() == Segment::Audio)
         {
-            setChangingSegment(NULL);
+            setChangingSegment(nullptr);
             QMessageBox::information(m_canvas,
                     tr("You can't yet resize an audio segment!"));
-            return RosegardenScrollView::NoFollow;
+            return NO_FOLLOW;
         }
     */
 
@@ -338,11 +345,10 @@ int SegmentResizer::mouseMoveEvent(QMouseEvent *e)
 
         timeT duration = itemEndTime - time;
 
-        //         RG_DEBUG << "SegmentResizer::mouseMoveEvent() resize start : duration = "
-        //                  << duration << " - snap = " << snapSize
-        //                  << " - itemEndTime : " << itemEndTime
-        //                  << " - time : " << time
-        //                  << endl;
+        //RG_DEBUG << "mouseMoveEvent() resize start : duration = " << duration
+        //         << " - snap = " << snapSize
+        //         << " - itemEndTime : " << itemEndTime
+        //         << " - time : " << time;
 
         timeT newStartTime = time;
 
@@ -364,11 +370,10 @@ int SegmentResizer::mouseMoveEvent(QMouseEvent *e)
 
         timeT newEndTime = time;
 
-        //         RG_DEBUG << "SegmentResizer::mouseMoveEvent() resize end : duration = "
-        //                  << duration << " - snap = " << snapSize
-        //                  << " - itemStartTime : " << itemStartTime
-        //                  << " - time : " << time
-        //                  << endl;
+        //RG_DEBUG << "mouseMoveEvent() resize end : duration = " << duration
+        //         << " - snap = " << snapSize
+        //         << " - itemStartTime : " << itemStartTime
+        //         << " - time : " << time;
 
         if (duration < snapSize) {
 
@@ -385,26 +390,49 @@ int SegmentResizer::mouseMoveEvent(QMouseEvent *e)
     // Redraw the canvas
     m_canvas->slotAllNeedRefresh(getChangingSegment()->rect() | oldRect);
 
-    return RosegardenScrollView::FollowHorizontal;
+    return FOLLOW_HORIZONTAL;
 }
 
-bool SegmentResizer::cursorIsCloseEnoughToEdge(ChangingSegmentPtr p, const QPoint &coord,
-        int edgeThreshold, bool &start)
+void SegmentResizer::keyPressEvent(QKeyEvent *e)
 {
-    if (abs(p->rect().x() + p->rect().width() - coord.x()) < edgeThreshold) {
-        start = false;
-        return true;
-    } else if (abs(p->rect().x() - coord.x()) < edgeThreshold) {
-        start = true;
-        return true;
-    } else {
-        return false;
+    // In case shift or ctrl were pressed, update the context help.
+    setContextHelp2(e->modifiers());
+}
+
+void SegmentResizer::keyReleaseEvent(QKeyEvent *e)
+{
+    // In case shift or ctrl were released, update the context help.
+    setContextHelp2(e->modifiers());
+}
+
+void SegmentResizer::setContextHelp2(Qt::KeyboardModifiers modifiers)
+{
+    const bool ctrl = ((modifiers & Qt::ControlModifier) != 0);
+
+    // If we're resizing something
+    if (getChangingSegment()) {
+        const bool shift = ((modifiers & Qt::ShiftModifier) != 0);
+
+        if (ctrl) {
+            // If shift isn't being held down
+            if (!shift) {
+                setContextHelp(tr("Hold Shift to avoid snapping to beat grid"));
+            } else {
+                clearContextHelp();
+            }
+        } else {
+            // If shift isn't being held down
+            if (!shift) {
+                setContextHelp(tr("Hold Shift to avoid snapping to beat grid; hold Ctrl as well to rescale contents"));
+            } else {
+                setContextHelp(tr("Hold Ctrl to rescale contents"));
+            }
+        }
+
+        return;
     }
-}
 
-void SegmentResizer::setBasicContextHelp(bool ctrlPressed)
-{
-    if (ctrlPressed) {
+    if (!ctrl) {
         setContextHelp(tr("Click and drag to resize a segment; hold Ctrl as well to rescale its contents"));
     } else {
         setContextHelp(tr("Click and drag to rescale segment"));
@@ -413,4 +441,3 @@ void SegmentResizer::setBasicContextHelp(bool ctrlPressed)
 
 
 }
-#include "SegmentResizer.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,6 +23,10 @@
 #include "base/Event.h"
 #include <QCoreApplication>
 
+#include <QPointer>
+
+class QProgressDialog;
+
 namespace Rosegarden
 {
 
@@ -30,7 +34,6 @@ class Segment;
 class AudioFileManager;
 class AudioFileTimeStretcher;
 class RosegardenDocument;
-class ProgressDialog;
 
 class AudioSegmentRescaleCommand : public NamedCommand
 {
@@ -43,16 +46,16 @@ public:
                                Segment *segment, float ratio,
                                timeT newStartTime,
                                timeT newEndMarkerTime);
-    virtual ~AudioSegmentRescaleCommand();
+    ~AudioSegmentRescaleCommand() override;
 
-    virtual void execute();
-    virtual void unexecute();
+    void execute() override;
+    void unexecute() override;
 
     AudioFileTimeStretcher *getStretcher() { return m_stretcher; }
     int getNewAudioFileId() const { return m_fid; }
 
-    void connectProgressDialog(ProgressDialog *dlg);
-    void disconnectProgressDialog(ProgressDialog *dlg);
+    /// Used by m_stretcher during execute().
+    void setProgressDialog(QPointer<QProgressDialog> progressDialog);
     
     static QString getGlobalName() { return tr("Stretch or S&quash..."); }
 

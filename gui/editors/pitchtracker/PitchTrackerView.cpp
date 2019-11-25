@@ -19,7 +19,9 @@
 #include "PitchGraphWidget.h"
 #include "PitchHistory.h"
 
+#ifdef HAVE_LIBJACK
 #include "sound/JackCaptureClient.h"
+#endif
 #include "sound/PitchDetector.h"
 
 // Need to find actions for <<< and >>> transport buttons
@@ -27,6 +29,7 @@
 // Might need the default pitch analysis frame size and overlap
 #include "gui/configuration/PitchTrackerConfigurationPage.h"
 #include "misc/ConfigGroups.h"
+#include "misc/Debug.h"
 // to add PitchGraphWidget to display
 #include "gui/editors/notation/NotationWidget.h"
 // to get the notes in the composition
@@ -47,6 +50,8 @@
 
 #include <QDebug>
 
+#define DEBUG_PRINT_ALL 0
+
 namespace Rosegarden
 {
 
@@ -59,9 +64,9 @@ PitchTrackerView::PitchTrackerView(RosegardenDocument *doc,
                                    QWidget *parent) :
         NotationView(doc, segments, parent),
         m_doc(doc),
-        m_jackCaptureClient(NULL),
+        m_jackCaptureClient(nullptr),
         m_jackConnected(false),
-        m_pitchDetector(NULL),
+        m_pitchDetector(nullptr),
         m_running(false)
 {
     QSettings settings;
@@ -83,11 +88,11 @@ PitchTrackerView::PitchTrackerView(RosegardenDocument *doc,
     // here and at least print a warning.
     if (m_framesize > 65536 || m_framesize < 64 ||
         m_stepsize > m_framesize || m_stepsize < m_framesize/16) {
-        std::cout << "PitchTrackerView: instantiation has these parameters: "
-                     "Framesize: " << m_framesize <<
-                     "Step size: " << m_stepsize <<
+        RG_WARNING << "PitchTrackerView: instantiation has these parameters: "
+                     "Framesize:" << m_framesize <<
+                     "Step size:" << m_stepsize <<
                      ". This seems rather unlikely; will continue anyway. "
-                     "(fingers crossed!)" << std::endl;
+                     "(fingers crossed!)";
     }
     
     // Find the current tuning index in use by the pitch tracker
@@ -111,8 +116,8 @@ PitchTrackerView::PitchTrackerView(RosegardenDocument *doc,
         }
         m_tuning = m_availableTunings[tuning];
     } else {
-        m_tuning = NULL;
-        std::cout << "WARNING: No available tunings!" << std::endl;
+        m_tuning = nullptr;
+        RG_WARNING << "WARNING: No available tunings!";
     }
     
     m_pitchGraphWidget = new PitchGraphWidget(m_history);
@@ -120,14 +125,17 @@ PitchTrackerView::PitchTrackerView(RosegardenDocument *doc,
     // m_notationWidget is owned by our parent, NotationView
     m_notationWidget->addWidgetToBottom(m_pitchGraphWidget);
 
+#ifdef HAVE_LIBJACK
     // jack capture client
     m_jackCaptureClient =
         new JackCaptureClient("Rosegarden PitchTracker",
                               m_framesize + m_stepsize);
-                              
+
     if (m_jackCaptureClient->isConnected()) {
         m_jackConnected = true;
-    } else {
+    } else
+#endif
+    {
         QMessageBox::critical(this, "",
                               tr("Cannot connect to jack! "
                               "Ensure jack server is running and no other "
@@ -135,6 +143,7 @@ PitchTrackerView::PitchTrackerView(RosegardenDocument *doc,
         return;
     }
     
+#ifdef HAVE_LIBJACK
     int sampleRate = m_jackCaptureClient->getSampleRate();
 
     // pitch detector
@@ -146,12 +155,17 @@ PitchTrackerView::PitchTrackerView(RosegardenDocument *doc,
     setSegments(doc, segments);
     
     setupActions(tuning, method);
+#else
+    Q_UNUSED(method);
+#endif
 }
 
 PitchTrackerView::~PitchTrackerView()
 {
-    if (m_pitchDetector) delete m_pitchDetector;
-    if (m_jackCaptureClient) delete m_jackCaptureClient;
+    delete m_pitchDetector;
+#ifdef HAVE_LIBJACK
+    delete m_jackCaptureClient;
+#endif
 }
 
 void PitchTrackerView::setupActions(int initialTuning, int initialMethod)
@@ -174,8 +188,8 @@ void PitchTrackerView::setupActions(int initialTuning, int initialMethod)
         m_tuningsActionGroup->actions().at(initialTuning)->setChecked(true);
     }
     
-    connect(m_tuningsActionGroup, SIGNAL(triggered(QAction *)),
-            this, SLOT(slotNewTuningFromAction(QAction *)));
+    connect(m_tuningsActionGroup, &QActionGroup::triggered,
+            this, &PitchTrackerView::slotNewTuningFromAction);
  
     
     QMenu *methodsMenu = new QMenu(tr("Pitch estimate method"), viewMenu);
@@ -191,8 +205,8 @@ void PitchTrackerView::setupActions(int initialTuning, int initialMethod)
         m_methodsActionGroup->actions().at(initialMethod)->setChecked(true);
     }
     
-    connect(m_methodsActionGroup, SIGNAL(triggered(QAction *)),
-            this, SLOT(slotNewPitchEstimationMethod(QAction *)));
+    connect(m_methodsActionGroup, &QActionGroup::triggered,
+            this, &PitchTrackerView::slotNewPitchEstimationMethod);
     
     viewMenu->addSeparator();
     viewMenu->addMenu(tuningsMenu);
@@ -231,29 +245,29 @@ PitchTrackerView::setSegments(RosegardenDocument *document,
 
     // update GUI 
 
-    connect(m_document, SIGNAL(pointerPositionChanged(timeT)),
-            this, SLOT(slotUpdateValues(timeT)));
+    connect(m_document, &RosegardenDocument::pointerPositionChanged,
+            this, &PitchTrackerView::slotUpdateValues);
 
-    connect(this, SIGNAL( play() ),
-            this, SLOT( slotStartTracker() ));
-    connect(this, SIGNAL( stop() ),
-            this, SLOT( slotStopTracker() ));
+    connect(this, &NotationView::play,
+            this, &PitchTrackerView::slotStartTracker);
+    connect(this, &NotationView::stop,
+            this, &PitchTrackerView::slotStopTracker);
 
     // Any other jumping around in the score will invalidate the pitch
     // graph, so let's just erase it and let it start again.
      
-    connect(this, SIGNAL( stepBackward() ),
-            this, SLOT( slotPlaybackJump() ));
-    connect(this, SIGNAL( stepForward() ),
-            this, SLOT( slotPlaybackJump() ));
-    connect(this, SIGNAL( rewindPlayback() ),
-            this, SLOT( slotPlaybackJump() ));
-    connect(this, SIGNAL( fastForwardPlayback() ),
-            this, SLOT( slotPlaybackJump() ));
-    connect(this, SIGNAL( rewindPlaybackToBeginning() ),
-            this, SLOT( slotPlaybackJump() ));
-    connect(this, SIGNAL( fastForwardPlaybackToEnd() ),
-            this, SLOT( slotPlaybackJump() ));
+    connect(this, &NotationView::stepBackward,
+            this, &PitchTrackerView::slotPlaybackJump);
+    connect(this, &NotationView::stepForward,
+            this, &PitchTrackerView::slotPlaybackJump);
+    connect(this, &NotationView::rewindPlayback,
+            this, &PitchTrackerView::slotPlaybackJump);
+    connect(this, &NotationView::fastForwardPlayback,
+            this, &PitchTrackerView::slotPlaybackJump);
+    connect(this, &NotationView::rewindPlaybackToBeginning,
+            this, &PitchTrackerView::slotPlaybackJump);
+    connect(this, &NotationView::fastForwardPlaybackToEnd,
+            this, &PitchTrackerView::slotPlaybackJump);
 
 }
 
@@ -266,7 +280,7 @@ void
 PitchTrackerView::slotPlaybackJump()
 {
     m_transport_posn_change = true;
-    std::cout << "PitchTrackerView: User changed playback posn\n";
+    RG_DEBUG << "PitchTrackerView: User changed playback posn\n";
 }
     
 void
@@ -279,7 +293,9 @@ PitchTrackerView::slotStartTracker()
         slotStopTracker();
     } else {
         m_history.clear();
+#ifdef HAVE_LIBJACK
         m_jackCaptureClient->startProcessing();
+#endif
         m_running = true;
 
         NotationStaff *currentStaff = 
@@ -298,7 +314,9 @@ void
 PitchTrackerView::slotStopTracker()
 {
     m_running = false;
+#ifdef HAVE_LIBJACK
     m_jackCaptureClient->stopProcessing();
+#endif
 }
 
 
@@ -347,9 +365,8 @@ PitchTrackerView::addPitchTime(double freq, timeT time, RealTime realTime)
     }
 #if DEBUG_PRINT_ALL
     for (int i = 0; i < m_history.m_detectErrorsCents.size(); i++) {
-        std::cout << m_history.m_detectErrorsCents[i]<<" ";
+        RG_DEBUG << m_history.m_detectErrorsCents[i];
     }
-    std::cout << std::endl;
 #endif
     m_pitchGraphWidget->update();
 }
@@ -370,7 +387,7 @@ PitchTrackerView::slotUpdateValues(timeT time)
         
     // Gracefully handle repositioning of the play cursor by the user
     if (m_transport_posn_change) {
-        std::cout << "User changed transport position\n";
+        RG_DEBUG << "User changed transport position\n";
         m_transport_posn_change = false;
         m_history.clear();
         // Always record a note boundary if the transport posn's changed.
@@ -396,8 +413,8 @@ PitchTrackerView::slotUpdateValues(timeT time)
     // See whether the current note has changed since we last looked
     if (score_event_itr != m_notes_itr) {
         // if so, record the current note and issue record the note boundary
-        std::cout << "***** PitchTrackerView: New " << e->getType()
-                  << " at " << time << std::endl;
+        RG_DEBUG << "***** PitchTrackerView: New " << e->getType()
+                  << " at " << time;
         m_notes_itr = score_event_itr;
         // We can only register a note if this event isn't a rest
         // and there's a valid tuning
@@ -413,17 +430,18 @@ PitchTrackerView::slotUpdateValues(timeT time)
         addPitchTime(PitchDetector::NONE, time, rt);
  
     } else if (e->isa(Note::EventType)) {
+#ifdef HAVE_LIBJACK
         if (m_jackCaptureClient->getFrame(m_pitchDetector->getInBuffer(),
                                           m_pitchDetector->getBufferSize())) {
             const double freq = m_pitchDetector->getPitch();
             addPitchTime(freq, time, rt);
         }
+#endif
 
     } else {
-        std::cout << "PitchTrackerView: ummm, what's a \""
-                  << e->getType() << "\"EventType?\n";
+        RG_WARNING << "PitchTrackerView: ummm, what's a \""
+                  << e->getType() << "\"EventType?";
     }
 }
 } // Rosegarden namespace
-#include "PitchTrackerView.moc"
 

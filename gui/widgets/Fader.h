@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,7 +19,6 @@
 #define RG_FADER_H
 
 #include "base/AudioLevel.h"
-#include <map>
 #include <QColor>
 #include <QWidget>
 #include <utility>
@@ -62,7 +61,7 @@ public:
     Fader(int min, int max, int deflt,
                     bool vertical, QWidget *parent);
 
-    virtual ~Fader();
+    ~Fader() override;
 
     void setOutlineColour(QColor);
 
@@ -75,12 +74,12 @@ signals:
     void faderChanged(float);
 
 protected:
-    virtual void paintEvent(QPaintEvent *);
-    virtual void mousePressEvent(QMouseEvent *);
-    virtual void mouseReleaseEvent(QMouseEvent *);
-    virtual void mouseMoveEvent(QMouseEvent *);
-    virtual void wheelEvent(QWheelEvent *);
-    virtual void enterEvent(QEvent *e);
+    void paintEvent(QPaintEvent *) override;
+    void mousePressEvent(QMouseEvent *) override;
+    void mouseReleaseEvent(QMouseEvent *) override;
+    void mouseMoveEvent(QMouseEvent *) override;
+    void wheelEvent(QWheelEvent *) override;
+    void enterEvent(QEvent *e) override;
 
     float position_to_value(int);
     int value_to_position(float);
@@ -104,16 +103,10 @@ protected:
     int m_clickMousePos;
     int m_clickButtonPos;
 
-    QPixmap *groovePixmap();
-    QPixmap *buttonPixmap();
+    QSharedPointer<QPixmap> groovePixmap();
+    QSharedPointer<QPixmap> buttonPixmap();
 
     QColor m_outlineColour;
-
-    typedef std::pair<int, int> SizeRec;
-    typedef std::map<unsigned int, QPixmap *> ColourPixmapRec; // key is QColor::pixel()
-    typedef std::pair<ColourPixmapRec, QPixmap *> PixmapRec;
-    typedef std::map<SizeRec, PixmapRec> PixmapCache;
-    static PixmapCache m_pixmapCache;
 };
 
 

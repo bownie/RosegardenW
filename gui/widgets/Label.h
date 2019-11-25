@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,7 +35,11 @@ class Label : public QLabel
 {
     Q_OBJECT
 public:
-    Label(QWidget *parent = 0, const char *name=0):
+    explicit Label(const QString &text, QWidget *parent=nullptr, Qt::WindowFlags f=nullptr) :
+        QLabel(text, parent, f)  { }
+
+    // ??? Non-standard.  Used by Ui_RosegardenTransport.
+    Label(QWidget *parent = nullptr, const char *name=nullptr):
         QLabel(name, parent) {;}
 
 signals:
@@ -44,14 +48,18 @@ signals:
     void scrollWheel(int);
 
 protected:
-    virtual void mouseReleaseEvent(QMouseEvent * /*e*/)
+    void mouseReleaseEvent(QMouseEvent * /*e*/) override
         { emit clicked(); }
 
-    virtual void mouseDoubleClickEvent(QMouseEvent * /*e*/)
+    void mouseDoubleClickEvent(QMouseEvent * /*e*/) override
         { emit doubleClicked(); }
 
-    virtual void wheelEvent(QWheelEvent *e)
-        { emit scrollWheel(e->delta()); }
+    void wheelEvent(QWheelEvent *e) override {
+        // We'll handle this.  Don't pass to parent.
+        e->accept();
+
+        emit scrollWheel(e->angleDelta().y());
+    }
 
 };
 

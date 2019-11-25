@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -51,10 +51,10 @@ PitchDialog::PitchDialog(QWidget *parent, QString title, int defaultPitch) :
         = buttonBox->addButton(tr("Reset"), QDialogButtonBox::ActionRole);
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
-    connect(user1, SIGNAL(clicked(bool)),
-            m_pitchChooser, SLOT(slotResetToDefault()));
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(user1, &QAbstractButton::clicked,
+            m_pitchChooser, &PitchChooser::slotResetToDefault);
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 int
@@ -64,4 +64,3 @@ PitchDialog::getPitch() const
 }
 
 }
-#include "PitchDialog.moc"

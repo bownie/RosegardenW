@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2014 the Rosegarden development team.
+  Copyright 2000-2018 the Rosegarden development team.
  
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -12,22 +12,25 @@
   COPYING included with this distribution for more information.
 */
 
-#include <cmath>
-#include <cstdlib>
+#define RG_MODULE_STRING "[PeakFile]"
+
+#include <algorithm>  // std::max()
+#include <cmath>  // std::fabs()
+#include <unistd.h>  // usleep()
+#include <iostream>
+#include <string>
+#include <utility>  // std::pair
+#include <vector>
 
 #include <QDateTime>
+#include <QProgressDialog>
 #include <QStringList>
-#include <QPalette>
-#include <QApplication>
 
 #include "PeakFile.h"
 #include "AudioFile.h"
 #include "base/Profiler.h"
-#include <misc/Strings.h>
-
-using std::cout;
-using std::cerr;
-using std::endl;
+#include "misc/Debug.h"
+#include "misc/Strings.h"
 
 //#define DEBUG_PEAKFILE 1
 //#define DEBUG_PEAKFILE_BRIEF 1
@@ -37,10 +40,21 @@ using std::endl;
 #define DEBUG_PEAKFILE_BRIEF 1
 #endif
 
+// Slow down the process so the progress dialog can be seen even with
+// very small files.
+// !!! DO NOT SHIP WITH THIS SET TO 1 !!!
+#define TEST_PROGRESS_DIALOG 0
+// !!! DO NOT SHIP WITH THIS SET TO 1 !!!
+
+static const float SAMPLE_MAX_8BIT  = (float)(0xff);
+static const float SAMPLE_MAX_16BIT = (float)(0xffff/2);
+static const float SAMPLE_MAX_24BIT = (float)(0xffffff/2);
+static const char AUDIO_BWF_PEAK_ID[] = "levl";  // BWF peak chunk id
+
 namespace Rosegarden
 {
 
-PeakFile::PeakFile(AudioFile *audioFile):
+PeakFile::PeakFile(AudioFile *audioFile) :
         SoundFile(audioFile->getPeakFilename()),
         m_audioFile(audioFile),
         m_version( -1),                          // -1 defines new file - start at 0
@@ -51,16 +65,19 @@ PeakFile::PeakFile(AudioFile *audioFile):
         m_numberOfPeaks(0),
         m_positionPeakOfPeaks(0),
         m_offsetToPeaks(0),
+        m_bodyBytes(0),
         m_modificationTime(QDate(1970, 1, 1), QTime(0, 0, 0)),
         m_chunkStartPosition(0),
         m_lastPreviewStartTime(0, 0),
         m_lastPreviewEndTime(0, 0),
         m_lastPreviewWidth( -1),
         m_lastPreviewShowMinima(false)
-{}
+{
+}
 
 PeakFile::~PeakFile()
-{}
+{
+}
 
 bool
 PeakFile::open()
@@ -86,11 +103,10 @@ PeakFile::open()
 
     try {
         parseHeader();
-    } catch (BadSoundFileException s) {
+    } catch (const BadSoundFileException &s) {
 
 #ifdef DEBUG_PEAKFILE
-        cerr << "PeakFile::open - EXCEPTION \"" << s.getMessage() << "\""
-        << endl;
+        RG_WARNING << "open() - EXCEPTION \"" << s.getMessage() << "\"";
 #endif
 
         return false;
@@ -148,47 +164,38 @@ PeakFile::parseHeader()
                                      dateTime[6].toInt()));
 
     //printStats();
-
 }
 
 void
 PeakFile::printStats()
 {
-    cout << endl;
-    cout << "STATS for PeakFile \"" << m_fileName << "\"" << endl
-    << "-----" << endl << endl;
+    RG_DEBUG << "printStats()";
 
-    cout << "  VERSION = " << m_version << endl
-    << "  FORMAT  = " << m_format << endl
-    << "  BYTES/VALUE = " << m_pointsPerValue << endl
-    << "  BLOCKSIZE   = " << m_blockSize << endl
-    << "  CHANNELS    = " << m_channels << endl
-    << "  PEAK FRAMES = " << m_numberOfPeaks << endl
-    << "  PEAK OF PKS = " << m_positionPeakOfPeaks << endl
-    << endl;
+    RG_DEBUG << "  STATS for PeakFile" << m_fileName;
+    RG_DEBUG << "  ----------------------------";
+    RG_DEBUG << "    VERSION =" << m_version;
+    RG_DEBUG << "    FORMAT  =" << m_format;
+    RG_DEBUG << "    BYTES/VALUE =" << m_pointsPerValue;
+    RG_DEBUG << "    BLOCKSIZE   =" << m_blockSize;
+    RG_DEBUG << "    CHANNELS    =" << m_channels;
+    RG_DEBUG << "    PEAK FRAMES =" << m_numberOfPeaks;
+    RG_DEBUG << "    PEAK OF PKS =" << m_positionPeakOfPeaks;
+    RG_DEBUG << "";
 
-    cout << "DATE" << endl
-    << "----" << endl << endl
-    << "  YEAR    = " << m_modificationTime.date().year() << endl
-    << "  MONTH   = " << m_modificationTime.date().month() << endl
-    << "  DAY     = " << m_modificationTime.date().day() << endl
-    << "  HOUR    = " << m_modificationTime.time().hour() << endl
-    << "  MINUTE  = " << m_modificationTime.time().minute()
-    << endl
-    << "  SECOND  = " << m_modificationTime.time().second()
-    << endl
-    << "  MSEC    = " << m_modificationTime.time().msec()
-    << endl << endl;
+    RG_DEBUG << "  DATE";
+    RG_DEBUG << "  ----------------";
+    RG_DEBUG << "    YEAR   =" << m_modificationTime.date().year();
+    RG_DEBUG << "    MONTH  =" << m_modificationTime.date().month();
+    RG_DEBUG << "    DAY    =" << m_modificationTime.date().day();
+    RG_DEBUG << "    HOUR   =" << m_modificationTime.time().hour();
+    RG_DEBUG << "    MINUTE =" << m_modificationTime.time().minute();
+    RG_DEBUG << "    SECOND =" << m_modificationTime.time().second();
+    RG_DEBUG << "    MSEC   =" << m_modificationTime.time().msec();
+    RG_DEBUG << "";
 }
 
 bool
 PeakFile::write()
-{
-    return write(5); // default update every 5%
-}
-
-bool
-PeakFile::write(unsigned short updatePercentage)
 {
     if (m_outFile) {
         m_outFile->close();
@@ -201,9 +208,9 @@ PeakFile::write(unsigned short updatePercentage)
     try {
         if (!m_audioFile->open())
             return false;
-    } catch (BadSoundFileException e) {
+    } catch (const BadSoundFileException &e) {
 #ifdef DEBUG_PEAKFILE
-        std::cerr << "PeakFile::write - \"" << e.getMessage() << "\"" << std::endl;
+        RG_WARNING << "write() - \"" << e.getMessage() << "\"";
 #endif
 
         return false;
@@ -219,13 +226,11 @@ PeakFile::write(unsigned short updatePercentage)
     writeHeader(m_outFile);
 
     // and now the peak values
-    writePeaks(updatePercentage, m_outFile);
+    writePeaks(m_outFile);
 
     return true;
 }
 
-// Close the peak file and tidy up
-//
 void
 PeakFile::close()
 {
@@ -234,10 +239,10 @@ PeakFile::close()
     if (m_inFile && m_inFile->is_open()) {
         m_inFile->close();
         delete m_inFile;
-        m_inFile = 0;
+        m_inFile = nullptr;
     }
 
-    if (m_outFile == 0)
+    if (m_outFile == nullptr)
         return ;
 
     // Seek to start of chunk
@@ -295,13 +300,9 @@ PeakFile::close()
     //
     m_outFile->close();
     delete m_outFile;
-    m_outFile = 0;
+    m_outFile = nullptr;
 }
 
-// If the audio file is more recently modified that the modification time
-// on this peak file then we're invalid.  The action to rectify this is
-// usually to regenerate the peak data.
-//
 bool
 PeakFile::isValid()
 {
@@ -311,6 +312,7 @@ PeakFile::isValid()
     return true;
 }
 
+#if 0
 bool
 PeakFile::writeToHandle(std::ofstream *file,
                         unsigned short /*updatePercentage*/)
@@ -322,9 +324,8 @@ PeakFile::writeToHandle(std::ofstream *file,
 
     return false;
 }
+#endif
 
-// Build up a header string and then pump it out to the file handle
-//
 void
 PeakFile::writeHeader(std::ofstream *file)
 {
@@ -391,7 +392,7 @@ PeakFile::writeHeader(std::ofstream *file)
     // reserved space - 60 bytes
     header += getLittleEndianFromInteger(0, 60);
 
-    //cout << "HEADER LENGTH = " << header.length() << endl;
+    //RG_DEBUG << "writeHeader(): HEADER LENGTH =" << header.length();
 
     // write out the header
     //
@@ -417,7 +418,7 @@ PeakFile::scanToPeak(int peak)
     if (off == 0) {
         return true;
     } else if (off < 0) {
-        //    std::cerr << "PeakFile::scanToPeak: warning: seeking backwards for peak " << peak << " (" << m_inFile->tellg() << " -> " << pos << ")" << std::endl;
+        //RG_WARNING << "scanToPeak(): warning: seeking backwards for peak " << peak << " (" << m_inFile->tellg() << " -> " << pos << ")";
         m_inFile->seekg(pos);
     } else {
         m_inFile->seekg(off, std::ios::cur);
@@ -436,6 +437,7 @@ PeakFile::scanToPeak(int peak)
     return true;
 }
 
+#if 0
 bool
 PeakFile::scanForward(int numberOfPeaks)
 {
@@ -460,19 +462,16 @@ PeakFile::scanForward(int numberOfPeaks)
 
     return true;
 }
-
+#endif
 
 void
-PeakFile::writePeaks(unsigned short /*updatePercentage*/,
-                     std::ofstream *file)
+PeakFile::writePeaks(std::ofstream *file)
 {
     if (!file || !(*file))
         return ;
-    m_keepProcessing = true;
 
 #ifdef DEBUG_PEAKFILE
-
-    cout << "PeakFile::writePeaks - calculating peaks" << endl;
+    RG_DEBUG << "writePeaks() - calculating peaks";
 #endif
 
     // Scan to beginning of audio data
@@ -507,15 +506,17 @@ PeakFile::writePeaks(unsigned short /*updatePercentage*/,
     m_bodyBytes = 0;
     m_positionPeakOfPeaks = 0;
 
+    // ??? Block count?  How does this differ from m_numberOfPeaks?
     int ct = 0;
 
-    while (m_keepProcessing) {
+    // ??? for each block...?
+    while (true) {
         try {
+            // Read a block
             samples = m_audioFile->
                       getBytes(m_blockSize * channels * bytes);
-        } catch (BadSoundFileException e) {
-            std::cerr << "PeakFile::writePeaks: " << e.getMessage()
-            << std::endl;
+        } catch (const BadSoundFileException &e) {
+            RG_WARNING << "writePeaks():" << e.getMessage();
             break;
         }
 
@@ -529,11 +530,29 @@ PeakFile::writePeaks(unsigned short /*updatePercentage*/,
 
         byteCount += samples.length();
 
-        if (ct % 100 == 0) {
-            emit setValue((int)(double(byteCount) /
-                                double(apprxTotalBytes) * 100.0));
-//        std::cout << "peak file is emitting to file manager is emitting to progress dialog..." << std::endl;
-        
+#if !TEST_PROGRESS_DIALOG
+        // ??? Every 2000 blocks?  That's around 2Mbytes?
+        if (ct % 2000 == 0) {
+#else
+// Testing the progress dialogs.
+        // Slow things down so we can test the progress dialog.
+        usleep(10000);
+
+        // ??? Every 10 blocks?  That's around 10kbytes!
+        if (ct % 10 == 0) {
+#endif
+            int progress = static_cast<int>(double(byteCount) /
+                    double(apprxTotalBytes) * 100.0);
+
+            //RG_DEBUG << "writePeaks(): progress" << progress;
+
+            if (m_progressDialog) {
+                if (m_progressDialog->wasCanceled())
+                    break;
+
+                m_progressDialog->setValue(progress);
+            }
+
             qApp->processEvents(QEventLoop::AllEvents);
         }
         ++ct;
@@ -593,8 +612,8 @@ PeakFile::writePeaks(unsigned short /*updatePercentage*/,
 
                 // Store peak of peaks if it fits
                 //
-                if (abs(sampleValue) > sampleMax) {
-                    sampleMax = abs(sampleValue);
+                if (std::abs(sampleValue) > sampleMax) {
+                    sampleMax = std::abs(sampleValue);
                     m_positionPeakOfPeaks = sampleFrameCount;
                 }
             }
@@ -618,17 +637,11 @@ PeakFile::writePeaks(unsigned short /*updatePercentage*/,
     }
 
 #ifdef DEBUG_PEAKFILE
-    cout << "PeakFile::writePeaks - "
-    << "completed peaks" << endl;
+    RG_DEBUG << "writePeaks() - completed peaks";
 #endif
 
 }
 
-// Get a normalised vector for the preview at a given horizontal resolution.
-// We return a value for each channel and if returnLow is set we also return
-// an interleaved low value for each channel.
-//
-//
 std::vector<float>
 PeakFile::getPreview(const RealTime &startTime,
                      const RealTime &endTime,
@@ -636,15 +649,14 @@ PeakFile::getPreview(const RealTime &startTime,
                      bool showMinima)
 {
 #ifdef DEBUG_PEAKFILE_BRIEF
-    std::cout << "PeakFile::getPreview - "
-    << "startTime = " << startTime
-    << ", endTime = " << endTime
-    << ", width = " << width
-    << ", showMinima = " << showMinima << std::endl;
+    RG_DEBUG << "getPreview() - startTime = " << startTime
+             << ", endTime = " << endTime
+             << ", width = " << width
+             << ", showMinima = " << showMinima;
 #endif
 
     if (getSize() == 0) {
-        std::cout << "PeakFile::getPreview - PeakFile size == 0" << std::endl;
+        RG_DEBUG << "getPreview() - PeakFile size == 0";
         return std::vector<float>();
     }
 
@@ -652,7 +664,7 @@ PeakFile::getPreview(const RealTime &startTime,
     //
     if (!m_peakCache.length()) {
 #ifdef DEBUG_PEAKFILE_CACHE
-        std::cerr << "PeakFile::getPreview - no peak cache" << std::endl;
+        RG_DEBUG << "getPreview() - no peak cache";
 #endif
 
         if (getSize() < (256 *1024)) // if less than 256K PeakFile
@@ -662,21 +674,18 @@ PeakFile::getPreview(const RealTime &startTime,
             try
             {
                 m_peakCache = getBytes(m_inFile, getSize() - 128);
-            } catch (BadSoundFileException e)
+            } catch (const BadSoundFileException &e)
             {
-                std::cerr << "PeakFile::getPreview: " << e.getMessage()
-                << std::endl;
+                RG_WARNING << "PeakFile::getPreview: " << e.getMessage();
             }
 
 #ifdef DEBUG_PEAKFILE_CACHE
-            std::cout << "PeakFile::getPreview - generated peak cache - "
-            << "size = " << m_peakCache.length() << std::endl;
+            RG_DEBUG << "getPreview() - generated peak cache - size = " << m_peakCache.length();
 #endif
 
         } else {
 #ifdef DEBUG_PEAKFILE_CACHE
-            std::cout << "PeakFile::getPreview - file size = " << getSize()
-            << ", not generating cache" << std::endl;
+            RG_DEBUG << "getPreview() - file size = " << getSize() << ", not generating cache";
 #endif
 
         }
@@ -688,14 +697,13 @@ PeakFile::getPreview(const RealTime &startTime,
     if (startTime == m_lastPreviewStartTime && endTime == m_lastPreviewEndTime
             && width == m_lastPreviewWidth && showMinima == m_lastPreviewShowMinima) {
 #ifdef DEBUG_PEAKFILE_CACHE
-        std::cout << "PeakFile::getPreview - hit last preview cache" << std::endl;
+        RG_DEBUG << "getPreview() - hit last preview cache";
 #endif
 
         return m_lastPreviewCache;
     } else {
 #ifdef DEBUG_PEAKFILE_CACHE
-        std::cout << "PeakFile::getPreview - last preview " << m_lastPreviewStartTime
-        << " -> " << m_lastPreviewEndTime << ", w " << m_lastPreviewWidth << "; this " << startTime << " -> " << endTime << ", w " << width << std::endl;
+        RG_DEBUG << "getPreview() - last preview " << m_lastPreviewStartTime << " -> " << m_lastPreviewEndTime << ", w " << m_lastPreviewWidth << "; this " << startTime << " -> " << endTime << ", w " << width;
 #endif
 
     }
@@ -718,9 +726,7 @@ PeakFile::getPreview(const RealTime &startTime,
     int peakNumber;
 
 #ifdef DEBUG_PEAKFILE_BRIEF
-
-    std::cout << "PeakFile::getPreview - getting preview for \""
-    << m_audioFile->getFilename() << "\"" << endl;
+    RG_DEBUG << "getPreview() - getting preview for \"" << m_audioFile->getFilename() << "\"";
 #endif
 
     // Get a divisor
@@ -737,10 +743,7 @@ PeakFile::getPreview(const RealTime &startTime,
 
     default:
 #ifdef DEBUG_PEAKFILE_BRIEF
-
-        std::cout << "PeakFile::getPreview - "
-        << "unsupported peak length format (" << m_format << ")"
-        << endl;
+        RG_DEBUG << "getPreview() - unsupported peak length format (" << m_format << ")";
 #endif
 
         return m_lastPreviewCache;
@@ -760,15 +763,15 @@ PeakFile::getPreview(const RealTime &startTime,
 
             if (scanToPeak(peakNumber) == false) {
 #ifdef DEBUG_PEAKFILE
-                std::cout << "PeakFile::getPreview: scanToPeak(" << peakNumber << ") failed" << std::endl;
+                RG_DEBUG << "getPreview(): scanToPeak(" << peakNumber << ") failed";
 #endif
 
                 m_lastPreviewCache.push_back(0.0f);
             }
         }
 #ifdef DEBUG_PEAKFILE
-        std::cout << "PeakFile::getPreview: step is " << step << ", format * pointsPerValue * chans is " << (m_format * m_pointsPerValue * m_channels) << std::endl;
-        std::cout << "i = " << i << ", peakNumber = " << peakNumber << ", nextPeakNumber = " << nextPeakNumber << std::endl;
+        RG_DEBUG << "getPreview(): step is " << step << ", format * pointsPerValue * chans is " << (m_format * m_pointsPerValue * m_channels);
+        RG_DEBUG << "              i = " << i << ", peakNumber = " << peakNumber << ", nextPeakNumber = " << nextPeakNumber;
 #endif
 
         for (int ch = 0; ch < m_channels; ch++) {
@@ -786,20 +789,18 @@ PeakFile::getPreview(const RealTime &startTime,
 
                     try {
                         peakData = getBytes(m_inFile, m_format * m_pointsPerValue);
-                    } catch (BadSoundFileException e) {
+                    } catch (const BadSoundFileException &e) {
                         // Problem with the get - probably an EOF
                         // return the results so far.
                         //
 #ifdef DEBUG_PEAKFILE
-                        std::cout << "PeakFile::getPreview - \"" << e.getMessage() << "\"\n"
-                        << endl;
+                        RG_DEBUG << "getPreview() - \"" << e.getMessage() << "\"";
 #endif
 
                         goto done;
                     }
 #ifdef DEBUG_PEAKFILE
-                    std::cout << "PeakFile::getPreview - "
-                    << "read from file" << std::endl;
+                    RG_DEBUG << "getPreview() - read from file";
 #endif
 
                 } else {
@@ -815,8 +816,7 @@ PeakFile::getPreview(const RealTime &startTime,
                         peakData = m_peakCache.substr(charNum, charLength);
 #ifdef DEBUG_PEAKFILE
 
-                        std::cout << "PeakFile::getPreview - "
-                        << "hit peakCache" << std::endl;
+                        RG_DEBUG << "getPreview() - hit peakCache";
 #endif
 
                     }
@@ -829,9 +829,7 @@ PeakFile::getPreview(const RealTime &startTime,
                     // we've got so far
                     //
 #ifdef DEBUG_PEAKFILE
-                    std::cout << "PeakFile::getPreview - "
-                    << "failed to get complete peak block"
-                    << endl;
+                    RG_DEBUG << "getPreview() - failed to get complete peak block";
 #endif
 
                     goto done;
@@ -846,7 +844,7 @@ PeakFile::getPreview(const RealTime &startTime,
                 }
 
 #ifdef DEBUG_PEAKFILE
-                std::cout << "found potential hivalue " << inValue << std::endl;
+                RG_DEBUG << "getPreview() - found potential hivalue " << inValue;
 #endif
 
                 if (k == 0 || inValue > hiValues[ch]) {
@@ -877,16 +875,15 @@ PeakFile::getPreview(const RealTime &startTime,
             float value = hiValues[ch] / divisor;
 
 #ifdef DEBUG_PEAKFILE_BRIEF
-
-            std::cout << "VALUE = " << hiValues[ch] / divisor << std::endl;
+            RG_DEBUG << "getPreview() - VALUE = " << hiValues[ch] / divisor;
 #endif
 
             if (showMinima) {
                 m_lastPreviewCache.push_back(loValues[ch] / divisor);
             } else {
-                value = fabs(value);
+                value = std::fabs(value);
                 if (m_pointsPerValue == 2) {
-                    value = std::max(value, fabsf(loValues[ch] / divisor));
+                    value = std::max(value, std::fabs(loValues[ch] / divisor));
                 }
                 m_lastPreviewCache.push_back(value);
             }
@@ -906,8 +903,7 @@ done:
     m_lastPreviewShowMinima = showMinima;
 
 #ifdef DEBUG_PEAKFILE_BRIEF
-
-    std::cout << "Returning " << m_lastPreviewCache.size() << " items" << std::endl;
+    RG_DEBUG << "getPreview() - Returning " << m_lastPreviewCache.size() << " items";
 #endif
 
     return m_lastPreviewCache;
@@ -929,9 +925,6 @@ PeakFile::getTime(int peak)
     return RealTime(usecs / 1000000, (usecs % 1000000) * 1000);
 }
 
-// Get pairs of split points for areas that exceed a percentage
-// threshold
-//
 std::vector<SplitPointPair>
 PeakFile::getSplitPoints(const RealTime &startTime,
                          const RealTime &endTime,
@@ -975,9 +968,8 @@ PeakFile::getSplitPoints(const RealTime &startTime,
         for (int ch = 0; ch < m_channels; ch++) {
             try {
                 peakData = getBytes(m_inFile, m_format * m_pointsPerValue);
-            } catch (BadSoundFileException e) {
-                std::cerr << "PeakFile::getSplitPoints: "
-                << e.getMessage() << std::endl;
+            } catch (const BadSoundFileException &e) {
+                RG_WARNING << "getSplitPoints(): " << e.getMessage();
                 break;
             }
 
@@ -986,7 +978,7 @@ PeakFile::getSplitPoints(const RealTime &startTime,
                 int peakValue =
                     getIntegerFromLittleEndian(peakData.substr(0, m_format));
 
-                value += fabs(float(peakValue) / divisor);
+                value += std::fabs(float(peakValue) / divisor);
             }
         }
 
@@ -1023,4 +1015,3 @@ PeakFile::getSplitPoints(const RealTime &startTime,
 }
 
 
-#include "moc_PeakFile.cpp"

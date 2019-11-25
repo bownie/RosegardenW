@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -56,12 +56,12 @@ LilyPondOptionsDialog::LilyPondOptionsDialog(QWidget *parent,
         QString windowCaption,
         QString /* heading */,
         bool createdFromNotationEditor):
-        QDialog(parent),
+    QDialog(parent),
     m_doc(doc),
     m_createdFromNotationEditor(createdFromNotationEditor)
 {
     setModal(true);
-    setWindowTitle((windowCaption = "" ? tr("LilyPond Export/Preview") : windowCaption));
+    setWindowTitle((windowCaption == "" ? tr("LilyPond Export/Preview") : windowCaption));
 
     QGridLayout *metaGridLayout = new QGridLayout;
 
@@ -77,16 +77,14 @@ LilyPondOptionsDialog::LilyPondOptionsDialog(QWidget *parent,
     mainboxLayout->addWidget(tabWidget);
 
     QFrame *layoutFrame = new QFrame();
+    layoutFrame->setContentsMargins(0, 0, 0, 0);
     tabWidget->addTab(layoutFrame, tr("Layout"));
 
-    layoutFrame->setContentsMargins(5, 5, 5, 5);
     QGridLayout *layoutGrid = new QGridLayout;
-    layoutGrid->setSpacing(5);
+    layoutGrid->setSpacing(4);
 
     m_headersPage = new HeadersConfigurationPage(this, m_doc);
     tabWidget->addTab(m_headersPage, tr("Headers"));
-//     m_headersPage->setSpacing(5);
-//     m_headersPage->setMargin(5);
     
     
     //
@@ -99,9 +97,9 @@ LilyPondOptionsDialog::LilyPondOptionsDialog(QWidget *parent,
     layoutGrid->addWidget(basicOptionsBox, 0, 0);
 
     QFrame *frameBasic = new QFrame(basicOptionsBox);
-    frameBasic->setContentsMargins(10, 10, 10, 10);
+    frameBasic->setContentsMargins(0, 0, 0, 0);
     QGridLayout *layoutBasic = new QGridLayout;
-    layoutBasic->setSpacing(5);
+    layoutBasic->setSpacing(4);
     basicOptionsBoxLayout->addWidget(frameBasic);
 
     layoutBasic->addWidget(new QLabel(
@@ -191,9 +189,9 @@ LilyPondOptionsDialog::LilyPondOptionsDialog(QWidget *parent,
     layoutGrid->addWidget(specificOptionsBox, 2, 0);
 
     QFrame *frameNotation = new QFrame(specificOptionsBox);
-    frameNotation->setContentsMargins(10, 10, 10, 10);
+    frameNotation->setContentsMargins(0, 0, 0, 0);
     QGridLayout *layoutNotation = new QGridLayout;
-    layoutNotation->setSpacing(5);
+    layoutNotation->setSpacing(4);
     specificOptionsBoxLayout->addWidget(frameNotation);
 
     m_lilyTempoMarks = new QComboBox(frameNotation);
@@ -298,7 +296,7 @@ LilyPondOptionsDialog::LilyPondOptionsDialog(QWidget *parent,
 
     m_cancelAccidentals = new QCheckBox(tr("Cancel accidentals"));
     layoutNotation->addWidget(m_cancelAccidentals, 11, 0);
-    m_cancelAccidentals->setToolTip(tr("<qt>When checked, natural signs are automatically printed to cancel any accidentals from previous key signatures. This cancelation behavior is separate from, and not related to how Rosegarden displays accidental cancelation in the notation editor.</qt>"));
+    m_cancelAccidentals->setToolTip(tr("<qt>When checked, natural signs are automatically printed to cancel any accidentals from previous key signatures. This cancellation behavior is separate from, and not related to how Rosegarden displays accidental cancellation in the notation editor.</qt>"));
 
     m_lilyExportEmptyStaves = new QCheckBox(tr("Export empty staves"));
     layoutNotation->addWidget(m_lilyExportEmptyStaves, 12, 0);
@@ -328,8 +326,8 @@ LilyPondOptionsDialog::LilyPondOptionsDialog(QWidget *parent,
 
     connect(m_lilyLanguage, SIGNAL(activated(int)), m_useShortNames, SLOT(slotCheckVersion(int)));
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(help()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &LilyPondOptionsDialog::help);
 
     populateDefaultValues();
     
@@ -492,4 +490,3 @@ LilyPondOptionsDialog::setDefaultLilyPondVersion(QString version)
 }
 
 }
-#include "LilyPondOptionsDialog.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,11 +38,10 @@ BaseToolBox::getTool(QString toolName)
 
     if (!tool) tool = createTool(toolName);
 
-    connect(tool, SIGNAL(showContextHelp(QString)),
-            this, SIGNAL(showContextHelp(QString)));
+    connect(tool, &BaseTool::showContextHelp,
+            this, &BaseToolBox::showContextHelp);
     
     return tool;
 }
 
 }
-#include "BaseToolBox.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -32,28 +32,28 @@ class LADSPAPluginInstance;
 class LADSPAPluginFactory : public PluginFactory
 {
 public:
-    virtual ~LADSPAPluginFactory();
+    ~LADSPAPluginFactory() override;
 
-    virtual void discoverPlugins();
+    void discoverPlugins() override;
 
-    virtual const std::vector<QString> &getPluginIdentifiers() const;
+    const std::vector<QString> &getPluginIdentifiers() const override;
 
-    virtual void enumeratePlugins(MappedObjectPropertyList &list);
+    void enumeratePlugins(MappedObjectPropertyList &list) override;
 
-    virtual void populatePluginSlot(QString identifier, MappedPluginSlot &slot);
+    void populatePluginSlot(QString identifier, MappedPluginSlot &slot) override;
 
-    virtual RunnablePluginInstance *instantiatePlugin(QString identifier,
+    RunnablePluginInstance *instantiatePlugin(QString identifier,
                                                       int instrumentId,
                                                       int position,
                                                       unsigned int sampleRate,
                                                       unsigned int blockSize,
-                                                      unsigned int channels);
-
-    //MappedObjectValue getPortMinimum(const LADSPA_Descriptor *, int port);
-    //MappedObjectValue getPortMaximum(const LADSPA_Descriptor *, int port);
-    //MappedObjectValue getPortDefault(const LADSPA_Descriptor *, int port);
-    //int getPortDisplayHint(const LADSPA_Descriptor *, int port);
-
+                                                      unsigned int channels) override;
+/*
+    MappedObjectValue getPortMinimum(const LADSPA_Descriptor *, int port);
+    MappedObjectValue getPortMaximum(const LADSPA_Descriptor *, int port);
+    MappedObjectValue getPortDefault(const LADSPA_Descriptor *, int port);
+    int getPortDisplayHint(const LADSPA_Descriptor *, int port);
+*/
 protected:
     LADSPAPluginFactory();
     friend class PluginFactory;
@@ -62,13 +62,13 @@ protected:
 
     virtual std::vector<QString> getLRDFPath(QString &baseUri);
 
-    virtual void discoverPlugins(QString soName);
+    virtual void discoverPlugin(const QString &soName);
     virtual void generateTaxonomy(QString uri, QString base);
     virtual void generateFallbackCategories();
 
-    virtual void releasePlugin(RunnablePluginInstance *, QString);
+    void releasePlugin(RunnablePluginInstance *, QString) override;
 
-    //virtual const LADSPA_Descriptor *getLADSPADescriptor(QString identifier);
+//    virtual const LADSPA_Descriptor *getLADSPADescriptor(QString identifier);
 
     void loadLibrary(QString soName);
     void unloadLibrary(QString soName);

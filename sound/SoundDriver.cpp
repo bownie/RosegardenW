@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -47,18 +47,16 @@ SoundDriver::SoundDriver(MappedStudio *studio, const std::string &name):
         m_midiRunningId(MidiInstrumentBase),
         m_audioRunningId(AudioInstrumentBase),
         //    m_audioQueueScavenger(4, 50),
-        m_audioQueue(0),
+        m_audioQueue(nullptr),
         m_lowLatencyMode(true),
         m_audioRecFileFormat(RIFFAudioFile::FLOAT),
         m_studio(studio),
-        m_externalTransport(0),
+        m_externalTransport(nullptr),
         m_mmcStatus(TRANSPORT_OFF),
         m_mtcStatus(TRANSPORT_OFF),
         m_mmcId(0),            // default MMC id of 0
         m_midiClockEnabled(false),
-        m_midiClockInterval(0, 0),
-        m_midiClockSendTime(RealTime::zeroTime),
-        m_midiSongPositionPointer(0)
+        m_midiClockInterval(0, 0)
 {
     m_audioQueue = new AudioPlayQueue();
 }
@@ -80,7 +78,7 @@ SoundDriver::getMappedInstrument(InstrumentId id)
             return (*it);
     }
 
-    return 0;
+    return nullptr;
 }
 
 void
@@ -122,7 +120,7 @@ SoundDriver::initialiseAudioQueue(const std::vector<MappedEvent> &events)
             size_t bufferFrames = (size_t)RealTime::realTime2Frame
                                   (bufferLength, getSampleRate());
 
-            PlayableAudioFile *paf = 0;
+            PlayableAudioFile *paf = nullptr;
 
             try {
                 paf = new PlayableAudioFile(i->getInstrument(),
@@ -304,7 +302,7 @@ SoundDriver::getMappedDevice(DeviceId id)
 bool
 SoundDriver::addAudioFile(const QString &fileName, unsigned int id)
 {
-    AudioFile *ins = 0;
+    AudioFile *ins = nullptr;
 
     try {
         ins = new WAVAudioFile(id, qstrtostr(fileName), fileName);
@@ -315,7 +313,7 @@ SoundDriver::addAudioFile(const QString &fileName, unsigned int id)
 
         return true;
 
-    } catch (SoundFile::BadSoundFileException e) {
+    } catch (const SoundFile::BadSoundFileException &e) {
         RG_DEBUG << "SoundDriver::addAudioFile: Failed to add audio file " << fileName << ": " << e.getMessage();
         delete ins;
         return false;
@@ -349,7 +347,7 @@ SoundDriver::getAudioFile(unsigned int id)
             return *it;
     }
 
-    return 0;
+    return nullptr;
 }
 
 void

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,6 +23,7 @@
 #include <vector>
 #include "gui/widgets/DiatonicPitchChooser.h"
 
+#include <rosegardenprivate_export.h>
 
 class QWidget;
 class QComboBox;
@@ -36,7 +37,7 @@ namespace Rosegarden
 class RosegardenDocument;
 
 
-class IntervalDialog : public QDialog
+class ROSEGARDENPRIVATE_EXPORT IntervalDialog : public QDialog
 {
     Q_OBJECT
 public:

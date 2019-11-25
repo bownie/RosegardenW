@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -21,13 +21,15 @@
 
 #include "RealTime.h"
 
+#include <rosegardenprivate_export.h>
+
 namespace Rosegarden 
 {
 
 enum PropertyType { Int, String, Bool, RealTimeT };
 
 template <PropertyType P>
-class PropertyDefn
+class ROSEGARDENPRIVATE_EXPORT PropertyDefn
 {
 public:
     struct PropertyDefnNotDefined {
@@ -103,7 +105,7 @@ public:
 };
 
 
-class PropertyStoreBase {
+class ROSEGARDENPRIVATE_EXPORT PropertyStoreBase {
 public:
     virtual ~PropertyStoreBase();
 
@@ -127,7 +129,7 @@ inline std::ostream& operator<<(std::ostream &out, PropertyStoreBase &e)
 #endif
 
 template <PropertyType P>
-class PropertyStore : public PropertyStoreBase
+class ROSEGARDENPRIVATE_EXPORT PropertyStore : public PropertyStoreBase
 {
 public:
     PropertyStore(typename PropertyDefn<P>::basic_type d) :
@@ -136,20 +138,20 @@ public:
         PropertyStoreBase(p), m_data(p.m_data) { }
     PropertyStore &operator=(const PropertyStore<P> &p);
 
-    virtual PropertyType getType() const;
-    virtual std::string getTypeName() const;
+    PropertyType getType() const override;
+    std::string getTypeName() const override;
 
-    virtual PropertyStoreBase* clone();
-    
-    virtual std::string unparse() const;
+    PropertyStoreBase* clone() override;
+
+    std::string unparse() const override;
 
     typename PropertyDefn<P>::basic_type getData() { return m_data; }
     void setData(typename PropertyDefn<P>::basic_type data) { m_data = data; }
 
-    virtual size_t getStorageSize() const;
+    size_t getStorageSize() const override;
 
 #ifndef NDEBUG
-    void dump(std::ostream&) const;
+    void dump(std::ostream&) const override;
 #endif
 
 private:
@@ -201,7 +203,7 @@ PropertyStore<P>::dump(std::ostream &out) const
     out << getTypeName() << " - " << unparse();
 }
 #endif
- 
+
 }
 
 

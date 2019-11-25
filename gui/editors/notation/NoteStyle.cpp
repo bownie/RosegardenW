@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,6 +23,7 @@
 #include "NoteCharacterNames.h"
 #include "NoteStyleFactory.h"
 #include "misc/Strings.h"
+#include "misc/Debug.h"
 
 
 namespace Rosegarden
@@ -56,16 +57,15 @@ const NoteStyle::NoteHeadShape NoteStyle::CustomCharName = "custom character";
 
 
 NoteStyle::NoteHeadShape
-
 NoteStyle::getShape(Note::Type type)
 {
     NoteDescriptionMap::iterator i = m_notes.find(type);
     if (i == m_notes.end()) {
         if (m_baseStyle)
             return m_baseStyle->getShape(type);
-        std::cerr
+        RG_WARNING
         << "WARNING: NoteStyle::getShape: No shape defined for note type "
-        << type << ", defaulting to AngledOval" << std::endl;
+        << type << ", defaulting to AngledOval";
         return AngledOval;
     }
 
@@ -79,9 +79,9 @@ NoteStyle::isFilled(Note::Type type)
     if (i == m_notes.end()) {
         if (m_baseStyle)
             return m_baseStyle->isFilled(type);
-        std::cerr
+        RG_WARNING
         << "WARNING: NoteStyle::isFilled: No definition for note type "
-        << type << ", defaulting to true" << std::endl;
+        << type << ", defaulting to true";
         return true;
     }
 
@@ -95,9 +95,9 @@ NoteStyle::hasStem(Note::Type type)
     if (i == m_notes.end()) {
         if (m_baseStyle)
             return m_baseStyle->hasStem(type);
-        std::cerr
+        RG_WARNING
         << "WARNING: NoteStyle::hasStem: No definition for note type "
-        << type << ", defaulting to true" << std::endl;
+        << type << ", defaulting to true";
         return true;
     }
 
@@ -111,9 +111,9 @@ NoteStyle::getFlagCount(Note::Type type)
     if (i == m_notes.end()) {
         if (m_baseStyle)
             return m_baseStyle->getFlagCount(type);
-        std::cerr
+        RG_WARNING
         << "WARNING: NoteStyle::getFlagCount: No definition for note type "
-        << type << ", defaulting to 0" << std::endl;
+        << type << ", defaulting to 0";
         return 0;
     }
 
@@ -127,9 +127,9 @@ NoteStyle::getSlashCount(Note::Type type)
     if (i == m_notes.end()) {
         if (m_baseStyle)
             return m_baseStyle->getSlashCount(type);
-        std::cerr
+        RG_WARNING
         << "WARNING: NoteStyle::getSlashCount: No definition for note type "
-        << type << ", defaulting to 0" << std::endl;
+        << type << ", defaulting to 0";
         return 0;
     }
 
@@ -146,10 +146,10 @@ NoteStyle::getStemFixPoints(Note::Type type,
             m_baseStyle->getStemFixPoints(type, hfix, vfix);
             return ;
         }
-        std::cerr
+        RG_WARNING
         << "WARNING: NoteStyle::getStemFixPoints: "
         << "No definition for note type " << type
-        << ", defaulting to (Normal,Middle)" << std::endl;
+        << ", defaulting to (Normal,Middle)";
         hfix = Normal;
         vfix = Middle;
         return ;
@@ -167,9 +167,9 @@ NoteStyle::getNoteHeadCharName(Note::Type type)
     if (i == m_notes.end()) {
         if (m_baseStyle)
             return m_baseStyle->getNoteHeadCharName(type);
-        std::cerr
+        RG_WARNING
         << "WARNING: NoteStyle::getNoteHeadCharName: No definition for note type "
-        << type << ", defaulting to NOTEHEAD_BLACK" << std::endl;
+        << type << ", defaulting to NOTEHEAD_BLACK";
         return CharNameRec(NoteCharacterNames::NOTEHEAD_BLACK, false);
     }
 
@@ -185,14 +185,14 @@ NoteStyle::getNoteHeadCharName(Note::Type type)
     } else if (desc.shape == LevelOval) {
 
         if (desc.filled) {
-            std::cerr << "WARNING: NoteStyle::getNoteHeadCharName: No filled level oval head" << std::endl;
+            RG_WARNING << "WARNING: NoteStyle::getNoteHeadCharName: No filled level oval head";
         }
         name = NoteCharacterNames::WHOLE_NOTE;
 
     } else if (desc.shape == Breve) {
 
         if (desc.filled) {
-            std::cerr << "WARNING: NoteStyle::getNoteHeadCharName: No filled breve head" << std::endl;
+            RG_WARNING << "WARNING: NoteStyle::getNoteHeadCharName: No filled breve head";
         }
         name = NoteCharacterNames::BREVE;
 
@@ -224,7 +224,7 @@ NoteStyle::getNoteHeadCharName(Note::Type type)
 
     } else if (desc.shape == Number) {
 
-        std::cerr << "WARNING: NoteStyle::getNoteHeadCharName: Number not yet implemented" << std::endl;
+        RG_WARNING << "WARNING: NoteStyle::getNoteHeadCharName: Number not yet implemented";
         name = NoteCharacterNames::UNKNOWN; //!!!
 
     } else if (desc.shape == CustomCharName) {
@@ -309,6 +309,8 @@ NoteStyle::getClefCharName(const Clef &clef)
         return NoteCharacterNames::F_CLEF;
     } else if (clefType == Clef::Treble || clefType == Clef::French) {
         return NoteCharacterNames::G_CLEF;
+    } else if (clefType == Clef::TwoBar) {
+        return NoteCharacterNames::TWO_BAR_CLEF;
     } else {
         return NoteCharacterNames::C_CLEF;
     }
@@ -424,18 +426,18 @@ NoteStyle::getSomeCharName(QString qthing)
     try {
         name = getAccidentalCharName(Accidental(thing));
         if (!(name == NoteCharacterNames::UNKNOWN)) return name;
-    } catch (Exception) { }
+    } catch (const Exception &) { }
 
     try {
         name = getMarkCharName(Mark(thing));
-        std::cerr << thing << " -> " << name << std::endl;
+        RG_DEBUG << thing << " -> " << name;
         if (!(name == NoteCharacterNames::UNKNOWN)) return name;
-    } catch (Exception) { }
+    } catch (const Exception &) { }
 
     try {
         name = getClefCharName(Clef(thing));
         if (!(name == NoteCharacterNames::UNKNOWN)) return name;
-    } catch (Exception) { }
+    } catch (const Exception &) { }
 
     return NoteCharacterNames::UNKNOWN;
 }
@@ -446,19 +448,19 @@ NoteStyle::setBaseStyle(NoteStyleName name)
     try {
         m_baseStyle = NoteStyleFactory::getStyle(name);
         if (m_baseStyle == this)
-            m_baseStyle = 0;
-    } catch (NoteStyleFactory::StyleUnavailable u) {
+            m_baseStyle.reset();
+    } catch (const NoteStyleFactory::StyleUnavailable &u) {
         if (name != NoteStyleFactory::DefaultStyle) {
-            std::cerr
+            RG_WARNING
                 << "NoteStyle::setBaseStyle: Base style "
                 << name << " not available, defaulting to "
-                << NoteStyleFactory::DefaultStyle << std::endl;
+                << NoteStyleFactory::DefaultStyle;
             setBaseStyle(NoteStyleFactory::DefaultStyle);
         } else {
-            std::cerr
+            RG_WARNING
                 << "NoteStyle::setBaseStyle: Base style "
-                << name << " not available" << std::endl;
-            m_baseStyle = 0;
+                << name << " not available";
+            m_baseStyle.reset();
         }
     }
 }

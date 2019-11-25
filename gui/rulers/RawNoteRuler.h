@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -52,16 +52,15 @@ class RawNoteRuler : public QWidget, public SegmentObserver
 public:
     RawNoteRuler(RulerScale *rulerScale,
                  Segment *segment,
-                 double xorigin = 0.0,
                  int height = 0,
-                 QWidget* parent = 0);
+                 QWidget* parent = nullptr);
 
-    ~RawNoteRuler();
+    ~RawNoteRuler() override;
 
     void setCurrentSegment(Segment *segment);
 
-    virtual QSize sizeHint() const;
-    virtual QSize minimumSizeHint() const;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
     void setMinimumWidth(int width) { m_width = width; }
     
@@ -69,20 +68,19 @@ public:
 /** SegmentObserver methods : **/
 
 // Used to update the ruler when notes are moved around or deleted
-    virtual void eventAdded(const Segment *, Event *) { update(); }
-    virtual void eventRemoved(const Segment *, Event *) { update(); }
+    void eventAdded(const Segment *, Event *) override { update(); }
+    void eventRemoved(const Segment *, Event *) override { update(); }
 
-    virtual void segmentDeleted(const Segment *);
+    void segmentDeleted(const Segment *) override;
 
 
 public slots:
     void slotScrollHoriz(int x);
 
 protected:
-    virtual void paintEvent(QPaintEvent*);
+    void paintEvent(QPaintEvent*) override;
     
 private:
-    double m_xorigin;
     int  m_height;
     int  m_currentXOffset;
     int  m_width;

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,6 +20,7 @@
 
 #include "base/Event.h"
 #include "misc/Strings.h"
+#include "misc/Debug.h"
 #include "base/Clipboard.h"
 #include "base/Composition.h"
 #include "base/NotationTypes.h"
@@ -54,7 +55,7 @@ PasteToTriggerSegmentCommand(Composition *composition,
 }
 
 PasteToTriggerSegmentCommand::
-~PasteToTriggerSegmentCommand(void)
+~PasteToTriggerSegmentCommand()
 {}
     
 void
@@ -78,7 +79,7 @@ PasteToTriggerSegmentWorker::PasteToTriggerSegmentWorker(Composition *compositio
         m_label(label),
         m_basePitch(basePitch),
         m_baseVelocity(baseVelocity),
-        m_segment(0),
+        m_segment(nullptr),
         m_detached(false)
 {
     // nothing else
@@ -95,7 +96,7 @@ PasteToTriggerSegmentWorker(Composition *composition,
         m_label(label),
         m_basePitch(basePitch),
         m_baseVelocity(baseVelocity),
-        m_segment(0),
+        m_segment(nullptr),
         m_detached(false)
 {
     m_clipboard->newSegment(selection);
@@ -111,12 +112,12 @@ PasteToTriggerSegmentWorker::~PasteToTriggerSegmentWorker()
 void
 PasteToTriggerSegmentWorker::execute()
 {
-    std::cerr << "PasteToTriggerSegmentWorker::execute()" << std::endl;
+    RG_DEBUG << "PasteToTriggerSegmentWorker::execute()";
 
     if (m_segment) {
         // Not the first time executing.
         
-        std::cerr << " - m_segment == TRUE" << std::endl;
+        RG_DEBUG << " - m_segment == TRUE";
 
         m_composition->addTriggerSegment(m_segment, m_id, m_basePitch, m_baseVelocity);
 
@@ -124,16 +125,16 @@ PasteToTriggerSegmentWorker::execute()
         // The first time executing, so get values for m_segment,
         // m_id.
 
-        std::cerr << " - m_segment == FALSE" << std::endl;
+        RG_DEBUG << " - m_segment == FALSE";
 
         if (m_clipboard->isEmpty()) {
-            std::cerr << " - Here's your problem.  The clipboard is empty." << std::endl;
+            RG_DEBUG << " - Here's your problem.  The clipboard is empty.";
             return ;
         }
 
         m_segment = new Segment();
 
-        std::cerr << " - making a new m_segment" << std::endl;
+        RG_DEBUG << " - making a new m_segment";
 
         timeT earliestStartTime = 0;
         timeT latestEndTime = 0;

@@ -915,7 +915,7 @@ PortableSoundDriver::createMidiDevice(DeviceId deviceId,
         catch ( RtError &error )
         {
             SEQUENCER_DEBUG << error.getMessage() << endl;
-            return false;
+            return nullptr;
         }
 
         if (m_outputPorts.size() < m_midiOutPorts[0]->getPortCount())

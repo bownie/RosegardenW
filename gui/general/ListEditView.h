@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -21,7 +21,6 @@
 #include "EditViewBase.h"
 #include "document/CommandRegistry.h"
 
-#include <QDockWidget>
 #include <QFrame>
 #include <QAction>
 #include <QWidget>
@@ -70,7 +69,7 @@ public:
                  unsigned int cols,
                  QWidget *parent);
 
-    ~ListEditView();
+    ~ListEditView() override;
 
     /**
      * Update the view
@@ -119,7 +118,7 @@ protected:
      */
     virtual void toggleWidget(QWidget* widget, const QString& toggleActionName);
 
-    virtual void paintEvent(QPaintEvent* e);
+    void paintEvent(QPaintEvent* e) override;
 
     void setRCFileName(QString s) { m_rcFileName = s; }
     QString getRCFileName()       { return m_rcFileName; }
@@ -133,9 +132,6 @@ protected:
 
     std::vector<unsigned int> m_segmentsRefreshStatusIds;
 
-//	QToolBar 	*m_toolBar;
-
-    QDockWidget *m_mainDockWidget;
     QFrame      *m_centralFrame;
     QGridLayout *m_grid;
 

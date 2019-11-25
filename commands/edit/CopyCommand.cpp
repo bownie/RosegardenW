@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,7 +35,7 @@ CopyCommand::CopyCommand(EventSelection &selection,
         m_targetClipboard(clipboard)
 {
     m_sourceClipboard = new Clipboard;
-    m_savedClipboard = 0;
+    m_savedClipboard = nullptr;
     std::string label = selection.getSegment().getLabel();
     m_sourceClipboard->newSegment(&selection)->setLabel(
             appendLabel(label, qstrtostr(tr("(excerpt)"))));
@@ -47,12 +47,13 @@ CopyCommand::CopyCommand(SegmentSelection &selection,
         m_targetClipboard(clipboard)
 {
     m_sourceClipboard = new Clipboard;
-    m_savedClipboard = 0;
+    m_savedClipboard = nullptr;
 
     for (SegmentSelection::iterator i = selection.begin();
             i != selection.end(); ++i) {
         std::string label = (*i)->getLabel();
-        m_sourceClipboard->newSegment(*i)->setLabel(
+        // Fix #1446 : Make a deep copy only when segment is truly linked.
+        m_sourceClipboard->newSegment(*i, (*i)->isTrulyLinked())->setLabel(
                 appendLabel(label, qstrtostr(tr("(copied)"))));
     }
 }
@@ -65,7 +66,7 @@ CopyCommand::CopyCommand(Composition *composition,
         m_targetClipboard(clipboard)
 {
     m_sourceClipboard = new Clipboard;
-    m_savedClipboard = 0;
+    m_savedClipboard = nullptr;
 
     // For each segment in the composition
     for (Composition::iterator i = composition->begin();

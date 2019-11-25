@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -54,7 +54,7 @@ public:
 
     Configuration() {;}
     Configuration(const Configuration &);
-    ~Configuration();
+    ~Configuration() override;
 
     bool has(const PropertyName &name) const;
 
@@ -80,7 +80,7 @@ public:
     // For exporting -- doesn't write the <configuration> part of
     // the element in case you want to write it into another element
     //
-    virtual std::string toXmlString();
+    std::string toXmlString() const override;
 
     /// Return all the contained property names in alphabetical order
     std::vector<std::string> getPropertyNames();
@@ -119,14 +119,14 @@ class DocumentConfiguration : public Configuration
 public:
     DocumentConfiguration();
     DocumentConfiguration(const DocumentConfiguration &);
-    ~DocumentConfiguration();
+    ~DocumentConfiguration() override;
 
     DocumentConfiguration& operator=(const DocumentConfiguration &);
 
     // for exporting -- doesn't write the <configuration> part of
     // the element in case you want to write it into another element
     // 
-    virtual std::string toXmlString();
+    std::string toXmlString() const override;
 
     // Property names
     static const PropertyName SequencerOptions;

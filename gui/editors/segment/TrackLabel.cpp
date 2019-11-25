@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -49,14 +49,12 @@ TrackLabel::TrackLabel(TrackId id,
     font.setBold(false);
     setFont(font);
 
-    setAutoFillBackground(true);
-    
     setFrameShape(QFrame::NoFrame);
 
     m_pressTimer = new QTimer(this);
 
-    connect(m_pressTimer, SIGNAL(timeout()),
-            this, SIGNAL(changeToInstrumentList()));
+    connect(m_pressTimer, &QTimer::timeout,
+            this, &TrackLabel::changeToInstrumentList);
 
     setToolTip(tr("<qt>"
                   "<p>Click to select all the segments on this track.</p>"
@@ -65,7 +63,7 @@ TrackLabel::TrackLabel(TrackId id,
                   "<p>Click and hold with either mouse button to assign"
                   " this track to an instrument.</p>"
                   "</qt>"));
-
+    setSelected(false);
 }
 
 void
@@ -90,29 +88,18 @@ TrackLabel::updateLabel()
 void
 TrackLabel::setSelected(bool selected)
 {
-//###
-// NOTES: Using QPalette works fine if there is no stylesheet.  If there is a
-// stylesheet, the QPalette-based stuff can no longer set the background if the
-// background is controlled in any way by the stylesheet.  (This is apparently
-// what the warnings in the API docs are all about.)
-//
-// We could use setObjectName() to change the name, and thus change how these
-// widgets would be styled, but we'd have to unset and reset the entire
-// stylesheet for that to work, apparently.  I've elected just to resort to hard
-// code instead, and use spot stylesheets.  This is bound to be less complicated
-// and have less overhead, though it comes with some side effects that may have
-// to be revisited.
-//
-
     m_selected = selected;
 
+    QPalette pal = palette();
     if (m_selected) {
-        setStyleSheet("QLabel { background-color: #AAAAAA; color: #FFFFFF; }");
+        setAutoFillBackground(true);
+        pal.setColor(QPalette::Window, QColor(0xAA, 0xAA, 0xAA));
+        pal.setColor(QPalette::WindowText, Qt::white);
     } else {
-        setStyleSheet("QLabel { background-color: transparent; color: #000000; }");
+        setAutoFillBackground(false);
+        pal.setColor(QPalette::WindowText, Qt::black);
     }
-
-    //update();  // Seems to work fine without.
+    setPalette(pal);
 }
 
 void
@@ -181,4 +168,3 @@ TrackLabel::mouseDoubleClickEvent(QMouseEvent *e)
 }
 
 }
-#include "TrackLabel.moc"

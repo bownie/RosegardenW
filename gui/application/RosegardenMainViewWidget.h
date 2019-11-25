@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -80,16 +80,16 @@ public:
      * Constructor for the main view
      */
     RosegardenMainViewWidget(bool showTrackLabels,
-                      SegmentParameterBox*,
-                      InstrumentParameterBox*,
-                      TrackParameterBox*,
-                      QWidget *parent = 0,
-                      const char *name=0);
+                             SegmentParameterBox*,
+                             InstrumentParameterBox*,
+                             TrackParameterBox*,
+                             RosegardenParameterArea* parameterArea,
+                             QWidget *parent = nullptr);
 
     /**
      * Destructor for the main view
      */
-    ~RosegardenMainViewWidget();
+    ~RosegardenMainViewWidget() override;
 
     /**
      * returns a pointer to the document connected to the view
@@ -110,11 +110,6 @@ public:
      * Select a tool at the CompositionView
      */
     void selectTool(QString toolName);
-
-    /**
-     * Show output levels
-     */
-    void showVisuals(const MappedEvent *mE);
 
     void updateMeters();
     void updateMonitorMeters();
@@ -166,8 +161,6 @@ public slots:
     void slotSelectTrackSegments(int);
 
     void slotSelectAllSegments();
-
-    void slotUpdateInstrumentParameterBox(int id);
 
     /*
      * This is called from the canvas (actually the selector tool) moving out
@@ -275,7 +268,7 @@ public slots:
      * controllers control the track's volume and pan.
      *
      * @see MidiMixerWindow::slotControllerDeviceEventReceived()
-     * @see AudioMixerWindow::slotControllerDeviceEventReceived()
+     * @see AudioMixerWindow2::slotExternalControllerEvent()
      */
     void slotControllerDeviceEventReceived(
             MappedEvent *, const void *preferredCustomer);
@@ -313,8 +306,6 @@ signals:
      * on the segment canvas.
      */
     void addAudioFile(AudioFileId);
-
-    void checkTrackAssignments();
 
     void instrumentLevelsChanged(InstrumentId,
                                  const LevelInfo &);

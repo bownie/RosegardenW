@@ -3,14 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-
-    This program is Copyright 2000-2015
-        Guillaume Laurent   <glaurent@telegraph-road.org>,
-        Chris Cannam        <cannam@all-day-breakfast.com>,
-        Richard Bown        <richard.bown@ferventsoftware.com>
-
-    The moral rights of Guillaume Laurent, Chris Cannam, and Richard
-    Bown to claim authorship of this work have been asserted.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,19 +13,22 @@
     published by the Free Software Foundation; either version 2 of the
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
+    Rosegarden
 */
 
 #ifndef RG_COMMAND_H
 #define RG_COMMAND_H
 
 #include <QString>
+#include <QCoreApplication> // for Q_DECLARE_TR_FUNCTIONS
 
 #include <vector>
+#include <rosegardenprivate_export.h>
 
 namespace Rosegarden
 {
 
-class Command
+class ROSEGARDENPRIVATE_EXPORT Command
 {
 public:
     Command() : m_updateLinks(true) { }
@@ -49,33 +45,33 @@ private:
     bool m_updateLinks;
 };
 
-class NamedCommand : public Command
+class ROSEGARDENPRIVATE_EXPORT NamedCommand : public Command
 {
 public:
     NamedCommand(QString name) : m_name(name) { }
-    virtual ~NamedCommand() { }
+    ~NamedCommand() override { }
 
-    virtual QString getName() const { return m_name; }
+    QString getName() const override { return m_name; }
     virtual void setName(QString name) { m_name = name; }
 
 protected:
     QString m_name;
 };
 
-class MacroCommand : public Command
+class ROSEGARDENPRIVATE_EXPORT MacroCommand : public Command
 {
 public:
     MacroCommand(QString name);
-    virtual ~MacroCommand();
+    ~MacroCommand() override;
 
     virtual void addCommand(Command *command);
     virtual void deleteCommand(Command *command);
     virtual bool haveCommands() const;
 
-    virtual void execute();
-    virtual void unexecute();
+    void execute() override;
+    void unexecute() override;
 
-    virtual QString getName() const;
+    QString getName() const override;
     virtual void setName(QString name);
     
     virtual const std::vector<Command *>& getCommands() { return m_commands; }
@@ -89,13 +85,14 @@ protected:
  * BundleCommand is a MacroCommand whose name includes a note of how
  * many commands it contains
  */
-class BundleCommand : public MacroCommand
+class ROSEGARDENPRIVATE_EXPORT BundleCommand : public MacroCommand
 {
+    Q_DECLARE_TR_FUNCTIONS(BundleCommand)
 public:
     BundleCommand(QString name);
-    virtual ~BundleCommand();
+    ~BundleCommand() override;
 
-    virtual QString getName() const;
+    QString getName() const override;
 };
 
 }

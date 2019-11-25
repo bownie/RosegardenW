@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -105,9 +105,6 @@ public:
     void turnRepeatingSegmentToRealCopies();
     void turnLinkedSegmentsToRealCopies();
 
-    // Add a new segment - DCOP interface
-    //virtual void addSegment(int track, int start, unsigned int duration);
-
 public slots:
 
     /// Scroll the view such that the numbered track is on-screen
@@ -169,19 +166,18 @@ private slots:
 
     /// Update the pointer position as it is being dragged along.
     /**
-     * Scroll to make sure the pointer is visible.
-     *
      * init() connects this to the top and bottom rulers'
      * dragPointerToPosition(timeT).
      */
     void slotPointerDraggedToPosition(timeT position);
 
-    /// Scroll to make sure the loop end is visible.
-    /**
-     * init() connects this to the top and bottom rulers'
-     * dragLoopToPosition(timeT).
-     */
-    void slotLoopDraggedToPosition(timeT position);
+    // StandardRuler mouse move for auto-scroll.
+    void slotSRStartMouseMove();
+    void slotSRStopMouseMove();
+
+    // TempoRuler mouse press/release for auto-scroll.
+    void slotTRMousePress();
+    void slotTRMouseRelease();
 
     /// Show the given loop on the rulers
     /**
@@ -212,18 +208,9 @@ private:
     void init(RosegardenMainViewWidget *);
 
     // QWidget overrides.
-    virtual void dragEnterEvent(QDragEnterEvent *);
-    virtual void dropEvent(QDropEvent *);
-    virtual void dragMoveEvent(QDragMoveEvent *);
-
-    /// Scroll when dragging the pointer or loop end.
-    /**
-     * Returns true if an actual move occurred between currentPosition and
-     * newTimePosition.  Output parameter newPosition contains the horizontal
-     * position corresponding to newTimePosition.
-     */
-    bool handleAutoScroll(
-            int currentPosition, timeT newTimePosition, double &newPosition);
+    void dragEnterEvent(QDragEnterEvent *) override;
+    void dropEvent(QDropEvent *) override;
+    void dragMoveEvent(QDragMoveEvent *) override;
 
     /// Wrapper around CommandHistory::addCommand().
     void addCommandToHistory(Command *command);

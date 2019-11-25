@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -46,11 +46,6 @@ assertSane() const
 }
 #endif
 
-#if defined NDEBUG
-DEFINE_DUMMY_PRINTER(ChannelInterval);
-
-#else
-
 QDebug &operator<<(QDebug &dbg, const ChannelInterval &channelInterval) {
     dbg
         << "interval" << channelInterval.m_start.toString()
@@ -60,7 +55,7 @@ QDebug &operator<<(QDebug &dbg, const ChannelInterval &channelInterval) {
     dbg.space();
     return dbg;
 }
-#endif
+
 
 }
 

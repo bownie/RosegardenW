@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -293,7 +293,7 @@ FitToBeatsCommand::getCurrentTempi(Composition &composition, TempoMap &Tempos)
 void
 FitToBeatsCommand::execute()
 {
-    RG_DEBUG << "Executing FitToBeatsCommand" << endl;
+    RG_DEBUG << "Executing FitToBeatsCommand";
     changeAllTempi(m_newTempi);
     changeSegments(m_oldSegments, m_newSegments);
     m_executed = true;

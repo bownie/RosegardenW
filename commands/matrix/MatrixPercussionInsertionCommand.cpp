@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -39,7 +39,7 @@ MatrixPercussionInsertionCommand::MatrixPercussionInsertionCommand(Segment &segm
         BasicCommand(tr("Insert Percussion Note"), segment,
                      getEffectiveStartTime(segment, time, *event),
                      getEndTime(segment, time, *event)),
-        m_event(0),
+        m_event(nullptr),
         m_time(time)
 {
     timeT endTime = getEndTime(segment, time, *event);

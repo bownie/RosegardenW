@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2002
         Hans Kieserman      <hkieserman@mail.com>
@@ -32,16 +32,18 @@
 #include "base/Event.h"
 #include "base/PropertyName.h"
 #include "base/Segment.h"
+#include "base/Selection.h"
 #include "document/io/LilyPondLanguage.h"
-#include "gui/general/ProgressReporter.h"
 #include "gui/editors/notation/NotationView.h"
 #include <fstream>
 #include <set>
 #include <string>
 #include <utility>
 
+#include <QPointer>
 
 class QObject;
+class QProgressDialog;
 class QString;
 
 
@@ -67,34 +69,35 @@ class NotationView;
 class Key;
 class Composition;
 
-const std::string headerDedication = "dedication";
-const std::string headerTitle = "title";
-const std::string headerSubtitle = "subtitle";
-const std::string headerSubsubtitle = "subsubtitle";
-const std::string headerPoet = "poet";
-const std::string headerComposer = "composer";
-const std::string headerMeter = "meter";
-const std::string headerOpus = "opus";
-const std::string headerArranger = "arranger";
-const std::string headerInstrument = "instrument";
-const std::string headerPiece = "piece";
-const std::string headerCopyright = "copyright";
-const std::string headerTagline = "tagline";
+const char* headerDedication();
+const char* headerTitle();
+const char* headerSubtitle();
+const char* headerSubsubtitle();
+const char* headerPoet();
+const char* headerComposer();
+const char* headerMeter();
+const char* headerOpus();
+const char* headerArranger();
+const char* headerInstrument();
+const char* headerPiece();
+const char* headerCopyright();
+const char* headerTagline();
 
 /**
  * LilyPond scorefile export
  */
 
-class LilyPondExporter : public ProgressReporter
+class ROSEGARDENPRIVATE_EXPORT LilyPondExporter
 {
-    //Q_OBJECT
 public:
     typedef EventContainer eventstartlist;
     typedef std::multiset<Event*, Event::EventEndCmp> eventendlist;
 
 public:
-    LilyPondExporter(RosegardenMainWindow *parent, RosegardenDocument *, std::string fileName);
-    LilyPondExporter(NotationView *parent, RosegardenDocument *, std::string fileName);
+    LilyPondExporter(RosegardenDocument *doc,
+                     const SegmentSelection &selection,
+                     const std::string &fileName,
+                     NotationView *parent = nullptr);
     ~LilyPondExporter();
 
    /**
@@ -109,8 +112,10 @@ public:
     */
     QString getMessage() { return m_warningMessage; }
 
-protected:
-    RosegardenMainViewWidget *m_view;
+    void setProgressDialog(QPointer<QProgressDialog> progressDialog)
+            { m_progressDialog = progressDialog; }
+
+private:
     NotationView *m_notationView;
     RosegardenDocument *m_doc;
     Composition *m_composition;
@@ -118,8 +123,11 @@ protected:
     std::string m_fileName;
     Clef m_lastClefFound;
     LilyPondLanguage *m_language;
+    SegmentSelection m_selection;
 
-    void readConfigVariables(void);
+    void readConfigVariables();
+
+    Event *nextNoteInGroup(Segment *s, Segment::iterator it, const std::string &groupType, int barEnd) const;
 
     // Return true if the given segment has to be print
     // (readConfigVAriables() should have been called before)
@@ -186,14 +194,15 @@ protected:
                          bool &nextBarIsDouble, bool &nextBarIsEnd, bool &nextBarIsDot);
 
     void handleText(const Event *, std::string &lilyText);
+    void handleGuitarChord(Segment::iterator i, std::ofstream &str);
     void writePitch(const Event *note, const Rosegarden::Key &key, std::ofstream &);
     void writeStyle(const Event *note, std::string &prevStyle, int col, std::ofstream &, bool isInChord);
     std::pair<int,int> writeDuration(timeT duration, std::ofstream &);
     void writeSlashes(const Event *note, std::ofstream &);
-       
+
 private:
     static const int MAX_DOTS = 4;
-    static const PropertyName SKIP_PROPERTY;
+    const PropertyName SKIP_PROPERTY;
     
     unsigned int m_paperSize;
     static const unsigned int PAPER_A3      = 0;
@@ -274,6 +283,8 @@ private:
     bool m_fingeringsInStaff;
     QString m_warningMessage;
 
+    QPointer<QProgressDialog> m_progressDialog;
+
     std::pair<int,int> fractionSum(std::pair<int,int> x,std::pair<int,int> y) {
 	std::pair<int,int> z(
 	    x.first * y.second + x.second * y.first,
@@ -301,13 +312,13 @@ private:
     }
     int gcd(int a, int b) {
 	// Euclid's algorithm to find the greatest common divisor
-	while ( 1 ) {
-	    int r = a % b;
-	    if ( r == 0 )
-		return (b == 0 ? 1 : b);
-	    a = b;
-	    b = r; 
+        int t = 0;
+	while ( b != 0) {
+	    t = b;
+            b = a % b;
+            a = t;
 	}
+        return a;
     }
 };
 

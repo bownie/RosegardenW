@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -35,7 +35,6 @@ namespace Rosegarden
         QString sVersion_minor=sVersion.section('.', 1, 1);
         QString sVersion_completeMicro=sVersion.section('.', 2, 2);
         QString sVersion_micro=sVersion_completeMicro.section('-', 0, 0);
-        QString sVersion_microSvn=sVersion_completeMicro.section('-', 1, 1);
         m_iMajor=sVersion_major.toInt();
         m_iMinor=sVersion_minor.toInt();
         m_iMicro=sVersion_micro.toInt();

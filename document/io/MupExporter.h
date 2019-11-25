@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,7 +20,6 @@
 #define RG_MUPEXPORTER_H
 
 #include "base/Track.h"
-#include "gui/general/ProgressReporter.h"
 #include <map>
 #include <string>
 #include <utility>
@@ -45,7 +44,7 @@ class Composition;
  * Mup file export
  */
 
-class MupExporter : public ProgressReporter
+class MupExporter
 {
 public:
     MupExporter(QObject *parent, Composition *, std::string fileName);

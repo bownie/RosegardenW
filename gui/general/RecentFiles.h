@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file from Sonic Visualiser, copyright 2006 Chris Cannam.
 
@@ -41,9 +41,9 @@ public:
      * given QSettings group and truncates when the given count of
      * strings is reached.
      */
-    RecentFiles(QString settingsGroup = "RecentFiles", size_t maxCount = 10);
+    RecentFiles(QString settingsGroup = "RecentFiles", size_t maxCount = 20);
 
-    virtual ~RecentFiles();
+    ~RecentFiles() override;
 
     QString getSettingsGroup() const { return m_settingsGroup; }
 

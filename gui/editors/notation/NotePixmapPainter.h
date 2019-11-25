@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,6 +22,7 @@
 
 #include "misc/Debug.h"
 
+#include <assert.h>
 
 namespace Rosegarden {
 
@@ -50,10 +51,10 @@ public:
 
     bool begin(QPaintDevice *device) {
 
-	m_externalPainter = 0;
+	m_externalPainter = nullptr;
 
         if (m_myPainter.isActive()) {
-            NOTATION_DEBUG << "WARNING: NotePixmapPainter::begin(): Painter already active" << endl;
+            NOTATION_DEBUG << "WARNING: NotePixmapPainter::begin(): Painter already active";
             assert(!m_myPainter.isActive());
         }
         

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -36,13 +36,22 @@
 namespace Rosegarden
 {
 
-CollapsingFrame::CollapsingFrame(QString label, QWidget *parent, const char *n) :
-        QFrame(parent),
-        m_widget(0),
-        m_fill(false),
-        m_collapsed(false)
+CollapsingFrame::CollapsingFrame(
+        QString label, QWidget *parent, const QString &name,
+        bool defaultExpanded) :
+    QFrame(parent),
+    m_widget(nullptr),
+    m_fill(false),
+    m_collapsed(false)
 {
-    setObjectName(n);
+    setObjectName(name);
+
+    // Set up the initial default state if needed.
+    QSettings settings;
+    settings.beginGroup(CollapsingFrameConfigGroup);
+    bool expanded = qStrToBool(settings.value(
+            name, defaultExpanded ? "true" : "false"));
+    settings.setValue(name, expanded);
 
     setContentsMargins(0, 0, 0, 0);
     m_layout = new QGridLayout(this);
@@ -60,7 +69,7 @@ CollapsingFrame::CollapsingFrame(QString label, QWidget *parent, const char *n) 
 
     m_toggleButton->setIcon(IconLoader().load("style/arrow-down-small-inverted"));
 
-    connect(m_toggleButton, SIGNAL(clicked()), this, SLOT(toggle()));
+    connect(m_toggleButton, &QAbstractButton::clicked, this, &CollapsingFrame::toggle);
 
     m_layout->addWidget(m_toggleButton, 0, 0, 1, 3);
 }
@@ -139,4 +148,3 @@ CollapsingFrame::toggle()
 }
 
 }
-#include "CollapsingFrame.moc"

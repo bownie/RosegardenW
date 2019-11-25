@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -39,13 +39,13 @@ class SegmentLabelCommand : public NamedCommand
 public:
     SegmentLabelCommand(SegmentSelection &segments,
                         const QString &label);
-    virtual ~SegmentLabelCommand();
+    ~SegmentLabelCommand() override;
 
     static QString getGlobalName()
         { return tr("Re&label..."); }
 
-    virtual void execute();
-    virtual void unexecute();
+    void execute() override;
+    void unexecute() override;
 protected:
 
     std::vector<Segment*>  m_segments;

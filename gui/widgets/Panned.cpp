@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,31 +23,35 @@
 #include "base/Profiler.h"
 #include "gui/general/GUIPalette.h"
 
+#include <QPainter>
 #include <QScrollBar>
+#include <QWheelEvent>
 
-#include <iostream>
 
 namespace Rosegarden
 {
 
+
 Panned::Panned() :
-    m_pointerVisible(false)
+    m_viewportScene(),
+    m_pointerTop(),
+    m_pointerHeight(0),
+    m_pointerVisible(false),
+    m_wheelZoomPan(false)
 {
 }
 
 void
 Panned::resizeEvent(QResizeEvent *ev)
 {
-    QPointF near = mapToScene(0, 0);
-    QPointF far = mapToScene(width(), height());
-    QSizeF sz(far.x()-near.x(), far.y()-near.y());
-    QRectF pr(near, sz);
+    const QRectF viewportScene = mapToScene(rect()).boundingRect();
 
-    RG_DEBUG << "Panned::resizeEvent: pr = " << pr << endl;
+    //RG_DEBUG << "resizeEvent(): viewportScene = " << viewportScene;
 
-    if (pr != m_pannedRect) {
-        m_pannedRect = pr;
-        emit pannedRectChanged(pr);
+    // If the viewport has changed (resized)...
+    if (viewportScene != m_viewportScene) {
+        m_viewportScene = viewportScene;
+        emit viewportChanged(viewportScene);
     }
 
     QGraphicsView::resizeEvent(ev);
@@ -61,48 +65,91 @@ Panned::paintEvent(QPaintEvent *e)
     QGraphicsView::paintEvent(e);
 }
 
+#if 0
+// It would be nice to do this instead of detecting scrolling in
+// drawForeground().  Unfortunately, this is unreliable.  Need to
+// track down why.  Specifically, scrolling with the arrow keys ends
+// up out of sync.
+void
+Panned::scrollContentsBy(int dx, int dy)
+{
+    //RG_DEBUG << "scrollContentsBy()";
+
+    // Determine whether we've scrolled and emit appropriate signals.
+
+    const QRectF viewportScene = mapToScene(rect()).boundingRect();
+
+    // If the viewport has changed (scrolled)...
+    if (viewportScene != m_viewportScene) {
+        // If we've moved horizontally
+        if (viewportScene.x() != m_viewportScene.x())
+            emit pannedContentsScrolled();
+
+        m_viewportScene = viewportScene;
+
+        emit viewportChanged(viewportScene);
+    }
+
+    QGraphicsView::scrollContentsBy(dx, dy);
+}
+#endif
+
 void
 Panned::drawForeground(QPainter *paint, const QRectF &)
 {
     Profiler profiler("Panned::drawForeground");
 
-    QPointF near = mapToScene(0, 0);
-    QPointF far = mapToScene(width(), height());
-    QSizeF sz(far.x()-near.x(), far.y()-near.y());
-    QRectF pr(near, sz);
+    // Detect viewport scrolling and emit appropriate signals
 
-//    RG_DEBUG << "Panned::drawForeground: pr = " << pr << endl;
+    const QRectF viewportScene = mapToScene(rect()).boundingRect();
 
-    if (pr != m_pannedRect) {
-        if (pr.x() != m_pannedRect.x()) emit pannedContentsScrolled();
-        m_pannedRect = pr;
-        emit pannedRectChanged(pr);
+    // If the viewport has changed (scrolled)...
+    if (viewportScene != m_viewportScene) {
+        // If we've moved horizontally
+        if (viewportScene.x() != m_viewportScene.x())
+            emit pannedContentsScrolled();
+
+        m_viewportScene = viewportScene;
+
+        emit viewportChanged(viewportScene);
     }
 
-    if (m_pointerVisible && scene()) {
-        QPoint top = mapFromScene(m_pointerTop);
-        float height = m_pointerHeight;
-        if (height == 0.f) height = scene()->height();
-        QPoint bottom = mapFromScene
-            (m_pointerTop + QPointF(0, height));
-        paint->save();
-        paint->setWorldMatrix(QMatrix());
-        paint->setPen(QPen(GUIPalette::getColour(GUIPalette::Pointer), 2));
-        paint->drawLine(top, bottom);
-        paint->restore();
-    }
+    // Draw the Playback Position Pointer
+
+    if (!m_pointerVisible)
+        return;
+
+    if (!scene())
+        return;
+
+    QPoint top = mapFromScene(m_pointerTop);
+
+    float height = m_pointerHeight;
+    if (height == 0)
+        height = scene()->height();
+
+    QPoint bottom = mapFromScene(m_pointerTop + QPointF(0, height));
+
+    paint->save();
+    paint->setWorldMatrix(QMatrix());
+    paint->setPen(QPen(GUIPalette::getColour(GUIPalette::Pointer), 2));
+    paint->drawLine(top, bottom);
+    paint->restore();
 }
 
 void
-Panned::slotSetPannedRect(QRectF pr)
+Panned::slotSetViewport(QRectF viewportScene)
 {
-    centerOn(pr.center());
-//	setSceneRect(pr);
-//	m_pannedRect = pr;
+    // ??? We're just centering.  That explains why zoom has to travel by
+    //     a different path (zoomIn() and zoomOut() signals).
+    centerOn(viewportScene.center());
+
+    // ??? Wouldn't this eliminate the need for the zoom signals?
+    //setSceneRect(viewportScene);
 }
 
 void
-Panned::slotShowPositionPointer(float x) // scene coord; full height
+Panned::showPositionPointer(float x) // scene coord; full height
 {
     if (m_pointerVisible) {
         QRect oldRect = QRect(mapFromScene(m_pointerTop),
@@ -110,7 +157,7 @@ Panned::slotShowPositionPointer(float x) // scene coord; full height
         oldRect.moveTop(0);
         oldRect.moveLeft(oldRect.left() - 1);
         viewport()->update(oldRect);
-//        RG_DEBUG << "Panned::slotShowPositionPointer: old rect " << oldRect << endl;
+//        RG_DEBUG << "Panned::slotShowPositionPointer: old rect " << oldRect;
     }
     m_pointerVisible = true;
     m_pointerTop = QPointF(x, 0);
@@ -120,11 +167,11 @@ Panned::slotShowPositionPointer(float x) // scene coord; full height
     newRect.moveTop(0);
     newRect.moveLeft(newRect.left() - 1);
     viewport()->update(newRect);
-//    RG_DEBUG << "Panned::slotShowPositionPointer: new rect " << newRect << endl;
+//    RG_DEBUG << "Panned::slotShowPositionPointer: new rect " << newRect;
 }
 
 void
-Panned::slotShowPositionPointer(QPointF top, float height) // scene coords
+Panned::showPositionPointer(QPointF top, float height) // scene coords
 {
     m_pointerVisible = true;
     m_pointerTop = top;
@@ -133,7 +180,7 @@ Panned::slotShowPositionPointer(QPointF top, float height) // scene coords
 }
 
 void
-Panned::slotEnsurePositionPointerInView(bool page)
+Panned::ensurePositionPointerInView(bool page)
 {
     if (!m_pointerVisible || !scene()) return;
 
@@ -169,21 +216,21 @@ Panned::slotEnsurePositionPointerInView(bool page)
     // Is x inside the scene? If not do nothing.
     if ((x < x1) || (x > x2)) return;
 
-//    std::cerr << "page = " << page << std::endl;
+    //RG_DEBUG << "ensurePositionPointerInView(): page = " << page;
 
     int value = horizontalScrollBar()->value();
 
-//    std::cerr << "x = " << x << ", left = " << left << ", leftThreshold = " << leftThreshold << ", right = " << right << ", rightThreshold = " << rightThreshold << std::endl;
+    //RG_DEBUG << "x = " << x << ", left = " << left << ", leftThreshold = " << leftThreshold << ", right = " << right << ", rightThreshold = " << rightThreshold;
 
     // Is x inside the view?
 //  if (x < leftThreshold || (x > rightThreshold && x < right && page)) {
     // Allow a little room for x to overshoot the left threshold when the scrollbar is updated.
     if (x < leftThreshold - 100 || (x > rightThreshold && x < right && page)) {
-//        std::cerr << "big scroll (x is off left, or paging)" << std::endl;
+        //RG_DEBUG << "big scroll (x is off left, or paging)" <<;
         // scroll to have the left of the view, plus threshold, at x
         value = hMin + (((x - ws * leftDist) - x1) * (hMax - hMin)) / (length - ws);
     } else if (x > rightThreshold) {
-//        std::cerr << "small scroll (x is off right and not paging)" << std::endl;
+        //RG_DEBUG << "small scroll (x is off right and not paging)";
         value = hMin + (((x - ws * (1.0 - rightDist)) - x1) * (hMax - hMin)) / (length - ws);
     }
 
@@ -197,12 +244,12 @@ Panned::slotEnsurePositionPointerInView(bool page)
     // Then setupMouseEvent() and setCurrentStaff() will be called from scene.
     // Then slotUpdatePointerPosition() and slotpointerPositionChanged() will
     // be called from NotationWidget.
-    // Then again Panned::slotEnsurePositionPointerInView() and probably the
+    // Then again Panned::ensurePositionPointerInView() and probably the ?
     // is moved again : this is an infinite recursive call loop which leads to
     // crash.
 
     // To avoid it, ensureVisible() should not be called on a rectangle
-    // highter than the view :
+    // higher than the view :
 
     // Convert pointer height from scene coords to pixels
     int hPointerPx = mapFromScene(0, 0, 1,
@@ -240,7 +287,7 @@ Panned::slotEnsurePositionPointerInView(bool page)
 }
 
 void
-Panned::slotHidePositionPointer()
+Panned::hidePositionPointer()
 {
     m_pointerVisible = false;
     viewport()->update(); //!!! should update old pointer area only, really
@@ -250,13 +297,82 @@ void
 Panned::wheelEvent(QWheelEvent *ev)
 {
     emit wheelEventReceived(ev);
-    QGraphicsView::wheelEvent(ev);
+
+    if (m_wheelZoomPan)
+        processWheelEvent(ev);
+    else
+        QGraphicsView::wheelEvent(ev);
 }
 
 void
 Panned::slotEmulateWheelEvent(QWheelEvent *ev)
 {
-    QGraphicsView::wheelEvent(ev);
+    if (m_wheelZoomPan)
+        processWheelEvent(ev);
+    else
+        QGraphicsView::wheelEvent(ev);
+}
+
+void
+Panned::processWheelEvent(QWheelEvent *e)
+{
+    //RG_DEBUG << "processWheelEvent()";
+    //RG_DEBUG << "  delta(): " << e->delta();
+    //RG_DEBUG << "  angleDelta(): " << e->angleDelta();
+    //RG_DEBUG << "  pixelDelta(): " << e->pixelDelta();
+
+    // See also RosegardenScrollView::wheelEvent().
+
+    // We'll handle this.  Don't pass to parent.
+    e->accept();
+
+    QPoint angleDelta = e->angleDelta();
+
+    // Ctrl+wheel to zoom
+    if (e->modifiers() & Qt::CTRL) {
+        // Wheel down
+        if (angleDelta.y() > 0)
+            emit zoomOut();
+        else if (angleDelta.y() < 0)  // Wheel up
+            emit zoomIn();
+
+        return;
+    }
+
+    // Shift+wheel to scroll left/right.
+    // If shift is pressed and we are scrolling vertically...
+    if ((e->modifiers() & Qt::SHIFT)  &&  angleDelta.y() != 0) {
+        // Transform the incoming vertical scroll event into a
+        // horizontal scroll event.
+
+        // Swap x/y
+        QPoint pixelDelta2(e->pixelDelta().y(), e->pixelDelta().x());
+        QPoint angleDelta2(angleDelta.y(), angleDelta.x());
+
+        // Create a new event.
+        // We remove the Qt::SHIFT modifier otherwise we end up
+        // moving left/right a page at a time.
+        QWheelEvent e2(
+                e->pos(),  // pos
+                e->globalPosF(),  // globalPos
+                pixelDelta2,  // pixelDelta
+                angleDelta2,  // angleDelta
+                e->delta(),  // qt4Delta
+                Qt::Horizontal,  // qt4Orientation
+                e->buttons(),  // buttons
+                e->modifiers() & ~Qt::SHIFT,  // modifiers
+                e->phase(),  // phase
+                e->source(),  // source
+                e->inverted());  // inverted
+
+        // Let baseclass handle as usual.
+        QGraphicsView::wheelEvent(&e2);
+
+        return;
+    }
+
+    // Let baseclass handle normal scrolling.
+    QGraphicsView::wheelEvent(e);
 }
 
 void
@@ -265,6 +381,5 @@ Panned::leaveEvent(QEvent *)
     emit mouseLeaves();
 }
 
-}
 
-#include "Panned.moc"
+}

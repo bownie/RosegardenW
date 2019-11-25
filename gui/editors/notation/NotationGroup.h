@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -60,7 +60,7 @@ public:
                   const NotationProperties &properties,
                   const Clef &clef, const Key &key);
 
-    virtual ~NotationGroup();
+    ~NotationGroup() override;
 
     Type getGroupType() const { return m_type; }
 
@@ -85,13 +85,13 @@ public:
      */
     void applyTuplingLine(NotationStaff &);
 
-    virtual bool contains(const NELIterator &) const;
+    bool contains(const NELIterator &) const override;
 
-    virtual bool sample(const NELIterator &i, bool goingForwards);
+    bool sample(const NELIterator &i, bool goingForwards) override;
 
 protected:
-    virtual bool test(const NELIterator &i);
-    virtual void initialiseFinish(void);
+    bool test(const NELIterator &i) override;
+    void initialiseFinish() override;
 
 private:
     struct Beam

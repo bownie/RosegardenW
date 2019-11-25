@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -16,7 +16,6 @@
 #include "RunnablePluginInstance.h"
 #include "PluginFactory.h"
 
-#include <iostream>
 
 namespace Rosegarden
 {

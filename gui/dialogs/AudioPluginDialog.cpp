@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -54,6 +54,7 @@
 #include <QScrollArea>
 #include <QUrl>
 #include <QDesktopServices>
+#include <QSharedPointer>
 
 #include <set>
 
@@ -61,7 +62,7 @@ namespace Rosegarden
 {
 
 AudioPluginDialog::AudioPluginDialog(QWidget *parent,
-                                     AudioPluginManager *aPM,
+                                     QSharedPointer<AudioPluginManager> aPM,
                                      AudioPluginOSCGUIManager *aGM,
                                      PluginContainer *pluginContainer,
                                      int index):
@@ -70,7 +71,7 @@ AudioPluginDialog::AudioPluginDialog(QWidget *parent,
     m_pluginGUIManager(aGM),
     m_pluginContainer(pluginContainer),
     m_containerId(pluginContainer->getId()),
-    m_programLabel(0),
+    m_programLabel(nullptr),
     m_index(index),
     m_generating(true),
     m_guiShown(false)
@@ -91,12 +92,14 @@ AudioPluginDialog::AudioPluginDialog(QWidget *parent,
     vboxLayout->setMargin(0);
     metagrid->addWidget(vbox, 0, 0);
   
+    // Plugin group box
     QGroupBox *pluginSelectionBox = new QGroupBox(tr("Plugin"), vbox);
     QVBoxLayout *pluginSelectionBoxLayout = new QVBoxLayout(pluginSelectionBox);
 //    pluginSelectionBoxLayout->setMargin(0);
     vboxLayout->addWidget(pluginSelectionBox);
 
-    makePluginParamsBox(vbox); // creates a GroupBox
+    // Plugin parameters group box (m_pluginParamsBox).
+    makePluginParamsBox(vbox);
     vboxLayout->addWidget(m_pluginParamsBox);
 
     // the Category label/combo
@@ -117,8 +120,10 @@ AudioPluginDialog::AudioPluginDialog(QWidget *parent,
     pluginPluginBoxLayout->setMargin(0);
     pluginSelectionBoxLayout->addWidget(pluginPluginBox);
 
+    // Plugin label
     pluginPluginBoxLayout->addWidget(new QLabel(tr("Plugin:"), pluginPluginBox));
 
+    // Plugin combo box
     m_pluginList = new QComboBox(pluginPluginBox);
     pluginPluginBoxLayout->addWidget(m_pluginList);
     m_pluginList->setMaxVisibleItems(20);
@@ -140,8 +145,8 @@ AudioPluginDialog::AudioPluginDialog(QWidget *parent,
     pluginDonglesBoxLayout->addStretch(20); // spread these out some so they don't clump together
     m_bypass->setToolTip(tr("Bypass this plugin"));
 
-    connect(m_bypass, SIGNAL(toggled(bool)),
-            this, SLOT(slotBypassChanged(bool)));
+    connect(m_bypass, &QAbstractButton::toggled,
+            this, &AudioPluginDialog::slotBypassChanged);
 
 
     m_insOuts = new QLabel(tr("<ports>"), pluginDonglesBox);
@@ -168,22 +173,22 @@ AudioPluginDialog::AudioPluginDialog(QWidget *parent,
     m_copyButton = new QPushButton(tr("Copy"), pluginButtonsBox);
     pluginButtonsBoxLayout->addWidget(m_copyButton);
 
-    connect(m_copyButton, SIGNAL(clicked()),
-            this, SLOT(slotCopy()));
+    connect(m_copyButton, &QAbstractButton::clicked,
+            this, &AudioPluginDialog::slotCopy);
     m_copyButton->setToolTip(tr("Copy plugin parameters"));
 
     m_pasteButton = new QPushButton(tr("Paste"), pluginButtonsBox);
     pluginButtonsBoxLayout->addWidget(m_pasteButton);
 
-    connect(m_pasteButton, SIGNAL(clicked()),
-            this, SLOT(slotPaste()));
+    connect(m_pasteButton, &QAbstractButton::clicked,
+            this, &AudioPluginDialog::slotPaste);
     m_pasteButton->setToolTip(tr("Paste plugin parameters"));
 
     m_defaultButton = new QPushButton(tr("Reset"), pluginButtonsBox);
     pluginButtonsBoxLayout->addWidget(m_defaultButton);
 
-    connect(m_defaultButton, SIGNAL(clicked()),
-            this, SLOT(slotDefault()));
+    connect(m_defaultButton, &QAbstractButton::clicked,
+            this, &AudioPluginDialog::slotDefault);
     m_defaultButton->setToolTip(tr("Reset plugin controls to factory defaults"));
     
     m_generating = false;
@@ -194,31 +199,31 @@ AudioPluginDialog::AudioPluginDialog(QWidget *parent,
                  QDialogButtonBox::Close | QDialogButtonBox::Help);
 
     m_editorButton = new QPushButton(tr("Editor"));
-    //RG_DEBUG << "AudioPluginDialog::ctor - created Editor button" << endl;
+    //RG_DEBUG << "ctor - created Editor button";
     buttonBox->addButton(m_editorButton, QDialogButtonBox::ActionRole);
-    connect(m_editorButton, SIGNAL(clicked(bool)), this, SLOT(slotEditor()));
+    connect(m_editorButton, &QAbstractButton::clicked, this, &AudioPluginDialog::slotEditor);
     m_editorButton->setEnabled(false);
 
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
 
     // "Close" button has the RejectRole
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     // "Help" button has the HelpRole
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &AudioPluginDialog::slotHelpRequested);
 
-    RG_DEBUG << "AudioPluginDialog populating plugin category list...";
+    //RG_DEBUG << "ctor: populating plugin category list...";
     populatePluginCategoryList();
-    RG_DEBUG << "AudioPluginDialog populating plugin list...";
+    //RG_DEBUG << "ctor: populating plugin list...";
     populatePluginList();
 
-    RG_DEBUG << "AudioPluginDialog ctor finished.";
+    //RG_DEBUG << "ctor finished.";
 }
 
 
 AudioPluginDialog::~AudioPluginDialog()
 {
-    //RG_DEBUG << "AudioPluginDialog dtor";
+    //RG_DEBUG << "dtor...";
     emit destroyed(m_containerId, m_index);
 }
 
@@ -243,13 +248,13 @@ AudioPluginDialog::slotShowGUI()
 void
 AudioPluginDialog::populatePluginCategoryList()
 {
-    RG_DEBUG << "AudioPluginDialog::populatePluginCategoryList()" << endl;
+    //RG_DEBUG << "populatePluginCategoryList()";
     AudioPluginInstance *inst = m_pluginContainer->getPlugin(m_index);
     std::set
         <QString> categories;
     QString currentCategory;
 
-    for (PluginIterator i = m_pluginManager->begin();
+    for (AudioPluginManager::iterator i = m_pluginManager->begin();
          i != m_pluginManager->end(); ++i) {
 
         if (( isSynth() && (*i)->isSynth()) ||
@@ -266,9 +271,8 @@ AudioPluginDialog::populatePluginCategoryList()
         }
     }
 
-    if (inst) {
-        RG_DEBUG << "AudioPluginDialog::populatePluginCategoryList: inst id " << inst->getIdentifier() << ", cat " << currentCategory << endl;
-    }
+    //if (inst)
+    //    RG_DEBUG << "populatePluginCategoryList(): inst id " << inst->getIdentifier() << ", cat " << currentCategory;
 
     if (categories.empty()) {
         m_pluginCategoryBox->hide();
@@ -298,7 +302,7 @@ AudioPluginDialog::populatePluginCategoryList()
 void
 AudioPluginDialog::populatePluginList()
 {
-    RG_DEBUG << "AudioPluginDialog::populatePluginList()" << endl;
+    //RG_DEBUG << "populatePluginList()";
 
     m_pluginList->clear();
     m_pluginsInList.clear();
@@ -309,6 +313,7 @@ AudioPluginDialog::populatePluginList()
     QString category;
     bool needCategory = false;
 
+    // If a category other than the first is selected in the combobox
     if (m_pluginCategoryList->currentIndex() > 0) {
         needCategory = true;
         if (m_pluginCategoryList->currentIndex() == 1) {
@@ -318,41 +323,42 @@ AudioPluginDialog::populatePluginList()
         }
     }
 
-    // Check for plugin and setup as required
-    AudioPluginInstance *inst = m_pluginContainer->getPlugin(m_index);
-    if (inst) m_bypass->setChecked(inst->isBypassed());
-
     // Use this temporary map to ensure that the plugins are sorted
-    // by name when they go into the combobox
-    typedef std::pair<int, AudioPlugin *> PluginPair;
+    // by name when they go into the combobox.
+    // The count is the AudioPluginManager index.
+    typedef std::pair<int /* count */, QSharedPointer<AudioPlugin> > PluginPair;
     typedef std::map<QString, PluginPair> PluginMap;
-    PluginMap plugins;
+    PluginMap pluginsSorted;
     int count = 0;
 
-    for (PluginIterator i = m_pluginManager->begin();
+    // For each plugin in the AudioPluginManager
+    for (AudioPluginManager::iterator i = m_pluginManager->begin();
          i != m_pluginManager->end(); ++i) {
+
+        QSharedPointer<AudioPlugin> plugin = (*i);
 
         ++count;
 
-        if (( isSynth() && (*i)->isSynth()) ||
-            (!isSynth() && (*i)->isEffect())) {
+        // If this is the kind of plugin we are displaying
+        if ((isSynth()  &&  plugin->isSynth())  ||
+            (!isSynth()  &&  plugin->isEffect())) {
 
             if (needCategory) {
                 QString cat = "";
-                if (!(*i)->getCategory().isEmpty())
-                    cat = (*i)->getCategory();
+                if (!plugin->getCategory().isEmpty())
+                    cat = plugin->getCategory();
                 if (cat != category)
                     continue;
             }
 
-            QString name = (*i)->getName();
+            QString name = plugin->getName();
             bool store = true;
 
-            if (plugins.find(name) != plugins.end()) {
+            if (pluginsSorted.find(name) != pluginsSorted.end()) {
                 // We already have a plugin of this name.  If it's a
                 // LADSPA plugin, replace it (this one might be
                 // something better); otherwise leave it alone.
-                QString id = plugins[name].second->getIdentifier();
+                QString id = pluginsSorted[name].second->getIdentifier();
                 QString type, soname, label;
                 PluginIdentifier::parseIdentifier(id, type, soname, label);
                 if (type != "ladspa") {
@@ -361,16 +367,27 @@ AudioPluginDialog::populatePluginList()
             }
 
             if (store) {
-                plugins[(*i)->getName()] = PluginPair(count, *i);
+                pluginsSorted[plugin->getName()] = PluginPair(count, plugin);
             }
         }
     }
 
-    const char *currentId = 0;
-    if (inst && inst->isAssigned())
-        currentId = inst->getIdentifier().c_str();
+    // Check for plugin and setup as required
+    AudioPluginInstance *plugin = m_pluginContainer->getPlugin(m_index);
+    if (plugin)
+        m_bypass->setChecked(plugin->isBypassed());
 
-    for (PluginMap::iterator i = plugins.begin(); i != plugins.end(); ++i) {
+    QString currentId;
+
+    if (plugin  &&  plugin->isAssigned()) {
+        //RG_DEBUG << "  plugin->getIdentifier(): " << plugin->getIdentifier();
+        currentId = plugin->getIdentifier().c_str();
+    }
+
+    // For each plugin in the sorted map
+    for (PluginMap::iterator i = pluginsSorted.begin();
+         i != pluginsSorted.end();
+         ++i) {
 
         QString name = i->first;
         if (name.endsWith(" VST"))
@@ -379,7 +396,8 @@ AudioPluginDialog::populatePluginList()
         m_pluginList->addItem(name);
         m_pluginsInList.push_back(i->second.first);
 
-        if (currentId && currentId == i->second.second->getIdentifier()) {
+        // If this is the plugin that is selected, select it in the combobox.
+        if (currentId == i->second.second->getIdentifier()) {
             m_pluginList->setCurrentIndex(m_pluginList->count() - 1);
         }
     }
@@ -390,7 +408,7 @@ AudioPluginDialog::populatePluginList()
 void
 AudioPluginDialog::makePluginParamsBox(QWidget *parent)
 {
-    RG_DEBUG << "AudioPluginDialog::makePluginParamsBox()" << endl;
+    //RG_DEBUG << "makePluginParamsBox()";
     //@@@ //!!!
     // There really isn't anything to do here now.  It used to calculate how
     // many rows and columns to use to create a QGridLayout, but in Qt4 there is
@@ -408,7 +426,7 @@ AudioPluginDialog::makePluginParamsBox(QWidget *parent)
 void
 AudioPluginDialog::slotCategorySelected(int)
 {
-    RG_DEBUG << "AudioPluginDialog::slotCategorySelected" << endl;
+    //RG_DEBUG << "slotCategorySelected()";
     populatePluginList();
 }
 
@@ -424,8 +442,7 @@ AudioPluginDialog::slotPluginSelected(int i)
 
     int number = m_pluginsInList[i];
 
-    RG_DEBUG << "AudioPluginDialog::::slotPluginSelected - "
-             << "setting up plugin from position " << number << " at menu item " << i << endl;
+    //RG_DEBUG << "slotPluginSelected(): setting up plugin from position " << number << " at menu item " << i;
 
     QString caption =
         strtoqstr(m_pluginContainer->getName()) +
@@ -439,21 +456,23 @@ AudioPluginDialog::slotPluginSelected(int i)
         m_pluginList->setToolTip( tr("Select a plugin from this list") );
     }
 
-    AudioPlugin *plugin = m_pluginManager->getPlugin(number - 1);
+    QSharedPointer<AudioPlugin> plugin = m_pluginManager->getPlugin(number - 1);
 
     // Destroy old param widgets
     //
     QWidget* parent = dynamic_cast<QWidget*>(m_pluginParamsBox->parent());
 
     delete m_pluginParamsBox;
-    RG_DEBUG << "AudioPluginDialog::slotPluginSelected - deleted m_pluginParamsBox" << endl;
+    //RG_DEBUG << "slotPluginSelected(): deleted m_pluginParamsBox";
     m_pluginWidgets.clear(); // The widgets are deleted with the parameter box
-    m_programCombo = 0;
+    m_programCombo = nullptr;
 
     // count up how many controller inputs the plugin has
     int portCount = 0;
     if (plugin) {
-        for (AudioPlugin::PortIterator it = plugin->begin(); it != plugin->end(); ++it) {
+        for (AudioPlugin::PluginPortVector::iterator it = plugin->begin();
+             it != plugin->end();
+             ++it) {
             if (((*it)->getType() & PluginPort::Control) &&
                 ((*it)->getType() & PluginPort::Input))
                 ++portCount;
@@ -511,18 +530,19 @@ AudioPluginDialog::slotPluginSelected(int i)
 
         inst->setIdentifier(identifier);
 
-        AudioPlugin::PortIterator it = plugin->begin();
         int count = 0;
         int ins = 0, outs = 0;
 
-        for (; it != plugin->end(); ++it) {
+        for (AudioPlugin::PluginPortVector::iterator it = plugin->begin();
+             it != plugin->end();
+             ++it) {
             if (((*it)->getType() & PluginPort::Control) &&
                 ((*it)->getType() & PluginPort::Input)) {
                 // Check for port existence and create with default value
                 // if it doesn't exist.  Modification occurs through the
                 // slotPluginPortChanged signal.
                 //
-                if (inst->getPort(count) == 0) {
+                if (inst->getPort(count) == nullptr) {
                     inst->addPort(count, (float)(*it)->getDefaultValue());
 //                    std::cerr << "Plugin port name " << (*it)->getName() << ", default: " << (*it)->getDefaultValue() << std::endl;
                 }
@@ -585,7 +605,6 @@ AudioPluginDialog::slotPluginSelected(int i)
             m_programCombo->show();
         }
 
-        AudioPlugin::PortIterator it = plugin->begin();
         int count = 0;
 
         int row = insRow + 1;
@@ -624,7 +643,9 @@ AudioPluginDialog::slotPluginSelected(int i)
 
         // Create the plugin controls, but only if they're going to be visible.
         // (Else what's the point of creating them at all?)
-        for (; it != plugin->end(); ++it) {
+        for (AudioPlugin::PluginPortVector::iterator it = plugin->begin();
+             it != plugin->end();
+             ++it) {
             if (((*it)->getType() & PluginPort::Control) &&
                 ((*it)->getType() & PluginPort::Input) &&
                 !hidden) {
@@ -650,8 +671,8 @@ AudioPluginDialog::slotPluginSelected(int i)
                     col = 0;
                 }
 
-                connect(control, SIGNAL(valueChanged(float)),
-                        this, SLOT(slotPluginPortChanged(float)));
+                connect(control, &PluginControl::valueChanged,
+                        this, &AudioPluginDialog::slotPluginPortChanged);
 
                 m_pluginWidgets.push_back(control);
             }
@@ -717,7 +738,7 @@ AudioPluginDialog::getProgramsForInstance(AudioPluginInstance *inst, int &curren
 void
 AudioPluginDialog::slotPluginPortChanged(float value)
 {
-    RG_DEBUG << "AudioPluginDialog::slotPluginPortChanged(" << value << ")" << endl;
+    //RG_DEBUG << "slotPluginPortChanged(" << value << ")";
     const QObject* object = sender();
 
     const PluginControl* control = dynamic_cast<const PluginControl*>(object);
@@ -780,7 +801,7 @@ AudioPluginDialog::updatePluginPortControl(int port)
 void
 AudioPluginDialog::updatePluginProgramControl()
 {
-    RG_DEBUG << "AudioPluginDialog::updatePluginProgramControl()" << endl;
+    //RG_DEBUG << "updatePluginProgramControl()";
 
     AudioPluginInstance *inst = m_pluginContainer->getPlugin(m_index);
     if (inst) {
@@ -803,7 +824,7 @@ AudioPluginDialog::updatePluginProgramControl()
 void
 AudioPluginDialog::updatePluginProgramList()
 {
-    RG_DEBUG << "AudioPluginDialog::updatePluginProgramList()" << endl;
+    //RG_DEBUG << "updatePluginProgramList()";
 
     if (!m_programLabel)
         return ;
@@ -998,14 +1019,16 @@ AudioPluginDialog::slotDefault()
     if (n == 0)
         return ;
 
-    AudioPlugin *plugin = m_pluginManager->getPlugin(n - 1);
+    QSharedPointer<AudioPlugin> plugin = m_pluginManager->getPlugin(n - 1);
     if (!plugin)
         return ;
 
     for (std::vector<PluginControl *>::iterator i = m_pluginWidgets.begin();
          i != m_pluginWidgets.end(); ++i) {
 
-        for (AudioPlugin::PortIterator pi = plugin->begin(); pi != plugin->end(); ++pi) {
+        for (AudioPlugin::PluginPortVector::iterator pi = plugin->begin();
+             pi != plugin->end();
+             ++pi) {
             if ((*pi)->getNumber() == (*i)->getIndex()) {
                 (*i)->setValue((*pi)->getDefaultValue(), true); // and emit
                 break;
@@ -1027,4 +1050,3 @@ AudioPluginDialog::slotHelpRequested()
 }
 
 }
-#include "AudioPluginDialog.moc"

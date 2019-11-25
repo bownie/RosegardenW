@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -33,9 +33,9 @@
 #include "commands/segment/RemoveTimeSignatureCommand.h"
 #include "document/RosegardenDocument.h"
 #include "misc/ConfigGroups.h"
-#include "gui/dialogs/TempoDialog.h"
 #include "gui/dialogs/TimeSignatureDialog.h"
 #include "gui/dialogs/AboutDialog.h"
+#include "gui/general/EditTempoController.h"
 #include "gui/general/ListEditView.h"
 #include "gui/general/IconLoader.h"
 #include "gui/widgets/TmpStatusMsg.h"
@@ -61,8 +61,9 @@
 namespace Rosegarden
 {
 
-TempoView::TempoView(RosegardenDocument *doc, QWidget *parent, timeT openTime):
+TempoView::TempoView(RosegardenDocument *doc, QWidget *parent, EditTempoController *editTempoController, timeT openTime):
         ListEditView(doc, std::vector<Segment *>(), 2, parent),
+        m_editTempoController(editTempoController),
         m_filter(Tempo | TimeSignature),
         m_ignoreUpdates(true)
 {
@@ -99,8 +100,8 @@ TempoView::TempoView(RosegardenDocument *doc, QWidget *parent, timeT openTime):
 
     // Connect double clicker
     //
-    connect(m_list, SIGNAL(itemDoubleClicked(QTreeWidgetItem*, int)),
-            SLOT(slotPopupEditor(QTreeWidgetItem*, int)));
+    connect(m_list, &QTreeWidget::itemDoubleClicked,
+            this, &TempoView::slotPopupEditor);
 
     m_list->setAllColumnsShowFocus(true);
     m_list->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -121,10 +122,10 @@ TempoView::TempoView(RosegardenDocument *doc, QWidget *parent, timeT openTime):
     readOptions();
     setButtonsToFilter();
 
-    connect(m_tempoCheckBox, SIGNAL(stateChanged(int)),
-            SLOT(slotModifyFilter(int)));
-    connect(m_timeSigCheckBox, SIGNAL(stateChanged(int)),
-            SLOT(slotModifyFilter(int)));
+    connect(m_tempoCheckBox, &QCheckBox::stateChanged,
+            this, &TempoView::slotModifyFilter);
+    connect(m_timeSigCheckBox, &QCheckBox::stateChanged,
+            this, &TempoView::slotModifyFilter);
 
     applyLayout();
 
@@ -305,7 +306,7 @@ TempoView::makeInitialSelection(timeT time)
 {
     m_listSelection.clear();
 
-    TempoListItem *goodItem = 0;
+    TempoListItem *goodItem = nullptr;
     int goodItemNo = 0;
 
     for (int i = 0; m_list->topLevelItem(i); ++i) {
@@ -337,7 +338,7 @@ Segment *
 TempoView::getCurrentSegment()
 {
     if (m_segments.empty())
-        return 0;
+        return nullptr;
     else
         return *m_segments.begin();
 }
@@ -383,7 +384,7 @@ TempoView::refreshSegment(Segment * /*segment*/,
                           timeT /*startTime*/,
                           timeT /*endTime*/)
 {
-    RG_DEBUG << "TempoView::refreshSegment" << endl;
+    RG_DEBUG << "TempoView::refreshSegment";
     applyLayout();
 }
 
@@ -485,21 +486,7 @@ TempoView::slotEditInsertTempo()
             insertTime = item->getTime();
     }
 
-    TempoDialog dialog(this, getDocument(), true);
-    dialog.setTempoPosition(insertTime);
-
-    connect(&dialog,
-            SIGNAL(changeTempo(timeT,
-                               tempoT,
-                               tempoT,
-                               TempoDialog::TempoDialogAction)),
-            this,
-            SIGNAL(changeTempo(timeT,
-                               tempoT,
-                               tempoT,
-                               TempoDialog::TempoDialogAction)));
-
-    dialog.exec();
+    m_editTempoController->editTempo(this, insertTime, true /* timeEditable */);
 }
 
 void
@@ -539,7 +526,7 @@ TempoView::slotEditInsertTimeSignature()
 void
 TempoView::slotEdit()
 {
-    RG_DEBUG << "TempoView::slotEdit" << endl;
+    RG_DEBUG << "TempoView::slotEdit";
 
     QList<QTreeWidgetItem*> selection = m_list->selectedItems();
 
@@ -593,28 +580,25 @@ TempoView::setupActions()
 
     QAction *a;
     a = createAction("time_musical", SLOT(slotMusicalTime()));
-    if (timeMode == 0) { a->setCheckable(true); a->setChecked(true); }
+    a->setCheckable(true);
+    if (timeMode == 0)  a->setChecked(true);
 
     a = createAction("time_real", SLOT(slotRealTime()));
-    if (timeMode == 1) { a->setCheckable(true); a->setChecked(true); }
+    a->setCheckable(true);
+    if (timeMode == 1)  a->setChecked(true);
 
     a = createAction("time_raw", SLOT(slotRawTime()));
-    if (timeMode == 2) { a->setCheckable(true); a->setChecked(true); }
+    a->setCheckable(true);
+    if (timeMode == 2)  a->setChecked(true);
 
-    createGUI(getRCFileName());
+    createMenusAndToolbars(getRCFileName());
 }
 
 void
 TempoView::initStatusBar()
 {
     QStatusBar* sb = statusBar();
-
-    sb->showMessage(TmpStatusMsg::getDefaultMsg());
-    
-//     sb->addItem(TmpStatusMsg::getDefaultMsg(),
-//                    TmpStatusMsg::getDefaultId(), 1);
-//     sb->setItemAlignment(TmpStatusMsg::getDefaultId(),
-//                          AlignLeft | AlignVCenter);
+    sb->showMessage(QString());
 }
 
 QSize
@@ -681,6 +665,9 @@ TempoView::slotMusicalTime()
     settings.beginGroup(TempoViewConfigGroup);
 
     settings.setValue("timemode", 0);
+    findAction("time_musical")->setChecked(true);
+    findAction("time_real")->setChecked(false);
+    findAction("time_raw")->setChecked(false);
     applyLayout();
 
     settings.endGroup();
@@ -693,6 +680,9 @@ TempoView::slotRealTime()
     settings.beginGroup(TempoViewConfigGroup);
 
     settings.setValue("timemode", 1);
+    findAction("time_musical")->setChecked(false);
+    findAction("time_real")->setChecked(true);
+    findAction("time_raw")->setChecked(false);
     applyLayout();
 
     settings.endGroup();
@@ -705,6 +695,9 @@ TempoView::slotRawTime()
     settings.beginGroup(TempoViewConfigGroup);
 
     settings.setValue("timemode", 2);
+    findAction("time_musical")->setChecked(false);
+    findAction("time_real")->setChecked(false);
+    findAction("time_raw")->setChecked(true);
     applyLayout();
 
     settings.endGroup();
@@ -723,21 +716,7 @@ TempoView::slotPopupEditor(QTreeWidgetItem *qitem, int)
 
     case TempoListItem::Tempo:
     {
-        TempoDialog dialog(this, getDocument(), true);
-        dialog.setTempoPosition(time);
-        
-        connect(&dialog,
-                SIGNAL(changeTempo(timeT,
-                                   tempoT,
-                                   tempoT,
-                                   TempoDialog::TempoDialogAction)),
-                this,
-                SIGNAL(changeTempo(timeT,
-                                   tempoT,
-                                   tempoT,
-                                   TempoDialog::TempoDialogAction)));
-        
-        dialog.exec();
+        m_editTempoController->editTempo(this, time, true /* timeEditable */);
         break;
     }
 
@@ -794,4 +773,3 @@ TempoView::slotHelpAbout()
     new AboutDialog(this);
 }
 }
-#include "TempoView.moc"

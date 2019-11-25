@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -32,7 +32,7 @@ class QCloseEvent;
 
 namespace Rosegarden
 {
-
+class Clipboard;
 class Command;
 class Segment;
 class RosegardenDocument;
@@ -48,10 +48,12 @@ public:
                  std::vector<Segment *> segments,
                  QWidget *parent);
 
-    virtual ~EditViewBase();
+    ~EditViewBase() override;
 
     const RosegardenDocument *getDocument() const { return m_doc; }
     RosegardenDocument *getDocument() { return m_doc; }
+
+    Clipboard *getClipboard();
 
     /**
      * Return our local shortcut object
@@ -183,7 +185,7 @@ protected:
     /**
      * @see #setInCtor
      */
-    virtual void closeEvent(QCloseEvent* e);
+    void closeEvent(QCloseEvent* e) override;
     
     /**
      * read general Options again and initialize all variables like the recent file list
@@ -223,9 +225,6 @@ protected slots:
      */
     virtual void slotSaveOptions();
     virtual void slotConfigure();
-    virtual void slotEditKeys();
-    virtual void slotEditToolbars();
-    virtual void slotUpdateToolbars();
 
 protected:
     /**

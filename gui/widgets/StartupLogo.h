@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file contains code borrowed from KDevelop 2.0
@@ -22,10 +22,12 @@
 #include <QWidget>
 #include <QPixmap>
 
+#include <rosegardenprivate_export.h>
+
 namespace Rosegarden
 {
 
-class StartupLogo : public QWidget
+class ROSEGARDENPRIVATE_EXPORT StartupLogo : public QWidget
 {
     Q_OBJECT
 
@@ -43,11 +45,11 @@ public slots:
 
 protected:
 
-    StartupLogo(QWidget *parent=0);
-    ~StartupLogo();
+    StartupLogo(QWidget *parent=nullptr);
+    ~StartupLogo() override;
     
-    virtual void paintEvent(QPaintEvent*);
-    virtual void mousePressEvent( QMouseEvent*);
+    void paintEvent(QPaintEvent*) override;
+    void mousePressEvent( QMouseEvent*) override;
 
     bool m_readyToHide;
     bool m_showTip;

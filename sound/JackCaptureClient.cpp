@@ -325,4 +325,3 @@ JackCaptureClient::getFrame(float *frame, size_t captureSize)
 
 
 } // end namespace
-

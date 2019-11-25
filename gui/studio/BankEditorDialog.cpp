@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -41,6 +41,7 @@
 #include "gui/widgets/TmpStatusMsg.h"
 #include "gui/widgets/FileDialog.h"
 #include "gui/general/ResourceFinder.h"
+#include "gui/general/ThornStyle.h"
 #include "gui/dialogs/AboutDialog.h"
 #include "document/Command.h"
 
@@ -59,7 +60,6 @@
 #include <QGroupBox>
 #include <QPushButton>
 #include <QSizePolicy>
-#include <QSplitter>
 #include <QString>
 #include <QToolTip>
 #include <QWidget>
@@ -71,7 +71,6 @@
 #include <QStandardPaths>
 #endif
 #include <QDialogButtonBox>
-#include <QSettings>
 
 
 namespace Rosegarden
@@ -192,21 +191,11 @@ BankEditorDialog::BankEditorDialog(QWidget *parent,
     // Right side layout
     m_rightSide = new QFrame;
 
-    QSettings settings;
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    m_Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
-
     m_rightSide->setContentsMargins(8, 8, 8, 8);
     QVBoxLayout *rightSideLayout = new QVBoxLayout;
     rightSideLayout->setMargin(0);
     rightSideLayout->setSpacing(6);
     m_rightSide->setLayout(rightSideLayout);
-
-    if (m_Thorn) {
-        QString localStyle("QWidget:!enabled { color: black }");
-        m_rightSide->setStyleSheet(localStyle);
-    }
 
     splitterLayout->addWidget(m_rightSide);
 
@@ -242,35 +231,35 @@ BankEditorDialog::BankEditorDialog(QWidget *parent,
 
     // device/bank modification
 
-    connect(m_treeWidget, SIGNAL(itemDoubleClicked(QTreeWidgetItem*, int )),
-            this, SLOT(slotEdit(QTreeWidgetItem*, int)));
+    connect(m_treeWidget, &QTreeWidget::itemDoubleClicked,
+            this, &BankEditorDialog::slotEdit);
 
-    connect(m_addBank, SIGNAL(clicked()),
-            this, SLOT(slotAddBank()));
+    connect(m_addBank, &QAbstractButton::clicked,
+            this, &BankEditorDialog::slotAddBank);
 
-    connect(m_addKeyMapping, SIGNAL(clicked()),
-            this, SLOT(slotAddKeyMapping()));
+    connect(m_addKeyMapping, &QAbstractButton::clicked,
+            this, &BankEditorDialog::slotAddKeyMapping);
 
-    connect(m_delete, SIGNAL(clicked()),
-            this, SLOT(slotDelete()));
+    connect(m_delete, &QAbstractButton::clicked,
+            this, &BankEditorDialog::slotDelete);
 
-    connect(m_deleteAll, SIGNAL(clicked()),
-            this, SLOT(slotDeleteAll()));
+    connect(m_deleteAll, &QAbstractButton::clicked,
+            this, &BankEditorDialog::slotDeleteAll);
 
-    connect(m_importBanks, SIGNAL(clicked()),
-            this, SLOT(slotImport()));
+    connect(m_importBanks, &QAbstractButton::clicked,
+            this, &BankEditorDialog::slotImport);
 
-    connect(m_exportBanks, SIGNAL(clicked()),
-            this, SLOT(slotExport()));
+    connect(m_exportBanks, &QAbstractButton::clicked,
+            this, &BankEditorDialog::slotExport);
 
-    connect(m_copyPrograms, SIGNAL(clicked()),
-            this, SLOT(slotEditCopy()));
+    connect(m_copyPrograms, &QAbstractButton::clicked,
+            this, &BankEditorDialog::slotEditCopy);
 
-    connect(m_pastePrograms, SIGNAL(clicked()),
-            this, SLOT(slotEditPaste()));
+    connect(m_pastePrograms, &QAbstractButton::clicked,
+            this, &BankEditorDialog::slotEditPaste);
 
-    connect(m_variationToggle, SIGNAL(clicked()),
-            this, SLOT(slotVariationToggled()));
+    connect(m_variationToggle, &QAbstractButton::clicked,
+            this, &BankEditorDialog::slotVariationToggled);
 
     connect(m_variationCombo, SIGNAL(activated(int)),
             this, SLOT(slotVariationChanged(int)));
@@ -290,7 +279,7 @@ BankEditorDialog::BankEditorDialog(QWidget *parent,
     m_closeButton = btnBox->button(QDialogButtonBox::Close);
     m_resetButton = btnBox->button(QDialogButtonBox::Reset);
 
-    connect(m_resetButton, SIGNAL(clicked()), this, SLOT(slotReset()));
+    connect(m_resetButton, &QAbstractButton::clicked, this, &BankEditorDialog::slotReset);
 
     // Initialize the dialog
     //
@@ -343,7 +332,7 @@ BankEditorDialog::setupActions()
     
     createAction("file_close", SLOT(slotFileClose()));
 
-    connect(m_closeButton, SIGNAL(clicked()), this, SLOT(slotFileClose()));
+    connect(m_closeButton, &QAbstractButton::clicked, this, &BankEditorDialog::slotFileClose);
 
     createAction("edit_copy", SLOT(slotEditCopy()));
     createAction("edit_paste", SLOT(slotEditPaste()));
@@ -359,11 +348,11 @@ BankEditorDialog::setupActions()
     
     
 //     currentItemChanged( QTreeWidgetItem* current, QTreeWidgetItem* previous )
-    connect( m_treeWidget, SIGNAL(currentItemChanged( QTreeWidgetItem*, QTreeWidgetItem*)),  //twItemCurr, teItemPrev
-             this, SLOT(slotPopulateDeviceEditors(QTreeWidgetItem*, QTreeWidgetItem*))  );
+    connect( m_treeWidget, &QTreeWidget::currentItemChanged,  //twItemCurr, teItemPrev
+             this, &BankEditorDialog::slotPopulateDeviceEditors  );
     
-    connect(m_treeWidget, SIGNAL(itemChanged(QTreeWidgetItem*, int)), this, 
-            SLOT(slotModifyDeviceOrBankName(QTreeWidgetItem*, int)));
+    connect(m_treeWidget, &QTreeWidget::itemChanged, this, 
+            &BankEditorDialog::slotModifyDeviceOrBankName);
     
     // some adjustments
 
@@ -381,7 +370,7 @@ BankEditorDialog::setupActions()
                             KStandardAction::stdName(KStandardAction::Redo));
     */
     
-    createGUI("bankeditor.rc"); //@@@ JAS orig. 0
+    createMenusAndToolbars("bankeditor.rc"); //@@@ JAS orig. 0
 }
 
 void
@@ -394,8 +383,8 @@ BankEditorDialog::initDialog()
 
     // Fill list view
     //
-    MidiDevice* midiDevice = 0;
-    QTreeWidgetItem* twItemDevice = 0;
+    MidiDevice* midiDevice = nullptr;
+    QTreeWidgetItem* twItemDevice = nullptr;
     DeviceList *devices = m_studio->getDevices();
     DeviceListIterator it;
     Device *devx;
@@ -419,7 +408,7 @@ BankEditorDialog::initDialog()
             m_deviceNameMap[midiDevice->getId()] = midiDevice->getName();
             QString itemName = strtoqstr(midiDevice->getName());
 
-            RG_DEBUG << "BankEditorDialog::initDialog - adding " << itemName << endl;
+            RG_DEBUG << "BankEditorDialog::initDialog - adding " << itemName;
 
             twItemDevice = new MidiDeviceTreeWidgetItem(midiDevice->getId(), m_treeWidget, itemName);
             //twItemDevice->setFlags(Qt::ItemIsEditable | Qt::ItemIsSelectable);
@@ -450,10 +439,10 @@ BankEditorDialog::updateDialog()
     DeviceListIterator it;
     bool deviceLabelUpdate = false;
     
-    MidiDevice* midiDevice = 0;
-    QTreeWidgetItem* currentIndex = 0;
-    MidiDeviceTreeWidgetItem* deviceItem = 0;
-    QTreeWidgetItem *child = 0;
+    MidiDevice* midiDevice = nullptr;
+    QTreeWidgetItem* currentIndex = nullptr;
+    MidiDeviceTreeWidgetItem* deviceItem = nullptr;
+    QTreeWidgetItem *child = nullptr;
     unsigned int cnt, i;
     
     for (it = devices->begin(); it != devices->end(); ++it) {
@@ -735,8 +724,8 @@ bool
 BankEditorDialog::deviceItemHasBank(MidiDeviceTreeWidgetItem* deviceItem, int bankNb)
 {
 //     QTreeWidgetItem *child = deviceItem->firstChild();
-    MidiBankTreeWidgetItem *bankItem = 0;
-    QTreeWidgetItem *child = 0;
+    MidiBankTreeWidgetItem *bankItem = nullptr;
+    QTreeWidgetItem *child = nullptr;
     
     int n = 0;
     while (n < deviceItem->childCount()) {
@@ -773,7 +762,7 @@ BankEditorDialog::getCurrentMidiDevice()
 
 void BankEditorDialog::slotPopulateDeviceEditors(QTreeWidgetItem* item, QTreeWidgetItem*)
 {
-    RG_DEBUG << "BankEditorDialog::slotPopulateDeviceEditors" << endl;
+    RG_DEBUG << "BankEditorDialog::slotPopulateDeviceEditors";
 
     if (!item)
         return ;
@@ -888,15 +877,11 @@ void BankEditorDialog::populateDeviceEditors(QTreeWidgetItem* item)
     m_bankList = device->getBanks();
     setProgramList(device);
 
-    RG_DEBUG << "BankEditorDialog::populateDeviceEditors : not a bank item - disabling" << endl;
+    RG_DEBUG << "BankEditorDialog::populateDeviceEditors : not a bank item - disabling";
     m_delete->setEnabled(false);
     m_copyPrograms->setEnabled(false);
     m_pastePrograms->setEnabled(false);
-    if (m_Thorn) {
-        m_rightSide->setEnabled(false);
-    } else {
-        m_rightSide->setEnabled(false);
-    }
+    m_rightSide->setEnabled(false);
 
     m_variationToggle->setChecked(device->getVariationType() !=
                                   MidiDevice::NoVariations);
@@ -917,7 +902,7 @@ BankEditorDialog::slotApply()
 {
     RG_DEBUG << "BankEditorDialog::slotApply()\n";
 
-    ModifyDeviceCommand *command = 0;
+    ModifyDeviceCommand *command = nullptr;
 
     MidiDevice *device = getMidiDevice(m_lastDevice);
 
@@ -1036,7 +1021,7 @@ BankEditorDialog::getParentDeviceItem(QTreeWidgetItem* item)
     *   return the parent t.w.Item of a bank or keymap (which is a MidiDeviceTreeWidgetItem )
     **/
     if (!item)
-        return 0;
+        return nullptr;
 
     if (dynamic_cast<MidiBankTreeWidgetItem*>(item)){
         // go up to the parent device item
@@ -1048,8 +1033,8 @@ BankEditorDialog::getParentDeviceItem(QTreeWidgetItem* item)
     }
 
     if (!item) {
-        RG_DEBUG << "BankEditorDialog::getParentDeviceItem : missing parent device item for bank item - this SHOULD NOT HAPPEN" << endl;
-        return 0;
+        RG_DEBUG << "BankEditorDialog::getParentDeviceItem : missing parent device item for bank item - this SHOULD NOT HAPPEN";
+        return nullptr;
     }
 
     return dynamic_cast<MidiDeviceTreeWidgetItem*>(item);
@@ -1084,7 +1069,7 @@ BankEditorDialog::slotAddBank()
 
         QString name = "";
         int n = 0;
-        while (name == "" || device->getBankByName(qstrtostr(name)) != 0) {
+        while (name == "" || device->getBankByName(qstrtostr(name)) != nullptr) {
             ++n;
             if (n == 1)
                 name = tr("<new bank>");
@@ -1098,7 +1083,7 @@ BankEditorDialog::slotAddBank()
                          qstrtostr(name));
         m_bankList.push_back(newBank);
 
-RG_DEBUG << "BankEditorDialog::slotAddBank() : deviceItem->getDeviceId() = " << deviceItem->getDeviceId() << endl;
+RG_DEBUG << "BankEditorDialog::slotAddBank() : deviceItem->getDeviceId() = " << deviceItem->getDeviceId();
         QTreeWidgetItem* newBankItem =
             new MidiBankTreeWidgetItem(deviceItem->getDeviceId(),
                                      m_bankList.size() - 1,
@@ -1127,7 +1112,7 @@ BankEditorDialog::slotAddKeyMapping()
 
         QString name = "";
         int n = 0;
-        while (name == "" || device->getKeyMappingByName(qstrtostr(name)) != 0) {
+        while (name == "" || device->getKeyMappingByName(qstrtostr(name)) != nullptr) {
             ++n;
             if (n == 1)
                 name = tr("<new mapping>");
@@ -1185,11 +1170,17 @@ BankEditorDialog::slotDelete()
 
             // Copy across all programs that aren't in the doomed bank
             //
-            ProgramList::iterator it;
-            ProgramList tempList;
-            for (it = m_programList.begin(); it != m_programList.end(); ++it)
-                if (!(it->getBank() == bank))
-                    tempList.push_back(*it);
+            ProgramList newProgramList;
+            for (ProgramList::iterator it = m_programList.begin();
+                 it != m_programList.end();
+                 ++it) {
+                // If this program isn't in the bank that is being deleted,
+                // add it to the new program list.  We use partialCompare()
+                // because the MidiBank objects in the program list do not
+                // have their name fields filled in.
+                if (!it->getBank().partialCompare(bank))
+                    newProgramList.push_back(*it);
+            }
 
             // Erase the bank and repopulate
             //
@@ -1197,7 +1188,7 @@ BankEditorDialog::slotDelete()
                 m_bankList.begin();
             er += currentBank;
             m_bankList.erase(er);
-            m_programList = tempList;
+            m_programList = newProgramList;
             keepBankListForNextPopulate();
 
             // the listview automatically selects a new current item
@@ -1249,20 +1240,20 @@ BankEditorDialog::slotDelete()
             for (KeyMappingList::iterator i = kml.begin();
                     i != kml.end(); ++i) {
                 if (i->getName() == keyMappingName) {
-                    RG_DEBUG << "erasing " << keyMappingName << endl;
+                    RG_DEBUG << "erasing " << keyMappingName;
                     kml.erase(i);
                     break;
                 }
             }
 
-            RG_DEBUG << " setting " << kml.size() << " key mappings to device " << endl;
+            RG_DEBUG << " setting " << kml.size() << " key mappings to device ";
 
             command->setKeyMappingList(kml);
             command->setOverwrite(true);
 
             addCommandToHistory(command);
 
-            RG_DEBUG << " device has " << device->getKeyMappings().size() << " key mappings now " << endl;
+            RG_DEBUG << " device has " << device->getKeyMappings().size() << " key mappings now ";
 
             updateDialog();
         }
@@ -1294,7 +1285,7 @@ BankEditorDialog::slotDeleteAll()
     if (reply == QMessageBox::Yes) {
 
         // erase all bank items
-        QTreeWidgetItem* child = 0;
+        QTreeWidgetItem* child = nullptr;
         while ((child = deviceItem->child(0)))
             delete child;
 
@@ -1351,7 +1342,7 @@ BankEditorDialog::getMidiDevice(QTreeWidgetItem* item)
     MidiDeviceTreeWidgetItem* deviceItem =
         dynamic_cast<MidiDeviceTreeWidgetItem*>(item);
     if (!deviceItem)
-        return 0;
+        return nullptr;
 
     return getMidiDevice(deviceItem->getDeviceId());
 }
@@ -1381,7 +1372,7 @@ BankEditorDialog::getFirstFreeBank(QTreeWidgetItem* /* item */)
 void
 BankEditorDialog::slotModifyDeviceOrBankName(QTreeWidgetItem* item, int)
 {
-    RG_DEBUG << "BankEditorDialog::slotModifyDeviceOrBankName" << endl;
+    RG_DEBUG << "BankEditorDialog::slotModifyDeviceOrBankName";
 
     MidiDeviceTreeWidgetItem* deviceItem =
         dynamic_cast<MidiDeviceTreeWidgetItem*>(item);
@@ -1500,8 +1491,8 @@ BankEditorDialog::selectDeviceBankItem(DeviceId deviceId,
 //     int deviceCount = 0, bankCount = 0;
 
     
-    QTreeWidgetItem *twItemDevice = 0;
-    MidiDeviceTreeWidgetItem *midiDeviceItem = 0;
+    QTreeWidgetItem *twItemDevice = nullptr;
+    MidiDeviceTreeWidgetItem *midiDeviceItem = nullptr;
     
     int bankI;
     int devI = 0;
@@ -1569,7 +1560,7 @@ BankEditorDialog::slotImport()
                       tr("Rosegarden files") + " (*.rg *.RG)" + ";;" +
                       tr("Sound fonts") + " (*.sf2 *.SF2)" + ";;" +
                       tr("LinuxSampler configuration files") + " (*.lscp *.LSCP)" + ";;" +
-                      tr("All files") + " (*)", 0, 0); ///!!! Should we allow 'All files' here since LinuxSampler files don't need to have an extension?!
+                      tr("All files") + " (*)", nullptr, nullptr); ///!!! Should we allow 'All files' here since LinuxSampler files don't need to have an extension?!
 
     QUrl url(url_str);
     
@@ -1603,7 +1594,7 @@ BankEditorDialog::slotImport()
             return ;
         }
 
-        ModifyDeviceCommand *command = 0;
+        ModifyDeviceCommand *command = nullptr;
 
         BankList banks(dialog->getBanks());
         ProgramList programs(dialog->getPrograms());
@@ -1660,7 +1651,7 @@ BankEditorDialog::slotImport()
 void
 BankEditorDialog::slotEdit(QTreeWidgetItem * item, int)
 {
-    std::cout << "BankEditorDialog::slotEdit()" << std::endl;
+    RG_DEBUG << "BankEditorDialog::slotEdit()";
 
     if (item->flags() & Qt::ItemIsEditable)
         m_treeWidget->editItem(item);
@@ -1697,7 +1688,7 @@ BankEditorDialog::slotEditPaste()
         // Remove programs that will be overwritten
         //
         for (it = m_programList.begin(); it != m_programList.end(); ++it) {
-            if (!(it->getBank() == m_lastBank))
+            if (!(it->getBank().partialCompare(m_lastBank)))
                 tempProg.push_back(*it);
         }
         m_programList = tempProg;
@@ -1710,7 +1701,7 @@ BankEditorDialog::slotEditPaste()
         // Add the new programs
         //
         for (it = tempProg.begin(); it != tempProg.end(); ++it) {
-            if (it->getBank() == sourceBank) {
+            if (it->getBank().partialCompare(sourceBank)) {
                 // Insert with new MSB and LSB
                 //
                 MidiProgram copyProgram(m_lastBank,
@@ -1758,7 +1749,7 @@ BankEditorDialog::slotExport()
     QString dir = ResourceFinder().getResourceSaveDir("library");
 
     QString name =
-        QFileDialog::getSaveFileName(this,
+        FileDialog::getSaveFileName(this,
                                      tr("Export Device as..."),
                                      dir,
                                      (extension.isEmpty() ? QString("*") : ("*." + extension)));
@@ -1820,11 +1811,11 @@ BankEditorDialog::slotExport()
     if (!m_doc->exportStudio(name, errMsg, devices)) {
         if (errMsg != "") {
             QMessageBox::critical
-                (0, tr("Rosegarden"), tr(QString("Could not export studio to file at %1\n(%2)")
+                (nullptr, tr("Rosegarden"), tr(QString("Could not export studio to file at %1\n(%2)")
                            .arg(name).arg(errMsg).toStdString().c_str()));
         } else {
             QMessageBox::critical
-                (0, tr("Rosegarden"), tr(QString("Could not export studio to file at %1")
+                (nullptr, tr("Rosegarden"), tr(QString("Could not export studio to file at %1")
                            .arg(name).toStdString().c_str()));
         }
     }
@@ -1841,7 +1832,7 @@ BankEditorDialog::slotFileClose()
     // triggered when the closeEvent is actually processed.
     //
 //     CommandHistory::getInstance()->detachView(actionCollection());    //&&&
-    m_doc = 0;
+    m_doc = nullptr;
     close();
 }
 
@@ -1871,4 +1862,3 @@ BankEditorDialog::slotHelpAbout()
     new AboutDialog(this);
 }
 }
-#include "BankEditorDialog.moc"

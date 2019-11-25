@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -21,6 +21,7 @@
 #include "gui/general/BaseTool.h"
 
 #include "gui/general/ActionFileClient.h"
+#include "gui/general/AutoScroller.h"  // For FollowMode
 
 class QAction;
 
@@ -41,16 +42,10 @@ class MatrixTool : public BaseTool, public ActionFileClient
     friend class MatrixToolBox;
 
 public:
-    ~MatrixTool();
+    ~MatrixTool() override;
 
     //!!! todo: hoist common bits of this & NotationTool into a new
     // version of EditTool? (only if there is enough to be worth it)
-
-    enum FollowMode {
-        NoFollow = 0x0,
-        FollowHorizontal = 0x1,
-        FollowVertical = 0x2
-    };
 
     virtual void handleLeftButtonPress(const MatrixMouseEvent *);
     virtual void handleMidButtonPress(const MatrixMouseEvent *);
@@ -81,8 +76,8 @@ protected:
 
     const SnapGrid *getSnapGrid() const;
 
-    virtual void createMenu();
-    virtual bool hasMenu() { return m_menuName != ""; }
+    void createMenu() override;
+    bool hasMenu() override { return m_menuName != ""; }
 
     void setScene(MatrixScene *scene) { m_scene = scene; }
 

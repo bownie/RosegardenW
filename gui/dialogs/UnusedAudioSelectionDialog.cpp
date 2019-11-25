@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -59,7 +59,7 @@ UnusedAudioSelectionDialog::UnusedAudioSelectionDialog(QWidget *parent,
     sl << tr("File name") << tr("File size") << tr("Last modified date");
     m_listView->setHorizontalHeaderLabels(sl);
     
-    QTableWidgetItem *item = 0;
+    QTableWidgetItem *item = nullptr;
     unsigned int i;
     unsigned int rc;
     for (i = 0; i < fileNames.size(); i++) {
@@ -88,8 +88,8 @@ UnusedAudioSelectionDialog::UnusedAudioSelectionDialog(QWidget *parent,
     
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     layout->addWidget(buttonBox);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 };
 
 std::vector<QString>

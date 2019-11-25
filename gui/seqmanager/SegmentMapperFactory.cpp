@@ -42,7 +42,7 @@ SegmentMapperFactory::makeMapperForSegment(RosegardenDocument *doc,
     SegmentMapper *mapper = 0;
 
     if (segment == 0) {
-        SEQMAN_DEBUG << "SegmentMapperFactory::makeMapperForSegment() segment == 0\n";
+        //SEQMAN_DEBUG << "SegmentMapperFactory::makeMapperForSegment() segment == 0\n";
         return 0;
     }
     
@@ -54,10 +54,11 @@ SegmentMapperFactory::makeMapperForSegment(RosegardenDocument *doc,
         mapper = new AudioSegmentMapper(doc, segment);
         break;
     default:
+        /*
         SEQMAN_DEBUG << "SegmentMapperFactory::makeMapperForSegment("
                      << segment
                      << ") : can't map, unknown segment type "
-                     << segment->getType() << endl;
+                     << segment->getType() << endl; */
         mapper = 0;
     }
 

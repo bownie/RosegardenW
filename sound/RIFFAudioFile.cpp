@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -13,17 +13,22 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[RIFFAudioFile]"
+
 #include "RIFFAudioFile.h"
 #include "base/RealTime.h"
 #include "base/Profiler.h"
 #include "misc/Strings.h"
-
-using std::cout;
-using std::cerr;
-using std::endl;
+#include "misc/Debug.h"
 
 //#define DEBUG_RIFF
 
+// Constants related to RIFF/WAV files
+//
+static const char AUDIO_RIFF_ID[] = "RIFF";
+static const char AUDIO_WAVE_ID[] = "WAVE";
+static const char AUDIO_FORMAT_ID[] = "fmt ";    // Always four bytes
+static const char AUDIO_BWF_ID[] = "bext";       // BWF chunk id
 
 namespace Rosegarden
 {
@@ -69,14 +74,13 @@ RIFFAudioFile::~RIFFAudioFile()
 void
 RIFFAudioFile::printStats()
 {
-    cout << "filename         : " << m_fileName << endl
-    << "channels         : " << m_channels << endl
-    << "sample rate      : " << m_sampleRate << endl
-    << "bytes per second : " << m_bytesPerSecond << endl
-    << "bits per sample  : " << m_bitsPerSample << endl
-    << "bytes per frame  : " << m_bytesPerFrame << endl
-    << "file length      : " << m_fileSize << " bytes" << endl
-    << endl;
+    RG_DEBUG << "filename         : " << m_fileName << '\n'
+    << "channels         : " << m_channels << '\n'
+    << "sample rate      : " << m_sampleRate << '\n'
+    << "bytes per second : " << m_bytesPerSecond << '\n'
+    << "bits per sample  : " << m_bitsPerSample << '\n'
+    << "bytes per frame  : " << m_bytesPerFrame << '\n'
+    << "file length      : " << m_fileSize << " bytes" << '\n';
 }
 
 bool
@@ -105,7 +109,7 @@ bool
 RIFFAudioFile::scanForward(std::ifstream *file, const RealTime &time)
 {
     // sanity
-    if (file == 0)
+    if (file == nullptr)
         return false;
 
     unsigned int totalSamples = m_sampleRate * time.sec +
@@ -146,7 +150,7 @@ bool
 RIFFAudioFile::scanTo(std::ifstream *file, const RealTime &time)
 {
     // sanity
-    if (file == 0)
+    if (file == nullptr)
         return false;
 
     // whatever we do here we invalidate the read buffer
@@ -172,18 +176,16 @@ RIFFAudioFile::scanTo(std::ifstream *file, const RealTime &time)
 
         while ((chunkName = getBytes(file, 4)) != "data") {
 	    if (file->eof()) {
-		std::cerr << "RIFFAudioFile::scanTo(): failed to find data "
-			  << std::endl;
+		RG_WARNING << "RIFFAudioFile::scanTo(): failed to find data";
 		return false;
 	    }
 //#ifdef DEBUG_RIFF
-	    std::cerr << "RIFFAudioFile::scanTo(): skipping chunk: "
-		      << chunkName << std::endl;
+	    RG_WARNING << "RIFFAudioFile::scanTo(): skipping chunk: " << chunkName;
 //#endif
 	    chunkLength = getIntegerFromLittleEndian(getBytes(file, 4));
 	    if (chunkLength < 0) {
-		std::cerr << "RIFFAudioFile::scanTo(): negative chunk length "
-			  << chunkLength << " for chunk " << chunkName << std::endl;
+		RG_WARNING << "RIFFAudioFile::scanTo(): negative chunk length "
+			  << chunkLength << " for chunk " << chunkName;
 		return false;
 	    }
 	    file->seekg(chunkLength, std::ios::cur);
@@ -192,15 +194,12 @@ RIFFAudioFile::scanTo(std::ifstream *file, const RealTime &time)
         // get the length of the data chunk, and scan past it as a side-effect
 	chunkLength = getIntegerFromLittleEndian(getBytes(file, 4));
 #ifdef DEBUG_RIFF
-
-        std::cout << "RIFFAudioFile::scanTo() - data chunk size = "
-        << chunkLength << std::endl;
+        RG_DEBUG << "RIFFAudioFile::scanTo() - data chunk size =" << chunkLength;
 #endif
 
-    } catch (BadSoundFileException s) {
+    } catch (const BadSoundFileException &s) {
 #ifdef DEBUG_RIFF
-        std::cerr << "RIFFAudioFile::scanTo - EXCEPTION - \""
-        << s.getMessage() << "\"" << std::endl;
+        RG_WARNING << "RIFFAudioFile::scanTo - EXCEPTION - \"" << s.getMessage() << "\"";
 #endif
 
         return false;
@@ -217,17 +216,16 @@ RIFFAudioFile::scanTo(std::ifstream *file, const RealTime &time)
     //
     if (totalBytes > m_fileSize - (lengthOfFormat + 16 + 8)) {
 #ifdef DEBUG_RIFF
-        std::cerr << "RIFFAudioFile::scanTo() - attempting to move past end of "
-        << "data block" << std::endl;
+        RG_WARNING << "RIFFAudioFile::scanTo() - attempting to move past end of data block";
 #endif
 
         return false;
     }
 
 #ifdef DEBUG_RIFF
-    std::cout << "RIFFAudioFile::scanTo - seeking to " << time
+    RG_DEBUG << "RIFFAudioFile::scanTo - seeking to " << time
     << " (" << totalBytes << " bytes from current " << file->tellg()
-    << ")" << std::endl;
+    << ")";
 #endif
 
     file->seekg(totalBytes, std::ios::cur);
@@ -246,7 +244,7 @@ std::string
 RIFFAudioFile::getSampleFrames(std::ifstream *file, unsigned int frames)
 {
     // sanity
-    if (file == 0)
+    if (file == nullptr)
         return std::string("");
 
     // Bytes per sample already takes into account the number
@@ -256,7 +254,7 @@ RIFFAudioFile::getSampleFrames(std::ifstream *file, unsigned int frames)
 
     try {
         return getBytes(file, totalBytes);
-    } catch (BadSoundFileException s) {
+    } catch (const BadSoundFileException &s) {
         return "";
     }
 }
@@ -265,11 +263,11 @@ unsigned int
 RIFFAudioFile::getSampleFrames(std::ifstream *file, char *buf,
                                unsigned int frames)
 {
-    if (file == 0)
+    if (file == nullptr)
         return 0;
     try {
         return getBytes(file, buf, frames * m_bytesPerFrame) / m_bytesPerFrame;
-    } catch (BadSoundFileException s) {
+    } catch (const BadSoundFileException &s) {
         return 0;
     }
 }
@@ -290,7 +288,7 @@ std::string
 RIFFAudioFile::getSampleFrameSlice(std::ifstream *file, const RealTime &time)
 {
     // sanity
-    if (file == 0)
+    if (file == nullptr)
         return std::string("");
 
     long totalFrames = RealTime::realTime2Frame(time, m_sampleRate);
@@ -298,7 +296,7 @@ RIFFAudioFile::getSampleFrameSlice(std::ifstream *file, const RealTime &time)
 
     try {
         return getBytes(file, totalBytes);
-    } catch (BadSoundFileException s) {
+    } catch (const BadSoundFileException &s) {
         return "";
     }
 }
@@ -353,7 +351,7 @@ RIFFAudioFile::getLength()
 void
 RIFFAudioFile::readFormatChunk()
 {
-    if (m_inFile == 0)
+    if (m_inFile == nullptr)
         return ;
 
     m_loseBuffer = true;
@@ -369,7 +367,7 @@ RIFFAudioFile::readFormatChunk()
     //
     if (hS.compare(0, 4, AUDIO_RIFF_ID) != 0) {
 #ifdef DEBUG_RIFF
-        std::cerr << "RIFFAudioFile::readFormatChunk - "
+        RG_WARNING << "RIFFAudioFile::readFormatChunk - "
         << "can't find RIFF identifier\n";
 #endif
 
@@ -380,7 +378,7 @@ RIFFAudioFile::readFormatChunk()
     //
     if (hS.compare(8, 4, AUDIO_WAVE_ID) != 0) {
 #ifdef DEBUG_RIFF
-        std::cerr << "Can't find WAV identifier\n";
+        RG_WARNING << "Can't find WAV identifier\n";
 #endif
 
         throw(BadSoundFileException(m_fileName, qstrtostr(QObject::tr("Can't find WAV identifier"))));
@@ -393,7 +391,7 @@ RIFFAudioFile::readFormatChunk()
     //
     if (hS.compare(12, 4, AUDIO_FORMAT_ID) != 0) {
 #ifdef DEBUG_RIFF
-        std::cerr << "Can't find FORMAT identifier\n";
+        RG_WARNING << "Can't find FORMAT identifier\n";
 #endif
 
         throw(BadSoundFileException(m_fileName, qstrtostr(QObject::tr("Can't find FORMAT identifier"))));
@@ -406,9 +404,8 @@ RIFFAudioFile::readFormatChunk()
     unsigned int length = getIntegerFromLittleEndian(hS.substr(4, 4)) + 8;
 
     if (length != m_fileSize) {
-        std::cerr << "WARNING: RIFFAudioFile: incorrect length ("
-        << length << ", file size is " << m_fileSize << "), ignoring"
-        << std::endl;
+        RG_WARNING << "WARNING: RIFFAudioFile: incorrect length ("
+        << length << ", file size is " << m_fileSize << "), ignoring";
         length = m_fileSize;
     }
 
@@ -421,18 +418,16 @@ RIFFAudioFile::readFormatChunk()
     //
     if (lengthOfFormat > 0x10) {
 #ifdef DEBUG_RIFF
-        std::cerr << "RIFFAudioFile::readFormatChunk - "
-        << "extended Format Chunk (" << lengthOfFormat << ")"
-        << std::endl;
+        RG_WARNING << "RIFFAudioFile::readFormatChunk - "
+        << "extended Format Chunk (" << lengthOfFormat << ")";
 #endif
 
         // ignore any overlapping bytes
         m_inFile->seekg(lengthOfFormat - 0x10, std::ios::cur);
     } else if (lengthOfFormat < 0x10) {
 #ifdef DEBUG_RIFF
-        std::cerr << "RIFFAudioFile::readFormatChunk - "
-        << "truncated Format Chunk (" << lengthOfFormat << ")"
-        << std::endl;
+        RG_WARNING << "RIFFAudioFile::readFormatChunk - "
+        << "truncated Format Chunk (" << lengthOfFormat << ")";
 #endif
 
         m_inFile->seekg(lengthOfFormat - 0x10, std::ios::cur);
@@ -495,7 +490,7 @@ RIFFAudioFile::readFormatChunk()
 void
 RIFFAudioFile::writeFormatChunk()
 {
-    if (m_outFile == 0 || m_type != WAV)
+    if (m_outFile == nullptr || m_type != WAV)
         return ;
 
     std::string outString;
@@ -516,7 +511,7 @@ RIFFAudioFile::writeFormatChunk()
     outString += AUDIO_FORMAT_ID;
 
     // length
-    //cout << "LENGTH = " << getLittleEndianFromInteger(0x10, 4) << endl;
+    //RG_DEBUG << "LENGTH = " << getLittleEndianFromInteger(0x10, 4);
     outString += getLittleEndianFromInteger(0x10, 4);
 
     // 1 for PCM, 3 for float
@@ -562,8 +557,10 @@ RIFFAudioFile::identifySubType(const QString &filename)
     std::ifstream *testFile =
         new std::ifstream(filename.toLocal8Bit(), std::ios::in | std::ios::binary);
 
-    if (!(*testFile))
+    if (!(*testFile)) {
+        delete testFile;
         return UNKNOWN;
+    }
 
     std::string hS;
     unsigned int numberOfBytes = 36;
@@ -590,6 +587,7 @@ RIFFAudioFile::identifySubType(const QString &filename)
         type = UNKNOWN;
 
     testFile->close();
+    delete testFile;
     delete [] bytes;
 
     return type;

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -67,12 +67,12 @@ public slots:
     /// Handle events from the external controller port.
     /**
      * @see RosegardenMainViewWidget::slotControllerDeviceEventReceived()
-     * @see AudioMixerWindow::slotControllerDeviceEventReceived()
+     * @see AudioMixerWindow2::slotExternalControllerEvent()
      */
     void slotControllerDeviceEventReceived(MappedEvent *,
                                            const void *preferredCustomer);
 
-    void slotCurrentTabChanged(QWidget *);
+    void slotCurrentTabChanged(int);
     void slotHelpRequested();
     void slotHelpAbout();
 
@@ -87,7 +87,8 @@ signals:
     void panic();
 
 protected slots:
-    void slotInstrumentChanged(Instrument *);
+    /// Handle InstrumentStaticSignals::controlChange().
+    void slotControlChange(Instrument *instrument, int cc);
 
     //void slotPanChanged(float);
     void slotFaderLevelChanged(float);
@@ -96,13 +97,13 @@ protected slots:
 protected:
     void addTab(QWidget *tab, const QString &title);
 
-    virtual void sendControllerRefresh();
+    void sendControllerRefresh() override;
 
     QTabWidget *m_tabWidget;
 
     struct FaderStruct {
 
-        FaderStruct():m_id(0), m_vuMeter(0), m_volumeFader(0) {}
+        FaderStruct():m_id(0), m_vuMeter(nullptr), m_volumeFader(nullptr) {}
 
         InstrumentId m_id;
         MidiMixerVUMeter *m_vuMeter;
@@ -116,12 +117,16 @@ protected:
 
     QFrame *m_tabFrame;
 
-    void  setRewFFwdToAutoRepeat();
-
     // Grab IPB controls and remove Volume.
     ControlList getIPBForMidiMixer(MidiDevice *) const;
 
-    QSharedPointer<InstrumentStaticSignals> m_instrumentStaticSignals;
+private:
+    /**
+     * ??? This should not take an Instrument *.  It should update the
+     *     widgets for all Instruments.
+     */
+    void updateWidgets(Instrument *);
+
 };
 
 

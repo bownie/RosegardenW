@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -51,10 +51,10 @@ namespace Rosegarden
 {
 
 ControlRulerWidget::ControlRulerWidget() :
-m_controlList(0),
-m_segment(0),
-m_viewSegment(0),
-m_scale(0)
+m_controlList(nullptr),
+m_segment(nullptr),
+m_viewSegment(nullptr),
+m_scale(nullptr)
 {
     m_tabBar = new ControlRulerTabBar;
 
@@ -76,11 +76,11 @@ m_scale(0)
 
     this->setLayout(layout);
     
-    connect(m_tabBar,SIGNAL(currentChanged(int)),
-            m_stackedWidget,SLOT(setCurrentIndex(int)));
+    connect(m_tabBar,&QTabBar::currentChanged,
+            m_stackedWidget,&QStackedWidget::setCurrentIndex);
     
-    connect(m_tabBar,SIGNAL(tabCloseRequest(int)),
-            this,SLOT(slotRemoveRuler(int)));
+    connect(m_tabBar,&ControlRulerTabBar::tabCloseRequest,
+            this,&ControlRulerWidget::slotRemoveRuler);
 }
 
 ControlRulerWidget::~ControlRulerWidget()
@@ -107,7 +107,7 @@ ControlRulerWidget::setSegments(RosegardenDocument *document, std::vector<Segmen
     if (instr) {
         Device *device = instr->getDevice();
 
-        // Cast to a Controllable if possible, otherwise leave c NULL.
+        // Cast to a Controllable if possible, otherwise leave c nullptr.
         Controllable *c =
             dynamic_cast<MidiDevice *>(device);
         if (!c)
@@ -121,13 +121,6 @@ ControlRulerWidget::setSegments(RosegardenDocument *document, std::vector<Segmen
     SegmentSelection selection;
     selection.insert(segments.begin(), segments.end());
 
-    delete m_scale;
-
-    setRulerScale(new SegmentsRulerScale(&m_document->getComposition(),
-            selection,
-            0,
-            Note(Note::Shortest).getDuration() / 2.0));
-    
     // This is single segment code
     setSegment(segments[0]);
 }
@@ -136,12 +129,12 @@ void
 ControlRulerWidget::setSegment(Segment *segment)
 {
     if (m_segment) {
-        disconnect(m_segment, SIGNAL(contentsChanged(timeT, timeT)),
-                this, SLOT(slotUpdateRulers(timeT, timeT)));
+        disconnect(m_segment, &Segment::contentsChanged,
+                this, &ControlRulerWidget::slotUpdateRulers);
     }
     m_segment = segment;
 
-    RG_DEBUG << "ControlRulerWidget::setSegments Widget contains " << m_controlRulerList.size() << " rulers.";
+    RG_DEBUG << "ControlRulerWidget::setSegments Widget contains" << m_controlRulerList.size() << "rulers.";
 
     if (m_controlRulerList.size()) {
         std::list<ControlRuler *>::iterator it;
@@ -150,8 +143,8 @@ ControlRulerWidget::setSegment(Segment *segment)
         }
     }
     if (m_segment) {
-        connect(m_segment, SIGNAL(contentsChanged(timeT, timeT)),
-                   this, SLOT(slotUpdateRulers(timeT, timeT)));
+        connect(m_segment, &Segment::contentsChanged,
+                   this, &ControlRulerWidget::slotUpdateRulers);
     }
 }
 
@@ -299,13 +292,22 @@ ControlRulerWidget::slotAddControlRuler(const ControlParameter &controlParameter
     ControlRuler *controlruler = new ControllerEventsRuler(m_viewSegment, m_scale, this, &controlParameter);
     controlruler->setXOffset(m_gutter);
 
-    connect(controlruler, SIGNAL(dragScroll(timeT)),
-            this, SLOT(slotDragScroll(timeT)));
+    connect(controlruler, &ControlRuler::dragScroll,
+            this, &ControlRulerWidget::slotDragScroll);
 
-    connect(controlruler, SIGNAL(rulerSelectionChanged(EventSelection *)),
-            this, SLOT(slotChildRulerSelectionChanged(EventSelection *)));
+    // Mouse signals.  Forward them from the current ControlRuler.
+    connect(controlruler, &ControlRuler::mousePress,
+            this, &ControlRulerWidget::mousePress);
+    connect(controlruler, &ControlRuler::mouseMove,
+            this, &ControlRulerWidget::mouseMove);
+    connect(controlruler, &ControlRuler::mouseRelease,
+            this, &ControlRulerWidget::mouseRelease);
+
+    connect(controlruler, &ControlRuler::rulerSelectionChanged,
+            this, &ControlRulerWidget::slotChildRulerSelectionChanged);
 
     addRuler(controlruler,QString::fromStdString(controlParameter.getName()));
+    controlruler->setViewSegment(m_viewSegment);
 }
 
 void
@@ -314,6 +316,13 @@ ControlRulerWidget::slotAddPropertyRuler(const PropertyName &propertyName)
     if (!m_viewSegment) return;
 
     PropertyControlRuler *controlruler = new PropertyControlRuler(propertyName, m_viewSegment, m_scale, this);
+
+    connect(controlruler, &ControlRuler::rulerSelectionChanged,
+            this, &ControlRulerWidget::slotChildRulerSelectionChanged);
+
+    connect(controlruler, &ControlRuler::showContextHelp,
+            this,  &ControlRulerWidget::showContextHelp);
+
     controlruler->setXOffset(m_gutter);
     controlruler->updateSelection(&m_selectedElements);
 
@@ -324,6 +333,8 @@ ControlRulerWidget::slotAddPropertyRuler(const PropertyName &propertyName)
     QString name = QString::fromStdString(propertyName.getName());
     if (name == "velocity") name = tr("Velocity");
     addRuler(controlruler, name);
+    // Update selection drawing in matrix view.
+    emit childRulerSelectionChanged(nullptr);
 }
 
 void
@@ -331,7 +342,7 @@ ControlRulerWidget::slotSetPannedRect(QRectF pr)
 {
     // Current Panned.cpp code uses QGraphicsView::centreOn this point
     ///TODO Note these rectangles are currently wrong
-    RG_DEBUG << "ControlRulerWidget::slotSetPannedRect - " << pr;
+    //RG_DEBUG << "slotSetPannedRect():" << pr;
 
     // Ruler widgets should draw this region (using getTimeForX from the segment) so pass the rectangle on
     // Provided rectangle should be centered on current widget size
@@ -350,6 +361,10 @@ ControlRulerWidget::slotSetPannedRect(QRectF pr)
 void
 ControlRulerWidget::slotDragScroll(timeT t)
 {
+    // ??? This is just a forward.  We can do that with connect() and there
+    //     is no need for this slotDragScroll() routine at all.  Simply
+    //     connect the incoming signal to the outgoing signal and delete this.
+
     emit dragScroll(t);
 }
 
@@ -453,55 +468,62 @@ ControlRulerWidget::isAnyRulerVisible()
 }
 
 ControllerEventsRuler *
-ControlRulerWidget::getActiveRuler(void)
+ControlRulerWidget::getActiveRuler()
 {
     QWidget * widget = m_stackedWidget->currentWidget ();
-    if (!widget) { return 0; }
+    if (!widget) { return nullptr; }
     return dynamic_cast <ControllerEventsRuler *> (widget);
 }
 
+PropertyControlRuler *
+ControlRulerWidget::getActivePropertyRuler()
+{
+    QWidget * widget = m_stackedWidget->currentWidget ();
+    if (!widget) { return nullptr; }
+    return dynamic_cast <PropertyControlRuler *> (widget);
+}
+
 bool
-ControlRulerWidget::hasSelection(void)
+ControlRulerWidget::hasSelection()
 {
     ControllerEventsRuler *ruler = getActiveRuler();
     if (!ruler) { return false; }
     return ruler->getEventSelection() ? true : false;
 }
 
-// Return the active ruler's event selection, or NULL if none.
+// Return the active ruler's event selection, or nullptr if none.
 // @author Tom Breton (Tehom)
 EventSelection *
-ControlRulerWidget::getSelection(void)
+ControlRulerWidget::getSelection()
 {
     ControllerEventsRuler *ruler = getActiveRuler();
-    if (!ruler) { return 0; }
+    if (!ruler) { return nullptr; }
     return ruler->getEventSelection();
 }
 
 ControlParameter *
-ControlRulerWidget::getControlParameter(void)
+ControlRulerWidget::getControlParameter()
 {
     ControllerEventsRuler *ruler = getActiveRuler();
-    if (!ruler) { return 0; }
+    if (!ruler) { return nullptr; }
     return ruler->getControlParameter();
 }
 
-// @return the active ruler's parameter situation, or NULL if none.
+// @return the active ruler's parameter situation, or nullptr if none.
 // Return is owned by caller.
 // @author Tom Breton (Tehom)
 SelectionSituation *
-ControlRulerWidget::getSituation(void)
+ControlRulerWidget::getSituation()
 {
     ControllerEventsRuler *ruler = getActiveRuler();
-    if (!ruler) { return 0; }
+    if (!ruler) { return nullptr; }
     EventSelection * selection = ruler->getEventSelection();
-    if (!selection) { return 0; }
+    if (!selection) { return nullptr; }
     ControlParameter * cp = ruler->getControlParameter();
-    if (!cp) { return 0; }
+    if (!cp) { return nullptr; }
     return
         new SelectionSituation(cp->getType(), selection);
 }
 
 }
 
-#include "ControlRulerWidget.moc"

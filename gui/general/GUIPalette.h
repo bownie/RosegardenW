@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -42,6 +42,16 @@ namespace Rosegarden
 
 class GUIPalette
 {
+public:
+    /**
+     * Following definitions are intended to be used with a new and simpler way
+     * to directly define colors as QColor for graphics related to notation.
+     */
+    static const QColor SelectionColor;
+    static const QColor PreviewColor;
+    static const QColor OutRangeColor;
+
+
 public:
     static QColor getColour(const char* const colourName);
 
@@ -161,6 +171,7 @@ public:
     static const char* const QuickMarker;
 
     static const char* const MuteTrackLED;
+    static const char* const SoloTrackLED;
     static const char* const RecordMIDITrackLED;
     static const char* const RecordAudioTrackLED;
     static const char* const RecordSoftSynthTrackLED;

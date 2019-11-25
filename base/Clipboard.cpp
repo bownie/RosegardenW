@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -82,7 +82,7 @@ Segment *
 Clipboard::getSingleSegment() const
 {
     if (isSingleSegment()) return *begin();
-    else return 0;
+    else return nullptr;
 }
 
 bool
@@ -101,9 +101,9 @@ Clipboard::newSegment()
 }
 
 Segment *
-Clipboard::newSegment(const Segment *copyFrom)
+Clipboard::newSegment(const Segment *copyFrom, bool deep)
 {
-    Segment *s = copyFrom->clone();
+    Segment *s = copyFrom->clone(deep);
     m_segments.insert(s);
     // don't change m_partial as we are inserting a complete segment
     return s;
@@ -421,6 +421,12 @@ Clipboard::removeAudioSegments()
     // If there are no segments, clear the clipboard.
     if (m_segments.empty())
         clear();
+}
+
+Clipboard *Clipboard::mainClipboard()
+{
+    static Clipboard s_mainClipboard;
+    return &s_mainClipboard;
 }
 
 }

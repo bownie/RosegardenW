@@ -23,7 +23,6 @@
 #include "base/PropertyName.h"
 #include "base/Segment.h"
 #include "base/Studio.h"
-#include "gui/general/ProgressReporter.h"
 #include "document/io/MusicXMLXMLHandler.h"
 #include <QFile>
 #include <QObject>
@@ -33,9 +32,8 @@
 namespace Rosegarden
 {
 
-MusicXMLLoader::MusicXMLLoader(Studio *studio,
-                               QObject *parent, const char */* name */):
-        ProgressReporter(parent),
+MusicXMLLoader::MusicXMLLoader(Studio *studio) :
+        m_composition(nullptr),
         m_studio(studio)
 {}
 

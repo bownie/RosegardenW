@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,7 +23,6 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QDialogButtonBox>
-#include <QSettings>
 
 
 namespace Rosegarden
@@ -40,14 +39,6 @@ TrackLabelDialog::TrackLabelDialog(QWidget *parent,
                                    const QString &secondaryTooltip) :
             QDialog(parent)
 {
-    QSettings settings;
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    bool Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
-
-    QString localStyle("QDialog {background-color: #000000} QLabel{background-color: transparent; color: #FFFFFF}");
-    if (Thorn) setStyleSheet(localStyle);
-
     setModal(true);
     setWindowTitle(title);
 
@@ -63,8 +54,8 @@ TrackLabelDialog::TrackLabelDialog(QWidget *parent,
     m_secondaryText->setToolTip(secondaryTooltip);
 
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     layout->addWidget(primary);
     layout->addWidget(m_primaryText);
@@ -89,4 +80,3 @@ TrackLabelDialog::getSecondaryText()
 
 } // namespace
 
-#include "TrackLabelDialog.moc"

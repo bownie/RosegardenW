@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -77,7 +77,7 @@ DialogSuppressor::shouldSuppress(QDialog *dialog, QString settingsKey)
     QCheckBox *cb = new QCheckBox(errorStr);
     SuppressionTarget *target = new SuppressionTarget(settingsKey);
     target->setParent(cb);
-    QObject::connect(cb, SIGNAL(toggled(bool)), target, SLOT(slotSuppressionToggled(bool)));
+    QObject::connect(cb, &QAbstractButton::toggled, target, &SuppressionTarget::slotSuppressionToggled);
     il->addWidget(cb);
     il->addWidget(bb);
     QGridLayout *grid = dynamic_cast<QGridLayout *>(layout);
@@ -101,4 +101,3 @@ DialogSuppressor::isSuppressed(QString settingsKey)
 
 }
 
-#include "DialogSuppressor.moc"

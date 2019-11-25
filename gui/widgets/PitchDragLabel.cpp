@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,12 +15,15 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[PitchDragLabel]"
+
 #include "PitchDragLabel.h"
 
 #include "base/NotationRules.h"
 #include "base/NotationTypes.h"
 #include "gui/editors/notation/NotePixmapFactory.h"
 #include "gui/general/GUIPalette.h"
+#include "gui/general/ThornStyle.h"
 #include "misc/ConfigGroups.h"
 
 #include <QWheelEvent>
@@ -29,8 +32,6 @@
 #include <QPixmap>
 #include <QSize>
 #include <QWidget>
-#include <QSettings>
-
 
 namespace Rosegarden
 {
@@ -45,11 +46,6 @@ PitchDragLabel::PitchDragLabel(QWidget *parent,
         m_usingSharps(defaultSharps),
         m_npf(new NotePixmapFactory())
 {
-    QSettings settings;
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    m_Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
-
     calculatePixmap();
 }
 
@@ -160,7 +156,10 @@ PitchDragLabel::emitPitchChange()
 void
 PitchDragLabel::wheelEvent(QWheelEvent *e)
 {
-    if (e->delta() > 0) {
+    // We'll handle this.  Don't pass to parent.
+    e->accept();
+
+    if (e->angleDelta().y() > 0) {
         if (m_pitch < 127) {
             ++m_pitch;
             m_usingSharps = true;
@@ -169,7 +168,7 @@ PitchDragLabel::wheelEvent(QWheelEvent *e)
             emit preview(m_pitch);
             update();
         }
-    } else {
+    } else if (e->angleDelta().y() < 0) {
         if (m_pitch > 0) {
             --m_pitch;
             m_usingSharps = false;
@@ -188,7 +187,7 @@ PitchDragLabel::paintEvent(QPaintEvent *)
 
     // use white if not using the Thorn stylesheet, because these widgets always
     // looked horrible in Classic against random system backgrounds
-    QColor background = (m_Thorn ? GUIPalette::getColour(GUIPalette::ThornGroupBoxBackground) : Qt::white);
+    QColor background = (ThornStyle::isEnabled() ? GUIPalette::getColour(GUIPalette::ThornGroupBoxBackground) : Qt::white);
 
     paint.fillRect(0, 0, width(), height(), background);
 
@@ -228,8 +227,8 @@ PitchDragLabel::calculatePixmap(int /* pitch */, int octave, int step) const
         }
     }
 
-    NotePixmapFactory::ColourType ct = (m_Thorn ? NotePixmapFactory::PlainColourLight :
-                                                  NotePixmapFactory::PlainColour);
+    NotePixmapFactory::ColourType ct = (ThornStyle::isEnabled() ? NotePixmapFactory::PlainColourLight :
+                                                                  NotePixmapFactory::PlainColour);
 
     m_pixmap = m_npf->makePitchDisplayPixmap
         (m_pitch, Clef(clefType, octaveOffset), octave, step, ct);
@@ -254,12 +253,11 @@ PitchDragLabel::calculatePixmap() const
         }
     }
 
-    NotePixmapFactory::ColourType ct = (m_Thorn ? NotePixmapFactory::PlainColourLight :
-                                                  NotePixmapFactory::PlainColour);
+    NotePixmapFactory::ColourType ct = (ThornStyle::isEnabled() ? NotePixmapFactory::PlainColourLight :
+                                                                  NotePixmapFactory::PlainColour);
 
     m_pixmap = m_npf->makePitchDisplayPixmap
         (m_pitch, Clef(clefType, octaveOffset), m_usingSharps, ct);
 }
 
 }
-#include "PitchDragLabel.moc"

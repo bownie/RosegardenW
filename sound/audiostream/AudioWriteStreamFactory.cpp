@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2005-2011 Chris Cannam.
 
@@ -29,14 +29,14 @@ AudioWriteStreamFactoryImpl;
 
 template <>
 AudioWriteStreamFactoryImpl *
-AudioWriteStreamFactoryImpl::m_instance = 0;
+AudioWriteStreamFactoryImpl::m_instance = nullptr;
 
 AudioWriteStream *
 AudioWriteStreamFactory::createWriteStream(QString audioFileName,
                                            size_t channelCount,
                                            size_t sampleRate)
 {
-    AudioWriteStream *s = 0;
+    AudioWriteStream *s = nullptr;
 
     QString extension = QFileInfo(audioFileName).suffix().toLower();
 
@@ -54,7 +54,7 @@ AudioWriteStreamFactory::createWriteStream(QString audioFileName,
     }
 
     delete s;
-    return 0;
+    return nullptr;
 }
 
 }

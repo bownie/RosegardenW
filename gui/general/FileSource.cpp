@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file originally from Sonic Visualiser, copyright 2007 Queen
     Mary, University of London.
@@ -19,7 +19,6 @@
 
 #include "TempDirectory.h"
 #include "misc/Strings.h"
-#include "gui/widgets/ProgressDialog.h"
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -73,7 +72,8 @@ static void decCount(QString url) {
 
 static QThreadStorage<QNetworkAccessManager *> nms;
 
-FileSource::FileSource(QString fileOrUrl, ProgressDialog *progress,
+#if 0
+FileSource::FileSource(QString fileOrUrl,
                        QString preferredContentType) :
     m_rawFileOrUrl(fileOrUrl),
     m_url(fileOrUrl, QUrl::StrictMode),
@@ -86,7 +86,6 @@ FileSource::FileSource(QString fileOrUrl, ProgressDialog *progress,
     m_remote(isRemote(fileOrUrl)),
     m_done(false),
     m_leaveLocalFile(false),
-    m_progress(progress),
     m_refCounted(false)
 {
     if (m_resource) { // qrc file
@@ -164,18 +163,18 @@ FileSource::FileSource(QString fileOrUrl, ProgressDialog *progress,
     std::cerr << "FileSource::FileSource(string) exiting" << std::endl;
 #endif
 }
+#endif
 
-FileSource::FileSource(QUrl url, ProgressDialog *progress) :
+FileSource::FileSource(QUrl url) :
     m_url(url),
-    m_localFile(0),
-    m_reply(0),
+    m_localFile(nullptr),
+    m_reply(nullptr),
     m_ok(false),
     m_lastStatus(0),
     m_resource(false),
     m_remote(isRemote(url.toString())),
     m_done(false),
     m_leaveLocalFile(false),
-    m_progress(progress),
     m_refCounted(false)
 {
 #ifdef DEBUG_FILE_SOURCE
@@ -199,15 +198,14 @@ FileSource::FileSource(QUrl url, ProgressDialog *progress) :
 FileSource::FileSource(const FileSource &rf) :
     QObject(),
     m_url(rf.m_url),
-    m_localFile(0),
-    m_reply(0),
+    m_localFile(nullptr),
+    m_reply(nullptr),
     m_ok(rf.m_ok),
     m_lastStatus(rf.m_lastStatus),
     m_resource(rf.m_resource),
     m_remote(rf.m_remote),
     m_done(false),
     m_leaveLocalFile(false),
-    m_progress(rf.m_progress),
     m_refCounted(false)
 {
 #ifdef DEBUG_FILE_SOURCE
@@ -286,18 +284,25 @@ FileSource::init()
 #ifdef DEBUG_FILE_SOURCE
             std::cerr << "FileSource::init: Resource file of this name does not exist, switching to non-resource URL" << std::endl;
 #endif
-            m_url = resourceFile;
+            m_url = QUrl(resourceFile);
             m_resource = false;
         }
     }
 
     if (!isRemote() && !isResource()) {
 #ifdef DEBUG_FILE_SOURCE
-        std::cerr << "FileSource::init: Not a remote URL" << std::endl;
+        std::cerr << "FileSource::init: Not a remote URL \"" << m_url.toString() << "\"" << std::endl;
 #endif
+        // If the file doesn't otherwise have a scheme set (eg. http://, ftp://), set
+        // the scheme to file://
+        if (m_url.scheme().isEmpty()) m_url.setScheme("file");
+
         bool literal = false;
         m_localFilename = m_url.toLocalFile();
 
+        // The next code block doesn't work in Qt5, but when everything works
+        // correctly, it is never entered.  I decided to leave the loose end
+        // dangling for now.
         if (m_localFilename == "") {
             // QUrl may have mishandled the scheme (e.g. in a DOS path)
             m_localFilename = m_rawFileOrUrl;
@@ -375,7 +380,7 @@ FileSource::init()
         qint64 written = m_localFile->write(ba);
         m_localFile->close();
         delete m_localFile;
-        m_localFile = 0;
+        m_localFile = nullptr;
 
         if (written != ba.size()) {
 #ifdef DEBUG_FILE_SOURCE
@@ -435,13 +440,13 @@ FileSource::init()
         m_refCountMap[m_url]++;
         m_refCounted = true;
 
-        if (m_progress && !m_done) {
-            m_progress->setLabelText
-                (tr("Downloading %1...").arg(m_url.toString()));
-            connect(m_progress, SIGNAL(canceled()), this, SLOT(cancelled()));
-            connect(this, SIGNAL(progress(int)),
-                    m_progress, SLOT(setValue(int)));
-        }
+//        if (m_progress && !m_done) {
+//            m_progress->setLabelText
+//                (tr("Downloading %1...").arg(m_url.toString()));
+//            connect(m_progress, SIGNAL(canceled()), this, SLOT(cancelled()));
+//            connect(this, SIGNAL(progress(int)),
+//                    m_progress, SLOT(setValue(int)));
+//        }
     }
 }
 
@@ -472,16 +477,16 @@ FileSource::initRemote()
 
     m_reply = nms.localData()->get(req);
 
-    connect(m_reply, SIGNAL(readyRead()),
-            this, SLOT(readyRead()));
+    connect(m_reply, &QIODevice::readyRead,
+            this, &FileSource::readyRead);
     connect(m_reply, SIGNAL(error(QNetworkReply::NetworkError)),
             this, SLOT(replyFailed(QNetworkReply::NetworkError)));
-    connect(m_reply, SIGNAL(finished()),
-            this, SLOT(replyFinished()));
-    connect(m_reply, SIGNAL(metaDataChanged()),
-            this, SLOT(metaDataChanged()));
-    connect(m_reply, SIGNAL(downloadProgress(qint64, qint64)),
-            this, SLOT(downloadProgress(qint64, qint64)));
+    connect(m_reply, &QNetworkReply::finished,
+            this, &FileSource::replyFinished);
+    connect(m_reply, &QNetworkReply::metaDataChanged,
+            this, &FileSource::metaDataChanged);
+    connect(m_reply, &QNetworkReply::downloadProgress,
+            this, &FileSource::downloadProgress);
 }
 
 void
@@ -489,12 +494,12 @@ FileSource::cleanup()
 {
     if (m_done) {
         delete m_localFile; // does not actually delete the file
-        m_localFile = 0;
+        m_localFile = nullptr;
     }
     m_done = true;
     if (m_reply) {
         QNetworkReply *r = m_reply;
-        m_reply = 0;
+        m_reply = nullptr;
 
         // Can only call abort() when there are no errors.
         if (r->error() == QNetworkReply::NoError) {
@@ -505,7 +510,7 @@ FileSource::cleanup()
     }
     if (m_localFile) {
         delete m_localFile; // does not actually delete the file
-        m_localFile = 0;
+        m_localFile = nullptr;
     }
 }
 
@@ -551,9 +556,21 @@ FileSource::isAvailable()
     return available;
 }
 
+
+// #########################################
+// The nested event loops below are horribly fragile.
+// They can lead to all sorts of bugs due to unexpected reentrancy
+// (e.g. the user closes the window while in that while loop)
+// There is no easy solution for synchronous networking operations
+// in the main thread. Change this API to emit signals and connect to them, instead.
+// i.e. make it asynchronous, just like KIO or QNetworkReply.
+// #########################################
+
+
 void
 FileSource::waitForStatus()
 {
+    // ### BAD, see comment above
     while (m_ok && (!m_done && m_lastStatus == 0)) {
 //        std::cerr << "waitForStatus: processing (last status " << m_lastStatus << ")" << std::endl;
         QCoreApplication::processEvents();
@@ -563,6 +580,7 @@ FileSource::waitForStatus()
 void
 FileSource::waitForData()
 {
+    // ### BAD, see comment above
     while (m_ok && !m_done) {
 //        std::cerr << "FileSource::waitForData: calling QApplication::processEvents" << std::endl;
         QCoreApplication::processEvents();
@@ -681,7 +699,7 @@ FileSource::metaDataChanged()
                 incCount(newUrl.toString());
 #endif
                 m_url = newUrl;
-                m_localFile = 0;
+                m_localFile = nullptr;
                 m_lastStatus = 0;
                 m_done = false;
                 m_refCounted = false;
@@ -877,11 +895,12 @@ FileSource::createCacheFile()
     QDir dir;
     try {
         dir = TempDirectory::getInstance()->getSubDirectoryPath("download");
-    } catch (DirectoryCreationFailed f) {
+    } catch (const DirectoryCreationFailed &f) {
 #ifdef DEBUG_FILE_SOURCE
         std::cerr << "FileSource::createCacheFile: ERROR: Failed to create temporary directory: " << f.what() << std::endl;
 #endif
-        return "";
+        m_localFilename = "";
+        return false;
     }
 
     QString filepart = m_url.path().section('/', -1, -1,
@@ -939,7 +958,8 @@ FileSource::createCacheFile()
                       << m_url.toString() << "\" (or file already exists)" << std::endl;
 #endif
 
-            return "";
+            m_localFilename = "";
+            return false;
         }
     }
 
@@ -950,11 +970,9 @@ FileSource::createCacheFile()
 #endif
     
     m_localFilename = filepath;
-
     return false;
 }
 
 }
 
-#include "FileSource.moc"
 

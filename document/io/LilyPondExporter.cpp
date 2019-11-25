@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A MIDI and audio sequencer and musical notation editor.
-  Copyright 2000-2015 the Rosegarden development team.
+  Copyright 2000-2018 the Rosegarden development team.
  
   This file is Copyright 2002
   Hans Kieserman      <hkieserman@mail.com>
@@ -57,13 +57,14 @@
 #include "gui/editors/notation/NotationProperties.h"
 #include "gui/editors/notation/NotationView.h"
 #include "gui/editors/guitar/Chord.h"
-#include "gui/general/ProgressReporter.h"
-#include "gui/widgets/CurrentProgressDialog.h"
+
+#include "rosegarden-version.h"
 
 #include <QSettings>
 #include <QMessageBox>
 #include <QFileInfo>
 #include <QObject>
+#include <QProgressDialog>
 #include <QRegExp>
 #include <QString>
 #include <QTextCodec>
@@ -76,47 +77,42 @@
 namespace Rosegarden
 {
 
+const char* headerDedication() { return "dedication"; }
+const char* headerTitle() { return "title"; }
+const char* headerSubtitle() { return "subtitle"; }
+const char* headerSubsubtitle() { return "subsubtitle"; }
+const char* headerPoet() { return "poet"; }
+const char* headerComposer() { return "composer"; }
+const char* headerMeter() { return "meter"; }
+const char* headerOpus() { return "opus"; }
+const char* headerArranger() { return "arranger"; }
+const char* headerInstrument() { return "instrument"; }
+const char* headerPiece() { return "piece"; }
+const char* headerCopyright() { return "copyright"; }
+const char* headerTagline() { return "tagline"; }
+
 using namespace BaseProperties;
 
-const PropertyName LilyPondExporter::SKIP_PROPERTY = "LilyPondExportSkipThisEvent";
-
-LilyPondExporter::LilyPondExporter(RosegardenMainWindow *parent,
-                                   RosegardenDocument *doc,
-                                   std::string fileName) :
-    ProgressReporter((QObject *)parent),
+LilyPondExporter::LilyPondExporter(RosegardenDocument *doc,
+                                   const SegmentSelection &selection,
+                                   const std::string &fileName,
+                                   NotationView *parent) :
     m_doc(doc),
     m_fileName(fileName),
-    m_lastClefFound(Clef::Treble)
+    m_lastClefFound(Clef::Treble),
+    m_selection(selection),
+    SKIP_PROPERTY("LilyPondExportSkipThisEvent")
 {
     m_composition = &m_doc->getComposition();
     m_studio = &m_doc->getStudio();
-    m_view = ((RosegardenMainWindow *)parent)->getView();
-    m_notationView = NULL;
-
-    readConfigVariables();
-    m_language = LilyPondLanguage::create(m_exportNoteLanguage);
-}
-
-LilyPondExporter::LilyPondExporter(NotationView *parent,
-                                   RosegardenDocument *doc,
-                                   std::string fileName) :
-    ProgressReporter((QObject *)parent),
-    m_doc(doc),
-    m_fileName(fileName),
-    m_lastClefFound(Clef::Treble)
-
-{
-    m_composition = &m_doc->getComposition();
-    m_studio = &m_doc->getStudio();
-    m_notationView = ((NotationView *)parent);
-    m_view = static_cast<RosegardenMainViewWidget *>(m_notationView->parent());
+    m_notationView = parent;
 
     readConfigVariables();
     m_language = LilyPondLanguage::create(m_exportNoteLanguage);
 }
 
 void
-LilyPondExporter::readConfigVariables(void)
+LilyPondExporter::readConfigVariables()
 {
     // grab settings info
     QSettings settings;
@@ -149,6 +145,85 @@ LilyPondExporter::readConfigVariables(void)
     settings.endGroup();
 }
 
+// Return true if @p event is allowed to start or end a beam group.
+// Only called for GROUP_TYPE_BEAMED.
+static bool canStartOrEndBeam(Event *event)
+{
+    // Rests cannot start or end beams
+    if (!event->isa(Note::EventType))
+        return false;
+
+    // Is it really beamed? quarter and longer notes cannot be
+    // (ex: bug #1705430, beaming groups erroneous after merging notes)
+    // HJJ: This should be fixed in notation engine,
+    //      after which the workaround below should be removed.
+    const int noteType = event->get<Int>(NOTE_TYPE);
+    if (noteType >= Note::QuarterNote)
+        return false;
+
+    return true;
+}
+
+Event *LilyPondExporter::nextNoteInGroup(Segment *s, Segment::iterator it, const std::string &groupType, int barEnd) const
+{
+    Event *event = *it;
+    long currentGroupId = -1;
+    event->get<Int>(BEAMED_GROUP_ID, currentGroupId);
+    Q_ASSERT(currentGroupId != -1);
+    const bool tuplet = groupType == GROUP_TYPE_TUPLED;
+    const bool graceNotesGroup = event->has(IS_GRACE_NOTE) && event->get<Bool>(IS_GRACE_NOTE);
+    timeT currentTime = m_composition->getNotationQuantizer()->getQuantizedAbsoluteTime(event);
+    int subOrdering = event->getSubOrdering();
+
+    ++it;
+    for ( ; s->isBeforeEndMarker(it) ; ++it ) {
+        event = *it;
+
+        if (event->getNotationAbsoluteTime() >= barEnd)
+            break;
+
+        // Grace notes shouldn't break the beaming group of real notes
+        const bool isGrace = (event->has(IS_GRACE_NOTE) && event->get<Bool>(IS_GRACE_NOTE));
+        if (!graceNotesGroup && isGrace)
+            continue;
+
+        if (event->has(SKIP_PROPERTY))
+            continue;
+
+        const bool isNote = event->isa(Note::EventType);
+
+        // Rests at the end of a beam are not included into it.
+        // Rests in the middle of a beam are included, so we keep looking.
+        // Same thing for symbols, etc.
+        if (!tuplet && !isNote)
+            continue;
+        // Tuplets don't get broken by non-notes (e.g. pitchbend)
+        if (tuplet && (!isNote && !event->isa(Note::EventRestType)))
+            continue;
+
+        // Within a chord, keep moving ahead
+        const timeT eventTime = m_composition->getNotationQuantizer()->getQuantizedAbsoluteTime(event);
+        if (eventTime == currentTime && subOrdering == event->getSubOrdering()) {
+            continue;
+        }
+        currentTime = eventTime;
+        subOrdering = event->getSubOrdering();
+
+        long newGroupId = -1;
+        event->get<Int>(BEAMED_GROUP_ID, newGroupId);
+
+        if (!tuplet && !canStartOrEndBeam(event)) {
+            newGroupId = -1;
+        }
+
+        if (newGroupId == -1 || newGroupId != currentGroupId) {
+            return nullptr;
+        }
+        return event;
+    }
+    return nullptr;
+}
+
 LilyPondExporter::~LilyPondExporter()
 {
     delete(m_language);
@@ -158,16 +233,14 @@ bool
 LilyPondExporter::isSegmentToPrint(Segment *seg)
 {
     bool currentSegmentSelected = false;
-    if ((m_exportSelection == EXPORT_SELECTED_SEGMENTS) && 
-        (m_view != NULL) && (m_view->haveSelection())) {
+    if ((m_exportSelection == EXPORT_SELECTED_SEGMENTS) && !m_selection.empty()) {
         //
         // Check whether the current segment is in the list of selected segments.
         //
-        SegmentSelection selection = m_view->getSelection();
-        for (SegmentSelection::iterator it = selection.begin(); it != selection.end(); ++it) {
+        for (SegmentSelection::iterator it = m_selection.begin(); it != m_selection.end(); ++it) {
             if ((*it) == seg) currentSegmentSelected = true;
         }
-    } else if ((m_exportSelection == EXPORT_EDITED_SEGMENTS) && (m_notationView != NULL)) {
+    } else if ((m_exportSelection == EXPORT_EDITED_SEGMENTS) && (m_notationView != nullptr)) {
         currentSegmentSelected = m_notationView->hasSegment(seg);
     }
 
@@ -180,7 +253,6 @@ LilyPondExporter::isSegmentToPrint(Segment *seg)
     bool ok1 = m_exportSelection == EXPORT_ALL_TRACKS;
     bool ok2 = (m_exportSelection == EXPORT_NONMUTED_TRACKS) && (!track->isMuted());
     bool ok3 = (m_exportSelection == EXPORT_SELECTED_TRACK)
-               && (m_view != NULL)
                && (track->getId() == m_composition->getSelectedTrack());
     bool ok4 = (m_exportSelection == EXPORT_SELECTED_SEGMENTS) && currentSegmentSelected;
     bool ok5 = (m_exportSelection == EXPORT_EDITED_SEGMENTS) && currentSegmentSelected;
@@ -202,19 +274,19 @@ LilyPondExporter::handleStartingPreEvents(eventstartlist &preEventsToStart,
             Indication i(**m);
 
             if (i.getIndicationType() == Indication::QuindicesimaUp) {
-                str << "#(set-octavation 2) ";
+                str << "\\ottava #2 ";
             } else if (i.getIndicationType() == Indication::OttavaUp) {
-                str << "#(set-octavation 1) ";
+                str << "\\ottava #1 ";
             } else if (i.getIndicationType() == Indication::OttavaDown) {
-                str << "#(set-octavation -1) ";
+                str << "\\ottava #-1 ";
             } else if (i.getIndicationType() == Indication::QuindicesimaDown) {
-                str << "#(set-octavation -2) ";
+                str << "\\ottava #-2 ";
             }
 
-        } catch (Event::BadType) {
+        } catch (const Event::BadType &) {
             // Not an indication
-        } catch (Event::NoData e) {
-            std::cerr << "Bad indication: " << e.getMessage() << std::endl;
+        } catch (const Event::NoData &e) {
+            RG_WARNING << "Bad indication: " << e.getMessage();
         }
 
         eventstartlist::iterator n(m);
@@ -251,23 +323,24 @@ LilyPondExporter::handleStartingPostEvents(eventstartlist &postEventsToStart,
                 str << "\\< ";
             } else if (i.getIndicationType() == Indication::Decrescendo) {
                 str << "\\> ";
-            } else if (i.getIndicationType() == Indication::QuindicesimaUp) {
-                // #(set-octavation 2) ... #(set-octavation 0)
-                str << "#(set-octavation 2) ";
-            } else if (i.getIndicationType() == Indication::OttavaUp) {
-                // #(set-octavation 1) ... #(set-octavation 0)
-                str << "#(set-octavation 1) ";
-            } else if (i.getIndicationType() == Indication::OttavaDown) {
-                // #(set-octavation -1) ... #(set-octavation 0)
-                str << "#(set-octavation -1) ";
-            } else if (i.getIndicationType() == Indication::QuindicesimaDown) {
-                // #(set-octavation -2) ... #(set-octavation 0)
-                str << "#(set-octavation -2) ";
+// Don't seem useful and sometimes are harmful
+//             } else if (i.getIndicationType() == Indication::QuindicesimaUp) {
+//                 // #(set-octavation 2) ... #(set-octavation 0)
+//                 //str << "\\ottava #2 ";
+//             } else if (i.getIndicationType() == Indication::OttavaUp) {
+//                 // #(set-octavation 1) ... #(set-octavation 0)
+//                 str << "\\ottava #1 ";
+//             } else if (i.getIndicationType() == Indication::OttavaDown) {
+//                 // #(set-octavation -1) ... #(set-octavation 0)
+//                 str << "\\ottava #-1 ";
+//             } else if (i.getIndicationType() == Indication::QuindicesimaDown) {
+//                 // #(set-octavation -2) ... #(set-octavation 0)
+//                 str << "\\ottava #-2 ";
             } else if (i.getIndicationType() == Indication::TrillLine) {
                 str << "\\startTrillSpan ";
             }
 
-        } catch (Event::BadType) {
+        } catch (const Event::BadType &) {
             // Not an indication
             // Check for sustainDown or sustainUp events
             if ((*m)->isa(Controller::EventType) &&
@@ -308,8 +381,8 @@ LilyPondExporter::handleStartingPostEvents(eventstartlist &postEventsToStart,
                     }
                 }
             }
-        } catch (Event::NoData e) {
-            std::cerr << "Bad indication: " << e.getMessage() << std::endl;
+        } catch (const Event::NoData &e) {
+            RG_WARNING << "Bad indication: " << e.getMessage();
         }
 
         eventstartlist::iterator n(m);
@@ -328,17 +401,18 @@ LilyPondExporter::handleEndingPreEvents(eventendlist &preEventsInProgress,
 
     while (k != preEventsInProgress.end()) {
 
-        eventendlist::iterator l(k);
-        ++l;
+        // Increment before use.  This avoids invalidating k if the element
+        // at l is erased.
+        eventendlist::iterator l(k++);
 
         // Handle and remove all the relevant events in value()
         // This assumes all deferred events are indications
 
         try {
-            Indication i(**k);
+            Indication i(**l);
 
             timeT indicationEnd =
-                (*k)->getNotationAbsoluteTime() + i.getIndicationDuration();
+                (*l)->getNotationAbsoluteTime() + i.getIndicationDuration();
             timeT eventEnd =
                 (*j)->getNotationAbsoluteTime() + (*j)->getNotationDuration();
 
@@ -348,26 +422,24 @@ LilyPondExporter::handleEndingPreEvents(eventendlist &preEventsInProgress,
                  indicationEnd == eventEnd)) {
 
                 if (i.getIndicationType() == Indication::QuindicesimaUp) {
-                    str << "#(set-octavation 0) ";
+                    str << "\\ottava #0 ";
                 } else if (i.getIndicationType() == Indication::OttavaUp) {
-                    str << "#(set-octavation 0) ";
+                    str << "\\ottava #0 ";
                 } else if (i.getIndicationType() == Indication::OttavaDown) {
-                    str << "#(set-octavation 0) ";
+                    str << "\\ottava #0 ";
                 } else if (i.getIndicationType() == Indication::QuindicesimaDown) {
-                    str << "#(set-octavation 0) ";
+                    str << "\\ottava #0 ";
                 }
 
-                preEventsInProgress.erase(k);
+                preEventsInProgress.erase(l);
             }
 
-        } catch (Event::BadType) {
+        } catch (const Event::BadType &) {
             // not an indication
 
-        } catch (Event::NoData e) {
-            std::cerr << "Bad indication: " << e.getMessage() << std::endl;
+        } catch (const Event::NoData &e) {
+            RG_WARNING << "Bad indication: " << e.getMessage();
         }
-
-        k = l;
     }
 }
 
@@ -380,17 +452,18 @@ LilyPondExporter::handleEndingPostEvents(eventendlist &postEventsInProgress,
 
     while (k != postEventsInProgress.end()) {
 
-        eventendlist::iterator l(k);
-        ++l;
+        // Increment before use.  This avoids invalidating k if the element
+        // at l is erased.
+        eventendlist::iterator l(k++);
 
         // Handle and remove all the relevant events in value()
         // This assumes all deferred events are indications
 
         try {
-            Indication i(**k);
+            Indication i(**l);
 
             timeT indicationEnd =
-                (*k)->getNotationAbsoluteTime() + i.getIndicationDuration();
+                (*l)->getNotationAbsoluteTime() + i.getIndicationDuration();
             timeT eventEnd =
                 (*j)->getNotationAbsoluteTime() + (*j)->getNotationDuration();
 
@@ -410,17 +483,15 @@ LilyPondExporter::handleEndingPostEvents(eventendlist &postEventsInProgress,
                     str << "\\stopTrillSpan ";
                 }
 
-                postEventsInProgress.erase(k);
+                postEventsInProgress.erase(l);
             }
 
-        } catch (Event::BadType) {
+        } catch (const Event::BadType &) {
             // not an indication
 
-        } catch (Event::NoData e) {
-            std::cerr << "Bad indication: " << e.getMessage() << std::endl;
+        } catch (const Event::NoData &e) {
+            RG_WARNING << "Bad indication: " << e.getMessage();
         }
-
-        k = l;
     }
 }
 
@@ -549,8 +620,7 @@ LilyPondExporter::composeLilyMark(std::string eventMark, bool stemUp)
             outStr += "\\prallprall";
         } else {
             outStr = "";
-            std::cerr << "LilyPondExporter::composeLilyMark() - unhandled mark:  "
-                      << eventMark << std::endl;
+            RG_WARNING << "LilyPondExporter::composeLilyMark() - unhandled mark: " << eventMark;
         }
     }
 
@@ -623,22 +693,21 @@ LilyPondExporter::write()
     tmpName = dirName + '/' + baseName;
 
     if (illegalFilename) {
-        CurrentProgressDialog::freeze();
         int reply = QMessageBox::question(
-                                          dynamic_cast<QWidget*>(qApp),
-                                          baseName, 
-                                          tr("LilyPond does not allow spaces or backslashes in filenames.\n\n"
-                                             "Would you like to use\n\n %1\n\n instead?"),
-                                          QMessageBox::Yes |QMessageBox::Cancel,
-                                          QMessageBox::Cancel);
+                dynamic_cast<QWidget*>(qApp),
+                baseName, 
+                QObject::tr("LilyPond does not allow spaces or backslashes in filenames.\n\n"
+                            "Would you like to use\n\n %1\n\n instead?").arg(tmpName),
+                QMessageBox::Yes |QMessageBox::Cancel,
+                QMessageBox::Cancel);
         if (reply != QMessageBox::Yes)
             return false;
     }
 
     std::ofstream str(qstrtostr(tmpName).c_str(), std::ios::out);
     if (!str) {
-        std::cerr << "LilyPondExporter::write() - can't write file " << tmpName << std::endl;
-        m_warningMessage = tr("Export failed.  The file could not be opened for writing.");
+        RG_WARNING << "LilyPondExporter::write() - can't write file " << tmpName;
+        m_warningMessage = QObject::tr("Export failed.  The file could not be opened for writing.");
         return false;
     }
 
@@ -670,8 +739,8 @@ LilyPondExporter::write()
 
     default:
         // force the default version if there was an error
-        std::cerr << "ERROR: Unknown language level " << m_languageLevel
-                  << ", using \\version \"2.14.0\" instead" << std::endl;
+        RG_WARNING << "ERROR: Unknown language level " << m_languageLevel
+                  << ", using \\version \"2.14.0\" instead";
         str << "\\version \"2.14.0\"" << std::endl;
         m_languageLevel = LILYPOND_VERSION_2_14;
     }
@@ -696,15 +765,15 @@ LilyPondExporter::write()
 
         for (size_t index = 0; index < propertyNames.size(); ++index) {
             std::string property = propertyNames [index];
-            if (property == headerDedication || property == headerTitle ||
-                property == headerSubtitle || property == headerSubsubtitle ||
-                property == headerPoet || property == headerComposer ||
-                property == headerMeter || property == headerOpus ||
-                property == headerArranger || property == headerInstrument ||
-                property == headerPiece || property == headerCopyright ||
-                property == headerTagline) {
+            if (property == headerDedication() || property == headerTitle() ||
+                property == headerSubtitle() || property == headerSubsubtitle() ||
+                property == headerPoet() || property == headerComposer() ||
+                property == headerMeter() || property == headerOpus() ||
+                property == headerArranger() || property == headerInstrument() ||
+                property == headerPiece() || property == headerCopyright() ||
+                property == headerTagline()) {
                 std::string header = protectIllegalChars(metadata.get<String>(property));
-                if (property == headerCopyright) {
+                if (property == headerCopyright()) {
                     // replace a (c) or (C) with a real Copyright symbol
                     size_t posCpy = header.find("(c)");
                     if (posCpy == std::string::npos) posCpy = header.find("(C)");
@@ -723,7 +792,7 @@ LilyPondExporter::write()
                     str << indent(col) << property << " = \"" << header << "\"" << std::endl;
                     // let users override defaults, but allow for providing
                     // defaults if they don't:
-                    if (property == headerTagline)
+                    if (property == headerTagline())
                         userTagline = true;
                 }
             }
@@ -798,7 +867,7 @@ LilyPondExporter::write()
 
     // Find out the printed length of the composition
     Composition::iterator i = m_composition->begin();
-    if ((*i) == NULL) {
+    if ((*i) == nullptr) {
         // The composition is empty!
         str << indent(col) << "\\score {" << std::endl;
         str << indent(++col) << "% no segments found" << std::endl;
@@ -807,7 +876,7 @@ LilyPondExporter::write()
             << "<<" << " s4 " << ">>" << std::endl;
         str << indent(col) << "\\layout { }" << std::endl;
         str << indent(--col) << "}" << std::endl;
-        m_warningMessage = tr("Export succeeded, but the composition was empty.");
+        m_warningMessage = QObject::tr("Export succeeded, but the composition was empty.");
         return false;
     }
     timeT compositionStartTime = (*i)->getStartTime();
@@ -815,7 +884,7 @@ LilyPondExporter::write()
     for (; i != m_composition->end(); ++i) {
         
         // Allow some oportunities for user to cancel
-        if (isOperationCancelled()) {
+        if (m_progressDialog  &&  m_progressDialog->wasCanceled()) {
             return false;
         }
         
@@ -830,7 +899,7 @@ LilyPondExporter::write()
     // Gather all segments in a place where it will be possible
     // to see the repetitions in a global context and to compute
     // the place of the different voices in the Lilypond score.
-    LilyPondSegmentsContext lsc(this, m_composition);
+    LilyPondSegmentsContext lsc(m_composition);
     for (Composition::iterator i = m_composition->begin();
             i != m_composition->end(); ++i) {
         if (isSegmentToPrint(*i)) {
@@ -849,18 +918,18 @@ LilyPondExporter::write()
                 break;
                 
             case EXPORT_NONMUTED_TRACKS :
-                m_warningMessage = tr("Export of unmuted tracks failed.  There"
+                m_warningMessage = QObject::tr("Export of unmuted tracks failed.  There"
                                       " are no unmuted tracks or no segments on"
                                       " them.");
                 break;
                 
             case EXPORT_SELECTED_TRACK :
-                m_warningMessage = tr("Export of selected track failed.  There"
+                m_warningMessage = QObject::tr("Export of selected track failed.  There"
                                       " are no segments on the selected track.");
                 break;
                 
             case EXPORT_SELECTED_SEGMENTS :
-                m_warningMessage = tr("Export of selected segments failed.  No"
+                m_warningMessage = QObject::tr("Export of selected segments failed.  No"
                                       " segments are selected.");
                 break;
                 
@@ -894,7 +963,6 @@ LilyPondExporter::write()
         lsc.fixVoltaStartTimes();
     }
 
-
     // If any segment is not starting at a bar boundary, adapted
     // \partial or \skip keywords must be added to the output file.
     // We have to know what segment is starting first to compute
@@ -923,8 +991,8 @@ LilyPondExporter::write()
         /// When using this code with repeats, the writeskip() to the end of the
         /// composition is writing a blank measure at the end of the score.
         do {
-            // Allow some oportunities for user to cancel
-            if (isOperationCancelled()) {
+            // Allow some opportunities for user to cancel
+            if (m_progressDialog  &&  m_progressDialog->wasCanceled()) {
                 return false;
             }
             
@@ -1009,7 +1077,7 @@ LilyPondExporter::write()
         for (int i = 0; i < tempoCount; ++i) {
 
             // Allow some oportunities for user to cancel
-            if (isOperationCancelled()) {
+            if (m_progressDialog  &&  m_progressDialog->wasCanceled()) {
                 return false;
             }
 
@@ -1074,12 +1142,12 @@ LilyPondExporter::write()
 
         while  (i_marker != markers.end()) {
             // Allow some oportunities for user to cancel
-            if (isOperationCancelled()) {
+            if (m_progressDialog  &&  m_progressDialog->wasCanceled()) {
                 return false;
             }
         
             timeT markerTime = m_composition->getBarStartForTime((*i_marker)->getTime());
-            RG_DEBUG << "Marker: " << (*i_marker)->getTime() << " previous: " << prevMarkerTime << endl;
+            RG_DEBUG << "Marker: " << (*i_marker)->getTime() << " previous: " << prevMarkerTime;
             // how to cope with time signature changes?
             if (markerTime > prevMarkerTime) {
                 str << indent(col);
@@ -1116,700 +1184,780 @@ LilyPondExporter::write()
     int pianoStaffCounter = 0;
     int bracket = 0;
     int prevBracket = -1;
+    bool hasInstrumentNames = false;
 
     // Write out all segments for each Track, in track order.
     // This involves a hell of a lot of loops through all tracks
     // and segments, but the time spent doing that should still
     // be relatively small in the greater scheme.
 
-    Track *track = 0;
+    Track *track = nullptr;
     int trackPos = 0;
 
     for (track = lsc.useFirstTrack(); track; track = lsc.useNextTrack()) {
         trackPos = lsc.getTrackPos();
-
-        // Allow some oportunities for user to cancel
-        if (isOperationCancelled()) {
+        // Allow some opportunities for user to cancel
+        if (m_progressDialog  &&  m_progressDialog->wasCanceled()) {
             return false;
         }
 
-        /* timeT repeatOffset = 0; */
+        int voiceIndex;
+        for (voiceIndex = lsc.useFirstVoice();
+                          voiceIndex != -1; voiceIndex = lsc.useNextVoice()) {
 
-        Segment *seg;
-        for (seg = lsc.useFirstSegment(); seg; seg = lsc.useNextSegment()) {
-            if (!lsc.isVolta()) {
-                // handle the bracket(s) for the first track, and if no brackets
-                // present, open with a <<
-                prevBracket = bracket;
-                bracket = track->getStaffBracket();
+            /* timeT repeatOffset = 0; */
 
-                //!!! how will all these indentions work out?  Probably not well,
-                // but maybe if users always provide sensible input, this will work
-                // out sensibly.  Maybe.  If not, we'll need some tracking gizmos to
-                // figure out the indention, or just skip the indention for these or
-                // something.  TBA.
-                if (firstTrack) {
-                    // seems to be common to every case now
-                    str << indent(++col) << "<< % common" << std::endl;
-                }
+            Segment *seg;
+            for (seg = lsc.useFirstSegment(); seg; seg = lsc.useNextSegment()) {
 
-                if (firstTrack && m_exportStaffGroup) {
+                if (!lsc.isVolta()) {
+                    // handle the bracket(s) for the first track, and if no brackets
+                    // present, open with a <<
+                    prevBracket = bracket;
+                    bracket = track->getStaffBracket();
 
-                    if (bracket == Brackets::SquareOn) {
-                        str << indent(++col) << "\\context StaffGroup = \"" << staffGroupCounter++
-                            << "\" << " << std::endl; //indent+
-                    } else if (bracket == Brackets::CurlyOn) {
-                        str << indent(++col) << "\\context GrandStaff = \"" << pianoStaffCounter++
-                            << "\" << " << std::endl; //indent+
-                    } else if (bracket == Brackets::CurlySquareOn) {
-                        str << indent(++col) << "\\context StaffGroup = \"" << staffGroupCounter++
-                            << "\" << " << std::endl; //indent+
-                        str << indent(++col) << "\\context GrandStaff = \"" << pianoStaffCounter++
-                            << "\" << " << std::endl; //indent+
+                    //!!! how will all these indentions work out?  Probably not well,
+                    // but maybe if users always provide sensible input, this will work
+                    // out sensibly.  Maybe.  If not, we'll need some tracking gizmos to
+                    // figure out the indention, or just skip the indention for these or
+                    // something.  TBA.
+                    if (firstTrack) {
+                        // seems to be common to every case now
+                        str << indent(++col) << "<< % common" << std::endl;
                     }
 
-                    // Make chords offset colliding notes by default (only write for
-                    // first track)
-                    str << indent(++col) << "% Force offset of colliding notes in chords:"
-                        << std::endl;
-                    str << indent(col)   << "\\override Score.NoteColumn #\'force-hshift = #1.0"
-                        << std::endl;
-                    if (m_fingeringsInStaff) {
-                        str << indent(col) << "% Allow fingerings inside the staff (configured from export options):"
+                    if (firstTrack && m_exportStaffGroup) {
+
+                        if (bracket == Brackets::SquareOn) {
+                            str << indent(++col) << "\\context StaffGroup = \"" << staffGroupCounter++
+                                << "\" << " << std::endl; //indent+
+                        } else if (bracket == Brackets::CurlyOn) {
+                            str << indent(++col) << "\\context GrandStaff = \"" << pianoStaffCounter++
+                                << "\" << " << std::endl; //indent+
+                        } else if (bracket == Brackets::CurlySquareOn) {
+                            str << indent(++col) << "\\context StaffGroup = \"" << staffGroupCounter++
+                                << "\" << " << std::endl; //indent+
+                            str << indent(++col) << "\\context GrandStaff = \"" << pianoStaffCounter++
+                                << "\" << " << std::endl; //indent+
+                        }
+
+                        // Make chords offset colliding notes by default (only write for
+                        // first track)
+                        str << indent(++col) << "% Force offset of colliding notes in chords:"
                             << std::endl;
-                        str << indent(col)   << "\\override Score.Fingering #\'staff-padding = #\'()"
+                        str << indent(col)   << "\\override Score.NoteColumn #\'force-hshift = #1.0"
                             << std::endl;
-                    }
-                }
-
-                emit setValue(int(double(trackPos) /
-                                double(m_composition->getNbTracks()) * 100.0));
-                                
-                qApp->processEvents(QEventLoop::AllEvents, 100);
-                //            rosegardenApplication->refreshGUI(50);
-
-                if ((int) seg->getTrack() != lastTrackIndex) {
-                    if (lastTrackIndex != -1) {
-                        // close the old track (Staff context)
-                        str << indent(--col) << ">> % Staff ends" << std::endl; //indent-
-                    }
-
-                    // handle any necessary bracket closures with a rude
-                    // hack, because bracket closures need to be handled
-                    // right under staff closures, but at this point in the
-                    // loop we are one track too early for closing, so we use
-                    // the bracket setting for the previous track for closing
-                    // purposes (I'm not quite sure why this works, but it does)            
-                    if (m_exportStaffGroup) {
-                        if (prevBracket == Brackets::SquareOff ||
-                            prevBracket == Brackets::SquareOnOff) {
-                            str << indent(--col) << ">> % StaffGroup " << staffGroupCounter
-                                << std::endl; //indent-
-                        } else if (prevBracket == Brackets::CurlyOff) {
-                            str << indent(--col) << ">> % GrandStaff " << pianoStaffCounter
-                                << std::endl; //indent-
-                        } else if (prevBracket == Brackets::CurlySquareOff) {
-                            str << indent(--col) << ">> % GrandStaff " << pianoStaffCounter
-                                << std::endl; //indent-
-                            str << indent(--col) << ">> % StaffGroup " << staffGroupCounter
-                                << std::endl; //indent-
+                        if (m_fingeringsInStaff) {
+                            str << indent(col) << "% Allow fingerings inside the staff (configured from export options):"
+                                << std::endl;
+                            str << indent(col)   << "\\override Score.Fingering #\'staff-padding = #\'()"
+                                << std::endl;
                         }
                     }
-                }
 
-                //
-                // Write the chord text events into a lead sheet format.
-                // The chords are placed into ChordName context above the staff,
-                // which is between the previous ending staff and next starting
-                // staff.
-                //
-                if (m_chordNamesMode) {
-                    int numberOfChords = -1;
+                    if (m_progressDialog)
+                        m_progressDialog->setValue(
+                                trackPos * 100 / m_composition->getNbTracks());
 
-                    timeT lastTime = compositionStartTime;
-                    for (Segment::iterator j = seg->begin();
-                        seg->isBeforeEndMarker(j); ++j) {
+                    qApp->processEvents();
 
-                        bool isNote = (*j)->isa(Note::EventType);
-                        bool isChord = false;
+                    if ((int) seg->getTrack() != lastTrackIndex) {
+                        if (lastTrackIndex != -1) {
+                            // close the old track (Staff context)
+                            str << indent(--col) << ">> % Staff ends" << std::endl; //indent-
+                        }
 
-                        if (!isNote) {
-                            if ((*j)->isa(Text::EventType)) {
-                                std::string textType;
-                                if ((*j)->get
-                                    <String>(Text::TextTypePropertyName, textType) &&
-                                    textType == Text::Chord) {
-                                    isChord = true;
+                        // handle any necessary bracket closures with a rude
+                        // hack, because bracket closures need to be handled
+                        // right under staff closures, but at this point in the
+                        // loop we are one track too early for closing, so we use
+                        // the bracket setting for the previous track for closing
+                        // purposes (I'm not quite sure why this works, but it does)            
+                        if (m_exportStaffGroup) {
+                            if (prevBracket == Brackets::SquareOff ||
+                                prevBracket == Brackets::SquareOnOff) {
+                                str << indent(--col) << ">> % StaffGroup " << staffGroupCounter
+                                    << std::endl; //indent-
+                            } else if (prevBracket == Brackets::CurlyOff) {
+                                str << indent(--col) << ">> % GrandStaff " << pianoStaffCounter
+                                    << std::endl; //indent-
+                            } else if (prevBracket == Brackets::CurlySquareOff) {
+                                str << indent(--col) << ">> % GrandStaff " << pianoStaffCounter
+                                    << std::endl; //indent-
+                                str << indent(--col) << ">> % StaffGroup " << staffGroupCounter
+                                    << std::endl; //indent-
+                            }
+                        }
+                    }
+
+                    //
+                    // Write the chord text events into a lead sheet format.
+                    // The chords are placed into ChordName context above the staff,
+                    // which is between the previous ending staff and next starting
+                    // staff.
+                    //
+                    if (m_chordNamesMode) {
+                        int numberOfChords = -1;
+
+                        timeT lastTime = compositionStartTime;
+                        for (Segment::iterator j = seg->begin();
+                            seg->isBeforeEndMarker(j); ++j) {
+
+                            bool isNote = (*j)->isa(Note::EventType);
+                            bool isChord = false;
+
+                            if (!isNote) {
+                                if ((*j)->isa(Text::EventType)) {
+                                    std::string textType;
+                                    if ((*j)->get
+                                        <String>(Text::TextTypePropertyName, textType) &&
+                                        textType == Text::Chord) {
+                                        isChord = true;
+                                    }
+                                }
+                            }
+
+                            if (!isNote && !isChord) continue;
+
+                            timeT myTime = (*j)->getNotationAbsoluteTime();
+
+                            if (isChord) {
+                                std::string schord;
+                                (*j)->get<String>(Text::TextPropertyName, schord);
+                                QString chord(strtoqstr(schord));
+                                chord.replace(QRegExp("\\s+"), "");
+                                chord.replace(QRegExp("h"), "b");
+
+                                // DEBUG: str << " %{ '" << chord.toUtf8() << "' %} ";
+                                QRegExp rx("^([a-g]([ei]s)?)([:](m|dim|aug|maj|sus|\\d+|[.^]|[+-])*)?(/[+]?[a-g]([ei]s)?)?$");
+                                if (rx.indexIn(chord) != -1) {
+                                    // The chord duration is zero, but the chord
+                                    // intervals is given with skips (see below).
+                                    QRegExp rxStart("^([a-g]([ei]s)?)");
+                                    chord.replace(QRegExp(rxStart), QString("\\1") + QString("4*0"));
+                                } else {
+                                    // Skip improper chords.
+                                    str << (" %{ improper chord: '") << qStrToStrUtf8(chord) << ("' %} ");
+                                    continue;
+                                }
+
+                                if (numberOfChords == -1) {
+                                    str << indent(col++) << "\\new ChordNames " << "\\with {alignAboveContext=\"track " <<
+                                        (trackPos + 1) << "\"}" << "\\chordmode {" << std::endl;
+                                    str << indent(col) << "\\set chordNameExceptions = #chExceptions" << std::endl;
+                                    str << indent(col);
+                                    numberOfChords++;
+                                }
+                                if (numberOfChords >= 0) {
+                                    // The chord intervals are specified with skips.
+                                    writeSkip(m_composition->getTimeSignatureAt(myTime), lastTime, myTime - lastTime, false, str);
+                                    str << qStrToStrUtf8(chord) << " ";
+                                    numberOfChords++;
+                                }
+                                lastTime = myTime;
+                            }
+                        } // for
+                        if (numberOfChords >= 0) {
+                            writeSkip(m_composition->getTimeSignatureAt(lastTime), lastTime, compositionEndTime - lastTime, false, str);
+                            if (numberOfChords == 1) str << "s8 ";
+                            str << std::endl;
+                            str << indent(--col) << "} % ChordNames " << std::endl;
+                        }
+                    } // if (m_exportChords....
+
+                    if ((int) seg->getTrack() != lastTrackIndex) {
+                        lastTrackIndex = seg->getTrack();
+
+                        // handle any bracket start events (unless track staff
+                        // brackets are being ignored, as when printing single parts
+                        // out of a bigger score one by one)
+                        if (!firstTrack && m_exportStaffGroup) {
+                            if (bracket == Brackets::SquareOn ||
+                                bracket == Brackets::SquareOnOff) {
+                                str << indent(col++) << "\\context StaffGroup = \""
+                                    << ++staffGroupCounter << "\" <<" << std::endl;
+                            } else if (bracket == Brackets::CurlyOn) {
+                                str << indent(col++) << "\\context GrandStaff = \""
+                                    << ++pianoStaffCounter << "\" <<" << std::endl;
+                            } else if (bracket == Brackets::CurlySquareOn) {
+                                str << indent(col++) << "\\context StaffGroup = \""
+                                    << ++staffGroupCounter << "\" <<" << std::endl;
+                                str << indent(col++) << "\\context GrandStaff = \""
+                                    << ++pianoStaffCounter << "\" <<" << std::endl;
+                            }
+                        } 
+
+                        // avoid problem with <untitled> tracks yielding a
+                        // .ly file that jumbles all notes together on a
+                        // single staff...  every Staff context has to
+                        // have a unique name, even if the
+                        // Staff.instrument property is the same for
+                        // multiple staffs...
+                        // Added an option to merge staffs with the same, non-empty
+                        // name. This option makes it possible to produce staffs
+                        // with polyphonic, and polyrhytmic, music. Polyrhytmic
+                        // music in a single staff is typical in piano, or
+                        // guitar music. (hjj)
+                        // In the case of colliding note heads, user may define
+                        //  - DISPLACED_X -- for a note/chord
+                        //  - INVISIBLE -- for a rest
+                        const std::string staffName = protectIllegalChars(m_composition->
+                                                        getTrackById(lastTrackIndex)->getLabel());
+
+                        std::string shortStaffName = protectIllegalChars(m_composition->
+                                getTrackById(lastTrackIndex)->getShortLabel());
+
+                        /*
+                        * The context name is unique to a single track.
+                        */
+                        str << std::endl << indent(col)
+                            << "\\context Staff = \"track "
+                            << (trackPos + 1) << (staffName == "" ? "" : ", ")
+                            << staffName << "\" ";
+
+                        str << "<< " << std::endl;
+                        ++col;
+
+                        if (staffName.size()) {
+                            hasInstrumentNames = true;
+                            // The octavation is omitted in the instrument name.
+                            // HJJ: Should it be automatically added to the clef: G^8 ?
+                            // What if two segments have different transpose in a track?
+                            std::ostringstream staffNameWithTranspose;
+                            staffNameWithTranspose << "\\markup { \\center-column { \"" << staffName << " \"";
+                            if ((seg->getTranspose() % 12) != 0) {
+                                staffNameWithTranspose << " \\line { ";
+                                int t = seg->getTranspose();
+                                t %= 12;
+                                if (t < 0) t+= 12;
+                                switch (t) {
+                                case 1 : staffNameWithTranspose << "\"in D\" \\smaller \\flat"; break;
+                                case 2 : staffNameWithTranspose << "\"in D\""; break;
+                                case 3 : staffNameWithTranspose << "\"in E\" \\smaller \\flat"; break;
+                                case 4 : staffNameWithTranspose << "\"in E\""; break;
+                                case 5 : staffNameWithTranspose << "\"in F\""; break;
+                                case 6 : staffNameWithTranspose << "\"in G\" \\smaller \\flat"; break;
+                                case 7 : staffNameWithTranspose << "\"in G\""; break;
+                                case 8 : staffNameWithTranspose << "\"in A\" \\smaller \\flat"; break;
+                                case 9 : staffNameWithTranspose << "\"in A\""; break;
+                                case 10 : staffNameWithTranspose << "\"in B\" \\smaller \\flat"; break;
+                                case 11 : staffNameWithTranspose << "\"in B\""; break;
+                                }
+                                staffNameWithTranspose << " }";
+                            }
+                            staffNameWithTranspose << " } }";
+                            if (m_languageLevel < LILYPOND_VERSION_2_10) {
+                                str << indent(col) << "\\set Staff.instrument = " << staffNameWithTranspose.str()
+                                    << std::endl;
+                            } else {
+                                // always write long staff name
+                                str << indent(col) << "\\set Staff.instrumentName = "
+                                    << staffNameWithTranspose.str() << std::endl;
+
+                                // write short staff name if user desires, and if
+                                // non-empty
+                                if (m_useShortNames && shortStaffName.size()) {
+                                    str << indent(col) << "\\set Staff.shortInstrumentName = \""
+                                        << shortStaffName << "\"" << std::endl;
                                 }
                             }
                         }
 
-                        if (!isNote && !isChord) continue;
-
-                        timeT myTime = (*j)->getNotationAbsoluteTime();
-
-                        if (isChord) {
-                            std::string schord;
-                            (*j)->get<String>(Text::TextPropertyName, schord);
-                            QString chord(strtoqstr(schord));
-                            chord.replace(QRegExp("\\s+"), "");
-                            chord.replace(QRegExp("h"), "b");
-
-                            // DEBUG: str << " %{ '" << chord.toUtf8() << "' %} ";
-                            QRegExp rx("^([a-g]([ei]s)?)([:](m|dim|aug|maj|sus|\\d+|[.^]|[+-])*)?(/[+]?[a-g]([ei]s)?)?$");
-                            if (rx.indexIn(chord) != -1) {
-                                // The chord duration is zero, but the chord
-                                // intervals is given with skips (see below).
-                                QRegExp rxStart("^([a-g]([ei]s)?)");
-                                chord.replace(QRegExp(rxStart), QString("\\1") + QString("4*0"));
-                            } else {
-                                // Skip improper chords.
-                                str << (" %{ improper chord: '") << qStrToStrUtf8(chord) << ("' %} ");
-                                continue;
-                            }
-
-                            if (numberOfChords == -1) {
-                                str << indent(col++) << "\\new ChordNames " << "\\with {alignAboveContext=\"track " <<
-                                    (trackPos + 1) << "\"}" << "\\chordmode {" << std::endl;
-                                str << indent(col) << "\\set chordNameExceptions = #chExceptions" << std::endl;
-                                str << indent(col);
-                                numberOfChords++;
-                            }
-                            if (numberOfChords >= 0) {
-                                // The chord intervals are specified with skips.
-                                writeSkip(m_composition->getTimeSignatureAt(myTime), lastTime, myTime - lastTime, false, str);
-                                str << qStrToStrUtf8(chord) << " ";
-                                numberOfChords++;
-                            }
-                            lastTime = myTime;
+                        // Set midi instrument for the Staff when possible
+                        Instrument *instr = m_studio->getInstrumentById(
+                            m_composition->getTrackById(lastTrackIndex)
+                                                            ->getInstrument());
+                        if (instr) {
+                            str << indent(col)
+                                << "\\set Staff.midiInstrument = \""
+                                << instr->getProgramName().c_str()
+                                << "\"" << std::endl;
                         }
-                    } // for
-                    if (numberOfChords >= 0) {
-                        writeSkip(m_composition->getTimeSignatureAt(lastTime), lastTime, compositionEndTime - lastTime, false, str);
-                        if (numberOfChords == 1) str << "s8 ";
-                        str << std::endl;
-                        str << indent(--col) << "} % ChordNames " << std::endl;
-                    }
-                } // if (m_exportChords....
 
-                if ((int) seg->getTrack() != lastTrackIndex) {
-                    lastTrackIndex = seg->getTrack();
+                        // multi measure rests are used by default
+                        str << indent(col) << "\\set Score.skipBars = ##t" << std::endl;
 
-                    // handle any bracket start events (unless track staff
-                    // brackets are being ignored, as when printing single parts
-                    // out of a bigger score one by one)
-                    if (!firstTrack && m_exportStaffGroup) {
-                        if (bracket == Brackets::SquareOn ||
-                            bracket == Brackets::SquareOnOff) {
-                            str << indent(col++) << "\\context StaffGroup = \""
-                                << ++staffGroupCounter << "\" <<" << std::endl;
-                        } else if (bracket == Brackets::CurlyOn) {
-                            str << indent(col++) << "\\context GrandStaff = \""
-                                << ++pianoStaffCounter << "\" <<" << std::endl;
-                        } else if (bracket == Brackets::CurlySquareOn) {
-                            str << indent(col++) << "\\context StaffGroup = \""
-                                << ++staffGroupCounter << "\" <<" << std::endl;
-                            str << indent(col++) << "\\context GrandStaff = \""
-                                << ++pianoStaffCounter << "\" <<" << std::endl;
+                        // turn off the stupid accidental cancelling business,
+                        // because we don't do that ourselves, and because my 11
+                        // year old son pointed out to me that it "Looks really
+                        // stupid.  Why is it cancelling out four flats and then
+                        // adding five flats back?  That's brain damaged."
+                        //
+                        // New option to turn it back on, per user request.  There
+                        // doesn't seem to be any way to get LilyPond's behavior to
+                        // quite mimic our own, so we just offer it to them as an
+                        // either/or choice.
+                        if (m_cancelAccidentals) {
+                            str << indent(col) << "\\set Staff.printKeyCancellation = ##t" << std::endl;
+                        } else {
+                            str << indent(col) << "\\set Staff.printKeyCancellation = ##f" << std::endl;
                         }
-                    } 
-
-                    // avoid problem with <untitled> tracks yielding a
-                    // .ly file that jumbles all notes together on a
-                    // single staff...  every Staff context has to
-                    // have a unique name, even if the
-                    // Staff.instrument property is the same for
-                    // multiple staffs...
-                    // Added an option to merge staffs with the same, non-empty
-                    // name. This option makes it possible to produce staffs
-                    // with polyphonic, and polyrhytmic, music. Polyrhytmic
-                    // music in a single staff is typical in piano, or
-                    // guitar music. (hjj)
-                    // In the case of colliding note heads, user may define
-                    //  - DISPLACED_X -- for a note/chord
-                    //  - INVISIBLE -- for a rest
-                    std::ostringstream staffName;
-                    staffName << protectIllegalChars(m_composition->
-                                                    getTrackById(lastTrackIndex)->getLabel());
-
-                    std::string shortStaffName = protectIllegalChars(m_composition->
-                            getTrackById(lastTrackIndex)->getShortLabel());
-
-                    /*
-                    * The context name is unique to a single track.
-                    */
-                    str << std::endl << indent(col)
-                        << "\\context Staff = \"track "
-                        << (trackPos + 1) << (staffName.str() == "" ? "" : ", ")
-                        << staffName.str() << "\" ";
-
-                    str << "<< " << std::endl;
-
-                    // The octavation is omitted in the instrument name.
-                    // HJJ: Should it be automatically added to the clef: G^8 ?
-                    // What if two segments have different transpose in a track?
-                    std::ostringstream staffNameWithTranspose;
-                    staffNameWithTranspose << "\\markup { \\center-column { \"" << staffName.str() << " \"";
-                    if ((seg->getTranspose() % 12) != 0) {
-                        staffNameWithTranspose << " \\line { ";
-                        int t = seg->getTranspose();
-                        t %= 12;
-                        if (t < 0) t+= 12;
-                        switch (t) {
-                        case 1 : staffNameWithTranspose << "\"in D\" \\smaller \\flat"; break;
-                        case 2 : staffNameWithTranspose << "\"in D\""; break;
-                        case 3 : staffNameWithTranspose << "\"in E\" \\smaller \\flat"; break;
-                        case 4 : staffNameWithTranspose << "\"in E\""; break;
-                        case 5 : staffNameWithTranspose << "\"in F\""; break;
-                        case 6 : staffNameWithTranspose << "\"in G\" \\smaller \\flat"; break;
-                        case 7 : staffNameWithTranspose << "\"in G\""; break;
-                        case 8 : staffNameWithTranspose << "\"in A\" \\smaller \\flat"; break;
-                        case 9 : staffNameWithTranspose << "\"in A\""; break;
-                        case 10 : staffNameWithTranspose << "\"in B\" \\smaller \\flat"; break;
-                        case 11 : staffNameWithTranspose << "\"in B\""; break;
+                        str << indent(col) << "\\new Voice \\global" << std::endl;
+                        if (tempoCount > 0) {
+                            str << indent(col) << "\\new Voice \\globalTempo" << std::endl;
                         }
-                        staffNameWithTranspose << " }";
-                    }
-                    staffNameWithTranspose << " } }";
-                    if (m_languageLevel < LILYPOND_VERSION_2_10) {
-                        str << indent(++col) << "\\set Staff.instrument = " << staffNameWithTranspose.str()
-                            << std::endl;
-                    } else {
-                        // always write long staff name
-                        str << indent(++col) << "\\set Staff.instrumentName = "
-                            << staffNameWithTranspose.str() << std::endl;
+                        if (m_exportMarkerMode != EXPORT_NO_MARKERS) {
+                            str << indent(col) << "\\new Voice \\markers" << std::endl;
+                        }
 
-                        // write short staff name if user desires, and if
-                        // non-empty
-                        if (m_useShortNames && shortStaffName.size()) {
-                            str << indent(col) << "\\set Staff.shortInstrumentName = \""
-                                << shortStaffName << "\"" << std::endl;
+                        if (m_exportBeams) {
+                            str << indent(col) << "\\set Staff.autoBeaming = ##f % turns off all autobeaming" << std::endl;
                         }
                     }
+                } /// if (!lsc.isVolta())
 
-                    // Set always midi instrument for the Staff
-                    std::ostringstream staffMidiName;
-                    Instrument *instr = m_studio->getInstrumentById(
-                                                                    m_composition->getTrackById(lastTrackIndex)->getInstrument());
-                    staffMidiName << instr->getProgramName();
+                // Temporary storage for non-atomic events (!BOOM)
+                // ex. LilyPond expects signals when a decrescendo starts
+                // as well as when it ends
+                eventendlist preEventsInProgress;
+                eventendlist postEventsInProgress;
 
-                    str << indent(col) << "\\set Staff.midiInstrument = \"" << staffMidiName.str()
-                        << "\"" << std::endl;
+                // If the segment doesn't start at 0, add a "skip" to the start
+                // No worries about overlapping segments, because Voices can overlap
+                // voiceCounter is a hack because LilyPond does not by default make
+                // them unique
+                std::ostringstream voiceNumber;
 
-                    // multi measure rests are used by default
-                    str << indent(col) << "\\set Score.skipBars = ##t" << std::endl;
+                voiceNumber << "voice " << ++voiceCounter;
+                if (!lsc.isVolta()) {
+                    str << std::endl << indent(col++) << "\\context Voice = \"" << voiceNumber.str()
+                        << "\" {"; // indent+
 
-                    // turn off the stupid accidental cancelling business,
-                    // because we don't do that ourselves, and because my 11
-                    // year old son pointed out to me that it "Looks really
-                    // stupid.  Why is it cancelling out four flats and then
-                    // adding five flats back?  That's brain damaged."
-                    //
-                    // New option to turn it back on, per user request.  There
-                    // doesn't seem to be any way to get LilyPond's behavior to
-                    // quite mimic our own, so we just offer it to them as an
-                    // either/or choice.
-                    if (m_cancelAccidentals) {
-                        str << indent(col) << "\\set Staff.printKeyCancellation = ##t" << std::endl;
-                    } else {
-                        str << indent(col) << "\\set Staff.printKeyCancellation = ##f" << std::endl;
+                    str << std::endl << indent(col) << "% Segment: " << seg->getLabel();
+                    
+                    str << std::endl << indent(col) << "\\override Voice.TextScript #'padding = #2.0";
+                    str << std::endl << indent(col) << "\\override MultiMeasureRest #'expand-limit = 1" << std::endl;
+
+                    // staff notation size
+                    int staffSize = track->getStaffSize();
+                    if (staffSize == StaffTypes::Small) str << indent(col) << "\\small" << std::endl;
+                    else if (staffSize == StaffTypes::Tiny) str << indent(col) << "\\tiny" << std::endl;
+                } /// if (!lsc.isVolta())
+                SegmentNotationHelper helper(*seg);
+                helper.setNotationProperties();
+
+                int firstBar = m_composition->getBarNumber(seg->getStartTime());
+
+                if (!lsc.isVolta()) {        // Don't write any skip in a volta
+                    if (firstBar > 0) {
+                        // Add a skip for the duration until the start of the first
+                        // bar in the segment.  If the segment doesn't start on a
+                        // bar line, an additional skip will be written at the start
+                        // of writeBar, below.
+                        //!!! This doesn't cope correctly yet with time signature changes
+                        // during this skipped section.
+                        // dmm - changed this to call writeSkip with false, to avoid
+                        // writing actual rests, and write a skip instead, so
+                        // visible rests do not appear before the start of short
+                        // bars
+                        str << std::endl << indent(col);
+                        writeSkip(timeSignature, compositionStartTime,
+                                lsc.getSegmentStartTime(), false, str);
                     }
-                    str << indent(col) << "\\new Voice \\global" << std::endl;
-                    if (tempoCount > 0) {
-                        str << indent(col) << "\\new Voice \\globalTempo" << std::endl;
-                    }
-                    if (m_exportMarkerMode != EXPORT_NO_MARKERS) {
-                        str << indent(col) << "\\new Voice \\markers" << std::endl;
-                    }
 
-                }
-            } /// if (!lsc.isVolta())
-
-            // Temporary storage for non-atomic events (!BOOM)
-            // ex. LilyPond expects signals when a decrescendo starts
-            // as well as when it ends
-            eventendlist preEventsInProgress;
-            eventstartlist preEventsToStart;
-            eventendlist postEventsInProgress;
-            eventstartlist postEventsToStart;
-
-            // If the segment doesn't start at 0, add a "skip" to the start
-            // No worries about overlapping segments, because Voices can overlap
-            // voiceCounter is a hack because LilyPond does not by default make
-            // them unique
-            std::ostringstream voiceNumber;
-
-            voiceNumber << "voice " << ++voiceCounter;
-            if (!lsc.isVolta()) {
-                str << std::endl << indent(col++) << "\\context Voice = \"" << voiceNumber.str()
-                    << "\" {"; // indent+
-
-                str << std::endl << indent(col) << "\\override Voice.TextScript #'padding = #2.0";
-                str << std::endl << indent(col) << "\\override MultiMeasureRest #'expand-limit = 1" << std::endl;
-
-                // staff notation size
-                int staffSize = track->getStaffSize();
-                if (staffSize == StaffTypes::Small) str << indent(col) << "\\small" << std::endl;
-                else if (staffSize == StaffTypes::Tiny) str << indent(col) << "\\tiny" << std::endl;
-            } /// if (!lsc.isVolta())
-            SegmentNotationHelper helper(*seg);
-            helper.setNotationProperties();
-
-            int firstBar = m_composition->getBarNumber(seg->getStartTime());
-
-            if (!lsc.isVolta()) {        // Don't write any skip in a volta
-                if (firstBar > 0) {
-                    // Add a skip for the duration until the start of the first
-                    // bar in the segment.  If the segment doesn't start on a
-                    // bar line, an additional skip will be written at the start
-                    // of writeBar, below.
-                    //!!! This doesn't cope correctly yet with time signature changes
-                    // during this skipped section.
-                    // dmm - changed this to call writeSkip with false, to avoid
-                    // writing actual rests, and write a skip instead, so
-                    // visible rests do not appear before the start of short
-                    // bars
-                    str << std::endl << indent(col);
-                    writeSkip(timeSignature, compositionStartTime,
-                              lsc.getSegmentStartTime(), false, str);
-                }
-    
-                // If segment is not starting on a bar, but is starting at barTime + offset,
-                // we have to do :
-                //     if segment is the first one : add partial (barDuration - offset)
-                //     else  add skip (offset)
-                if (seg->getStartTime() - m_composition->getBarStart(firstBar) > 0) {
-                    if (seg->getStartTime() == firstSegmentStartTime) {
-                        timeT partialDuration = m_composition->getBarStart(firstBar + 1)
-                                                - seg->getStartTime();
-                        str << indent(col) << "\\partial ";
-                        // Arbitrary partial durations are handled by the following
-                        // way: split the partial duration to 64th notes: instead
-                        // of "4" write "64*16". (hjj)
-                        Note partialNote = Note::getNearestNote(1, MAX_DOTS);
-                        writeDuration(1, str);
-                        str << "*" << ((int)(partialDuration / partialNote.getDuration()))
-                            << std::endl;
-    
-                    } else {
-                        if (m_repeatMode == REPEAT_BASIC) {
-                            timeT partialOffset = seg->getStartTime()
-                                                  - m_composition->getBarStart(firstBar);
-                            str << indent(col) << "\\skip ";
+                    // If segment is not starting on a bar, but is starting at barTime + offset,
+                    // we have to do :
+                    //     if segment is the first one : add partial (barDuration - offset)
+                    //     else  add skip (offset)
+                    if (seg->getStartTime() - m_composition->getBarStart(firstBar) > 0) {
+                        if (seg->getStartTime() == firstSegmentStartTime) {
+                            timeT partialDuration = m_composition->getBarStart(firstBar + 1)
+                                                    - seg->getStartTime();
+                            str << indent(col) << "\\partial ";
                             // Arbitrary partial durations are handled by the following
                             // way: split the partial duration to 64th notes: instead
                             // of "4" write "64*16". (hjj)
                             Note partialNote = Note::getNearestNote(1, MAX_DOTS);
                             writeDuration(1, str);
-                            str << "*" << ((int)(partialOffset / partialNote.getDuration()))
+                            str << "*" << ((int)(partialDuration / partialNote.getDuration()))
                                 << std::endl;
+        
+                        } else {
+                            if (m_repeatMode == REPEAT_BASIC) {
+                                timeT partialOffset = seg->getStartTime()
+                                                    - m_composition->getBarStart(firstBar);
+                                str << indent(col) << "\\skip ";
+                                // Arbitrary partial durations are handled by the following
+                                // way: split the partial duration to 64th notes: instead
+                                // of "4" write "64*16". (hjj)
+                                Note partialNote = Note::getNearestNote(1, MAX_DOTS);
+                                writeDuration(1, str);
+                                str << "*" << ((int)(partialOffset / partialNote.getDuration()))
+                                    << std::endl;
+                            }
                         }
                     }
-                }
-            } /// if (!lsc.isVolta())
+                } /// if (!lsc.isVolta())
 
 
-            std::string lilyText = "";      // text events
-            std::string prevStyle = "";     // track note styles
+                std::string lilyText = "";      // text events
+                std::string prevStyle = "";     // track note styles
 
-            Rosegarden::Key key;
+                Rosegarden::Key key = lsc.getPreviousKey();
 
-            bool haveRepeating = false;
-            bool haveAlternates = false;
+                bool haveRepeating = false;
+                bool haveAlternates = false;
 
-            bool haveRepeatingWithVolta = false;
-            bool haveVolta = false;
+                bool haveRepeatingWithVolta = false;
+                bool haveVolta = false;
 
-            bool nextBarIsAlt1 = false;
-            bool nextBarIsAlt2 = false;
-            bool prevBarWasAlt2 = false;
+                bool nextBarIsAlt1 = false;
+                bool nextBarIsAlt2 = false;
+                bool prevBarWasAlt2 = false;
 
-            int MultiMeasureRestCount = 0;
+                int MultiMeasureRestCount = 0;
 
-            bool nextBarIsDouble = false;
-            bool nextBarIsEnd = false;
-            bool nextBarIsDot = false;
+                bool nextBarIsDouble = false;
+                bool nextBarIsEnd = false;
+                bool nextBarIsDot = false;
 
-            for (int barNo = m_composition->getBarNumber(seg->getStartTime());
-                  barNo <= m_composition->getBarNumber(seg->getEndMarkerTime());
-                  ++barNo) {
+                for (int barNo = m_composition->getBarNumber(seg->getStartTime());
+                    barNo <= m_composition->getBarNumber(seg->getEndMarkerTime());
+                    ++barNo) {
+                    qApp->processEvents();
 
-                timeT barStart = m_composition->getBarStart(barNo);
-                timeT barEnd = m_composition->getBarEnd(barNo);
-                timeT currentSegmentStartTime = seg->getStartTime();
-                timeT currentSegmentEndTime = seg->getEndMarkerTime();
-                // Check for a partial measure in the beginning of the composition
-                if (barStart < compositionStartTime) {
-                    barStart = compositionStartTime;
-                }
-                // Check for a partial measure in the end of the composition
-                if (barEnd > compositionEndTime) {
-                    barEnd = compositionEndTime;
-                }
-                // Check for a partial measure beginning in the middle of a
-                // theoretical bar
-                if (barStart < currentSegmentStartTime) {
-                    barStart = currentSegmentStartTime;
-                }
-                // Check for a partial measure ending in the middle of a
-                // theoretical bar
-                if (barEnd > currentSegmentEndTime) {
-                    barEnd = currentSegmentEndTime;
-                }
+                    timeT barStart = m_composition->getBarStart(barNo);
+                    timeT barEnd = m_composition->getBarEnd(barNo);
+                    timeT currentSegmentStartTime = seg->getStartTime();
+                    timeT currentSegmentEndTime = seg->getEndMarkerTime();
+                    // Check for a partial measure in the beginning of the composition
+                    if (barStart < compositionStartTime) {
+                        barStart = compositionStartTime;
+                    }
+                    // Check for a partial measure in the end of the composition
+                    if (barEnd > compositionEndTime) {
+                        barEnd = compositionEndTime;
+                    }
+                    // Check for a partial measure beginning in the middle of a
+                    // theoretical bar
+                    if (barStart < currentSegmentStartTime) {
+                        barStart = currentSegmentStartTime;
+                    }
+                    // Check for a partial measure ending in the middle of a
+                    // theoretical bar
+                    if (barEnd > currentSegmentEndTime) {
+                        barEnd = currentSegmentEndTime;
+                    }
 
-                // Check for a time signature in the first bar of the segment
-                bool timeSigInFirstBar = false;
-                TimeSignature firstTimeSig =
-                    m_composition->getTimeSignatureInBar(firstBar, timeSigInFirstBar);
-                // and write it here (to avoid multiple time signatures when
-                // a repeating segment is unfolded)
-                if (timeSigInFirstBar && (barNo == firstBar)) {
-                    writeTimeSignature(firstTimeSig, col, str);
-                }
+                    // Check for a time signature in the first bar of the segment
+                    bool timeSigInFirstBar = false;
+                    TimeSignature firstTimeSig =
+                        m_composition->getTimeSignatureInBar(firstBar,
+                                                             timeSigInFirstBar);
+                    // and write it here (to avoid multiple time signatures when
+                    // a repeating segment is unfolded)
+                    if (timeSigInFirstBar && (barNo == firstBar)) {
+                        writeTimeSignature(firstTimeSig, col, str);
+                    }
 
-                // open \repeat section if this is the first bar in the
-                // repeat
-                if (seg->isRepeating() && !haveRepeating) {
+                    // open \repeat section if this is the first bar in the
+                    // repeat
+                    if ( (lsc.isRepeatingSegment()
+                           || (lsc.isSimpleRepeatedLinks() 
+                                  && (m_repeatMode == REPEAT_VOLTA)
+                              )
+                         ) && !haveRepeating) {
 
-                    haveRepeating = true;
-                    int numRepeats = 2; 
+                        haveRepeating = true;
+                        int numRepeats = 2; 
 
-                    if (m_repeatMode == REPEAT_BASIC) {
-                         // The old unfinished way
-                        str << std::endl << indent(col++) << "\\repeat volta " << numRepeats << " {";
-                    } else {
-                        numRepeats = lsc.getNumberOfRepeats();
-
-                        if ((m_repeatMode == REPEAT_VOLTA) && lsc.isSynchronous()) {
-                            str << std::endl << indent(col++) 
+                        if (m_repeatMode == REPEAT_BASIC) {
+                            // The old unfinished way
+                            str << std::endl << indent(col++)
                                 << "\\repeat volta " << numRepeats << " {";
                         } else {
-                            // m_repeatMode == REPEAT_UNFOLD
-                            str << std::endl << indent(col++) 
-                                << "\\repeat unfold " << numRepeats << " {";
+                            numRepeats = lsc.getNumberOfRepeats();
+                            if ((m_repeatMode == REPEAT_VOLTA) && lsc.isSynchronous()) {
+                                str << std::endl << indent(col++) 
+                                    << "\\repeat volta " << numRepeats << " {";
+                            } else {
+                                // m_repeatMode == REPEAT_UNFOLD
+                                str << std::endl << indent(col++) 
+                                    << "\\repeat unfold "
+                                    << numRepeats << " {";
+                            }
                         }
-                    }
-                } else if (lsc.isRepeatWithVolta() &&
-                         !haveRepeatingWithVolta &&
-                         !haveVolta) {
-                    if (!lsc.isVolta()) {
-                        str << std::endl << indent(col++) 
-                            << "\\repeat volta " << lsc.getNumberOfRepeats() << " {";
-                        haveRepeatingWithVolta = true;
-                    } else {
-                        str << std::endl << indent(col++) 
-                            << "{     % Alternative start here";
-                        if (m_voltaBar) {
+                    } else if (lsc.isRepeatWithVolta() &&
+                            !haveRepeatingWithVolta &&
+                            !haveVolta) {
+                        if (!lsc.isVolta()) {
+                            str << std::endl << indent(col++); 
+                            if (lsc.isAutomaticVoltaUsable()) {
+                                str << "\\repeat volta "
+                                    << lsc.getNumberOfRepeats() << " ";
+                            }
+                            // Opening of main repeating segment
+                            str << "{   % Repeating stegment start here";
+                            str << std::endl << indent(col)
+                                << "% Segment: " << seg->getLabel();
+                            haveRepeatingWithVolta = true;
+                            if (!lsc.isAutomaticVoltaUsable()) {
+                                if (lsc.wasRepeatingWithoutVolta()) {
+                                    // When automatic volta is not usable, the
+                                    // "start-repeat" bar hides the "end-repeat"
+                                    // bar issued by the previous automatic
+                                    // volta. In such a case, a "double-repeat"
+                                    // bar has to be writed. As #'(double-repeat)
+                                    // is currently not defined in
+                                    // LilyPond, the ":..:" string is used.
+                                    str << std::endl << indent(col)
+                                        << "\\bar \":..:\"";
+                                } else {
+                                    str << std::endl << indent(col)
+                                        << "\\set Score.repeatCommands = #'(start-repeat)";
+                                }
+                            }
+                        } else {
                             str << std::endl << indent(col) 
-                                << "\\bar \"|\" ";
+                                << "{   % Alternative start here";
+                            str << std::endl << indent(col++) 
+                                << "    % Segment: " << seg->getLabel();
+                            if (!lsc.isAutomaticVoltaUsable()) {
+                                str << std::endl << indent(col)
+                                    << "\\set Score.repeatCommands = ";
+                                if (lsc.isFirstVolta()) {   
+                                    str << "#'((volta \""
+                                        << lsc.getVoltaText() << "\"))";
+                                } else {
+                                    str << "#'((volta #f) (volta \""
+                                        << lsc.getVoltaText() << "\") end-repeat)";
+                                }
+                            }
+                            if (m_voltaBar) {
+                                str << std::endl << indent(col) 
+                                    << "\\bar \"|\" ";
+                            }
+                            haveVolta = true;
                         }
-                        haveVolta = true;
+                    }
+
+                    // open the \alternative section if this bar is alternative ending 1
+                    // ending (because there was an "Alt1" flag in the
+                    // previous bar to the left of where we are right now)
+                    //
+                    // Alt1 remains in effect until we run into Alt2, which
+                    // runs to the end of the segment
+                    if (nextBarIsAlt1 && haveRepeating) {
+                        str << std::endl << indent(--col) << "} \% repeat close (before alternatives) ";
+                        str << std::endl << indent(col++) << "\\alternative {";
+                        str << std::endl << indent(col++) << "{  \% open alternative 1 ";
+                        nextBarIsAlt1 = false;
+                        haveAlternates = true;
+                    } else if (nextBarIsAlt2 && haveRepeating) {
+                        if (!prevBarWasAlt2) {
+                            col--;
+                            // add an extra str to the following to shut up
+                            // compiler warning from --ing and ++ing it in the
+                            // same statement
+                            str << std::endl << indent(--col) << "} \% close alternative 1 ";
+                            str << std::endl << indent(col++) << "{  \% open alternative 2";
+                            col++;
+                        }
+                        prevBarWasAlt2 = true;
+                    }
+
+                    // should a time signature be writed in the current bar ?
+                    bool noTimeSig;
+                    if (timeSigInFirstBar) {
+                        noTimeSig = barNo == firstBar;
+                    } else {
+                        noTimeSig = barNo != firstBar;
+                    }
+
+                    // write out a bar's worth of events
+                    writeBar(seg, barNo, barStart, barEnd, col, key,
+                            lilyText,
+                            prevStyle, preEventsInProgress, postEventsInProgress, str,
+                            MultiMeasureRestCount, 
+                            nextBarIsAlt1, nextBarIsAlt2, nextBarIsDouble,
+                            nextBarIsEnd, nextBarIsDot,
+                            noTimeSig);
+
+                }
+
+                // close \repeat
+                if (haveRepeating) {
+
+                    // close \alternative section if present
+                    if (haveAlternates) {
+                        str << std::endl << indent(--col) << "} \% close alternative 2 ";
+                    }
+
+                    // close \repeat section in either case
+                    str << std::endl << indent(--col) << "} \% close "
+                        << (haveAlternates ? "alternatives" : "repeat");
+                }
+
+                // Open alternate parts if repeat with volta from linked segments
+                if (haveRepeatingWithVolta) {
+                    if (!lsc.isVolta()) {
+                        str << std::endl << indent(--col) << "} \% close main repeat";
+                        if (lsc.isAutomaticVoltaUsable()) {
+                            str << std::endl << indent (col++) << "\\alternative  {";
+                        }
+                        str <<  std::endl;
+                    } else {
+                        // Close alternative segment
+                        str << std::endl << indent(--col) << "}";
                     }
                 }
 
-                // open the \alternative section if this bar is alternative ending 1
-                // ending (because there was an "Alt1" flag in the
-                // previous bar to the left of where we are right now)
-                //
-                // Alt1 remains in effect until we run into Alt2, which
-                // runs to the end of the segment
-                if (nextBarIsAlt1 && haveRepeating) {
-                    str << std::endl << indent(--col) << "} \% repeat close (before alternatives) ";
-                    str << std::endl << indent(col++) << "\\alternative {";
-                    str << std::endl << indent(col++) << "{  \% open alternative 1 ";
-                    nextBarIsAlt1 = false;
-                    haveAlternates = true;
-                } else if (nextBarIsAlt2 && haveRepeating) {
-                    if (!prevBarWasAlt2) {
-                        col--;
-                        // add an extra str to the following to shut up
-                        // compiler warning from --ing and ++ing it in the
-                        // same statement
-                        str << std::endl << indent(--col) << "} \% close alternative 1 ";
-                        str << std::endl << indent(col++) << "{  \% open alternative 2";
-                        col++;
-                    }
-                    prevBarWasAlt2 = true;
+                // closing bar
+                if ((seg->getEndMarkerTime() == compositionEndTime) && !haveRepeating) {
+                    str << std::endl << indent(col) << "\\bar \"|.\"";
                 }
 
-                // should a time signature be writed in the current bar ?
-                bool noTimeSig;
-                if (timeSigInFirstBar) {
-                    noTimeSig = barNo == firstBar;
-                } else {
-                    noTimeSig = barNo != firstBar;
-                }
-
-                // write out a bar's worth of events
-                writeBar(seg, barNo, barStart, barEnd, col, key,
-                          lilyText,
-                          prevStyle, preEventsInProgress, postEventsInProgress, str,
-                          MultiMeasureRestCount, 
-                          nextBarIsAlt1, nextBarIsAlt2, nextBarIsDouble,
-                          nextBarIsEnd, nextBarIsDot,
-                          noTimeSig);
-
-            }
-
-            // close \repeat
-            if (haveRepeating) {
-
-                // close \alternative section if present
-                if (haveAlternates) {
-                    str << std::endl << indent(--col) << "} \% close alternative 2 ";
-                }
-
-                // close \repeat section in either case
-                str << std::endl << indent(--col) << "} \% close "
-                    << (haveAlternates ? "alternatives" : "repeat");
-            }
-
-            // Open alternate parts if repeat with volta from linked segments
-            if (haveRepeatingWithVolta) {
-                if (!lsc.isVolta()) {
-                    str << std::endl << indent(--col) << "} \% close main repeat ";
-                    str << std::endl << indent (col++) << "\\alternative {" <<  std::endl;
-                } else {
-                    // Close alternative segment
-                    str << std::endl << indent(--col) << "}";
-                }
-            }
-
-            // closing bar
-            if ((seg->getEndMarkerTime() == compositionEndTime) && !haveRepeating) {
-                str << std::endl << indent(col) << "\\bar \"|.\"";
-            }
-
-            if (!haveRepeatingWithVolta && !haveVolta) {
-                // close Voice context
-                str << std::endl << indent(--col) << "} % Voice" << std::endl;  // indent-
-            }
-
-            if (lsc.isVolta()) {
-                // close volta
-                str << std::endl << indent(--col) << "}" << std::endl;  // indent-
-
-                if (lsc.isLastVolta()) {
-                    // close alternative section
-                    str << std::endl << indent(--col) << "}" << std::endl;  // indent-
-
-                   // close Voice context
+                if (!haveRepeatingWithVolta && !haveVolta) {
+                    // close Voice context
                     str << std::endl << indent(--col) << "} % Voice" << std::endl;  // indent-
                 }
-            }
 
-            //
-            // Write accumulated lyric events to the Lyric context, if desired.
-            //
-            // Sync the code below with LyricEditDialog::unparse() !!
-            //
-            if (m_exportLyrics != EXPORT_NO_LYRICS) {
-                // To force correct ordering of verses must track when first verse is printed.
-                bool isFirstPrintedVerse = true;
-                for (long currentVerse = 0, lastVerse = 0; 
-                      currentVerse <= lastVerse; 
-                      currentVerse++) {
-                    bool haveLyric = false;
-                    bool firstNote = true;
-                    QString text = "";
+                if (lsc.isVolta()) {
+                    // close volta
+                    if (!lsc.isAutomaticVoltaUsable() && lsc.isLastVolta()) {
+                        str << std::endl << indent (col)
+                            << "\\set Score.repeatCommands = ";
+                        if (lsc.getVoltaRepeatCount() > 1) {
+                            str << "#'((volta #f) end-repeat)";
+                        } else {
+                            str << "#'((volta #f))";
+                        }
+                        if (lsc.getVoltaRepeatCount() < 1) {
+                            RG_WARNING << "BUG in LilyPondExporter : "
+                                    << "lsc.getVoltaRepeatCount() = "
+                                    << lsc.getVoltaRepeatCount();
+                        }
+                    }
+                    str << std::endl << indent(--col) << "}" << std::endl;  // indent-
 
-                    timeT lastTime = seg->getStartTime();
-                    for (Segment::iterator j = seg->begin();
-                          seg->isBeforeEndMarker(j); ++j) {
+                    if (lsc.isLastVolta()) {
+                        if (lsc.isAutomaticVoltaUsable()) {
+                            // close alternative section
+                            str << std::endl << indent(--col) << "}" << std::endl;  // indent-
+                        }
 
-                        bool isNote = (*j)->isa(Note::EventType);
-                        bool isLyric = false;
+                    // close Voice context
+                        str << std::endl << indent(--col) << "} % Voice" << std::endl;  // indent-
+                    }
+                }
 
-                        if (!isNote) {
-                            if ((*j)->isa(Text::EventType)) {
-                                std::string textType;
-                                if ((*j)->get
-                                    <String>(Text::TextTypePropertyName, textType) &&
-                                    textType == Text::Lyric) {
-                                    isLyric = true;
+                //
+                // Write accumulated lyric events to the Lyric context, if desired.
+                //
+                // Sync the code below with LyricEditDialog::unparse() !!
+                //
+                if (m_exportLyrics != EXPORT_NO_LYRICS) {
+                    // To force correct ordering of verses must track when first verse is printed.
+                    bool isFirstPrintedVerse = true;
+                    for (long currentVerse = 0, lastVerse = 0; 
+                        currentVerse <= lastVerse; 
+                        currentVerse++) {
+                        bool haveLyric = false;
+                        bool firstNote = true;
+                        QString text = "";
+
+                        timeT lastTime = seg->getStartTime();
+                        for (Segment::iterator j = seg->begin();
+                            seg->isBeforeEndMarker(j); ++j) {
+
+                            bool isNote = (*j)->isa(Note::EventType);
+                            bool isLyric = false;
+
+                            if (!isNote) {
+                                if ((*j)->isa(Text::EventType)) {
+                                    std::string textType;
+                                    if ((*j)->get
+                                        <String>(Text::TextTypePropertyName, textType) &&
+                                        textType == Text::Lyric) {
+                                        isLyric = true;
+                                    }
+                                }
+                            }
+
+                            if (!isNote && !isLyric) continue;
+
+                            timeT myTime = (*j)->getNotationAbsoluteTime();
+
+                            if (isNote) {
+                                if ((myTime > lastTime) || firstNote) {
+                                    if (!haveLyric)
+                                        text += " _";
+                                    lastTime = myTime;
+                                    haveLyric = false;
+                                    firstNote = false;
+                                }
+                            }
+
+                            if (isLyric) {
+                                // Very old .rg files may not have the verse property.
+                                // In such a case there is only one verse which
+                                // is numbered 0.
+                                long verse;
+                                if (! (*j)->get<Int>(Text::LyricVersePropertyName,
+                                                     verse)) verse = 0;
+
+                                if (verse == currentVerse) {
+                                    std::string ssyllable;
+                                    (*j)->get<String>(Text::TextPropertyName, ssyllable);
+                                    text += " ";
+            
+                                    QString syllable(strtoqstr(ssyllable));
+                                    syllable.replace(QRegExp("^\\s+"), "");
+                                    syllable.replace(QRegExp("\\s+$"), "");
+                                    syllable.replace(QRegExp("\""), "\\\"");
+                                    text += "\"" + syllable + "\"";
+                                    haveLyric = true;
+                                } else if (verse > lastVerse) {
+                                    lastVerse = verse;
                                 }
                             }
                         }
 
-                        if (!isNote && !isLyric) continue;
+                        text.replace(QRegExp(" _+([^ ])") , " \\1");
+                        text.replace("\"_\"" , " ");
 
-                        timeT myTime = (*j)->getNotationAbsoluteTime();
-
-                        if (isNote) {
-                            if ((myTime > lastTime) || firstNote) {
-                                if (!haveLyric)
-                                    text += " _";
-                                lastTime = myTime;
-                                haveLyric = false;
-                                firstNote = false;
-                            }
-                        }
-
-                        if (isLyric) {
-                            long verse;
-                            (*j)->get<Int>(Text::LyricVersePropertyName, verse);
-
-                            if (verse == currentVerse) {
-                                std::string ssyllable;
-                                (*j)->get<String>(Text::TextPropertyName, ssyllable);
-                                text += " ";
+                        // Do not create empty context for lyrics.
+                        // Does this save some vertical space, as was written
+                        // in earlier comment?
+                        QRegExp rx("\"");
+                        if (rx.indexIn(text) != -1) {
         
-                                QString syllable(strtoqstr(ssyllable));
-                                syllable.replace(QRegExp("^\\s+"), "");
-                                syllable.replace(QRegExp("\\s+$"), "");
-                                syllable.replace(QRegExp("\""), "\\\"");
-                                text += "\"" + syllable + "\"";
-                                haveLyric = true;
-                            } else if (verse > lastVerse) {
-                                lastVerse = verse;
+                            if (m_languageLevel <= LILYPOND_VERSION_2_10) {
+                                str << indent(col) << "\\lyricsto \"" << voiceNumber.str() << "\""
+                                    << " \\new Lyrics \\lyricmode {" << std::endl;
+                            } else {
+                                str << indent(col)
+                                    << "\\new Lyrics ";
+                                // Put special alignment info for first printed verse only.
+                                // Otherwise, verses print in reverse order.
+                                if (isFirstPrintedVerse) {
+                                    str << "\\with {alignBelowContext=\"track " << (trackPos + 1) << "\"} ";
+                                    isFirstPrintedVerse = false;
+                                }
+                                str << "\\lyricsto \"" << voiceNumber.str() << "\"" << " \\lyricmode {" << std::endl;
                             }
-                        }
-                    }
-
-                    text.replace(QRegExp(" _+([^ ])") , " \\1");
-                    text.replace("\"_\"" , " ");
-
-                    // Do not create empty context for lyrics.
-                    // Does this save some vertical space, as was written
-                    // in earlier comment?
-                    QRegExp rx("\"");
-                    if (rx.indexIn(text) != -1) {
-    
-                        if (m_languageLevel <= LILYPOND_VERSION_2_10) {
-                            str << indent(col) << "\\lyricsto \"" << voiceNumber.str() << "\""
-                                << " \\new Lyrics \\lyricmode {" << std::endl;
-                        } else {
-                            str << indent(col)
-                                << "\\new Lyrics ";
-                            // Put special alignment info for first printed verse only.
-                            // Otherwise, verses print in reverse order.
-                            if (isFirstPrintedVerse) {
-                                str << "\\with {alignBelowContext=\"track " << (trackPos + 1) << "\"} ";
-                                isFirstPrintedVerse = false;
+                            if (m_exportLyrics == EXPORT_LYRICS_RIGHT) {
+                                str << indent(++col) << "\\override LyricText #'self-alignment-X = #RIGHT"
+                                    << std::endl;
+                            } else if (m_exportLyrics == EXPORT_LYRICS_CENTER) {
+                                str << indent(++col) << "\\override LyricText #'self-alignment-X = #CENTER"
+                                    << std::endl;
+                            } else {
+                                str << indent(++col) << "\\override LyricText #'self-alignment-X = #LEFT"
+                                    << std::endl;
                             }
-                            str << "\\lyricsto \"" << voiceNumber.str() << "\"" << " \\lyricmode {" << std::endl;
-                        }
-                        if (m_exportLyrics == EXPORT_LYRICS_RIGHT) {
-                            str << indent(++col) << "\\override LyricText #'self-alignment-X = #RIGHT"
-                                << std::endl;
-                        } else if (m_exportLyrics == EXPORT_LYRICS_CENTER) {
-                            str << indent(++col) << "\\override LyricText #'self-alignment-X = #CENTER"
-                                << std::endl;
-                        } else {
-                            str << indent(++col) << "\\override LyricText #'self-alignment-X = #LEFT"
-                                << std::endl;
-                        }
-                        str << indent(col) << qStrToStrUtf8("\\set ignoreMelismata = ##t") << std::endl;
-                        str << indent(col) << qStrToStrUtf8(text) << " " << std::endl;
-                        str << indent(col) << qStrToStrUtf8("\\unset ignoreMelismata") << std::endl;
-                        str << indent(--col) << qStrToStrUtf8("} % Lyrics ") << (currentVerse+1) << std::endl;
-                        // close the Lyrics context
-                    } // if (rx.search(text....
-                } // for (long currentVerse = 0....
-            } // if (m_exportLyrics....
-            firstTrack = false;
-        } // for (Composition::iterator i = m_composition->begin()....
-    } // for (int trackPos = 0....
+                            str << indent(col) << qStrToStrUtf8("\\set ignoreMelismata = ##t") << std::endl;
+                            str << indent(col) << qStrToStrUtf8(text) << " " << std::endl;
+                            str << indent(col) << qStrToStrUtf8("\\unset ignoreMelismata") << std::endl;
+                            str << indent(--col) << qStrToStrUtf8("} % Lyrics ") << (currentVerse+1) << std::endl;
+                            // close the Lyrics context
+                        } // if (rx.search(text....
+                    } // for (long currentVerse = 0....
+                } // if (m_exportLyrics....
+                firstTrack = false;
+            } // for (seg = lsc.useFirstSegment(); seg; seg = ....
+        } // for (voiceIndex = lsc.useFirstVoice(); voiceIndex != -1; ....
+    } // for (track = lsc.useFirstTrack(); track; track = ....
 
     // close the last track (Staff context)
     if (voiceCounter > 0) {
@@ -1844,8 +1992,10 @@ LilyPondExporter::write()
     str << indent(col++) << "\\layout {" << std::endl;
 
     // indent instrument names
-    str << indent(col) <<  "indent = 3.0\\cm" << std::endl
-        << "short-indent = 1.5\\cm" << std::endl;
+    if (hasInstrumentNames) {
+        str << indent(col) << "indent = 3.0\\cm" << std::endl
+            << indent(col) << "short-indent = 1.5\\cm" << std::endl;
+    }
 
     if (!m_exportEmptyStaves) {
         str << indent(col) << "\\context { \\Staff \\RemoveEmptyStaves }" << std::endl;
@@ -1888,8 +2038,7 @@ LilyPondExporter::calculateDuration(Segment *s,
     timeT duration = (*i)->getNotationDuration();
     timeT absTime = (*i)->getNotationAbsoluteTime();
 
-    RG_DEBUG << "LilyPondExporter::calculateDuration: first duration, absTime: "
-             << duration << ", " << absTime << endl;
+    //RG_DEBUG << "calculateDuration: first duration, absTime:" << duration << "," << absTime;
 
     timeT durationCorrection = 0;
 
@@ -1899,14 +2048,13 @@ LilyPondExporter::calculateDuration(Segment *s,
             Note::Type type = (*i)->get<Int>(NOTE_TYPE);
             int dots = (*i)->get<Int>(NOTE_DOTS);
             durationCorrection = Note(type, dots).getDuration() - duration;
-        } catch (Exception e) { // no properties
+        } catch (const Exception &e) { // no properties
         }
     }
 
     duration += durationCorrection;
 
-    RG_DEBUG << "LilyPondExporter::calculateDuration: now duration is "
-             << duration << " after correction of " << durationCorrection << endl;
+    //RG_DEBUG << "calculateDuration: now duration is" << duration << "after correction of" << durationCorrection;
 
     soundingDuration = duration * tupletRatio.first/ tupletRatio.second;
 
@@ -1917,8 +2065,7 @@ LilyPondExporter::calculateDuration(Segment *s,
         overlong = true;
     }
 
-    RG_DEBUG << "LilyPondExporter::calculateDuration: time to barEnd is "
-             << toNext << endl;
+    //RG_DEBUG << "calculateDuration: time to barEnd is " << toNext;
 
     // Examine the following event, and truncate our duration
     // if we overlap it.
@@ -1961,7 +2108,7 @@ LilyPondExporter::calculateDuration(Segment *s,
     }
 
     if (s->isBeforeEndMarker(nextElt)) {
-        RG_DEBUG << "LilyPondExporter::calculateDuration: inside conditional " << endl;
+        //RG_DEBUG << "calculateDuration: inside conditional";
         toNext = (*nextElt)->getNotationAbsoluteTime() - absTime;
         // if the note was lengthened, assume it was lengthened to the left
         // when truncating to the beginning of the next note
@@ -1974,12 +2121,88 @@ LilyPondExporter::calculateDuration(Segment *s,
         }
     }
 
-    RG_DEBUG << "LilyPondExporter::calculateDuration: second toNext is "
-             << toNext << endl;
-
-    RG_DEBUG << "LilyPondExporter::calculateDuration: final duration, soundingDuration: " << duration << ", " << soundingDuration << endl;
+    //RG_DEBUG << "calculateDuration: second toNext is" << toNext;
+    //RG_DEBUG << "calculateDuration: final duration, soundingDuration:" << duration << "," << soundingDuration;
 
     return duration;
+}
+
+static std::string lilyClefType(const std::string &clefType)
+{
+    if (clefType == Clef::Treble) {
+        return "treble";
+    } else if (clefType == Clef::French) {
+        return "french";
+    } else if (clefType == Clef::Soprano) {
+        return "soprano";
+    } else if (clefType == Clef::Mezzosoprano) {
+        return "mezzosoprano";
+    } else if (clefType == Clef::Alto) {
+        return "alto";
+    } else if (clefType == Clef::Tenor) {
+        return "tenor";
+    } else if (clefType == Clef::Baritone) {
+        return "baritone";
+    } else if (clefType == Clef::Varbaritone) {
+        return "varbaritone";
+    } else if (clefType == Clef::Bass) {
+        return "bass";
+    } else if (clefType == Clef::Subbass) {
+        return "subbass";
+    }
+    return std::string();
+}
+
+void LilyPondExporter::handleGuitarChord(Segment::iterator i, std::ofstream &str)
+{
+    try {
+        Guitar::Chord chord = Guitar::Chord(**i);
+        const Guitar::Fingering& fingering = chord.getFingering();
+
+        int barreStart = 0, barreEnd = 0, barreFret = 0;
+
+        //
+        // Check if there is a barre.
+        //
+        if (fingering.hasBarre()) {
+            Guitar::Fingering::Barre barre = fingering.getBarre();
+            barreStart = barre.start;
+            barreEnd = barre.end;
+            barreFret = barre.fret;
+        }
+
+        if (barreStart == 0) {
+            str << " s4*0^\\markup \\fret-diagram #\"";
+        } else {
+            str << " s4*0^\\markup \\override #'(barre-type . straight) \\fret-diagram #\"";
+        }
+        //
+        // Check each string individually.
+        // Note: LilyPond numbers strings differently.
+        //
+        for (int stringNum = 6; stringNum >= 1; --stringNum) {
+            if (barreStart == stringNum) {
+                str << "c:" << barreStart << "-" << barreEnd << "-" << barreFret << ";";
+            }
+
+            if (fingering.getStringStatus(6-stringNum) == Guitar::Fingering::MUTED) {
+                str << stringNum << "-x;";
+            } else if (fingering.getStringStatus(6-stringNum) == Guitar::Fingering::OPEN) {
+                str << stringNum << "-o;";
+            } else {
+                int stringStatus = fingering.getStringStatus(6-stringNum);
+                if ((stringNum <= barreStart) && (stringNum >= barreEnd)) {
+                    str << stringNum << "-" << barreFret << ";";
+                } else {
+                    str << stringNum << "-" << stringStatus << ";";
+                }
+            }
+        }
+        str << "\" ";
+
+    } catch (const Exception &e) { // GuitarChord ctor failed
+        RG_DEBUG << "Bad GuitarChord event in LilyPond export";
+    }
 }
 
 void
@@ -2003,6 +2226,8 @@ LilyPondExporter::writeBar(Segment *s,
         SegmentNotationHelper(*s).findNotationAbsoluteTime(barStart);
     if (!s->isBeforeEndMarker(i))
         return ;
+
+    //RG_DEBUG << "===== Writing bar" << barNo;
 
     if (MultiMeasureRestCount == 0) {
         str << std::endl;
@@ -2043,108 +2268,101 @@ LilyPondExporter::writeBar(Segment *s,
     std::pair<int, int> tupletRatio(1, 1);
 
     bool overlong = false;
-    bool newBeamedGroup = false;
-    int notesInBeamedGroup = 0;
+
+    bool inBeamedGroup = false;
+    bool startingBeamedGroup = false;
+    Event *nextBeamedNoteInGroup = nullptr;
+    Event *nextNoteInTuplet = nullptr;
 
     while (s->isBeforeEndMarker(i)) {
 
-        if ((*i)->getNotationAbsoluteTime() >= barEnd)
+        Event *event = *i;
+
+        if (event->getNotationAbsoluteTime() >= barEnd)
             break;
 
         // First test whether we're entering or leaving a group,
         // before we consider how to write the event itself (at least
-        // for pre-2.0 LilyPond output)
-        QString startGroupBeamingsStr = "";
-        QString endGroupBeamingsStr = "";
+        // for tuplets)
+        QString startTupledStr;
 
-        if ((*i)->isa(Note::EventType) || (*i)->isa(Note::EventRestType) ||
-            (*i)->isa(Clef::EventType) || (*i)->isa(Rosegarden::Key::EventType) ||
-            (*i)->isa(Symbol::EventType)) {
+        const bool isNote = event->isa(Note::EventType);
+        const bool isRest = event->isa(Note::EventRestType);
 
-            long newGroupId = -1;
-            if ((*i)->get<Int>(BEAMED_GROUP_ID, newGroupId)) {
+        if (isNote || isRest ||
+            event->isa(Clef::EventType) || event->isa(Key::EventType) ||
+            event->isa(Symbol::EventType)) {
 
-                if (newGroupId != groupId) {
-                    // entering a new beamed group
+            // skip everything until the next beamed note in the current group
+            if (!nextBeamedNoteInGroup || event == nextBeamedNoteInGroup) {
+                nextBeamedNoteInGroup = nullptr;
 
-                    if (groupId != -1) {
-                        // and leaving an old one
-                        if (groupType == GROUP_TYPE_TUPLED) {
-                            if (m_exportBeams && notesInBeamedGroup > 0)
-                                endGroupBeamingsStr += "] ";
-                            endGroupBeamingsStr += "} ";
-                        } else if (groupType == GROUP_TYPE_BEAMED) {
-                            if (m_exportBeams && notesInBeamedGroup > 0)
-                                endGroupBeamingsStr += "] ";
+                groupType = "";
+                event->get<String>(BEAMED_GROUP_TYPE, groupType); // might fail
+                const bool tuplet = groupType == GROUP_TYPE_TUPLED;
+
+                long newGroupId = -1;
+                if (!groupType.empty() && (isNote || isRest)) {
+                    event->get<Int>(BEAMED_GROUP_ID, newGroupId);
+
+                    if (newGroupId != -1) {
+                        if (tuplet) {
+                            nextNoteInTuplet = nextNoteInGroup(s, i, groupType, barEnd);
                         }
+                        nextBeamedNoteInGroup = nextNoteInGroup(s, i, GROUP_TYPE_BEAMED, barEnd);
                     }
+                }
 
+                if (newGroupId != -1 && newGroupId != groupId) {
+                    // entering a new beamed group
                     groupId = newGroupId;
-                    groupType = "";
-                    (void)(*i)->get
-                        <String>(BEAMED_GROUP_TYPE, groupType);
 
-                    if (groupType == GROUP_TYPE_TUPLED) {
+                    startingBeamedGroup = true;
+
+                    //RG_DEBUG << "Entering group" << groupId << "type" << groupType;
+                    if (tuplet) {
                         long numerator = 0;
                         long denominator = 0;
-                        (*i)->get<Int>(BEAMED_GROUP_TUPLED_COUNT, numerator);
-                        (*i)->get<Int>(BEAMED_GROUP_UNTUPLED_COUNT, denominator);
+                        event->get<Int>(BEAMED_GROUP_TUPLED_COUNT, numerator);
+                        event->get<Int>(BEAMED_GROUP_UNTUPLED_COUNT, denominator);
                         if (numerator == 0 || denominator == 0) {
-                            std::cerr << "WARNING: LilyPondExporter::writeBar: "
-                                      << "tupled event without tupled/untupled counts"
-                                      << std::endl;
+                            RG_WARNING << "WARNING: LilyPondExporter::writeBar: "
+                                      << "tupled event without tupled/untupled counts";
                             groupId = -1;
                             groupType = "";
                         } else {
-                            startGroupBeamingsStr += QString("\\times %1/%2 { ").arg(numerator).arg(denominator);
+                            startTupledStr += QString("\\times %1/%2 { ").arg(numerator).arg(denominator);
                             tupletRatio = std::pair<int, int>(numerator, denominator);
-                            // Require explicit beamed groups,
-                            // fixes bug #1683205.
-                            // HJJ: Why line below was originally present?
-                            // newBeamedGroup = true;
-                            notesInBeamedGroup = 0;
                         }
                     } else if (groupType == GROUP_TYPE_BEAMED) {
-                        newBeamedGroup = true;
-                        notesInBeamedGroup = 0;
                         // there can currently be only on group type, reset tuplet ratio
                         tupletRatio = std::pair<int, int>(1,1);
                     }
                 }
-
-            } else {
-
-                if (groupId != -1) {
-                    // leaving a beamed group
-                    if (groupType == GROUP_TYPE_TUPLED) {
-                        if (m_exportBeams && notesInBeamedGroup > 0)
-                            endGroupBeamingsStr += "] ";
-                        endGroupBeamingsStr += "} ";
-                        tupletRatio = std::pair<int, int>(1, 1);
-                    } else if (groupType == GROUP_TYPE_BEAMED) {
-                        if (m_exportBeams && notesInBeamedGroup > 0)
-                            endGroupBeamingsStr += "] ";
-                    }
-                    groupId = -1;
-                    groupType = "";
-                }
             }
-        } else if ((*i)->isa(Controller::EventType) &&
-                   (*i)->has(Controller::NUMBER) &&
-                   (*i)->has(Controller::VALUE)) {
-            if ((*i)->get <Int>(Controller::NUMBER) == 64) {
-                postEventsToStart.insert(*i);
-                postEventsInProgress.insert(*i);
+        } else if (event->isa(Controller::EventType) &&
+                   event->has(Controller::NUMBER) &&
+                   event->has(Controller::VALUE)) {
+            if (event->get <Int>(Controller::NUMBER) == 64) {
+                postEventsToStart.insert(event);
+                postEventsInProgress.insert(event);
             }
         }
 
         // Test whether the next note is grace note or not.
         // The start or end of beamed grouping should be put in proper places.
-        str << qStrToStrUtf8(endGroupBeamingsStr);
-        if ((*i)->has(IS_GRACE_NOTE) && (*i)->get<Bool>(IS_GRACE_NOTE)) {
+        if (event->has(IS_GRACE_NOTE) && event->get<Bool>(IS_GRACE_NOTE)) {
             if (isGrace == 0) { 
                 isGrace = 1;
-                str << "\\grace { ";
+
+                // LilyPond export hack:  If a grace note has one or more
+                // tremolo slashes, we export it as a slashed grace note instead
+                // of a plain one.
+                long slashes;
+                slashes = event->get<Int>(NotationProperties::SLASHES, slashes);
+                if (slashes > 0) str << "\\slashedGrace { ";
+                else str << "\\grace { ";
+
                 // str << "%{ grace starts %} "; // DEBUG
             }
         } else if (isGrace == 1) {
@@ -2152,7 +2370,7 @@ LilyPondExporter::writeBar(Segment *s,
             // str << "%{ grace ends %} "; // DEBUG
             str << "} ";
         }
-        str << qStrToStrUtf8(startGroupBeamingsStr);
+        str << qStrToStrUtf8(startTupledStr);
 
         timeT soundingDuration = -1;
         timeT duration = calculateDuration
@@ -2162,8 +2380,8 @@ LilyPondExporter::writeBar(Segment *s,
             soundingDuration = duration * tupletRatio.first / tupletRatio.second;
         }
 
-        if ((*i)->has(SKIP_PROPERTY)) {
-            (*i)->unset(SKIP_PROPERTY);
+        if (event->has(SKIP_PROPERTY)) {
+            event->unset(SKIP_PROPERTY);
             ++i;
             continue;
         }
@@ -2171,9 +2389,9 @@ LilyPondExporter::writeBar(Segment *s,
         bool needsSlashRest = false;
 
         // symbols have no duration, so handle these ahead of anything else
-        if ((*i)->isa(Symbol::EventType)) {
+        if (event->isa(Symbol::EventType)) {
 
-            Symbol symbol(**i);
+            Symbol symbol(*event);
 
             if (symbol.getSymbolType() == Symbol::Segno) {
                 str << "\\mark \\markup { \\musicglyph #\"scripts.segno\" } ";
@@ -2183,7 +2401,7 @@ LilyPondExporter::writeBar(Segment *s,
                 str << "\\breathe ";
             }
 
-        } else if ((*i)->isa(Note::EventType)) {
+        } else if (isNote) {
 
             Chord chord(*s, i, m_composition->getNotationQuantizer());
             Event *e = *chord.getInitialNote();
@@ -2200,33 +2418,30 @@ LilyPondExporter::writeBar(Segment *s,
                     << xDisplacement << " ";
             }
 
-            bool hiddenNote = false;
-            if (e->has(INVISIBLE)) {
-                if (e->get<Bool>(INVISIBLE)) {
-                    hiddenNote = true;
-                }
-            }
-    
+            const bool hiddenNote = e->has(INVISIBLE) && e->get<Bool>(INVISIBLE);
             if (hiddenNote) {
                 str << "\\hideNotes ";
             }
 
-            if (e->has(NotationProperties::STEM_UP)) {
-                if (e->get<Bool>(NotationProperties::STEM_UP)) {
-                    if (lastStem != 1) {
-                        str << "\\stemUp ";
-                        lastStem = 1;
+            // Export stem direction - but don't change it in the middle of a beamed group
+            if (!m_exportBeams || !inBeamedGroup || startingBeamedGroup) {
+                if (e->has(NotationProperties::STEM_UP)) {
+                    if (e->get<Bool>(NotationProperties::STEM_UP)) {
+                        if (lastStem != 1) {
+                            str << "\\stemUp ";
+                            lastStem = 1;
+                        }
+                    } else {
+                        if (lastStem != -1) {
+                            str << "\\stemDown ";
+                            lastStem = -1;
+                        }
                     }
                 } else {
-                    if (lastStem != -1) {
-                        str << "\\stemDown ";
-                        lastStem = -1;
+                    if (lastStem != 0) {
+                        str << "\\stemNeutral ";
+                        lastStem = 0;
                     }
-                }
-            } else {
-                if (lastStem != 0) {
-                    str << "\\stemNeutral ";
-                    lastStem = 0;
                 }
             }
 
@@ -2240,44 +2455,45 @@ LilyPondExporter::writeBar(Segment *s,
 
             for (i = chord.getInitialElement(); s->isBeforeEndMarker(i); ++i) {
 
-                if ((*i)->isa(Text::EventType)) {
-                    if (!handleDirective(*i, lilyText, nextBarIsAlt1, nextBarIsAlt2,
+                event = *i;
+                if (event->isa(Text::EventType)) {
+                    if (!handleDirective(event, lilyText, nextBarIsAlt1, nextBarIsAlt2,
                                          nextBarIsDouble, nextBarIsEnd, nextBarIsDot)) {
 
-                        handleText(*i, lilyText);
+                        handleText(event, lilyText);
                     }
 
-                } else if ((*i)->isa(Note::EventType)) {
+                } else if (event->isa(Note::EventType)) {
 
                     if (m_languageLevel >= LILYPOND_VERSION_2_8) {
                         // one \tweak per each chord note
                         if (chord.size() > 1)
-                            writeStyle(*i, prevStyle, col, str, true);
+                            writeStyle(event, prevStyle, col, str, true);
                         else
-                            writeStyle(*i, prevStyle, col, str, false);
+                            writeStyle(event, prevStyle, col, str, false);
                     } else {
                         // only one override per chord, and that outside the <>
                         stylei = i;
                     }
 
-                    writePitch(*i, key, str);
+                    writePitch(event, key, str);
 
                     bool noteHasCautionaryAccidental = false;
-                    (*i)->get
+                    event->get
                         <Bool>(NotationProperties::USE_CAUTIONARY_ACCIDENTAL, noteHasCautionaryAccidental);
                     if (noteHasCautionaryAccidental)
                         str << "?";
 
                     // get TIED_FORWARD and TIE_IS_ABOVE for later
-                    (*i)->get<Bool>(TIED_FORWARD, tiedForward);
-                    (*i)->get<Bool>(TIE_IS_ABOVE, tiedUp);
+                    event->get<Bool>(TIED_FORWARD, tiedForward);
+                    event->get<Bool>(TIE_IS_ABOVE, tiedUp);
 
                     str << " ";
-                } else if ((*i)->isa(Indication::EventType)) {
-                    preEventsToStart.insert(*i);
-                    preEventsInProgress.insert(*i);
-                    postEventsToStart.insert(*i);
-                    postEventsInProgress.insert(*i);
+                } else if (event->isa(Indication::EventType)) {
+                    preEventsToStart.insert(event);
+                    preEventsInProgress.insert(event);
+                    postEventsToStart.insert(event);
+                    postEventsInProgress.insert(event);
                 }
 
                 if (i == chord.getFinalElement())
@@ -2305,7 +2521,7 @@ LilyPondExporter::writeBar(Segment *s,
                 str << lilyText;
                 lilyText = "";
             }
-            writeSlashes(*i, str);
+            writeSlashes(event, str);
 
             writtenDuration += soundingDuration;
             std::pair<int,int> ratio = fractionProduct(durationRatio,tupletRatio);
@@ -2337,34 +2553,16 @@ LilyPondExporter::writeBar(Segment *s,
                 str << "\\unHideNotes ";
             }
 
-            if (newBeamedGroup) {
-                // This is a workaround for bug #1705430:
-                //   Beaming groups erroneous after merging notes
-                // There will be fewer "e4. [ ]" errors in LilyPond-compiling.
-                // HJJ: This should be fixed in notation engine,
-                //      after which the workaround below should be removed.
-                Note note(Note::getNearestNote(duration, MAX_DOTS));
-
-                switch (note.getNoteType()) {
-                case Note::SixtyFourthNote:
-                case Note::ThirtySecondNote:
-                case Note::SixteenthNote:
-                case Note::EighthNote:
-                    notesInBeamedGroup++;
-                    break;
-                }
+            if (m_exportBeams && startingBeamedGroup && nextBeamedNoteInGroup && canStartOrEndBeam(event)) {
+                // starting a beamed group
+                str << "[ ";
+                startingBeamedGroup = false;
+                inBeamedGroup = true;
+                //RG_DEBUG << "BEGIN GROUP" << groupId;
             }
-            // // Old version before the workaround for bug #1705430:
-            // if (newBeamedGroup)
-            //    notesInBeamedGroup++;
-        } else if ((*i)->isa(Note::EventRestType)) {
+        } else if (isRest) {
 
-            bool hiddenRest = false;
-            if ((*i)->has(INVISIBLE)) {
-                if ((*i)->get<Bool>(INVISIBLE)) {
-                    hiddenRest = true;
-                }
-            }
+            const bool hiddenRest = event->has(INVISIBLE) && event->get<Bool>(INVISIBLE);
 
             // If the rest has a manually repositioned Y coordinate, we try to
             // create a letter note of an appropriate height, and bind a \rest
@@ -2374,31 +2572,30 @@ LilyPondExporter::writeBar(Segment *s,
             // and yields terrible results, so we have to offer some manual
             // mechanism for adjusting the rests unless we want users to have to
             // edit .ly files by hand to correct for this, which we do not.
-            bool offsetRest = false;
+            bool offsetRest = event->has(DISPLACED_Y);
             int restOffset  = 0;
-            if ((*i)->has(DISPLACED_Y)) {
-                restOffset  = (*i)->get<Int>(DISPLACED_Y);
-                offsetRest = true;
+            if (offsetRest) {
+                restOffset  = event->get<Int>(DISPLACED_Y);
             }
 
-            if (offsetRest) {
-                std::cout << "REST OFFSET: " << restOffset << std::endl;
-            } else {
-                std::cout << "NO REST OFFSET" << std::endl;
-            }
+            //if (offsetRest) {
+            //    RG_DEBUG << "REST OFFSET: " << restOffset;
+            //} else {
+            //    RG_DEBUG << "NO REST OFFSET";
+            //}
 
             if (MultiMeasureRestCount == 0) {
                 if (hiddenRest) {
-                    std::cout << "HIDDEN REST.  Using duration " << duration << std::endl;
+                    RG_DEBUG << "HIDDEN REST.  Using duration " << duration;
                     str << "s";
                 } else if (duration == timeSignature.getBarDuration()) {
                     // Look ahead the segment in order to detect
                     // the number of measures in the multi measure rest.
-                    std::cout << "INCREMENTING MULTI-MEASURE COUNTER (offset rest height will be ignored)" << std::endl;
+                    RG_DEBUG << "INCREMENTING MULTI-MEASURE COUNTER (offset rest height will be ignored)";
                     Segment::iterator mm_i = i;
                     while (s->isBeforeEndMarker(++mm_i)) {
                         if ((*mm_i)->isa(Note::EventRestType) &&
-                            (*mm_i)->getNotationDuration() == (*i)->getNotationDuration() &&
+                            (*mm_i)->getNotationDuration() == event->getNotationDuration() &&
                             timeSignature == m_composition->getTimeSignatureAt((*mm_i)->getNotationAbsoluteTime())) {
                             MultiMeasureRestCount++;
                         } else {
@@ -2422,7 +2619,7 @@ LilyPondExporter::writeBar(Segment *s,
                         int heightOnStaff = 4 + offset;
 
                         // find out the pitch corresponding to the rest position
-                        Clef m_lastClefFound((*s).getClefAtTime((*i)->getAbsoluteTime()));
+                        Clef m_lastClefFound((*s).getClefAtTime(event->getAbsoluteTime()));
                         Pitch helper(heightOnStaff, m_lastClefFound, Rosegarden::Key::DefaultKey);
 
                         // use MIDI pitch to get a named note with octavation
@@ -2433,12 +2630,11 @@ LilyPondExporter::writeBar(Segment *s,
                         // write named note
                         str << n;
 
-                        std::cout << "Offsetting rest: "
+                        RG_DEBUG << "Offsetting rest: "
                                   << "offset = " << offset << ", "
                                   << "heightOnStaff = " << heightOnStaff << ", "
                                   << "pitch = " << p << ", "
-                                  << "note = " << n
-                                  << std::endl;
+                                  << "note = " << n;
 
                         // defer the \rest until after any duration, because it
                         // can't come before a duration
@@ -2450,7 +2646,7 @@ LilyPondExporter::writeBar(Segment *s,
 
                         // a rest CAN have a fermata, and it could have a text
                         // mark conceivably, so we need to export these
-                        std::vector<Mark> marks(Marks::getMarks(**i));
+                        std::vector<Mark> marks(Marks::getMarks(*event));
                         for (std::vector<Mark>::iterator j = marks.begin(); j != marks.end(); ++j) {
                             // even at the most optimistic, I doubt we'd ever
                             // find a way to get a stemUp from a rest, so just
@@ -2488,9 +2684,6 @@ LilyPondExporter::writeBar(Segment *s,
     
                 handleEndingPostEvents(postEventsInProgress, i, str);
                 handleStartingPostEvents(postEventsToStart, str);
-
-                if (newBeamedGroup)
-                    notesInBeamedGroup++;
             } else {
                 MultiMeasureRestCount--;
             }
@@ -2498,45 +2691,20 @@ LilyPondExporter::writeBar(Segment *s,
             std::pair<int,int> ratio = fractionProduct(durationRatio,tupletRatio);
             durationRatioSum = fractionSum(durationRatioSum, ratio);
             // str << qstrtostr(QString(" %{ %1/%2 * %3/%4 = %5/%6 %} ").arg(durationRatio.first).arg(durationRatio.second).arg(tupletRatio.first).arg(tupletRatio.second).arg(ratio.first).arg(ratio.second)); // DEBUG
-        } else if ((*i)->isa(Clef::EventType)) {
+        } else if (event->isa(Clef::EventType)) {
 
             try {
                 // Incomplete: Set which note the clef should center on  (DMM - why?)
                 // To allow octavation of the clef, enclose the clefname always with quotes.
                 str << "\\clef \"";
 
-                Clef clef(**i);
-                if (clef.getClefType() == Clef::Treble) {
-                    str << "treble";
-                } else if (clef.getClefType() == Clef::French) {
-                    str << "french";
-                } else if (clef.getClefType() == Clef::Soprano) {
-                    str << "soprano";
-                } else if (clef.getClefType() == Clef::Mezzosoprano) {
-                    str << "mezzosoprano";
-                } else if (clef.getClefType() == Clef::Alto) {
-                    str << "alto";
-                } else if (clef.getClefType() == Clef::Tenor) {
-                    str << "tenor";
-                } else if (clef.getClefType() == Clef::Baritone) {
-                    str << "baritone";
-                } else if (clef.getClefType() == Clef::Varbaritone) {
-                    str << "varbaritone";
-                } else if (clef.getClefType() == Clef::Bass) {
-                    str << "bass";
-                } else if (clef.getClefType() == Clef::Subbass) {
-                    str << "subbass";
-                }
+                Clef clef(*event);
+                const std::string clefType = clef.getClefType();
+                str << lilyClefType(clefType);
 
                 // save clef for later use by rests that need repositioned
                 m_lastClefFound = clef;
-                std::cout << "getting clef"
-                          << std::endl
-                          << "clef: "
-                          << clef.getClefType()
-                          << " lastClefFound: "
-                          << m_lastClefFound.getClefType()
-                          << std::endl;
+                RG_DEBUG << "clef:" << clefType << "lastClefFound:" << m_lastClefFound.getClefType();
 
                 // Transpose the clef one or two octaves up or down, if specified.
                 int octaveOffset = clef.getOctaveOffset();
@@ -2548,24 +2716,25 @@ LilyPondExporter::writeBar(Segment *s,
 
                 str << "\"" << std::endl << indent(col);
 
-            } catch (Exception e) {
-                std::cerr << "Bad clef: " << e.getMessage() << std::endl;
+            } catch (const Exception &e) {
+                RG_WARNING << "Bad clef: " << e.getMessage();
             }
 
-        } else if ((*i)->isa(Rosegarden::Key::EventType)) {
+        } else if (event->isa(Rosegarden::Key::EventType)) {
             // don't export invisible key signatures
-            bool hiddenKey = false;
-            if ((*i)->has(INVISIBLE)) {
-                (*i)->get <Bool>(INVISIBLE, hiddenKey);
-            }
+            const bool hiddenKey = event->has(INVISIBLE) && event->get<Bool>(INVISIBLE);
 
             try {
+                // Remember current key to write key signature only when
+                // there is a key change
+                Rosegarden::Key previousKey = key;
+
                 // grab the value of the key anyway, so we know what it was for
                 // future calls to writePitch() (fixes #2039048)
-                key = Rosegarden::Key(**i);
+                key = Rosegarden::Key(*event);
                 // then we only write a \key change to the export stream if the
                 // key signature was meant to be visible
-                if (!hiddenKey) {
+                if ((key != previousKey) && !hiddenKey) {
                     str << "\\key ";
 
                     Accidental accidental = Accidentals::NoAccidental;
@@ -2579,97 +2748,55 @@ LilyPondExporter::writeBar(Segment *s,
                     }
                     str << std::endl << indent(col);
                 }
-              
-            } catch (Exception e) {
-                std::cerr << "Bad key: " << e.getMessage() << std::endl;
+
+            } catch (const Exception &e) {
+                RG_WARNING << "Bad key: " << e.getMessage();
             }
 
-        } else if ((*i)->isa(Text::EventType)) {
+        } else if (event->isa(Text::EventType)) {
 
-            if (!handleDirective(*i, lilyText, nextBarIsAlt1, nextBarIsAlt2,
+            if (!handleDirective(event, lilyText, nextBarIsAlt1, nextBarIsAlt2,
                                  nextBarIsDouble, nextBarIsEnd, nextBarIsDot)) {
-                handleText(*i, lilyText);
+                handleText(event, lilyText);
             }
 
-        } else if ((*i)->isa(Guitar::Chord::EventType)) {
+        } else if (event->isa(Guitar::Chord::EventType)) {
+            handleGuitarChord(i, str);
+        }
 
-            try {
-                Guitar::Chord chord = Guitar::Chord(**i);
-                const Guitar::Fingering& fingering = chord.getFingering();
-            
-                int barreStart = 0, barreEnd = 0, barreFret = 0;
+        if (event->isa(Indication::EventType)) {
+            preEventsToStart.insert(event);
+            preEventsInProgress.insert(event);
+            postEventsToStart.insert(event);
+            postEventsInProgress.insert(event);
+        }
 
-                // 
-                // Check if there is a barre.
-                //
-                if (fingering.hasBarre()) {
-                    Guitar::Fingering::Barre barre = fingering.getBarre();
-                    barreStart = barre.start;
-                    barreEnd = barre.end;
-                    barreFret = barre.fret;
+        if ((isNote || isRest)) {
+            bool endGroup = false;
+            if (!nextBeamedNoteInGroup) {
+                //RG_DEBUG << "Leaving beamed group" << groupId;
+                // ending a beamed group
+                if (m_exportBeams && inBeamedGroup) {
+                    str << "] ";
                 }
-
-                if (barreStart == 0) {
-                    str << " s4*0^\\markup \\fret-diagram #\"";
-                } else {
-                    str << " s4*0^\\markup \\override #'(barre-type . straight) \\fret-diagram #\"";
-                }
-                //
-                // Check each string individually.
-                // Note: LilyPond numbers strings differently.
-                //
-                for (int stringNum = 6; stringNum >= 1; --stringNum) {
-                    if (barreStart == stringNum) {
-                        str << "c:" << barreStart << "-" << barreEnd << "-" << barreFret << ";";
-                    }
-
-                    if (fingering.getStringStatus(6-stringNum) == Guitar::Fingering::MUTED) {
-                        str << stringNum << "-x;";
-                    } else if (fingering.getStringStatus(6-stringNum) == Guitar::Fingering::OPEN) {
-                        str << stringNum << "-o;";
-                    } else {
-                        int stringStatus = fingering.getStringStatus(6-stringNum);
-                        if ((stringNum <= barreStart) && (stringNum >= barreEnd)) {
-                            str << stringNum << "-" << barreFret << ";";
-                        } else {
-                            str << stringNum << "-" << stringStatus << ";";
-                        }
-                    }
-                }
-                str << "\" ";
-
-            } catch (Exception e) { // GuitarChord ctor failed
-                RG_DEBUG << "Bad GuitarChord event in LilyPond export" << endl;
+                inBeamedGroup = false;
+                if (groupType == GROUP_TYPE_BEAMED)
+                    endGroup = true;
             }
-        }
-
-        // LilyPond 2.0 introduces required postfix syntax for beaming
-        if (m_exportBeams && newBeamedGroup && notesInBeamedGroup > 0) {
-            str << "[ ";
-            newBeamedGroup = false;
-        }
-
-        if ((*i)->isa(Indication::EventType)) {
-            preEventsToStart.insert(*i);
-            preEventsInProgress.insert(*i);
-            postEventsToStart.insert(*i);
-            postEventsInProgress.insert(*i);
+            if (groupType == GROUP_TYPE_TUPLED && !nextNoteInTuplet) {
+                //RG_DEBUG << "Leaving tuplet group" << groupId;
+                str << "} ";
+                tupletRatio = std::pair<int, int>(1, 1);
+                endGroup = true;
+            }
+            if (endGroup) {
+                groupId = -1;
+                groupType = "";
+            }
         }
 
         ++i;
     } // end of the gigantic while loop, I think
-
-    if (groupId != -1) {
-        if (groupType == GROUP_TYPE_TUPLED) {
-            if (m_exportBeams && notesInBeamedGroup > 0)
-                str << "] ";
-            str << "} ";
-            tupletRatio = std::pair<int, int>(1, 1);
-        } else if (groupType == GROUP_TYPE_BEAMED) {
-            if (m_exportBeams && notesInBeamedGroup > 0)
-                str << "] ";
-        }
-    }
 
     if (isGrace == 1) {
         isGrace = 0;
@@ -2684,7 +2811,7 @@ LilyPondExporter::writeBar(Segment *s,
     if (overlong) {
         str << std::endl << indent(col) <<
             qstrtostr(QString("% %1").
-                      arg(tr("warning: overlong bar truncated here")));
+                      arg(QObject::tr("warning: overlong bar truncated here")));
     }
 
     //
@@ -2695,7 +2822,7 @@ LilyPondExporter::writeBar(Segment *s,
         fractionSmaller(durationRatioSum, barDurationRatio)) {
         str << std::endl << indent(col) <<
             qstrtostr(QString("% %1").
-                      arg(tr("warning: bar too short, padding with rests")));
+                      arg(QObject::tr("warning: bar too short, padding with rests")));
         str << std::endl << indent(col) <<
             qstrtostr(QString("% %1 + %2 < %3  &&  %4/%5 < %6/%7").
                       arg(barStart).
@@ -2855,28 +2982,30 @@ LilyPondExporter::handleText(const Event *textEvent,
 
         Text text(*textEvent);
         std::string s = text.getText();
+        const std::string textType = text.getTextType();
 
         // only protect illegal chars if this is Text, rather than
         // LilyPondDirective
-        if ((*textEvent).isa(Text::EventType))
+        if (textType == Text::EventType)
             s = protectIllegalChars(s);
 
-        if (text.getTextType() == Text::Tempo) {
+        if (textType == Text::Tempo) {
 
             // print above staff, bold, large
             lilyText += "^\\markup { \\bold \\large \"" + s + "\" } ";
 
-        } else if (text.getTextType() == Text::LocalTempo) {
+        } else if (textType == Text::LocalTempo) {
 
             // print above staff, bold, small
             lilyText += "^\\markup { \\bold \"" + s + "\" } ";
-        } else if (m_chordNamesMode == false && text.getTextType() == Text::Chord) {
+
+        } else if (m_chordNamesMode == false && textType == Text::Chord) {
 
             // Either (1) the chords will have an own ChordNames context
             //     or (2) they will be printed above staff, bold, small.
             lilyText += "^\\markup { \\bold \"" + s + "\" } ";
 
-        } else if (text.getTextType() == Text::Dynamic) {
+        } else if (textType == Text::Dynamic) {
 
             // supported dynamics first
             if (s == "ppppp" || s == "pppp" || s == "ppp" ||
@@ -2893,42 +3022,41 @@ LilyPondExporter::handleText(const Event *textEvent,
                 lilyText += "_\\markup { \\bold \\italic \"" + s + "\" } ";
             }
 
-        } else if (text.getTextType() == Text::Direction) {
+        } else if (textType == Text::Direction) {
 
             // print above staff, large
             lilyText += "^\\markup { \\large \"" + s + "\" } ";
 
-        } else if (text.getTextType() == Text::LocalDirection) {
+        } else if (textType == Text::LocalDirection) {
 
             // print below staff, bold italics, small
             lilyText += "_\\markup { \\bold \\italic \"" + s + "\" } ";
 
+        } else if (textType == Text::LilyPondDirective) {
+            if (s == Text::Gliss) {
+                lilyText += "\\glissando ";
+            } else if (s == Text::Arpeggio) {
+                lilyText += "\\arpeggio ";
+            } else if (s == Text::Tiny) {
+                lilyText += "\\tiny ";
+            } else if (s == Text::Small) {
+                lilyText += "\\small ";
+            } else if (s == Text::NormalSize) {
+                lilyText += "\\normalsize ";
+            }
             // LilyPond directives that don't require special handling across
             // barlines are handled here along with ordinary text types.  These
             // can be injected wherever they happen to occur, and should get
             // attached to the right bits in due course without extra effort.
-            //
-        } else if (text.getText() == Text::Gliss) {
-            lilyText += "\\glissando ";
-        } else if (text.getText() == Text::Arpeggio) {
-            lilyText += "\\arpeggio ";
-        } else if (text.getText() == Text::Tiny) {
-            lilyText += "\\tiny ";
-        } else if (text.getText() == Text::Small) {
-            lilyText += "\\small ";
-        } else if (text.getText() == Text::NormalSize) {
-            lilyText += "\\normalsize ";
-        } else if (text.getText() == Text::Lyric) {
-            // avoid printing a misleading warning that something is amiss when
-            // it really isn't
+        } else if (textType == Text::Lyric) {
+            // Lyric are handled elsewhere in this file
+        } else if (textType == Text::Annotation) {
+            // TODO: should annotations be exported?
         } else {
-            textEvent->get
-                <String>(Text::TextTypePropertyName, s);
-            std::cerr << "LilyPondExporter::write() - unhandled text type: "
-                      << s << std::endl;
+            RG_WARNING << "LilyPondExporter::write() - unhandled text type: " << textType;
         }
-    } catch (Exception e) {
-        std::cerr << "Bad text: " << e.getMessage() << std::endl;
+    } catch (const Exception &e) {
+        RG_WARNING << "Bad text: " << e.getMessage();
     }
 }
 
@@ -2962,7 +3090,7 @@ LilyPondExporter::writePitch(const Event *note,
 
     if (note->has(BaseProperties::MEMBER_OF_PARALLEL)) {
 
-        bool memberOfParallel;
+        bool memberOfParallel = false;
 
         note->get<Bool>(BaseProperties::MEMBER_OF_PARALLEL, memberOfParallel);
 
@@ -2971,6 +3099,7 @@ LilyPondExporter::writePitch(const Event *note,
         }
     }
 
+    //RG_DEBUG << "NOTE" << lilyNote;
     str << lilyNote;
 }
 
@@ -3071,6 +3200,10 @@ LilyPondExporter::writeDuration(timeT duration,
 void
 LilyPondExporter::writeSlashes(const Event *note, std::ofstream &str)
 {
+    // if a grace note has tremolo slashes, they have already been used to turn
+    // the note into a slashed grace note, and need not be exported here
+    if (note->has(IS_GRACE_NOTE) && note->get<Bool>(IS_GRACE_NOTE)) return;
+
     // write slashes after text
     // / = 8 // = 16 /// = 32, etc.
     long slashes = 0;

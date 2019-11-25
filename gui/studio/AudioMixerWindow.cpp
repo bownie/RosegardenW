@@ -1771,4 +1771,4 @@ AudioMixerWindow::setRewFFwdToAutoRepeat()
 
 
 }
-#include "AudioMixerWindow.moc"
+#include "moc_AudioMixerWindow.cpp"

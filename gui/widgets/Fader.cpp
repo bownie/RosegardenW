@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,6 +28,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QPoint>
+#include <QSharedPointer>
 #include <QString>
 #include <QTimer>
 #include <QWidget>
@@ -36,12 +37,18 @@
 #include <QColormap>
 
 #include <cmath>
+#include <map>
 
 namespace Rosegarden
 {
 
-Fader::PixmapCache Fader::m_pixmapCache;
-
+// ??? Use QSize instead.  Might need to define a less() for std::map.
+typedef std::pair<int /*width*/, int /*height*/> SizeRec;
+// key is QColormap::pixel()
+typedef std::map<unsigned int /*color*/, QSharedPointer<QPixmap> /*groove*/ > ColourPixmapRec;
+typedef std::pair<ColourPixmapRec, QSharedPointer<QPixmap> /*button*/ > PixmapRec;
+typedef std::map<SizeRec, PixmapRec> PixmapCache;
+Q_GLOBAL_STATIC(PixmapCache, faderPixmapCache);
 
 Fader::Fader(AudioLevel::FaderType type,
              int w, int h, QWidget *parent) :
@@ -74,8 +81,10 @@ Fader::Fader(AudioLevel::FaderType type,
     m_outlineColour = QColor(palette().mid().color());
 
     calculateGroovePixmap();
+
+    // Bogus value to force an update.
+    m_value = -1;
     setFader(0.0);
-    emit faderChanged(m_value);
 }
 
 Fader::Fader(int min, int max, int deflt,
@@ -109,7 +118,6 @@ Fader::Fader(int min, int max, int deflt,
 
     calculateGroovePixmap();
     setFader(deflt);
-    emit faderChanged(m_value);
 }
 
 Fader::Fader(int min, int max, int deflt,
@@ -137,7 +145,6 @@ Fader::Fader(int min, int max, int deflt,
 
     calculateGroovePixmap();
     setFader(deflt);
-    emit faderChanged(m_value);
 }
 
 Fader::~Fader()
@@ -150,11 +157,11 @@ Fader::setOutlineColour(QColor c)
     calculateGroovePixmap();
 }
 
-QPixmap *
+QSharedPointer<QPixmap>
 Fader::groovePixmap()
 {
-    PixmapCache::iterator i = m_pixmapCache.find(SizeRec(width(), height()));
-    if (i != m_pixmapCache.end()) {
+    PixmapCache::iterator i = faderPixmapCache()->find(SizeRec(width(), height()));
+    if (i != faderPixmapCache()->end()) {
         QColormap colorMap = QColormap::instance();
         uint pixel(colorMap.pixel(m_outlineColour));
         ColourPixmapRec::iterator j = i->second.first.find(pixel);
@@ -162,17 +169,17 @@ Fader::groovePixmap()
             return j->second;
         }
     }
-    return 0;
+    return QSharedPointer<QPixmap>();
 }
 
-QPixmap *
+QSharedPointer<QPixmap>
 Fader::buttonPixmap()
 {
-    PixmapCache::iterator i = m_pixmapCache.find(SizeRec(width(), height()));
-    if (i != m_pixmapCache.end()) {
+    PixmapCache::iterator i = faderPixmapCache()->find(SizeRec(width(), height()));
+    if (i != faderPixmapCache()->end()) {
         return i->second.second;
     } else
-        return 0;
+        return QSharedPointer<QPixmap>();
 }
 
 float
@@ -218,7 +225,7 @@ Fader::position_to_value(int position)
             if (value < m_min) value = float(m_min);
         }
 
-        RG_DEBUG << "Fader::position_to_value - limited value = " << value << endl;
+        RG_DEBUG << "Fader::position_to_value - limited value = " << value;
     */
     return value;
 }
@@ -400,22 +407,27 @@ Fader::mouseMoveEvent(QMouseEvent *e)
 void
 Fader::wheelEvent(QWheelEvent *e)
 {
+    // We'll handle this.  Don't pass to parent.
+    e->accept();
+
+    const int dy = e->angleDelta().y();
     int buttonPosition = value_to_position(m_value);
-    if (e->modifiers() & Qt::SHIFT ) {
-        if (e->delta() > 0)
+
+    // Shift+wheel => up/down by 10
+    if (e->modifiers() & Qt::SHIFT) {
+        if (dy > 0)
             buttonPosition += 10;
-        else
+        else if (dy < 0)
             buttonPosition -= 10;
     } else {
-        if (e->delta() > 0)
+        if (dy > 0)
             buttonPosition += 1;
-        else
+        else if (dy < 0)
             buttonPosition -= 1;
     }
-    RG_DEBUG << "Fader::wheelEvent - button position = " << buttonPosition << endl;
+
     setFader(position_to_value(buttonPosition));
     emit faderChanged(m_value);
-    RG_DEBUG << "Fader::wheelEvent - value = " << m_value << endl;
 
     showFloatText();
 }
@@ -464,10 +476,9 @@ Fader::calculateGroovePixmap()
 {
     QColormap colorMap = QColormap::instance();
     uint pixel(colorMap.pixel(m_outlineColour));
-    QPixmap *& map = m_pixmapCache[SizeRec(width(), height())].first[pixel];
+    QSharedPointer<QPixmap> & map = (*faderPixmapCache())[SizeRec(width(), height())].first[pixel];
 
-    delete map;
-    map = new QPixmap(width(), height());
+    map.reset(new QPixmap(width(), height()));
 
     // The area between the groove and the border takes a very translucent tint
     // of border color
@@ -482,7 +493,7 @@ Fader::calculateGroovePixmap()
 
     map->fill(bg);
 
-    QPainter paint(map);
+    QPainter paint(map.data());
     paint.setBrush(bg);
 
     if (m_vertical) {
@@ -524,11 +535,11 @@ Fader::calculateGroovePixmap()
 void
 Fader::calculateButtonPixmap()
 {
-    PixmapCache::iterator i = m_pixmapCache.find(SizeRec(width(), height()));
-    if (i != m_pixmapCache.end() && i->second.second)
+    PixmapCache::iterator i = faderPixmapCache()->find(SizeRec(width(), height()));
+    if (i != faderPixmapCache()->end() && i->second.second)
         return ;
 
-    QPixmap *& map = m_pixmapCache[SizeRec(width(), height())].second;
+    QSharedPointer<QPixmap> & map = (*faderPixmapCache())[SizeRec(width(), height())].second;
 
     int h = height() - 1;
     int w = width() - 1;
@@ -548,7 +559,7 @@ Fader::calculateButtonPixmap()
         if (buttonWidth > w - 2)
             buttonWidth = w - 2;
 
-        map = new QPixmap(buttonWidth, buttonHeight);
+        map.reset(new QPixmap(buttonWidth, buttonHeight));
 
         // we have to draw something with our own stylesheet-compatible colors
         // instead of pulling button colors from the palette, and presumably
@@ -564,7 +575,7 @@ Fader::calculateButtonPixmap()
         int x = 0;
         int y = 0;
 
-        QPainter paint(map);
+        QPainter paint(map.data());
 
         paint.setPen(palette().light().color());
         paint.drawLine(x + 1, y, x + buttonWidth - 2, y);
@@ -612,4 +623,3 @@ Fader::calculateButtonPixmap()
 }
 
 }
-#include "Fader.moc"

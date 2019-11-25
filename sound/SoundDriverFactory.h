@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -16,15 +16,18 @@
 #ifndef SOUND_DRIVER_FACTORY_H
 #define SOUND_DRIVER_FACTORY_H
 
+#include "rosegardenprivate_export.h"
+
 namespace Rosegarden {
 
 class SoundDriver;
+class MappedStudio;
 
-class SoundDriverFactory
+namespace SoundDriverFactory
 {
-public:
-    static SoundDriver *createDriver(MappedStudio *studio);
-};
+    ROSEGARDENPRIVATE_EXPORT void setSoundEnabled(bool b);
+    SoundDriver *createDriver(MappedStudio *studio);
+}
 
 }
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -29,10 +29,10 @@ public:
         m_timeSigChanged(false) {
         m_composition->addObserver(this);
     }
-    virtual ~EditViewTimeSigNotifier() {
+    ~EditViewTimeSigNotifier() override {
         if (!isCompositionDeleted()) m_composition->removeObserver(this);
     }
-    virtual void timeSignatureChanged(const Rosegarden::Composition *c) {
+    void timeSignatureChanged(const Rosegarden::Composition *c) override {
         if (c == m_composition) m_timeSigChanged = true;
     }
 

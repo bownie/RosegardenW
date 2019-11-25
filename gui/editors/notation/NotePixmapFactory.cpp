@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,10 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#ifdef __GNUG__
+#pragma GCC diagnostic ignored "-Wswitch-enum"
+#endif
 
 #include "NotePixmapFactory.h"
 
@@ -105,7 +109,7 @@ NotePixmapFactory::NotePixmapFactory(QString fontName, int size, int graceSize) 
     m_trackHeaderFontMetrics(m_trackHeaderFont),
     m_trackHeaderBoldFont(defaultSansSerifFontFamily, 9, QFont::Bold),
     m_trackHeaderBoldFontMetrics(m_trackHeaderBoldFont),
-    m_generatedPixmap(0),
+    m_generatedPixmap(nullptr),
     m_generatedWidth( -1),
     m_generatedHeight( -1),
     m_inPrinterMethod(false),
@@ -136,7 +140,7 @@ NotePixmapFactory::NotePixmapFactory(const NotePixmapFactory &npf) :
     m_trackHeaderFontMetrics(m_trackHeaderFont),
     m_trackHeaderBoldFont(defaultSansSerifFontFamily, 9, QFont::Bold),
     m_trackHeaderBoldFontMetrics(m_trackHeaderBoldFont),
-    m_generatedPixmap(0),
+    m_generatedPixmap(nullptr),
     m_generatedWidth( -1),
     m_generatedHeight( -1),
     m_inPrinterMethod(false),
@@ -180,9 +184,9 @@ NotePixmapFactory::init(QString fontName, int size)
 {
     try {
         m_style = NoteStyleFactory::getStyle(NoteStyleFactory::DefaultStyle);
-    } catch (NoteStyleFactory::StyleUnavailable u) {
+    } catch (const NoteStyleFactory::StyleUnavailable &u) {
         StartupLogo::hideIfStillThere();
-        QMessageBox::critical(0, tr("Rosegarden"), tr( u.getMessage().c_str() )  );
+        QMessageBox::critical(nullptr, tr("Rosegarden"), tr( u.getMessage().c_str() )  );
         throw;
     }
 
@@ -194,7 +198,7 @@ NotePixmapFactory::init(QString fontName, int size)
             m_font = NoteFontFactory::getFont(fontName, size);
             if (m_graceSize > 0) m_graceFont = NoteFontFactory::getFont(fontName, m_graceSize);
             else m_graceFont = m_font;
-        } catch (Exception f) {
+        } catch (const Exception &f) {
             fontName = "";
             // fall through
         }
@@ -207,7 +211,7 @@ NotePixmapFactory::init(QString fontName, int size)
             if (size < 0) size = NoteFontFactory::getDefaultSize(fontName);
             m_font = NoteFontFactory::getFont(fontName, size);
             m_graceFont = NoteFontFactory::getFont(fontName, m_graceSize);
-        } catch (Exception f) { // already reported
+        } catch (const Exception &f) { // already reported
             throw;
         }
     }
@@ -266,9 +270,9 @@ NotePixmapFactory::init(QString fontName, int size)
 
 NotePixmapFactory::~NotePixmapFactory()
 {
-    std::cerr << "NotePixmapFactory::~NotePixmapFactory:"
+    NOTATION_DEBUG << "NotePixmapFactory::~NotePixmapFactory:"
               << " makeNotesCount = " << makeNotesCount
-              << ", makeRestsCount = " << makeRestsCount << std::endl;
+              << ", makeRestsCount = " << makeRestsCount;
 
     delete m_p;
 }
@@ -296,7 +300,7 @@ NotePixmapFactory::dumpStats(std::ostream &s)
   << "drawBeams: "
   << (drawBeamsTime * 1000 / CLOCKS_PER_SEC) << "ms"
   << " (drew " << drawBeamsCount << " individual points in " << drawBeamsBeamCount << " beams)"
-  << endl;
+ ;
   makeNotesTime = 0;
   drawBeamsTime = 0;
   drawBeamsCount = 0;
@@ -351,7 +355,7 @@ NotePixmapFactory::makeNotePixmapItem(const NotePixmapParameters &params)
     Profiler profiler("NotePixmapFactory::makeNotePixmapItem");
 
     calculateNoteDimensions(params);
-    drawNoteAux(params, 0, 0, 0);
+    drawNoteAux(params, nullptr, 0, 0);
 
     QPoint hotspot(m_nd.left, m_nd.above + m_nd.noteBodyHeight / 2);
 
@@ -398,7 +402,7 @@ NotePixmapFactory::calculateNoteDimensions(const NotePixmapParameters &params)
         m_inPrinterMethod ? NoteFont::Printer : NoteFont::Screen;
 
     if (m_selected) {
-        std::cerr << "NotePixmapFactory::calculateNoteDimensions: selected" << std::endl;
+        NOTATION_DEBUG << "NotePixmapFactory::calculateNoteDimensions: selected";
     }
 
     bool drawFlag = params.m_drawFlag;
@@ -433,7 +437,7 @@ NotePixmapFactory::calculateNoteDimensions(const NotePixmapParameters &params)
     //    NOTATION_DEBUG << "actualNoteBodyHeight: " << actualNoteBodyHeight
     //		   << ", noteBodyHeight: " << m_nd.noteBodyHeight << ", borderX: "
     //		   << m_nd.borderX << ", borderY: "
-    //		   << m_nd.borderY << endl;
+    //		   << m_nd.borderY;
 
     bool isStemmed = m_style->hasStem(params.m_noteType);
     int flagCount = m_style->getFlagCount(params.m_noteType);
@@ -542,7 +546,14 @@ NotePixmapFactory::drawNoteAux(const NotePixmapParameters &params,
     int slashCount = params.m_slashes;
     if (!slashCount) slashCount = m_style->getSlashCount(params.m_noteType);
 
-    NoteCharacter dot(getCharacter(NoteCharacterNames::DOT, PlainColour, charType));
+    NoteCharacter dot;
+    if (params.m_forceColor) {
+        dot = getCharacter(NoteCharacterNames::DOT,
+                           params.m_forcedColor, charType);
+    } else {
+        dot = getCharacter(NoteCharacterNames::DOT, PlainColour, charType);
+    }
+
     int dotWidth = dot.getWidth();
     if (dotWidth < getNoteBodyWidth() / 2) dotWidth = getNoteBodyWidth() / 2;
 
@@ -567,7 +578,7 @@ NotePixmapFactory::drawNoteAux(const NotePixmapParameters &params,
     if (painter) {
         painter->save();
         m_p->beginExternal(painter);
-//        NOTATION_DEBUG << "Translate: (" << x << "," << y << ")" << endl;
+//        NOTATION_DEBUG << "Translate: (" << x << "," << y << ")";
         painter->translate(x - m_nd.left, y - m_nd.above - m_nd.noteBodyHeight / 2);
     } else {
         createPixmap(m_nd.noteBodyWidth + m_nd.left + m_nd.right,
@@ -582,23 +593,25 @@ NotePixmapFactory::drawNoteAux(const NotePixmapParameters &params,
         drawFlags(flagCount, params, m_nd.stemStart, m_nd.stemEnd);
     }
 
-    if (params.m_accidental != NoAccidental) {
-        drawAccidental(params.m_accidental, params.m_cautionary);
-    }
-
     NoteStyle::CharNameRec charNameRec
         (m_style->getNoteHeadCharName(params.m_noteType));
     CharName charName = charNameRec.first;
     bool inverted = charNameRec.second;
-    NoteCharacter body = getCharacter
-        (charName,
-         params.m_memberOfParallel ? MemberOfParallelColour :
-         params.m_highlighted ? HighlightedColour :
-         params.m_quantized ? QuantizedColour :
-         (params.m_trigger == NotePixmapParameters::triggerYes) ? TriggerColour :
-         (params.m_trigger == NotePixmapParameters::triggerSkip) ? TriggerSkipColour :
-         params.m_inRange ? PlainColour : OutRangeColour,
-         inverted);
+
+    NoteCharacter body;
+    if (params.m_forceColor) {
+        body = getCharacter(charName, params.m_forcedColor, inverted);
+    } else {
+        body = getCharacter
+            (charName,
+            params.m_memberOfParallel ? MemberOfParallelColour :
+            params.m_highlighted ? HighlightedColour :
+            params.m_quantized ? QuantizedColour :
+            (params.m_trigger == NotePixmapParameters::triggerYes) ? TriggerColour :
+            (params.m_trigger == NotePixmapParameters::triggerSkip) ? TriggerSkipColour :
+            params.m_inRange ? PlainColour : OutRangeColour,
+            inverted);
+    }
 
     QPoint bodyLocation(m_nd.left - m_nd.borderX,
                         m_nd.above - m_nd.borderY + getStaffLineThickness() / 2);
@@ -628,6 +641,17 @@ NotePixmapFactory::drawNoteAux(const NotePixmapParameters &params,
         }
     }
 
+    // Prepare color to draw accidental, stem, flags, etc...
+    if ((isStemmed && params.m_drawStem) || params.m_cautionary) {
+        if (m_selected) m_p->painter().setPen(GUIPalette::getColour(
+                                                GUIPalette::SelectedElement));
+        else if (m_shaded) m_p->painter().setPen(QColor(Qt::gray));
+        else m_p->painter().setPen(QColor(Qt::black));
+
+    }
+
+    drawAccidental(params);
+
     if (isStemmed && params.m_drawStem) {
 
         if (flagCount > 0 && !drawFlag && params.m_beamed) {
@@ -637,11 +661,6 @@ NotePixmapFactory::drawNoteAux(const NotePixmapParameters &params,
         if (slashCount > 0) {
             drawSlashes(m_nd.stemStart, params, slashCount);
         }
-
-        if (m_selected) m_p->painter().setPen(GUIPalette::getColour(
-                                                GUIPalette::SelectedElement));
-        else if (m_shaded) m_p->painter().setPen(QColor(Qt::gray));
-        else m_p->painter().setPen(QColor(Qt::black));
 
         // If we draw stems after beams, instead of beams after stems,
         // beam anti-aliasing won't damage stems but we have to shorten the
@@ -817,13 +836,26 @@ NotePixmapFactory::makeRoomForAccidental(Accidental a,
 }
 
 void
-NotePixmapFactory::drawAccidental(Accidental a, bool cautionary)
+NotePixmapFactory::drawAccidental(const NotePixmapParameters &params)
 {
+    if (params.m_accidental == NoAccidental) return;   // Nothing to draw
+
+    Accidental a = params.m_accidental;
+    bool cautionary = params.m_cautionary;
+        
     // use the full font for this unless a grace size was supplied in ctor
     NoteFont *font = (m_haveGrace ? m_graceFont : m_font);
-
-    NoteCharacter ac = getCharacter
-        (m_style->getAccidentalCharName(a), PlainColour, false);
+    
+    NoteCharacter ac;
+    if (params.m_forceColor) {
+        ac = getCharacter
+            (m_style->getAccidentalCharName(a), params.m_forcedColor, false);
+        // Prepare color in case drawing brackets is needed
+        m_p->painter().setPen(params.m_forcedColor);
+    } else {
+        ac = getCharacter
+            (m_style->getAccidentalCharName(a), PlainColour, false);
+    }
 
     QPoint ah(font->getHotspot(m_style->getAccidentalCharName(a)));
 
@@ -1152,7 +1184,7 @@ NotePixmapFactory::drawLegerLines(const NotePixmapParameters &params)
                        << ", note body height " << m_nd.noteBodyHeight
                        << ", thickness " << getLegerLineThickness()
                        << " (staff line " << getStaffLineThickness() << ")"
-                       << ", offset " << offset << endl;
+                       << ", offset " << offset;
     }
 
     //    NOTATION_DEBUG << "draw leger lines: " << legerLines << " lines, below "
@@ -1160,7 +1192,7 @@ NotePixmapFactory::drawLegerLines(const NotePixmapParameters &params)
     //		   << ", note body height " << m_noteBodyHeight
     //		   << ", thickness " << getLegerLineThickness()
     //		   << " (staff line " << getStaffLineThickness() << ")"
-    //		   << ", offset " << offset << endl;
+    //		   << ", offset " << offset;
 
     //    bool first = true;
 
@@ -1168,13 +1200,18 @@ NotePixmapFactory::drawLegerLines(const NotePixmapParameters &params)
         y -= (getLegerLineThickness() - getStaffLineThickness() + 1) / 2;
     }
 
-    // Sometimes needed to render segment link when an accent is under the note.
-    //!!! Why ???
-    if (m_shaded && !m_selected) m_p->painter().setPen(QColor(Qt::gray));
+    if (params.m_forceColor) {
+        m_p->painter().save();
+        m_p->painter().setPen(params.m_forcedColor);
+    } else {
+        // Sometimes needed to render segment link when an accent is under the note.
+        //!!! Why ???
+        if (m_shaded && !m_selected) m_p->painter().setPen(QColor(Qt::gray));
+    }
 
     for (int i = legerLines - 1; i >= 0; --i) {
         if (i % 2) {
-            //	    NOTATION_DEBUG << "drawing leger line at y = " << y << endl;
+            //	    NOTATION_DEBUG << "drawing leger line at y = " << y;
             for (int j = 0; j < getLegerLineThickness(); ++j) {
                 m_p->drawLine(x0, y + j, x1, y + j);
             }
@@ -1185,6 +1222,10 @@ NotePixmapFactory::drawLegerLines(const NotePixmapParameters &params)
             //		first = false;
             //	    }
         }
+    }
+
+    if (params.m_forceColor) {
+        m_p->painter().restore();
     }
 }
 
@@ -1287,34 +1328,58 @@ NotePixmapFactory::drawFlags(int flagCount,
         return ;
 
     NoteCharacter flagChar;
-    bool found = getCharacter(m_style->getFlagCharName(flagCount),
-                              flagChar,
-                              PlainColour,
-                              !params.m_stemGoesUp);
+    bool found;
+    if (params.m_forceColor) {
+        found = getCharacter(m_style->getFlagCharName(flagCount),
+                             flagChar,
+                             params.m_forcedColor,
+                             !params.m_stemGoesUp);
+    } else {
+        found = getCharacter(m_style->getFlagCharName(flagCount),
+                             flagChar,
+                             PlainColour,
+                             !params.m_stemGoesUp);
+    }
 
     if (!found) {
 
         // Handle fonts that don't have all the flags in separate characters
 
-        found = getCharacter(m_style->getPartialFlagCharName(false),
-                             flagChar,
-                             PlainColour,
-                             !params.m_stemGoesUp);
+        if (params.m_forceColor) {
+            found = getCharacter(m_style->getPartialFlagCharName(false),
+                                flagChar,
+                                params.m_forcedColor,
+                                !params.m_stemGoesUp);
+        } else {
+            found = getCharacter(m_style->getPartialFlagCharName(false),
+                                flagChar,
+                                PlainColour,
+                                !params.m_stemGoesUp);
+        }
 
         if (!found) {
-            std::cerr << "Warning: NotePixmapFactory::drawFlags: No way to draw note with " << flagCount << " flags in this font!?" << std::endl;
+            RG_WARNING << "Warning: NotePixmapFactory::drawFlags: No way to draw note with " << flagCount << " flags in this font!?";
             return ;
         }
 
         QPoint hotspot = flagChar.getHotspot();
 
         NoteCharacter oneFlagChar;
-        bool foundOne =
-            (flagCount > 1 ?
-             getCharacter(m_style->getPartialFlagCharName(true),
-                          oneFlagChar,
-                          PlainColour,
-                          !params.m_stemGoesUp) : false);
+        bool foundOne;
+        if (params.m_forceColor) {
+            foundOne = getCharacter(m_style->getPartialFlagCharName(true),
+                                    oneFlagChar,
+                                    params.m_forcedColor,
+                                    !params.m_stemGoesUp);
+        } else {
+            foundOne = getCharacter(m_style->getPartialFlagCharName(true),
+                                    oneFlagChar,
+                                    PlainColour,
+                                    !params.m_stemGoesUp);
+        }
+        
+        foundOne = flagCount > 1 ? foundOne : false;
+
 
         unsigned int flagSpace = m_nd.noteBodyHeight;
         (void)m_font->getFlagSpacing(flagSpace);
@@ -1373,12 +1438,21 @@ NotePixmapFactory::drawStem(const NotePixmapParameters &params,
                             const QPoint &s0, const QPoint &s1,
                             int shortening)
 {
-    if (params.m_stemGoesUp)
-        shortening = -shortening;
+    if (params.m_stemGoesUp) shortening = -shortening;
+
+    if (params.m_forceColor) {
+        m_p->painter().save();
+        m_p->painter().setPen(params.m_forcedColor);
+    }
+
     for (int i = 0; i < getStemThickness(); ++i) {
         m_p->drawLine(m_nd.left + s0.x() + i, m_nd.above + s0.y(),
                       m_nd.left + s1.x() + i, m_nd.above + s1.y() - shortening);
     }
+
+    if (params.m_forceColor) {
+        m_p->painter().restore();
+    } 
 }
 
 void
@@ -1514,7 +1588,7 @@ NotePixmapFactory::drawSlashes(const QPoint &s0,
 {
     unsigned int thickness;
     (void)m_font->getBeamThickness(thickness);
-    thickness = thickness * 3 / 4;
+    thickness = (slashCount == 1 && m_graceSize > 0 ? thickness / 3 : thickness * 3 / 4);
     if (thickness < 1)
         thickness = 1;
 
@@ -1534,7 +1608,8 @@ NotePixmapFactory::drawSlashes(const QPoint &s0,
     int sign = (params.m_stemGoesUp ? -1 : 1);
 
     int offset =
-        (slashCount == 1 ? m_nd.noteBodyHeight * 2 :
+        ((slashCount == 1 && m_graceSize > 0) ? m_nd.noteBodyHeight * 3 / 2 :
+         slashCount == 1 ? m_nd.noteBodyHeight * 2 :
          slashCount == 2 ? m_nd.noteBodyHeight * 3 / 2 :
          m_nd.noteBodyHeight);
     int y = m_nd.above + s0.y() + sign * (offset + thickness / 2);
@@ -1610,9 +1685,9 @@ NotePixmapFactory::drawTuplingLine(const NotePixmapParameters &params)
     //    NOTATION_DEBUG << "adjusted params.m_tuplingLineWidth = "
     //			 << tlw
     //			 << ", cr.width = " << cr.width()
-    //			 << ", tickOffset = " << tickOffset << endl;
+    //			 << ", tickOffset = " << tickOffset;
     //    NOTATION_DEBUG << "line: (" << startX << "," << startY << ") -> ("
-    //			 << endX << "," << endY << ")" << endl;
+    //			 << endX << "," << endY << ")";
 
     if (!params.m_tuplingLineFollowsBeam) {
         m_p->drawLine(startX, startY, startX, startY + tickOffset);
@@ -1632,7 +1707,7 @@ NotePixmapFactory::drawTuplingLine(const NotePixmapParameters &params)
 
     int textX = endX + countSpace;
     int textY = endY + cr.height() / 2;
-    //    NOTATION_DEBUG << "text: (" << textX << "," << textY << ")" << endl;
+    //    NOTATION_DEBUG << "text: (" << textX << "," << textY << ")";
 
     m_p->drawText(textX, textY, count);
 
@@ -1643,7 +1718,7 @@ NotePixmapFactory::drawTuplingLine(const NotePixmapParameters &params)
     endY = startY + (int)(params.m_tuplingLineGradient * w);
 
     //    NOTATION_DEBUG << "line: (" << startX << "," << startY << ") -> ("
-    //			 << endX << "," << endY << ")" << endl;
+    //			 << endX << "," << endY << ")";
 
     if (!params.m_tuplingLineFollowsBeam) {
         drawShallowLine(startX, startY, endX, endY, thickness);
@@ -1701,12 +1776,17 @@ NotePixmapFactory::makeRest(const NotePixmapParameters &params)
         !params.m_restOutsideStave) {
 
         if (params.m_dots == 0) {
-            return getCharacter(charName, PlainColour, false).makeItem();
+            if (params.m_forceColor) {
+                return getCharacter(charName,
+                                    params.m_forcedColor, false).makeItem();
+            } else {
+                return getCharacter(charName, PlainColour, false).makeItem();
+            }
         }
     }
 
     QPoint hotspot(m_font->getHotspot(charName));
-    drawRestAux(params, hotspot, 0, 0, 0);
+    drawRestAux(params, hotspot, nullptr, 0, 0);
 
     QGraphicsPixmapItem *canvasMap = makeItem(hotspot);
     return canvasMap;
@@ -1729,12 +1809,21 @@ NotePixmapFactory::drawRestAux(const NotePixmapParameters &params,
 {
     CharName charName(m_style->getRestCharName(params.m_noteType,
                                                params.m_restOutsideStave));
-    NoteCharacter character = getCharacter(charName,
-                                           params.m_quantized ? QuantizedColour :
-                                           PlainColour,
-                                           false);
 
-    NoteCharacter dot = getCharacter(NoteCharacterNames::DOT, PlainColour, false);
+    NoteCharacter character;
+    NoteCharacter dot;
+
+    if (params.m_forceColor) {
+        NOTATION_DEBUG << "NotePixmapFactory::drawRestAux FORCE COLOR\n";
+        character = getCharacter(charName, params.m_forcedColor, false);
+        dot = getCharacter(NoteCharacterNames::DOT, params.m_forcedColor, false);
+    } else {
+        NOTATION_DEBUG << "NotePixmapFactory::drawRestAux std mode\n";
+        character = getCharacter(charName,
+                            params.m_quantized ? QuantizedColour : PlainColour,
+                            false);
+        dot = getCharacter(NoteCharacterNames::DOT, PlainColour, false);
+    }
 
     int dotWidth = dot.getWidth();
     if (dotWidth < getNoteBodyWidth() / 2)
@@ -1794,7 +1883,7 @@ NotePixmapFactory::drawRestAux(const NotePixmapParameters &params,
     // a rest can have a text mark or a fermata; we permit this, so we should
     // draw this (fixes ancient bug report)
     if (params.m_marks.size() > 0) {
-        std::cerr << "Groundbreaking.  We're drawing a fermata on a rest!  Or maybe a text mark!" << std::endl;
+        NOTATION_DEBUG << "Groundbreaking.  We're drawing a fermata on a rest!  Or maybe a text mark!";
         // this next bit is the bit that isn't working yet...  we have a mark,
         // we find it, add it to restParams in NotationStaff, its m_marks.size()
         // is 1, it's passed here there and everywhere to wind up at this next
@@ -1961,11 +2050,11 @@ NotePixmapFactory::makeMarkMenuPixmap(Mark mark)
     if (mark == Marks::Sforzando || mark == Marks::Rinforzando) {
         return makeToolbarPixmap( mark.c_str(), true );
     } else {
-        NoteFont *font = 0;
+        NoteFont *font = nullptr;
         try {
             font = NoteFontFactory::getFont
                 (NoteFontFactory::getDefaultFontName(), 6);
-        } catch (Exception) {
+        } catch (const Exception &) {
             font = NoteFontFactory::getFont
                 (NoteFontFactory::getDefaultFontName(),
                  NoteFontFactory::getDefaultSize(NoteFontFactory::getDefaultFontName()));
@@ -1983,10 +2072,10 @@ NotePixmapFactory::makeKey(const Key &key,
                            Key previousKey,
                            const ColourType colourType)
 {
-//    std::cout << "NPF: makeKey(key: " << key.getName() << ", clef: "
+//    NOTATION_DEBUG << "NPF: makeKey(key: " << key.getName() << ", clef: "
 //              <<  clef.getClefType() << " , prevKey: "
 //              << previousKey.getName() <<  ", colType: " << (int)colourType
-//              << ")" << std::endl;
+//              << ")";
 
     Profiler profiler("NotePixmapFactory::makeKey");
 
@@ -2074,7 +2163,7 @@ NotePixmapFactory::makeKey(const Key &key,
         }
     }
 
-    return makeItem(m_pointZero);
+    return makeItem(QPoint());
 }
 
 QPixmap
@@ -2490,7 +2579,7 @@ QGraphicsPixmapItem *
 NotePixmapFactory::makeHairpin(int length, bool isCrescendo)
 {
     Profiler profiler("NotePixmapFactory::makeHairpin");
-    drawHairpinAux(length, isCrescendo, 0, 0, 0);
+    drawHairpinAux(length, isCrescendo, nullptr, 0, 0);
     return makeItem(QPoint(0, m_generatedHeight / 2));
 }
 
@@ -2514,7 +2603,7 @@ NotePixmapFactory::drawHairpinAux(int length, bool isCrescendo,
     int height = (int)(((double)nbh / (double)(nbw * 40)) * length) + nbh;
     int thickness = getStaffLineThickness() * 3 / 2;
 
-    //    NOTATION_DEBUG << "NotePixmapFactory::makeHairpinPixmap: mapped length " << length << " to height " << height << " (nbh = " << nbh << ", nbw = " << nbw << ")" << endl;
+    //    NOTATION_DEBUG << "NotePixmapFactory::makeHairpinPixmap: mapped length " << length << " to height " << height << " (nbh = " << nbh << ", nbw = " << nbw << ")";
 
     if (height < nbh)
         height = nbh;
@@ -2566,7 +2655,7 @@ NotePixmapFactory::makeSlur(int length, int dy, bool above, bool phrasing)
     QPoint hotspot;
     if (length < getNoteBodyWidth()*2)
         length = getNoteBodyWidth() * 2;
-    drawSlurAux(length, dy, above, smooth, false, phrasing, hotspot, 0, 0, 0);
+    drawSlurAux(length, dy, above, smooth, false, phrasing, hotspot, nullptr, 0, 0);
 
     m_p->end();
 
@@ -2629,7 +2718,7 @@ NotePixmapFactory::drawSlurAux(int length, int dy, bool above,
     if (dy != 0) {
         // We have opposite (dy) and adjacent (length).
         theta = atan(double(dy) / double(length)) * 180.0 / M_PI;
-        //	NOTATION_DEBUG << "slur: dy is " << dy << ", length " << length << ", rotating through " << theta << endl;
+        //	NOTATION_DEBUG << "slur: dy is " << dy << ", length " << length << ", rotating through " << theta;
         rotate = true;
     }
 
@@ -2686,7 +2775,7 @@ NotePixmapFactory::drawSlurAux(int length, int dy, bool above,
             int height = bottomRight.y() - topLeft.y() + thickness - 1 + abs(dy);
             hotspot = QPoint(0, -topLeft.y() + (dy < 0 ? -dy : 0));
 
-            //	    NOTATION_DEBUG << "slur: bottomRight (" << bottomRight.x() << "," << bottomRight.y() << "), topLeft (" << topLeft.x() << "," << topLeft.y() << "), width " << width << ", height " << height << ", hotspot (" << hotspot.x() << "," << hotspot.y() << "), dy " << dy << ", thickness " << thickness << endl;
+            //	    NOTATION_DEBUG << "slur: bottomRight (" << bottomRight.x() << "," << bottomRight.y() << "), topLeft (" << topLeft.x() << "," << topLeft.y() << "), width " << width << ", height " << height << ", hotspot (" << hotspot.x() << "," << hotspot.y() << "), dy " << dy << ", thickness " << thickness;
 
             if (painter) {
 
@@ -2792,7 +2881,7 @@ NotePixmapFactory::makeOttava(int length, int octavesUp)
 {
     Profiler profiler("NotePixmapFactory::makeOttava");
     m_inPrinterMethod = false;
-    drawOttavaAux(length, octavesUp, 0, 0, 0);
+    drawOttavaAux(length, octavesUp, nullptr, 0, 0);
     return makeItem(QPoint(0, m_generatedHeight - 1));
 }
 
@@ -2832,7 +2921,7 @@ NotePixmapFactory::drawOttavaAux(int length, int octavesUp,
         m_p->beginExternal(painter);
         painter->translate(x - backpedal, y - height);
     } else {
-        NOTATION_DEBUG << "NotePixmapFactory::drawOttavaAux: making pixmap and mask " << width << "x" << height << endl;
+        NOTATION_DEBUG << "NotePixmapFactory::drawOttavaAux: making pixmap and mask " << width << "x" << height;
         createPixmap(width, height);
     }
 
@@ -2861,7 +2950,7 @@ NotePixmapFactory::drawOttavaAux(int length, int octavesUp,
     int y0 = m_ottavaFontMetrics.ascent() * 2 / 3 - thickness / 2;
     int y1 = (octavesUp < 0 ? 0 : m_ottavaFontMetrics.ascent());
 
-    NOTATION_DEBUG << "NotePixmapFactory::drawOttavaAux: drawing " << x0 << "," << y0 << " to " << x1 << "," << y0 << ", thickness " << thickness << endl;
+    NOTATION_DEBUG << "NotePixmapFactory::drawOttavaAux: drawing " << x0 << "," << y0 << " to " << x1 << "," << y0 << ", thickness " << thickness;
 
     m_p->drawLine(x0, y0, x1, y0);
 
@@ -2869,7 +2958,7 @@ NotePixmapFactory::drawOttavaAux(int length, int octavesUp,
     m_p->painter().setPen(pen);
     //    if (!m_inPrinterMethod) m_p->maskPainter().setPen(pen);
 
-    NOTATION_DEBUG << "NotePixmapFactory::drawOttavaAux: drawing " << x1 << "," << y0 << " to " << x1 << "," << y1 << ", thickness " << thickness << endl;
+    NOTATION_DEBUG << "NotePixmapFactory::drawOttavaAux: drawing " << x1 << "," << y0 << " to " << x1 << "," << y1 << ", thickness " << thickness;
 
     m_p->drawLine(x1, y0, x1, y1);
 
@@ -2885,7 +2974,7 @@ NotePixmapFactory::drawOttavaAux(int length, int octavesUp,
 QGraphicsPixmapItem *
 NotePixmapFactory::makeTrillLine(int length)
 {
-    drawTrillLineAux(length, 0, 0, 0);
+    drawTrillLineAux(length, nullptr, 0, 0);
     return makeItem(QPoint(0, m_generatedHeight / 2));
 }
 
@@ -2951,10 +3040,9 @@ NotePixmapFactory::drawTrillLineAux(int length, QPainter *painter, int x, int y)
 }
 
 void
-NotePixmapFactory::drawBracket(int length, bool left, bool curly, int x, int y)
+NotePixmapFactory::drawBracket(int length, bool left, bool /*curly*/, int x, int y)
 {
     // curly mode not yet implemented
-    curly = curly;  // shut up compiler warning
 
     int thickness = getStemThickness() * 2;
 
@@ -2984,7 +3072,7 @@ NotePixmapFactory::drawBracket(int length, bool left, bool curly, int x, int y)
           NOTATION_DEBUG << "bracket spline controls: " << moff << "," << m1
           << ", " << moff << "," << m2 << "; end points "
           << off0 << ",0, " << off0 << "," << length-1
-          << endl;
+         ;
         */
         Spline::PointList *polyPoints = Spline::calculate
             (QPoint(off0, 0), QPoint(off0, length - 1), pl, topLeft, bottomRight);
@@ -2992,9 +3080,9 @@ NotePixmapFactory::drawBracket(int length, bool left, bool curly, int x, int y)
         int ppc = polyPoints->size();
         QPolygon qp(ppc);
         /*
-          NOTATION_DEBUG << "bracket spline polypoints: " << endl;
+          NOTATION_DEBUG << "bracket spline polypoints: ";
           for (int j = 0; j < ppc; ++j) {
-          NOTATION_DEBUG << (*polyPoints)[j].x() << "," << (*polyPoints)[j].y() << endl;
+          NOTATION_DEBUG << (*polyPoints)[j].x() << "," << (*polyPoints)[j].y();
           }
         */
 
@@ -3263,11 +3351,11 @@ NotePixmapFactory::getTextFont(const Text &text) const
     textFont.setItalic(italic);
 
     NOTATION_DEBUG << "NotePixmapFactory::getTextFont: requested size " << size
-     		   << " for type " << type << endl;
+     		   << " for type " << type;
     
     NOTATION_DEBUG << "NotePixmapFactory::getTextFont: returning font '"
                    << textFont.toString() << "' for type " << type.c_str()
-                   << " text : " << text.getText().c_str() << endl;
+                   << " text : " << text.getText().c_str();
 
     m_textFontCache[type.c_str()] = textFont;
     return textFont;
@@ -3294,7 +3382,7 @@ NotePixmapFactory::makeText(const Text &text)
         return makeAnnotation(text, (type == Text::LilyPondDirective));
     }
 
-    drawTextAux(text, 0, 0, 0);
+    drawTextAux(text, nullptr, 0, 0);
     return makeItem(QPoint(2, 2));
 }
 
@@ -3332,7 +3420,7 @@ NotePixmapFactory::drawText(const Text &text,
     Profiler profiler("NotePixmapFactory::drawText");
 
     //     NOTATION_DEBUG << "NotePixmapFactory::drawText() " << text.getText().c_str()
-    //                    << " - type : " << text.getTextType().c_str() << endl;
+    //                    << " - type : " << text.getTextType().c_str();
 
     std::string type(text.getTextType());
 
@@ -3452,7 +3540,7 @@ void
 NotePixmapFactory::createPixmap(int width, int height)
 {
     if (width == 0 || height == 0) {
-        std::cerr << "NotePixmapFactory::createPixmap: WARNING: invalid size " << width << "x" << height << std::endl;
+        RG_WARNING << "NotePixmapFactory::createPixmap: WARNING: invalid size " << width << "x" << height;
         m_generatedPixmap = new QPixmap();
         return;
     }
@@ -3463,7 +3551,7 @@ NotePixmapFactory::createPixmap(int width, int height)
     m_generatedPixmap->fill(Qt::transparent);
 
     // initiate painting
-    NOTATION_DEBUG << "NotePixmapFactory::createPixmap(" << width << "," << height << "): about to begin painter" << endl;
+    NOTATION_DEBUG << "NotePixmapFactory::createPixmap(" << width << "," << height << "): about to begin painter";
     m_p->begin(m_generatedPixmap);
 
 }
@@ -3471,18 +3559,24 @@ NotePixmapFactory::createPixmap(int width, int height)
 QGraphicsPixmapItem *
 NotePixmapFactory::makeItem(QPoint hotspot)
 {
-//    NOTATION_DEBUG << "NotePixmapFactory::makeItem(" << hotspot << ")" << endl;
+//    NOTATION_DEBUG << "NotePixmapFactory::makeItem(" << hotspot << ")";
 
     if (!m_generatedPixmap->isNull()) {
         m_p->end();
-    }// else std::cout << "m_generatedPixmap was NULL!" << std::endl;
+    }// else NOTATION_DEBUG << "m_generatedPixmap was nullptr!";
 
     QGraphicsPixmapItem *p = new QGraphicsPixmapItem;
 
     p->setPixmap(*m_generatedPixmap);
     p->setOffset(QPointF(-hotspot.x(), -hotspot.y()));
 
-//    NOTATION_DEBUG << "NotePixmapFactory::makeItem: item = " << p << " (scene = " << p->scene() << ")" << endl;
+    // The hit test QGraphicsScene::items(), called by NotationScene::setupMouseEvent,
+    // calls contains() which calls shape(), which by default generates a mask (slow!).
+    // Change the shape mode to BoundingRectShape to be able to click on text items anywhere
+    // in the bounding rect, rather than having to aim for a black pixel.
+    p->setShapeMode(QGraphicsPixmapItem::BoundingRectShape);
+
+//    NOTATION_DEBUG << "NotePixmapFactory::makeItem: item = " << p << " (scene = " << p->scene() << ")";
 
     delete m_generatedPixmap;
     return p;
@@ -3613,8 +3707,37 @@ NotePixmapFactory::getCharacter(CharName name, NoteCharacter &ch,
     return font->getCharacter(name, ch, charType, inverted);
 }
 
-QPoint
-NotePixmapFactory::m_pointZero;
+NoteCharacter
+NotePixmapFactory::getCharacter(CharName name, QColor color, bool inverted)
+{
+    NoteCharacter ch;
+
+    // use the full font for this unless a grace size was supplied in ctor
+    NoteFont *font = (m_haveGrace ? m_graceFont : m_font);
+
+    NoteFont::CharacterType charType =
+        m_inPrinterMethod ? NoteFont::Printer : NoteFont::Screen;
+
+    int h, s, v;
+    color.getHsv(&h, &s, &v);
+    font->getCharacterColoured(name, h, v, ch, charType, inverted, s);
+    return ch;
+}
+
+bool
+NotePixmapFactory::getCharacter(CharName name,
+                                NoteCharacter &ch, QColor color, bool inverted)
+{
+    // use the full font for this unless a grace size was supplied in ctor
+    NoteFont *font = (m_haveGrace ? m_graceFont : m_font);
+
+    NoteFont::CharacterType charType =
+        m_inPrinterMethod ? NoteFont::Printer : NoteFont::Screen;
+
+    int h, s, v;
+    color.getHsv(&h, &s, &v);
+    return font->getCharacterColoured(name, h, v, ch, charType, inverted, s);
+}
 
 
 int NotePixmapFactory::getNoteBodyWidth(Note::Type type)

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -83,13 +83,13 @@ public:
                              float targetSubordering,
                              NoteStyleName noteStyle,
                              int velocity = 0); // Zero for rest inserter
-    virtual ~NoteInsertionCommand();
+    ~NoteInsertionCommand() override;
 
-    virtual EventSelection *getSubsequentSelection();
+    EventSelection *getSubsequentSelection() override;
     Event *getLastInsertedEvent() { return m_lastInsertedEvent; }
 
 protected:
-    virtual void modifySegment();
+    void modifySegment() override;
 
     timeT getModificationStartTime(Segment &, timeT);
 

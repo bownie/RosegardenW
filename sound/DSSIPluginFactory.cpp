@@ -3,9 +3,9 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
-
+ 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
@@ -14,7 +14,6 @@
 */
 
 #include "DSSIPluginFactory.h"
-#include <iostream>
 #include <cstdlib>
 #include "misc/Strings.h"
 
@@ -42,7 +41,7 @@ DSSIPluginFactory::~DSSIPluginFactory()
 void
 DSSIPluginFactory::enumeratePlugins(MappedObjectPropertyList &list)
 {
-    /*
+/*
     for (std::vector<QString>::iterator i = m_identifiers.begin();
             i != m_identifiers.end(); ++i) {
 
@@ -90,9 +89,8 @@ DSSIPluginFactory::enumeratePlugins(MappedObjectPropertyList &list)
             list.push_back(QString("%1").arg(getPortDefault(descriptor, p)));
         }
     }
-
-    unloadUnusedLibraries();*/
-
+*/
+    unloadUnusedLibraries();
 }
 
 
@@ -147,9 +145,8 @@ DSSIPluginFactory::populatePluginSlot(QString identifier, MappedPluginSlot &slot
             }
         }
     }
-
-    //!!! leak here if the plugin is not instantiated too...?
-    */
+*/
+    // !!! leak here if the plugin is not instantiated too...?
 }
 
 RunnablePluginInstance *
@@ -175,14 +172,13 @@ DSSIPluginFactory::instantiatePlugin(QString identifier,
         return instance;
     }
 */
-    return 0;
+    return nullptr;
 }
 
-    /*
+/*
 const DSSI_Descriptor *
 DSSIPluginFactory::getDSSIDescriptor(QString identifier)
 {
-
     QString type, soname, label;
     PluginIdentifier::parseIdentifier(identifier, type, soname, label);
 
@@ -190,7 +186,7 @@ DSSIPluginFactory::getDSSIDescriptor(QString identifier)
         loadLibrary(soname);
         if (m_libraryHandles.find(soname) == m_libraryHandles.end()) {
             std::cerr << "WARNING: DSSIPluginFactory::getDSSIDescriptor: loadLibrary failed for " << soname << std::endl;
-            return 0;
+            return nullptr;
         }
     }
 
@@ -201,10 +197,10 @@ DSSIPluginFactory::getDSSIDescriptor(QString identifier)
 
     if (!fn) {
         std::cerr << "WARNING: DSSIPluginFactory::getDSSIDescriptor: No descriptor function in library " << soname << std::endl;
-        return 0;
+        return nullptr;
     }
 
-    const DSSI_Descriptor *descriptor = 0;
+    const DSSI_Descriptor *descriptor = nullptr;
 
     int index = 0;
     while ((descriptor = fn(index))) {
@@ -215,22 +211,19 @@ DSSIPluginFactory::getDSSIDescriptor(QString identifier)
 
     std::cerr << "WARNING: DSSIPluginFactory::getDSSIDescriptor: No such plugin as " << label << " in library " << soname << std::endl;
 
-    return 0;
+    return nullptr;
 }
-*/
 
-/*
 const LADSPA_Descriptor *
 DSSIPluginFactory::getLADSPADescriptor(QString identifier)
 {
-   // const DSSI_Descriptor *dssiDescriptor = getDSSIDescriptor(identifier);
-//    if (dssiDescriptor)
- //       return dssiDescriptor->LADSPA_Plugin;
- //   else
- //       return 0;
+    const DSSI_Descriptor *dssiDescriptor = getDSSIDescriptor(identifier);
+    if (dssiDescriptor)
+        return dssiDescriptor->LADSPA_Plugin;
+    else
+        return nullptr;
 }
 */
-
 
 std::vector<QString>
 DSSIPluginFactory::getPluginPath()
@@ -243,7 +236,8 @@ DSSIPluginFactory::getPluginPath()
         path = cpath;
 
     if (path == "") {
-        path = "/usr/local/lib/dssi:/usr/lib/dssi";
+//      path = "/usr/local/lib/dssi:/usr/lib/dssi";
+        path = "/usr/local/lib/dssi:/usr/lib/dssi:/usr/local/lib64/dssi:/usr/lib64/dssi";
         char *home = getenv("HOME");
         if (home)
             path = std::string(home) + "/.dssi:" + path;
@@ -291,13 +285,13 @@ DSSIPluginFactory::getLRDFPath(QString &baseUri)
 
 
 void
-DSSIPluginFactory::discoverPlugins(QString soName)
+DSSIPluginFactory::discoverPlugin(const QString &soName)
 {
     /*
     void *libraryHandle = dlopen( qstrtostr(soName).c_str(), RTLD_LAZY);
 
     if (!libraryHandle) {
-        std::cerr << "WARNING: DSSIPluginFactory::discoverPlugins: couldn't dlopen "
+        std::cerr << "WARNING: DSSIPluginFactory::discoverPlugin: couldn't dlopen "
         << soName << " - " << dlerror() << std::endl;
         return ;
     }
@@ -306,28 +300,28 @@ DSSIPluginFactory::discoverPlugins(QString soName)
                                   dlsym(libraryHandle, "dssi_descriptor");
 
     if (!fn) {
-        std::cerr << "WARNING: DSSIPluginFactory::discoverPlugins: No descriptor function in " << soName << std::endl;
+        std::cerr << "WARNING: DSSIPluginFactory::discoverPlugin: No descriptor function in " << soName << std::endl;
         return ;
     }
 
-    const DSSI_Descriptor *descriptor = 0;
+    const DSSI_Descriptor *descriptor = nullptr;
 
     int index = 0;
     while ((descriptor = fn(index))) {
 
         const LADSPA_Descriptor * ladspaDescriptor = descriptor->LADSPA_Plugin;
         if (!ladspaDescriptor) {
-            std::cerr << "WARNING: DSSIPluginFactory::discoverPlugins: No LADSPA descriptor for plugin " << index << " in " << soName << std::endl;
+            std::cerr << "WARNING: DSSIPluginFactory::discoverPlugin: No LADSPA descriptor for plugin " << index << " in " << soName << std::endl;
             ++index;
             continue;
         }
 
-        char *def_uri = 0;
-        lrdf_defaults *defs = 0;
+        char *def_uri = nullptr;
+        lrdf_defaults *defs = nullptr;
 
         QString category = m_taxonomy[ladspaDescriptor->UniqueID];
 
-        if (category == "" && ladspaDescriptor->Name != 0) {
+        if (category == "" && ladspaDescriptor->Name != nullptr) {
             std::string name = ladspaDescriptor->Name;
             if (name.length() > 4 &&
                     name.substr(name.length() - 4) == " VST") {
@@ -380,12 +374,11 @@ DSSIPluginFactory::discoverPlugins(QString soName)
     }
 
     if (dlclose(libraryHandle) != 0) {
-        std::cerr << "WARNING: DSSIPluginFactory::discoverPlugins - can't unload " << libraryHandle << std::endl;
+        std::cerr << "WARNING: DSSIPluginFactory::discoverPlugin - can't unload " << libraryHandle << std::endl;
         return ;
     }*/
 }
 
 
 }
-
 

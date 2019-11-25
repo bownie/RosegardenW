@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,6 +20,7 @@
 
 #include "StaffLayout.h"
 
+#include "gui/general/AutoScroller.h"
 #include "base/NotationTypes.h"
 #include "gui/general/SelectionManager.h"
 #include "gui/widgets/Thumbwheel.h"
@@ -38,6 +39,7 @@ class QTimer;
 namespace Rosegarden
 {
 
+class Device;
 class RosegardenDocument;
 class Segment;
 class NotationScene;
@@ -65,21 +67,24 @@ class NotationWidget : public QWidget,
 
 public:
     NotationWidget();
-    virtual ~NotationWidget();
+    ~NotationWidget() override;
 
     // Delete and zero the pointer members if they are allocated.  For
     // 2-stage deletion.
-    void clearAll(void);
+    void clearAll();
 
     void setSegments(RosegardenDocument *document, 
                      std::vector<Segment *> segments);
 
-    NotationScene *getScene() { return m_scene; }
-    ControlRulerWidget *getControlsWidget(void)
-        { return m_controlsWidget; }
+    void scrollToTopLeft();
 
-    virtual EventSelection *getSelection() const;
-    virtual void setSelection(EventSelection* s, bool preview);
+    NotationScene *getScene() { return m_scene; }
+    Panned *getView() { return m_view; }
+    ControlRulerWidget *getControlsWidget()
+        { return m_controlRulerWidget; }
+
+    EventSelection *getSelection() const override;
+    void setSelection(EventSelection* s, bool preview) override;
 
     timeT getInsertionTime() const;
 
@@ -133,12 +138,14 @@ public:
     void addWidgetToBottom(QWidget *bottomWidget);
 
     void updateSegmentChangerBackground();
+    void updatePointerPosition(bool moveView = false);
 
 signals:
     void sceneNeedsRebuilding();
     void toolChanged(QString);
     void hoveredOverNoteChanged(QString);
     void headersVisibilityChanged(bool);
+    void showContextHelp(const QString &);
 
 public slots:
     void slotSetTool(QString name);
@@ -168,24 +175,36 @@ public slots:
     void slotTogglePitchbendRuler();
     void slotAddControlRuler(QAction*);
 
-    void slotUpdatePointerPosition(bool moveView = false);
-    
     void slotRegenerateHeaders();
 
-protected:
-    virtual void showEvent(QShowEvent * event);
+private:
+    void showEvent(QShowEvent * event) override;
     void hideOrShowRulers();
-    bool linearMode();   // Return true when notation page layout is linear
+    bool linearMode() const;   // Return true when notation page layout is linear
+    void updatePointer(timeT t);
 
-protected slots:
+private slots:
     void slotDispatchMousePress(const NotationMouseEvent *);
     void slotDispatchMouseRelease(const NotationMouseEvent *);
     void slotDispatchMouseMove(const NotationMouseEvent *);
     void slotDispatchMouseDoubleClick(const NotationMouseEvent *);
+    void slotDispatchWheelTurned(int, const NotationMouseEvent *);
 
-    // When moveView is false, the view is not scrolled toward the pointer
-    void slotPointerPositionChanged(timeT t, bool moveView = true);
-    void slotEnsureLastMouseMoveVisible();
+    void slotPointerPositionChanged(timeT t);
+
+    // Standard Ruler
+    void slotStandardRulerDrag(timeT t);
+    void slotSRStartMouseMove();
+    void slotSRStopMouseMove();
+
+    // ControlRulerWidget
+    void slotCRWMousePress();
+    void slotCRWMouseMove(FollowMode followMode);
+    void slotCRWMouseRelease();
+
+    // TempoRuler
+    void slotTRMousePress();
+    void slotTRMouseRelease();
 
     void slotZoomInFromPanner();
     void slotZoomOutFromPanner();
@@ -220,9 +239,8 @@ protected slots:
 
     /// The segment control thumbwheel moved
     void slotSegmentChangerMoved(int);
-    
-    void slotInitialHSliderHack(int);
-    void slotInitialVSliderHack(int);
+
+    void slotStaffChanged();
 
     void slotUpdateRawNoteRuler(ViewSegment *);
     void slotUpdateSegmentChangerBackground();
@@ -242,8 +260,7 @@ private:
     NotationToolBox *m_toolBox;
     NotationTool *m_currentTool;
     bool m_playTracking;
-    bool m_inMove;
-    QPointF m_lastMouseMoveScenePos;
+
     double m_hZoomFactor;
     double m_vZoomFactor;
     ZoomableRulerScale *m_referenceScale; // I own this (refers to scene scale)
@@ -275,9 +292,13 @@ private:
     TempoRuler *m_tempoRuler; // I own this
     ChordNameRuler *m_chordNameRuler; // I own this
     RawNoteRuler *m_rawNoteRuler; // I own this
-    ControlRulerWidget *m_controlsWidget; // I own this
+    ControlRulerWidget *m_controlRulerWidget; // I own this
+
+    // Track Headers
+    // View > Show Track Headers
 
     HeadersGroup *m_headersGroup; // I own this
+    /// Track Headers that appear to the left of the staves.
     Panned *m_headersView; // I own this
     QGraphicsScene *m_headersScene; // I own this
     QWidget *m_headersButtons; // I own this
@@ -303,11 +324,6 @@ private:
 
     void locatePanner(bool vertical);
 
-    bool m_hSliderHacked;
-    bool m_vSliderHacked;
-
-    bool m_Thorn;
-
     /**
      * Widgets vertical positions inside the main QGridLayout
      */
@@ -332,6 +348,14 @@ private:
         MAIN_COL,
         VPANNER_COL
     };
+
+    AutoScroller m_autoScroller;
+
+private slots:
+    /// Connected to Panned::zoomIn() for ctrl+wheel.
+    void slotZoomIn();
+    /// Connected to Panned::zoomOut() for ctrl+wheel.
+    void slotZoomOut();
 
 };
 

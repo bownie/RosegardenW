@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -99,6 +99,7 @@ const CharName HARMONIC = "MUSICAL SYMBOL COMBINING HARMONIC";
 const CharName C_CLEF = "MUSICAL SYMBOL C CLEF";
 const CharName G_CLEF = "MUSICAL SYMBOL G CLEF";
 const CharName F_CLEF = "MUSICAL SYMBOL F CLEF";
+const CharName TWO_BAR_CLEF = "MUSICAL SYMBOL DRUM CLEF-1";
 
 const CharName COMMON_TIME = "MUSICAL SYMBOL COMMON TIME";
 const CharName CUT_TIME = "MUSICAL SYMBOL CUT TIME";

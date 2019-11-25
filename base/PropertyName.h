@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -19,7 +19,8 @@
 
 #include <string>
 #include <map>
-#include <iostream>
+
+#include <rosegardenprivate_export.h>
 
 namespace Rosegarden 
 {
@@ -68,7 +69,7 @@ namespace Rosegarden
 
 */
 
-class PropertyName
+class ROSEGARDENPRIVATE_EXPORT PropertyName
 {
 public:
     PropertyName() : m_value(-1) { }
@@ -96,10 +97,6 @@ public:
     }
     bool operator< (const PropertyName &p) const {
         return m_value <  p.m_value;
-    }
-
-    const char *c_str() const {
-        return getName().c_str();
     }
 
     std::string getName() const /* throw (CorruptedValue) */;

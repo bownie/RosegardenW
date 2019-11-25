@@ -1,6 +1,6 @@
 include(update.pri)
 
-INCLUDEPATH += "C:/Qt/5.3/mingw482_32/include/QtWidgets"
+#INCLUDEPATH += "C:/Qt/5.3/mingw482_32/include/QtWidgets"
 
 TARGET = rosegarden
 
@@ -43,16 +43,8 @@ OTHER_FILES += \
     data/locale/cs.ts \
     data/locale/ca.ts
 
-#DEFINES += QT3_SUPPORT \
-#           'VERSION=\'12.04.00\'' \
-#           'CODENAME=\'Freedom\'' \
-#           BUILDKEY=0003 \
-#           LITTLE_ENDIAN \
-#           __WINDOWS_MM__ \
-#           _PORTABLE_SOUND_
-
-DEFINES += VERSION=\\\"14.02\\\" \
-           CODENAME=\\\"Kaleidoscope\\\" \
+DEFINES += VERSION=\\\"19.06\\\" \
+           CODENAME=\\\"Xerxes\\\" \
            BUILDKEY=0001 \
            LITTLE_ENDIAN \
            __WINDOWS_MM__ \
@@ -87,8 +79,8 @@ TRANSLATIONS =      data/locale/ca.ts \
                     data/locale/pt_BR.ts
 
 
-INCLUDEPATH += "C:/devel/zlib/include" \
-               "C:/devel/pthreads/Pre-built.2/include"
+INCLUDEPATH += "C:/devel/zlib/include"
+ #              "C:/tools/pthreads/include"
  #              "C:/devel/mman" \
  #              "C:/devel/fftw" \
  #              "C:/devel/jack" \
@@ -102,8 +94,8 @@ INCLUDEPATH += "C:/devel/zlib/include" \
 #INCLUDEPATH += "C:/Program Files/Microsoft Visual Studio 8/VC/PlatformSDK/Include" \
 #               "C:/Program Files/Microsoft Visual Studio 8/VC/Include"
 
-QMAKE_LIBDIR += "C:/devel/pthreads/Pre-built.2/lib" \
-                "C:/devel/zlib/lib"
+QMAKE_LIBDIR += "C:/tools/pthreads/lib"
+                "C:/tools/zlib/lib"
 #                "C:/devel/mman" \
 #                "C:/devel/fftw" \
 #                "C:/devel/jack" \
@@ -111,7 +103,7 @@ QMAKE_LIBDIR += "C:/devel/pthreads/Pre-built.2/lib" \
 #                "C:/devel/dlfcn/lib"
  #               "C:/devel/lrdf/"
 
-LIBS += -lpthread -lzlib -lwinmm
+LIBS += -lpthread -lz -lwinmm
 
 HEADERS += \
     base/XmlExportable.h \
@@ -470,9 +462,6 @@ HEADERS += \
     gui/editors/segment/compositionview/CompositionView.h \
     gui/editors/segment/compositionview/CompositionRect.h \
     gui/editors/segment/compositionview/CompositionModelImpl.h \
-    gui/editors/segment/compositionview/CompositionModel.h \
-    gui/editors/segment/compositionview/CompositionItemHelper.h \
-    gui/editors/segment/compositionview/CompositionItem.h \
     gui/editors/segment/compositionview/CompositionColourCache.h \
     gui/editors/segment/compositionview/AudioPreviewUpdater.h \
     gui/editors/segment/compositionview/AudioPreviewThread.h \
@@ -565,7 +554,6 @@ HEADERS += \
     sound/MappedInserterBase.h \
     sound/MidiInserter.h \
     sound/SortingInserter.h \
-    sound/ImmediateNote.h \
     sound/SoundDriverFactory.h \
     sound/SoundDriver.h \
     sound/SF2PatchExtractor.h \
@@ -586,7 +574,6 @@ HEADERS += \
     sound/MidiEvent.h \
     sound/Midi.h \
     sound/MappedStudio.h \
-    sound/MappedSegment.h \
     sound/MappedInstrument.h \
     sound/MappedEventList.h \
     sound/MappedEvent.h \
@@ -775,7 +762,7 @@ HEADERS += \
     gui/studio/AudioPluginManager.h \
     gui/studio/AudioPluginClipboard.h \
     gui/studio/AudioPlugin.h \
-    gui/studio/AudioMixerWindow.h \
+    gui/studio/AudioMixerWindow2.h \
     gui/editors/tempo/TempoView.h \
     gui/editors/tempo/TempoListItem.h \
     sound/rtmidi/RtMidi.h \
@@ -1155,9 +1142,6 @@ SOURCES += \
     gui/editors/segment/compositionview/CompositionView.cpp \
     gui/editors/segment/compositionview/CompositionRect.cpp \
     gui/editors/segment/compositionview/CompositionModelImpl.cpp \
-    gui/editors/segment/compositionview/CompositionModel.cpp \
-    gui/editors/segment/compositionview/CompositionItemHelper.cpp \
-    gui/editors/segment/compositionview/CompositionItem.cpp \
     gui/editors/segment/compositionview/CompositionColourCache.cpp \
     gui/editors/segment/compositionview/AudioPreviewUpdater.cpp \
     gui/editors/segment/compositionview/AudioPreviewThread.cpp \
@@ -1241,7 +1225,6 @@ SOURCES += \
     sound/SoundFile.cpp \
     sound/MappedBufMetaIterator.cpp \
     sound/SortingInserter.cpp \
-    sound/ImmediateNote.cpp \
     sound/MappedEventInserter.cpp \
     sound/MidiInserter.cpp \
     sound/SoundDriverFactory.cpp \
@@ -1260,7 +1243,6 @@ SOURCES += \
     sound/MidiFile.cpp \
     sound/MidiEvent.cpp \
     sound/MappedStudio.cpp \
-    sound/MappedSegment.cpp \
     sound/MappedInstrument.cpp \
     sound/MappedEventList.cpp \
     sound/MappedEvent.cpp \
@@ -1443,7 +1425,7 @@ SOURCES += \
     gui/studio/AudioPluginManager.cpp \
     gui/studio/AudioPluginClipboard.cpp \
     gui/studio/AudioPlugin.cpp \
-    gui/studio/AudioMixerWindow.cpp \
+    gui/studio/AudioMixerWindow2.cpp \
     gui/editors/tempo/TempoView.cpp \
     gui/editors/tempo/TempoListItem.cpp \
     sound/rtmidi/RtMidi.cpp \

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file is Copyright 2002
@@ -26,6 +26,9 @@
 #include "base/Segment.h"
 #include "Composition.h"
 #include "Selection.h"
+
+#include <assert.h>
+
 
 namespace Rosegarden {
 
@@ -95,7 +98,7 @@ CompositionTimeSliceAdapter::CompositionTimeSliceAdapter(Composition *c,
 CompositionTimeSliceAdapter::iterator
 CompositionTimeSliceAdapter::begin() const
 {
-    if (m_beginItr.m_a == 0) {
+    if (m_beginItr.m_a == nullptr) {
 	m_beginItr = iterator(this);
 	fill(m_beginItr, false);
     }
@@ -156,7 +159,7 @@ CompositionTimeSliceAdapter::iterator::iterator(const iterator &i) :
 CompositionTimeSliceAdapter::iterator&
 CompositionTimeSliceAdapter::iterator::operator++()
 {
-    assert(m_a != 0);
+    assert(m_a != nullptr);
 
     // needFill is only set true for iterators created at end()
     if (m_needFill) {
@@ -164,7 +167,7 @@ CompositionTimeSliceAdapter::iterator::operator++()
 	m_needFill = false;
     }
 
-    Event *e = 0;
+    Event *e = nullptr;
     size_t pos = 0;
 
     for (size_t i = 0; i < m_a->m_segmentList.size(); ++i) {
@@ -180,7 +183,7 @@ CompositionTimeSliceAdapter::iterator::operator++()
 
     // Check whether we're past the end time, if there is one
     if (!e || e->getAbsoluteTime() >= m_a->m_end) {
-        m_curEvent = 0;
+        m_curEvent = nullptr;
 	m_curTrack = -1;
         return *this;
     }
@@ -198,7 +201,7 @@ CompositionTimeSliceAdapter::iterator::operator++()
 CompositionTimeSliceAdapter::iterator&
 CompositionTimeSliceAdapter::iterator::operator--()
 {
-    assert(m_a != 0);
+    assert(m_a != nullptr);
 
     // needFill is only set true for iterators created at end()
     if (m_needFill) {
@@ -206,7 +209,7 @@ CompositionTimeSliceAdapter::iterator::operator--()
 	m_needFill = false;
     }
 
-    Event *e = 0;
+    Event *e = nullptr;
     int pos = -1;
 
     // Decrement is more subtle than increment.  We have to scan the

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -41,6 +41,10 @@ RetrogradeInvertCommand::modifySegment()
 
     long highestPitch, lowestPitch;
 
+    // Avoid "may be used uninitialized" compilation warnings
+    highestPitch = 0;
+    lowestPitch = 0;
+    
     bool firstNote = true;
     for (i = m_selection->getSegmentEvents().begin();
             i != m_selection->getSegmentEvents().end(); ++i) {
@@ -89,7 +93,7 @@ RetrogradeInvertCommand::modifySegment()
     for (i = m_selection->getSegmentEvents().begin();
             i != m_selection->getSegmentEvents().end(); ++i) {
 
-        RG_DEBUG << "RetrogradeCommand::modifySegment: event at " << (*i)->getAbsoluteTime() << " type " << (*i)->getType() << endl;
+        RG_DEBUG << "RetrogradeCommand::modifySegment: event at " << (*i)->getAbsoluteTime() << " type " << (*i)->getType();
 
         if ((*i)->isa(Note::EventRestType))
             continue;
@@ -115,10 +119,10 @@ RetrogradeInvertCommand::modifySegment()
     for (size_t j = 0; j < toErase.size(); ++j) {
         Segment::iterator jtr(segment.findSingle(toErase[j]));
         if (jtr != segment.end()) {
-            RG_DEBUG << "found event " << j << endl;
+            RG_DEBUG << "found event " << j;
             segment.erase(jtr);
         } else {
-            RG_DEBUG << "failed to find event " << j << endl;
+            RG_DEBUG << "failed to find event " << j;
         }
     }
 

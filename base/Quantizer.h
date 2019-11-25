@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,28 +13,29 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef QUANTIZER_H
-#define QUANTIZER_H
+#ifndef RG_QUANTIZER_H
+#define RG_QUANTIZER_H
 
 #include "base/Segment.h"
-#include "Event.h"
-#include "base/NotationTypes.h"
-#include "FastVector.h"
+
 #include <string>
+#include <vector>
 
 namespace Rosegarden {
 
+
+class Event;
 class EventSelection;
 
+/// Base class for quantizers.
 /**
-   The Quantizer class rounds the starting times and durations of note
-   and rest events according to one of a set of possible criteria.
-*/
-
+ * See BasicQuantizer, LegatoQuantizer, and NotationQuantizer.
+ *
+ * The Quantizer class rounds the starting times and durations of note
+ * and rest events according to one of a set of possible criteria.
+ */
 class Quantizer
 {
-    // define the Quantizer API
-
 public:
     virtual ~Quantizer();
 
@@ -221,7 +222,7 @@ public: // should be protected, but gcc-2.95 doesn't like allowing NotationQuant
     timeT getFromSource(Event *, ValueType) const;
     timeT getFromTarget(Event *, ValueType) const;
     void setToTarget(Segment *, Segment::iterator, timeT t, timeT d) const;
-    mutable FastVector<Event *> m_toInsert;
+    mutable std::vector<Event *> m_toInsert;
 
 protected:
     void removeProperties(Event *) const;

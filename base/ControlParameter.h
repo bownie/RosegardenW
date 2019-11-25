@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -36,7 +36,7 @@ public:
                      int min = 0,
                      int max = 127,
                      int def = 0,
-                     MidiByte controllerValue = 0,
+                     MidiByte controllerValue = 0,  // ??? rename: controllerNumber
                      unsigned int colour = 0,
                      int ipbPositon = -1);
     ControlParameter(const ControlParameter &control);
@@ -75,6 +75,10 @@ public:
         return value;
     }
 
+    /// Controller number.  E.g. 7 for volume, 10 for pan.
+    /**
+     * ??? rename: getControllerNumber()
+     */
     MidiByte getControllerValue() const { return m_controllerValue; }
 
     unsigned int getColourIndex() const { return m_colourIndex; }
@@ -89,21 +93,25 @@ public:
     void setMax(int max) { m_max = max; }
     void setDefault(int def) { m_default = def; }
 
+    /// Controller number.  E.g. 7 for volume, 10 for pan.
+    /**
+     * ??? rename: setControllerNumber()
+     */
     void setControllerValue(MidiByte con) { m_controllerValue = con; }
 
     void setColourIndex(unsigned int colour) { m_colourIndex = colour; }
 
     void setIPBPosition(int position) { m_ipbPosition = position; }
 
-    virtual std::string toXmlString();
+    std::string toXmlString() const override;
 
     // Return a new event setting this controller to VALUE at TIME
     Event *newEvent(timeT time, int value) const;
     // True if "e" is this type of controller / pitchbend.
     bool matches(Event *e) const;
     
-    static const ControlParameter& getPitchBend(void);
-    static const ControlParameter& getExpression(void);
+    static const ControlParameter& getPitchBend();
+    static const ControlParameter& getExpression();
 
 protected:
 
@@ -121,6 +129,10 @@ protected:
     int            m_max;
     int            m_default;
 
+    /// Controller number.  E.g. 7 for volume, 10 for pan.
+    /**
+     * ??? rename: m_controllerNumber
+     */
     MidiByte       m_controllerValue;
 
     unsigned int   m_colourIndex;

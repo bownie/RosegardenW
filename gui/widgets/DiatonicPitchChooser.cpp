@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -128,8 +128,8 @@ DiatonicPitchChooser::DiatonicPitchChooser(QString title,
     connect(m_pitchDragLabel, SIGNAL(pitchChanged(int,int,int)),
             this, SIGNAL(noteChanged(int,int,int)));
 
-    connect(m_pitchDragLabel, SIGNAL(preview(int)),
-            this, SIGNAL(preview(int)));
+    connect(m_pitchDragLabel, &PitchDragLabel::preview,
+            this, &DiatonicPitchChooser::preview);
 
 }
 
@@ -245,4 +245,3 @@ DiatonicPitchChooser::getStep() const
 }
 
 }
-#include "DiatonicPitchChooser.moc"

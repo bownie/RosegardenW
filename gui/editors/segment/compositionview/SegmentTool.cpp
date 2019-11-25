@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,16 +20,19 @@
 #include "SegmentTool.h"
 
 #include "misc/Debug.h"
+#include "misc/ConfigGroups.h"
 #include "CompositionView.h"
 #include "document/RosegardenDocument.h"
 #include "document/CommandHistory.h"
 #include "gui/application/RosegardenMainWindow.h"
 #include "gui/general/BaseTool.h"
+#include "gui/seqmanager/SequenceManager.h"
 #include "SegmentToolBox.h"
 #include "document/Command.h"
 
 #include <QMenu>
 #include <QMouseEvent>
+#include <QSettings>
 
 
 namespace Rosegarden
@@ -52,8 +55,15 @@ SegmentTool::SegmentTool(CompositionView* canvas, RosegardenDocument *doc)
     createAction("edit_pitch_tracker", SLOT(slotEditInPitchTracker()));
     // Can we get some of the following connectionless mojo for some
     // of these others too?
-    //createAction("edit_undo", ...);  // handled by a higher authority?
-    //createAction("edit_redo", ...);  // handled by a higher authority?
+    // The undo and redo actions are available globally through
+    // CommandHistory.  See ActionFileParser::findStandardAction() which
+    // allows them to be found easily.  Since disparate parts of the
+    // system need the exact same QAction objects, it might be a good
+    // idea to introduce a global QAction repository for all QAction
+    // objects.  RosegardenMainWindow might suffice.  This would also
+    // simplify the implementation of a shortcut manager.
+    //createAction("edit_undo", ...);  // handled by CommandHistory
+    //createAction("edit_redo", ...);  // handled by CommandHistory
     createAction("edit_cut", SLOT(slotEditCut()));
     createAction("edit_copy", SLOT(slotEditCopy()));
     createAction("edit_paste", SLOT(slotEditPaste()));
@@ -106,6 +116,24 @@ SegmentTool::mousePressEvent(QMouseEvent *e)
         }
     }
 
+    // Update context menu items before displaying them.
+
+    QSettings settings;
+    settings.beginGroup(GeneralOptionsConfigGroup);
+    bool enableEditingDuringPlayback =
+            settings.value("enableEditingDuringPlayback", false).toBool();
+
+    bool playing = (RosegardenMainWindow::self()->getSequenceManager()->
+                getTransportStatus() == PLAYING);
+
+    bool haveSelection = m_canvas->getModel()->haveSelection();
+
+    findAction("delete")->setEnabled(
+            (enableEditingDuringPlayback || !playing)  &&  haveSelection);
+    findAction("edit_cut")->setEnabled(
+            (enableEditingDuringPlayback || !playing)  &&  haveSelection);
+
+    // Display the context menu.
     showMenu();
 
     setChangingSegment(ChangingSegmentPtr());
@@ -116,22 +144,17 @@ SegmentTool::createMenu()
 {
     // New version based on the one in MatrixTool.
 
-    const QString rcFileName = "segmenttool.rc";
+    //RG_DEBUG << "SegmentTool::createMenu() " << rcFileName << " - " << m_menuName;
 
-    //RG_DEBUG << "SegmentTool::createMenu() " << rcFileName << " - " << m_menuName << endl;
-
-    if (!createGUI(rcFileName)) {
-        std::cerr << "SegmentTool::createMenu(" << rcFileName
-                  << "): menu creation failed\n";
-        m_menu = 0;
+    if (!createMenusAndToolbars("segmenttool.rc")) {
+        RG_WARNING << "createMenu(): menu creation failed";
+        m_menu = nullptr;
         return;
     }
 
     QMenu *menu = findMenu(m_menuName);
     if (!menu) {
-        std::cerr << "SegmentTool::createMenu(" << rcFileName
-                  << "): menu name "
-                  << m_menuName << " not created by RC file\n";
+        RG_WARNING << "createMenu(): menu name " << m_menuName << " not created by RC file";
         return;
     }
 
@@ -246,4 +269,3 @@ void SegmentTool::slotSplitSelected()
 
 }
 
-#include "SegmentTool.moc"

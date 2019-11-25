@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2005-2011 Chris Cannam.
 
@@ -34,8 +34,8 @@ public:
     {
     public:
         FileDRMProtected(QString file) throw();
-        virtual ~FileDRMProtected() throw() { }
-        virtual const char *what() const throw();
+        ~FileDRMProtected() throw() override { }
+        const char *what() const throw() override;
 
     protected:
         QString m_file;

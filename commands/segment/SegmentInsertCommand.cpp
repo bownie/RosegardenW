@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[SegmentInsertCommand]"
 
 #include "SegmentInsertCommand.h"
 
@@ -23,9 +24,12 @@
 #include "base/Studio.h"
 #include "base/Track.h"
 #include "document/RosegardenDocument.h"
+#include "misc/ConfigGroups.h"
+#include "misc/Debug.h"
 
 
 #include <QApplication>
+#include <QSettings>
 
 namespace Rosegarden
 {
@@ -37,7 +41,7 @@ SegmentInsertCommand::SegmentInsertCommand(RosegardenDocument *doc,
         NamedCommand(tr("Create Segment")),
         m_composition(&(doc->getComposition())),
         m_studio(&(doc->getStudio())),
-        m_segment(0),
+        m_segment(nullptr),
         m_track(track),
         m_startTime(startTime),
         m_endTime(endTime),
@@ -49,7 +53,7 @@ SegmentInsertCommand::SegmentInsertCommand(Composition *composition,
         TrackId track):
         NamedCommand(tr("Create Segment")),
         m_composition(composition),
-        m_studio(0),
+        m_studio(nullptr),
         m_segment(segment),
         m_track(track),
         m_startTime(0),
@@ -89,14 +93,24 @@ SegmentInsertCommand::execute()
         std::string label;
 
         if (track) {
-            // try to get a reasonable Segment name by Instrument
-            //
-            label = m_studio->getSegmentName(track->getInstrument());
+            // Get the settings value
+            QSettings settings;
+            settings.beginGroup(GeneralOptionsConfigGroup);
+            bool useTrackName = settings.value("usetrackname", false).toBool();
+            settings.endGroup();
 
-            // if not use the track label
-            //
-            if (label == "")
+            // If "Use track name" in configuration is selected
+            if (useTrackName) {
+                // Use the track name for the segment name.
                 label = track->getLabel();
+            } else {
+                // Try to get a reasonable Segment name by Instrument.
+                label = m_studio->getSegmentName(track->getInstrument());
+
+                // If that failed, use the track name.
+                if (label == "")
+                    label = track->getLabel();
+            }
 
             m_segment->setLabel(label);
         }

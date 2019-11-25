@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -39,10 +39,10 @@ class SegmentJoinCommand : public NamedCommand
 public:
     typedef std::vector<Segment *> SegmentVec;
     SegmentJoinCommand(SegmentSelection &segments);
-    virtual ~SegmentJoinCommand();
+    ~SegmentJoinCommand() override;
 
-    virtual void execute();
-    virtual void unexecute();
+    void execute() override;
+    void unexecute() override;
     static Segment *makeSegment(SegmentVec oldSegments);
 
     static QString getGlobalName() { return tr("&Join"); }

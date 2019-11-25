@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,7 +22,10 @@
 #include "base/Event.h"
 
 #include <QObject>
+#include <QPointer>
 #include <QString>
+
+class QProgressDialog;
 
 
 namespace Rosegarden
@@ -66,22 +69,24 @@ public:
                          QString settingsGroup,
                          QuantizeScope scope);
 
-    ~EventQuantizeCommand();
+    ~EventQuantizeCommand() override;
     
-    static QString getGlobalName(Quantizer *quantizer = 0);
+    static QString getGlobalName(Quantizer *quantizer = nullptr);
+
+    void setProgressDialog(QPointer<QProgressDialog> progressDialog)
+            { m_progressDialog = progressDialog; }
     void setProgressTotal(int total, int perCall) { m_progressTotal = total;
                                                     m_progressPerCall = perCall; };
 
-signals:
-    void setValue(int);
-
 protected:
-    virtual void modifySegment();
+    void modifySegment() override;
 
 private:
     Quantizer *m_quantizer; // I own this
     EventSelection *m_selection;
     QString m_settingsGroup;
+
+    QPointer<QProgressDialog> m_progressDialog;
     int m_progressTotal;
     int m_progressPerCall;
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -57,7 +57,7 @@ MusicXMLOptionsDialog::MusicXMLOptionsDialog(QWidget *parent,
                        m_doc(doc)
 {
     setModal(true);
-    setWindowTitle((windowCaption = "" ? tr("MusicXML Export") : windowCaption));
+    setWindowTitle((windowCaption == "" ? tr("MusicXML Export") : windowCaption));
 
     QGridLayout *metaGridLayout = new QGridLayout;
 
@@ -189,8 +189,8 @@ MusicXMLOptionsDialog::MusicXMLOptionsDialog(QWidget *parent,
 
 
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(help()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &MusicXMLOptionsDialog::help);
 
     populateDefaultValues();
 
@@ -265,4 +265,3 @@ MusicXMLOptionsDialog::accept()
 }
 
 }
-#include "MusicXMLOptionsDialog.moc"

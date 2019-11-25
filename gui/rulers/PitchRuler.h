@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,11 +35,12 @@ class PitchRuler : public QWidget
 public:
     PitchRuler(QWidget *parent);
 
-    virtual QSize sizeHint() const;
-    virtual QSize minimumSizeHint() const;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
-    virtual void drawHoverNote(int evPitch) = 0;
-    virtual void hideHoverNote() = 0;
+    /// Show a highlight to indicate where the mouse is hovering.
+    virtual void showHighlight(int evPitch) = 0;
+    virtual void hideHighlight() = 0;
 
 signals:
 
@@ -49,6 +50,15 @@ signals:
      * If the user is in the middle of dragging, repeating will be set.
      */
     void keyPressed(unsigned int y, bool repeating);
+
+    /**
+     * A key has been released on the keyboard.
+     *
+     * The repeating flag is there to tell the MatrixView not to send
+     * the same note again as we're in the middle of a swoosh.
+     * MatrixView does the y -> Note calculation.
+     */
+    void keyReleased(unsigned int y, bool repeating);
 
     /**
      * A pitch has been clicked with the selection modifier pressed.

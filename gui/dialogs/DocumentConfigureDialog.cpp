@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,10 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[DocumentConfigureDialog]"
 
 #include "DocumentConfigureDialog.h"
+
 #include "ConfigureDialogBase.h"
 #include "document/RosegardenDocument.h"
 #include "gui/configuration/AudioPropertiesPage.h"
@@ -24,6 +26,7 @@
 #include "gui/configuration/DocumentMetaConfigurationPage.h"
 #include "gui/configuration/GeneralConfigurationPage.h"
 #include "gui/general/IconLoader.h"
+#include "misc/Debug.h"
 
 #include <QLayout>
 #include <QString>
@@ -38,18 +41,25 @@ DocumentConfigureDialog::DocumentConfigureDialog(RosegardenDocument *doc,
         const char *name)
     : ConfigureDialogBase(parent, tr("Document Properties"), name )//, QMessageBox::StandardButtons buttons )
 {
-    QWidget *page = 0;
+    QWidget *page = nullptr;
+
     // Document Meta Page
     //
     IconLoader il;
     page = new DocumentMetaConfigurationPage(doc, this);
-    addPage(DocumentMetaConfigurationPage::iconLabel(),DocumentMetaConfigurationPage::title(),il.loadPixmap( DocumentMetaConfigurationPage::iconName()),page);
+    connect(page, SIGNAL(modified()), this, SLOT(slotActivateApply()));
+    addPage(DocumentMetaConfigurationPage::iconLabel(),
+            DocumentMetaConfigurationPage::title(),
+            il.loadPixmap( DocumentMetaConfigurationPage::iconName()), page);
     m_configurationPages.push_back((ConfigurationPage *)page);
 
     // Audio Page
     //
     page = new AudioPropertiesPage(doc, this);
-    addPage(AudioPropertiesPage::iconLabel(),AudioPropertiesPage::title(),il.loadPixmap(AudioPropertiesPage::iconName()),page);
+    connect(page, SIGNAL(modified()), this, SLOT(slotActivateApply()));
+    addPage(AudioPropertiesPage::iconLabel(),
+            AudioPropertiesPage::title(),
+            il.loadPixmap(AudioPropertiesPage::iconName()),page);
     m_configurationPages.push_back((ConfigurationPage *)page);
 }
 

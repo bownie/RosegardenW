@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -31,12 +31,12 @@ class ViewElementAdapter : public ElementAdapter
 public:
     ViewElementAdapter(ViewElement*, const PropertyName&);
 
-    virtual bool  getValue(long&);
-    virtual void  setValue(long);
-    virtual timeT getTime();
-    virtual timeT getDuration();
+    bool  getValue(long&) override;
+    void  setValue(long) override;
+    timeT getTime() override;
+    timeT getDuration() override;
 
-    virtual Event* getEvent() { return m_viewElement->event(); }
+    Event* getEvent() override { return m_viewElement->event(); }
     ViewElement* getViewElement() { return m_viewElement; }
 
 protected:

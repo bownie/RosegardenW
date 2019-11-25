@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -37,18 +37,18 @@ public:
 
     
     //    AudioListItem(QTreeWidget *parent):QTreeWidgetItem(), m_segment(0) {;}
-    AudioListItem( const QStringList &strings, int type = Type ) :QTreeWidgetItem(strings, type), m_segment(0) {  }
+    AudioListItem( const QStringList &strings, int type = Type ) :QTreeWidgetItem(strings, type), m_segment(nullptr) {  }
     
     // without m_id
-    AudioListItem( QTreeWidget *parent, const QStringList &strings, int type=Type ) :QTreeWidgetItem(parent, strings, type), m_segment(0) {  }
+    AudioListItem( QTreeWidget *parent, const QStringList &strings, int type=Type ) :QTreeWidgetItem(parent, strings, type), m_segment(nullptr) {  }
     
-    AudioListItem( AudioListItem *parent, const QStringList &strings, int type=Type ) :QTreeWidgetItem(parent, strings, type), m_segment(0) {  }
+    AudioListItem( AudioListItem *parent, const QStringList &strings, int type=Type ) :QTreeWidgetItem(parent, strings, type), m_segment(nullptr) {  }
     
     
     // with m_id
-    AudioListItem( QTreeWidget *parent, const QStringList &strings, AudioFileId id, int type=Type ) :QTreeWidgetItem(parent, strings, type ), m_id(id), m_segment(0) {;}
+    AudioListItem( QTreeWidget *parent, const QStringList &strings, AudioFileId id, int type=Type ) :QTreeWidgetItem(parent, strings, type ), m_id(id), m_segment(nullptr) {;}
     
-    AudioListItem( AudioListItem *parent, const QStringList &strings, AudioFileId id, int type=Type ) :QTreeWidgetItem(parent, strings, type ), m_id(id), m_segment(0) {;}
+    AudioListItem( AudioListItem *parent, const QStringList &strings, AudioFileId id, int type=Type ) :QTreeWidgetItem(parent, strings, type ), m_id(id), m_segment(nullptr) {;}
     
     
     

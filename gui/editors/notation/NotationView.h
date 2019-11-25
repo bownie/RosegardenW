@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -33,11 +33,12 @@
 #include <vector>
 
 class QWidget;
-class Event;
+class TestNotationViewSelection;
 
 namespace Rosegarden
 {
 
+class Event;
 class RosegardenDocument;
 class NotationWidget;
 class NotationElement;
@@ -48,7 +49,7 @@ class ControlRulerWidget;
 class ControlParameter;
 class TriggerSegmentRec;
  
-class NotationView : public EditViewBase,
+class ROSEGARDENPRIVATE_EXPORT NotationView : public EditViewBase,
                         public SelectionManager
 {
     Q_OBJECT
@@ -58,25 +59,25 @@ public:
     typedef void (NotationView::*opOnEvent) (Event* e, Segment *containing);
     NotationView(RosegardenDocument *doc,
                     std::vector<Segment *> segments,
-                    QWidget *parent = 0);
+                    QWidget *parent = nullptr);
 
-    virtual ~NotationView();
+    ~NotationView() override;
 
-    virtual Segment *getCurrentSegment();
-    virtual EventSelection *getSelection() const;
-    virtual void setSelection(EventSelection* s, bool preview = false);
+    Segment *getCurrentSegment() override;
+    EventSelection *getSelection() const override;
+    void setSelection(EventSelection* s, bool preview = false) override;
 
     virtual void initLayoutToolbar();
     void initRulersToolbar();
-    virtual void initStatusBar();
-    virtual timeT getInsertionTime() const;
+    void initStatusBar() override;
+    timeT getInsertionTime() const;
     
     bool hasSegment(Segment * seg) const;
 
     /** This turns out to be cruft that is rather annoying to eliminate.  We
      * don't use this for anything, and provide an empty implementation.
      */
-    virtual void updateViewCaption() { }
+    void updateViewCaption() override { }
 
     // Adopt a segment that doesn't live in Composition.
     void adoptSegment(Segment *s);
@@ -95,13 +96,9 @@ signals:
     void panic();
     void editTriggerSegment(int);
     void stepByStepTargetRequested(QObject *);
-    void changeTempo(timeT,  // tempo change time
-                     tempoT,  // tempo value
-                     tempoT,  // target value
-                     TempoDialog::TempoDialogAction); // tempo action
 
 protected:
-    virtual void readOptions();
+    void readOptions() override;
 
 protected slots:
     /// Some change occurs and the whole scene have to be redrawn.
@@ -119,9 +116,9 @@ protected slots:
     /// Preview with LilyPond (via Okular or the like)
     void slotPreviewLilyPond();
 
-    void slotEditCut();
-    void slotEditCopy();
-    void slotEditPaste();
+    void slotEditCut() override;
+    void slotEditCopy() override;
+    void slotEditPaste() override;
     void slotEditDelete();
     void slotEditCutAndClose();
     void slotEditGeneralPaste();
@@ -152,7 +149,7 @@ protected slots:
     void slotPlaceControllers();
 
     void slotSetSelectTool();
-    void slotSetSelectNoTiesTool(void);
+    void slotSetSelectNoTiesTool();
 
     void slotSetEraseTool();
     
@@ -323,10 +320,10 @@ protected slots:
      */
     void slotSymbolAction();
 
-    void slotMoveEventsUpStaffInteractive(void);
-    void slotMoveEventsDownStaffInteractive(void);
-    void slotMoveEventsUpStaff(void);
-    void slotMoveEventsDownStaff(void);
+    void slotMoveEventsUpStaffInteractive();
+    void slotMoveEventsDownStaffInteractive();
+    void slotMoveEventsUpStaff();
+    void slotMoveEventsDownStaff();
 
     /**
      * Called when the mouse cursor moves over a different height on
@@ -343,6 +340,8 @@ protected slots:
      * @see NotationCanvasView#hoveredOverAbsoluteTimeChange()
      */
     void slotHoveredOverAbsoluteTimeChanged(unsigned int);
+
+    void slotShowContextHelp(const QString &);
 
     /** The old font size combo handling code was convoluted and unhappy in this
      * new home.  This is a new implementation that takes advantage of the fact
@@ -375,13 +374,14 @@ protected slots:
     void slotCycleSlashes();
 
     void slotAddLayer();
+    void slotMagicLayer();
 
-    virtual void slotConfigure();
+    void slotConfigure() override;
 
     // Open insert pitch bends sequence dialog
-    void slotExpressionSequence();
-    void slotPitchBendSequence();
-    void slotControllerSequence();
+    void slotExpressionSequence();  // Controllers > Insert Expression Controller Sequence...
+    void slotPitchBendSequence();   // Controllers > Insert Pitch Bend Sequence...
+    void slotControllerSequence();  // Controllers > Insert Controller Sequence...
 
     // Update the "Show staff headers" check box in the menu
     void slotCheckShowHeadersMenu(bool checked);
@@ -391,6 +391,7 @@ protected slots:
     void slotInterpretActivate();
 
 private:
+    friend class ::TestNotationViewSelection;
     /**
      * export a LilyPond file (used by slotPrintLilyPond and
      * slotPreviewLilyPond)
@@ -412,7 +413,7 @@ private:
      * If \a force point to a bool, then the bool's value
      * is used to show/hide the toolbar.
      */
-    void toggleNamedToolBar(const QString& toolBarName, bool* force = 0);
+    void toggleNamedToolBar(const QString& toolBarName, bool* force = nullptr);
 
     /**
      * Return the device of the current segment, if any
@@ -461,7 +462,7 @@ private:
      * delete, but I won't try to work that one out at the moment.  I'll just
      * implement closeEvent() and whistle right on past that other thing.
      */
-    void closeEvent(QCloseEvent *event);
+    void closeEvent(QCloseEvent *event) override;
     void setupActions();
     bool isInChordMode();
     bool isInTripletMode();
@@ -471,10 +472,10 @@ private:
     void setCurrentNotePixmap(QPixmap);
     void setCurrentNotePixmapFrom(QAction *);
 
-    void conformRulerSelectionState(void);
+    void conformRulerSelectionState();
     void insertControllerSequence(const ControlParameter &cp);
     bool isShowable(Event *e);
-    void setWidgetSegments(void);
+    void setWidgetSegments();
     void EditOrnamentInline(Event *trigger, Segment *containing);
     void ShowOrnamentExpansion(Event *trigger, Segment *containing);
     SegmentVector::iterator findAdopted(Segment *s);
@@ -488,6 +489,8 @@ protected:
     NotationWidget *m_notationWidget;
     
 private:
+    void extendSelectionHelper(bool forward, EventSelection *es, const std::vector<Event *> &eventVec, bool select);
+
     CommandRegistry *m_commandRegistry;
     DurationMonobarModeType m_durationMode;  // Stores morph state.
     QAction *m_durationPressed;  //Store the last duration button pressed.
@@ -519,7 +522,6 @@ private:
     QComboBox       *m_spacingCombo;
     QString          m_fontName;
     int              m_fontSize;
-    int              m_spacing;
 
     bool m_Thorn;
 
@@ -532,12 +534,6 @@ private:
     // These Segments are not in Composition, they are dummies for
     // viewing a triggered segment's expansion.
     SegmentVector      m_adoptedSegments;    // I own these
-
-    /**
-     * Set the <<< << >> >>> buttons in the transport toolbar to auto repeat
-     */
-    void setRewFFwdToAutoRepeat();
-
 };
 
 }

@@ -2,7 +2,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -19,7 +19,14 @@
 namespace Rosegarden 
 {
 
-std::string appendLabel(const std::string &, const std::string &);
+/// Append suffix to label, but only if the config says to.
+/*
+ * This is used to append a suffix (e.g. "(recorded)") when a Segment is
+ * transformed in some way.
+ *
+ * ??? Use QString instead of std::string.
+ */
+std::string appendLabel(const std::string &label, const std::string &suffix);
 
 }
 #endif

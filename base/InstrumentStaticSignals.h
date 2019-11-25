@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -24,50 +24,67 @@ namespace Rosegarden
 
 class Instrument;
 
-/// Signals for all Instrument instances.
+/// Signals related to Instrument.
 /**
- * Allows observers to subscribe for signals from all Instrument
- * objects.
+ * This class was created to allow for a single global signal
+ * for control change notifications across all Instruments.
  *
- * Previously, static signals for Instrument were kept in
- * RosegardenMainWindow.  This class moves them closer to Instrument.
+ * As a side-effect, this also removes a signal from Instrument
+ * which means Instrument has one less reason to inherit from QObject.
+ * Deriving from QObject seems wrong for data objects like Instrument.
+ * It prevents them from being copied.
  *
- * See Instrument::getStaticSignals().
- *
- * It would be nice if Qt offered proper static signals so that
- * this class wasn't necessary.  An alternative non-static design
- * would be to have observers connect directly to the Instrument
- * objects.  Studio would need to let the observers know when
- * new Instruments were created.
  */
 class InstrumentStaticSignals : public QObject
 {
     Q_OBJECT
 
 signals:
-    /// An Instrument object has changed.
+    /// Fine-grain, high-frequency notification mechanism.
     /**
-     * When connecting, use Instrument::getStaticSignals() to get
-     * the object instance.  Search the codebase on
-     * "Instrument::getStaticSignals()" for connect() examples.
+     * To emit:
      *
-     * Controllers can cause a very high rate of update notification when
-     * the user makes rapid changes using a knob or slider.
-     * Handlers of this signal should be prepared to deal with this.
-     * They should check for changes relevant to them, and bail if there
-     * are none.  As of this writing, only the MIPP has been rewritten
-     * to deal with this properly.  All other handlers should be reviewed
-     * and modified as needed.
+     *   Instrument::emitControlChange(instrument, cc);
      *
-     * Formerly RosegardenMainWindow::instrumentParametersChanged().
+     * To connect:
+     *
+     *   connect(Instrument::getStaticSignals().data(),
+     *               SIGNAL(controlChange(Instrument *, int)),
+     *           SLOT(slotControlChange(Instrument *, int)));
+     *
+     * Emit this if you change the value for a control change for
+     * an Instrument.  This will trigger an update of relevant portions
+     * of the UI (sliders and knobs) to reflect the new values.  This
+     * will also trigger RosegardenSequencer to send out appropriate
+     * control change messages via MIDI or update the level and pan
+     * settings for audio instruments.
+     *
+     * Handlers should update only that part of the
+     * UI that displays this specific control change value.
+     *
+     * This is used for control change notifications which can happen
+     * very quickly as the user moves volume sliders, pan knobs, and
+     * other control change knobs.
+     *
+     * By separating these out from the other more general update
+     * notifications (e.g. RD::documentModified()), we can avoid updating
+     * too much of the UI when these come in.  This should improve
+     * performance.
+     *
+     * Note that this only applies to the initial control change
+     * on a Track.  This has nothing to do with any control changes
+     * that may appear on the rulers as the Composition progresses.
      */
-    void changed(Instrument *);
+    void controlChange(Instrument *instrument, int cc);
 
 private:
-    // Since Qt4 makes signals "protected" we do this to give Instrument
-    // the ability to directly emit the signals.  When we upgrade to
-    // Qt5, we can remove this.
+    // Singleton.  Use Instrument::getStaticSignals() to get the instance.
+    InstrumentStaticSignals()  { }
     friend Instrument;
+
+    /// Private wrapper called by Instrument::emitControlChange().
+    void emitControlChange(Instrument *instrument, int cc)
+        { emit controlChange(instrument, cc); }
 };
 
 

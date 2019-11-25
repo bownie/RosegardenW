@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,9 +19,12 @@
 #include "KeySignatureDialog.h"
 
 #include "misc/Strings.h"
+#include "misc/Debug.h"
 #include "base/NotationTypes.h"
 #include "gui/editors/notation/NotePixmapFactory.h"
 #include "gui/widgets/BigArrowButton.h"
+#include "gui/general/ThornStyle.h"
+
 #include "misc/ConfigGroups.h"
 
 #include <QComboBox>
@@ -38,7 +41,6 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QCheckBox>
-#include <QSettings>
 #include <QUrl>
 #include <QDesktopServices>
 
@@ -60,9 +62,9 @@ KeySignatureDialog::KeySignatureDialog(QWidget *parent,
         m_clef(clef),
         m_valid(true),
         m_ignoreComboChanges(false),
-        m_explanatoryLabel(0),
-        m_applyToAllButton(0),
-        m_noPercussionCheckBox(0)
+        m_explanatoryLabel(nullptr),
+        m_applyToAllButton(nullptr),
+        m_noPercussionCheckBox(nullptr)
 {
     //setHelp("nv-signatures-key");
 
@@ -76,8 +78,8 @@ KeySignatureDialog::KeySignatureDialog(QWidget *parent,
     metagrid->addWidget(vbox, 0, 0);
 
 
-    QWidget *keyBox = 0;
-    QWidget *nameBox = 0;
+    QWidget *keyBox = nullptr;
+    QWidget *nameBox = nullptr;
 
     QGroupBox *keyFrame = new QGroupBox( tr("Key signature"), vbox );
     QVBoxLayout *keyFrameLayout = new QVBoxLayout;
@@ -103,7 +105,7 @@ KeySignatureDialog::KeySignatureDialog(QWidget *parent,
     QHBoxLayout *nameBoxLayout = new QHBoxLayout;
     keyFrameLayout->addWidget(nameBox);
 
-    QLabel *explanatoryLabel = 0;
+    QLabel *explanatoryLabel = nullptr;
     if (!explanatoryText.isEmpty()) {
         explanatoryLabel = new QLabel(explanatoryText, keyFrame);
         keyFrameLayout->addWidget(explanatoryLabel);
@@ -117,18 +119,6 @@ KeySignatureDialog::KeySignatureDialog(QWidget *parent,
 
     m_keyPixmap = new QLabel;
 
-    QSettings settings;
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    m_Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
-
-    // if no stylesheet, force a white background anyway, because the foreground
-    // will be dark, and this used to be bordering on illegible in Classic
-    QString localStyle = (m_Thorn ? 
-            QString("background: #404040; color: white;")
-                                :
-            QString("background: white; color: black;"));
-    m_keyPixmap->setStyleSheet(localStyle);
     keyBoxLayout->addWidget(m_keyPixmap);
     m_keyPixmap->setAlignment( Qt::AlignVCenter | Qt::AlignHCenter);
 
@@ -184,7 +174,7 @@ KeySignatureDialog::KeySignatureDialog(QWidget *parent,
         buttonFrameLayout->addWidget(m_noPercussionCheckBox);
         m_noPercussionCheckBox->setChecked(true);
     } else {
-        m_applyToAllButton = 0;
+        m_applyToAllButton = nullptr;
         buttonFrame->hide();
     }
 
@@ -205,16 +195,16 @@ KeySignatureDialog::KeySignatureDialog(QWidget *parent,
         conversionFrameLayout->addWidget(m_transposeButton);
         m_noConversionButton->setChecked(true);
     } else {
-        m_noConversionButton = 0;
-        m_convertButton = 0;
-        m_transposeButton = 0;
+        m_noConversionButton = nullptr;
+        m_convertButton = nullptr;
+        m_transposeButton = nullptr;
         conversionFrame->hide();
     }
 
     conversionFrame->setLayout(conversionFrameLayout);
 
-    QObject::connect(keyUp, SIGNAL(clicked()), this, SLOT(slotKeyUp()));
-    QObject::connect(keyDown, SIGNAL(clicked()), this, SLOT(slotKeyDown()));
+    QObject::connect(keyUp, &QAbstractButton::clicked, this, &KeySignatureDialog::slotKeyUp);
+    QObject::connect(keyDown, &QAbstractButton::clicked, this, &KeySignatureDialog::slotKeyDown);
     QObject::connect(m_keyCombo, SIGNAL(activated(int)),
                      this, SLOT(slotKeyNameChanged(int)));
     QObject::connect(m_majorMinorCombo, SIGNAL(activated(const QString &)),
@@ -222,9 +212,9 @@ KeySignatureDialog::KeySignatureDialog(QWidget *parent,
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Help);
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &KeySignatureDialog::slotHelpRequested);
 }
 
 KeySignatureDialog::ConversionType
@@ -279,8 +269,8 @@ KeySignatureDialog::slotKeyUp()
     try {
         m_key = Rosegarden::Key(ac, sharp, m_key.isMinor());
         setValid(true);
-    } catch (Rosegarden::Key::BadKeySpec s) {
-        std::cerr << s.getMessage() << std::endl;
+    } catch (const Rosegarden::Key::BadKeySpec &s) {
+        RG_WARNING << s.getMessage();
         setValid(false);
     }
 
@@ -308,8 +298,8 @@ KeySignatureDialog::slotKeyDown()
     try {
         m_key = Rosegarden::Key(ac, sharp, m_key.isMinor());
         setValid(true);
-    } catch (Rosegarden::Key::BadKeySpec s) {
-        std::cerr << s.getMessage() << std::endl;
+    } catch (const Rosegarden::Key::BadKeySpec &s) {
+        RG_WARNING << s.getMessage();
         setValid(false);
     }
 
@@ -388,8 +378,8 @@ KeySignatureDialog::redrawKeyPixmap()
 {
     if (m_valid) {
         NotePixmapFactory::ColourType ct =
-            m_Thorn ? NotePixmapFactory::PlainColourLight
-                    : NotePixmapFactory::PlainColour;
+                ThornStyle::isEnabled() ? NotePixmapFactory::PlainColourLight
+                                        : NotePixmapFactory::PlainColour;
         m_notePixmapFactory->setSelected(false);
         m_notePixmapFactory->setShaded(false);
         QPixmap pmap = m_notePixmapFactory->makeKeyDisplayPixmap(m_key, m_clef, ct);
@@ -420,8 +410,8 @@ KeySignatureDialog::slotKeyNameChanged(int index)
             name = name.substr(0, space);
         m_keyCombo->setEditText(strtoqstr(name));
 
-    } catch (Rosegarden::Key::BadKeyName s) {
-        std::cerr << s.getMessage() << std::endl;
+    } catch (const Rosegarden::Key::BadKeyName &s) {
+        RG_WARNING << s.getMessage();
         setValid(false);
     }
 
@@ -440,8 +430,8 @@ KeySignatureDialog::slotMajorMinorChanged(const QString &s)
     try {
         m_key = Rosegarden::Key(name);
         setValid(true);
-    } catch (Rosegarden::Key::BadKeyName s) {
-        std::cerr << s.getMessage() << std::endl;
+    } catch (const Rosegarden::Key::BadKeyName &s) {
+        RG_WARNING << s.getMessage();
         setValid(false);
     }
 
@@ -481,4 +471,3 @@ KeySignatureDialog::slotHelpRequested()
     QDesktopServices::openUrl(QUrl(helpURL));
 }
 }
-#include "KeySignatureDialog.moc"

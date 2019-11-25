@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,7 +35,6 @@
 #include "document/Command.h"
 
 #include <QSettings>
-#include <QDockWidget>
 #include <QAction>
 #include <QShortcut>
 #include <QDialog>
@@ -52,7 +51,6 @@
 #include <QApplication>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
-#include <QToolBar>
 
 
 namespace Rosegarden
@@ -69,37 +67,19 @@ ListEditView::ListEditView(RosegardenDocument *doc,
     EditViewBase(doc, segments, parent),
     m_viewNumber( -1),
     m_viewLocalPropertyPrefix(makeViewLocalPropertyPrefix()),
-    m_mainDockWidget(0),
-    m_centralFrame(0),
-    m_grid(0),
+    m_centralFrame(nullptr),
+    m_grid(nullptr),
     m_mainCol(cols - 1),
     m_compositionRefreshStatusId(doc->getComposition().getNewRefreshStatusId()),
     m_needUpdate(false),
-    m_pendingPaintEvent(0),
+    m_pendingPaintEvent(nullptr),
     m_havePendingPaintEvent(false),
     m_inCtor(true),
     m_timeSigNotifier(new EditViewTimeSigNotifier(doc))
 {
-    QPixmap dummyPixmap; // any icon will do
-	
-	
-	/*
-	m_mainDockWidget = new QDockWidget( "Rosegarden EditView DockWidget", this );
-	m_mainDockWidget->setAllowedAreas( Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea );
-	m_mainDockWidget->setFeatures( QDockWidget::AllDockWidgetFeatures );
-	
-	addDockWidget( Qt::LeftDockWidgetArea, m_mainDockWidget, Qt::Horizontal );
-	*/
-	m_mainDockWidget = 0;
-	
-	setStatusBar( new QStatusBar(this) );
-/*	
-	m_toolBar = new QToolBar( "Tool Bar", this );
-	addToolBar( Qt::TopToolBarArea, m_toolBar );
-	m_toolBar->setMinimumHeight( 16 );
-	m_toolBar->setMinimumWidth( 40 );
-*/	
-    m_centralFrame = new QFrame(this);		//m_mainDockWidget);
+    setStatusBar( new QStatusBar(this) );
+
+    m_centralFrame = new QFrame(this);
     m_centralFrame->setObjectName("centralframe");
 	m_centralFrame->setMinimumSize( 500, 300 );
 	m_centralFrame->setMaximumSize( 2200, 1400 );
@@ -117,8 +97,6 @@ ListEditView::ListEditView(RosegardenDocument *doc,
 	//this->layout()->addWidget( m_centralFrame );
 	setCentralWidget( m_centralFrame );
 	
-//    m_mainDockWidget->setWidget(m_centralFrame);
-
     initSegmentRefreshStatusIds();
 }
 
@@ -164,9 +142,13 @@ ListEditView::paintEvent(QPaintEvent* e)
     // responsive.  If that happens, we remember the events that came
     // in in the middle of one paintEvent call and process their union
     // again at the end of the call.
+
+    // Comment from David Faure: do NOT, I repeat, do NOT, relayout from within paintEvent.
+    // Do it before, i.e. all of this code here does not belong to a paintEvent.
+
     /*
         if (m_inPaintEvent) {
-    	NOTATION_DEBUG << "ListEditView::paintEvent: in paint event already" << endl;
+    	NOTATION_DEBUG << "ListEditView::paintEvent: in paint event already";
     	if (e) {
     	    if (m_havePendingPaintEvent) {
     		if (m_pendingPaintEvent) {
@@ -185,7 +167,7 @@ ListEditView::paintEvent(QPaintEvent* e)
     */ 
     //!!!    m_inPaintEvent = true;
 
-    RG_DEBUG << "ListEditView::paintEvent" << endl;
+    RG_DEBUG << "ListEditView::paintEvent";
 
     if (isCompositionModified()) {
 
@@ -218,7 +200,7 @@ ListEditView::paintEvent(QPaintEvent* e)
 
     timeT updateStart = 0, updateEnd = 0;
     int segmentsToUpdate = 0;
-    Segment *singleSegment = 0;
+    Segment *singleSegment = nullptr;
 
     for (unsigned int i = 0; i < m_segments.size(); ++i) {
 
@@ -230,14 +212,14 @@ ListEditView::paintEvent(QPaintEvent* e)
         if (refreshStatus.needsRefresh() && isCompositionModified()) {
 
             // if composition is also modified, relayout everything
-            refreshSegment(0);
+            refreshSegment(nullptr);
             segmentsToUpdate = 0;
             break;
 
         } else if (m_timeSigNotifier->hasTimeSigChanged()) {
 
             // not exactly optimal!
-            refreshSegment(0);
+            refreshSegment(nullptr);
             segmentsToUpdate = 0;
             m_timeSigNotifier->reset();
             break;
@@ -262,7 +244,7 @@ ListEditView::paintEvent(QPaintEvent* e)
     }
 
     if (segmentsToUpdate > 1) {
-        refreshSegment(0, updateStart, updateEnd);
+        refreshSegment(nullptr, updateStart, updateEnd);
     } else if (segmentsToUpdate > 0) {
         refreshSegment(singleSegment, updateStart, updateEnd);
     }
@@ -319,7 +301,7 @@ void ListEditView::toggleWidget(QWidget* widget,
     QAction *toggleAction = findAction(toggleActionName);
 
     if (!toggleAction) {
-        RG_DEBUG << "!!! Unknown toggle action : " << toggleActionName << endl;
+        RG_DEBUG << "!!! Unknown toggle action : " << toggleActionName;
         return ;
     }
 
@@ -327,4 +309,3 @@ void ListEditView::toggleWidget(QWidget* widget,
 }
 
 }
-#include "ListEditView.moc"

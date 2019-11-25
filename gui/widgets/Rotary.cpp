@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[Rotary]"
 
 #include "Rotary.h"
 
@@ -23,6 +24,7 @@
 #include "base/Profiler.h"
 #include "gui/dialogs/FloatEdit.h"
 #include "gui/general/GUIPalette.h"
+#include "gui/general/ThornStyle.h"
 #include "TextFloat.h"
 
 #include <QApplication>
@@ -41,10 +43,9 @@
 #include <QWidget>
 #include <QMouseEvent>
 #include <QColormap>
-#include <QSettings>
 
 #include <cmath>
-
+#include <map>
 
 namespace Rosegarden
 {
@@ -53,7 +54,35 @@ namespace Rosegarden
 #define ROTARY_MAX (1.75 * M_PI)
 #define ROTARY_RANGE (ROTARY_MAX - ROTARY_MIN)
 
-Rotary::PixmapCache Rotary::m_pixmaps;
+struct CacheIndex {
+
+    CacheIndex(int s, int c, int a, int n, int ct) :
+        size(s), colour(c), angle(a), numTicks(n), centred(ct) { }
+
+    bool operator<(const CacheIndex &i) const {
+        // woo!
+        if (size < i.size) return true;
+        else if (size > i.size) return false;
+        else if (colour < i.colour) return true;
+        else if (colour > i.colour) return false;
+        else if (angle < i.angle) return true;
+        else if (angle > i.angle) return false;
+        else if (numTicks < i.numTicks) return true;
+        else if (numTicks > i.numTicks) return false;
+        else if (centred == i.centred) return false;
+        else if (!centred) return true;
+        return false;
+    }
+
+    int          size;
+    unsigned int colour;
+    int          angle;
+    int          numTicks;
+    bool         centred;
+};
+
+typedef std::map<CacheIndex, QPixmap> PixmapCache;
+Q_GLOBAL_STATIC(PixmapCache, rotaryPixmapCache)
 
 
 Rotary::Rotary(QWidget *parent,
@@ -91,13 +120,6 @@ Rotary::Rotary(QWidget *parent,
 
     this->setToolTip(tr("<qt><p>Click and drag up and down or left and right to modify.</p><p>Double click to edit value directly.</p></qt>"));
     setFixedSize(size, size);
-
-    emit valueChanged(m_snapPosition);
-
-    QSettings settings;
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    m_Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
 }
 
 Rotary::~Rotary()
@@ -202,7 +224,7 @@ Rotary::paintEvent(QPaintEvent *)
                        (double(m_maximum) - double(m_minimum))));
     int degrees = int(angle * 180.0 / M_PI);
 
-    //    RG_DEBUG << "degrees: " << degrees << ", size " << m_size << ", pixel " << m_knobColour.pixel() << endl;
+    //    RG_DEBUG << "degrees: " << degrees << ", size " << m_size << ", pixel " << m_knobColour.pixel();
 
     int numTicks = 0;
     switch (m_tickMode) {
@@ -230,9 +252,11 @@ Rotary::paintEvent(QPaintEvent *)
 
     CacheIndex index(m_size, pixel, degrees, numTicks, m_centred);
 
-    if (m_pixmaps.find(index) != m_pixmaps.end()) {
+    PixmapCache *pixmapCache = rotaryPixmapCache();
+
+    if (pixmapCache->find(index) != pixmapCache->end()) {
         paint.begin(this);
-        paint.drawPixmap(0, 0, m_pixmaps[index]);
+        paint.drawPixmap(0, 0, (*pixmapCache)[index]);
         paint.end();
         return ;
     }
@@ -240,7 +264,7 @@ Rotary::paintEvent(QPaintEvent *)
     int scale = 4;
     int width = m_size * scale;
     QPixmap map(width, width);
-    QColor bg = m_Thorn ? QColor::fromRgb(0x40, 0x40, 0x40) : palette().window().color();
+    QColor bg = ThornStyle::isEnabled() ? QColor::fromRgb(0x40, 0x40, 0x40) : palette().window().color();
     map.fill(bg);
     paint.begin(&map);
 
@@ -363,9 +387,9 @@ Rotary::paintEvent(QPaintEvent *)
     paint.end();
 
     QImage i = map.toImage().scaled(m_size, m_size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-    m_pixmaps[index] = QPixmap::fromImage(i);
+    (*pixmapCache)[index] = QPixmap::fromImage(i);
     paint.begin(this);
-    paint.drawPixmap(0, 0, m_pixmaps[index]);
+    paint.drawPixmap(0, 0, (*pixmapCache)[index]);
     paint.end();
 }
 
@@ -597,9 +621,12 @@ Rotary::mouseMoveEvent(QMouseEvent *e)
 void
 Rotary::wheelEvent(QWheelEvent *e)
 {
-    if (e->delta() > 0)
+    // We'll handle this.  Don't pass to parent.
+    e->accept();
+
+    if (e->angleDelta().y() > 0)
         m_position -= m_pageStep;
-    else
+    else if (e->angleDelta().y() < 0)
         m_position += m_pageStep;
 
     if (m_position > m_maximum)
@@ -649,4 +676,3 @@ Rotary::setPosition(float position)
 }
 
 }
-#include "Rotary.moc"

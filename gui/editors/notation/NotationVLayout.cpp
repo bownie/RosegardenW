@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,7 +28,6 @@
 #include "base/NotationQuantizer.h"
 #include "base/Profiler.h"
 #include "base/ViewSegment.h"
-#include "gui/general/ProgressReporter.h"
 #include "gui/editors/guitar/Chord.h"
 #include "misc/ConfigGroups.h"
 #include "NotationChord.h"
@@ -42,6 +41,7 @@
 #include <QString>
 #include <QWidget>
 
+#include <iostream>
 
 namespace Rosegarden
 {
@@ -51,8 +51,7 @@ using namespace BaseProperties;
 
 NotationVLayout::NotationVLayout(Composition *c, NotePixmapFactory *npf,
                                  const NotationProperties &properties,
-                                 QObject* parent) :
-        ProgressReporter(parent),
+                                 QObject* /*parent*/) :
         m_composition(c),
         m_npf(npf),
         m_notationQuantizer(c->getNotationQuantizer()),
@@ -132,8 +131,8 @@ NotationVLayout::scanViewSegment(ViewSegment &staffBase, timeT, timeT, bool)
                 el->setLayoutY(staff.getLayoutYForHeight(4) + displacedY);
             }
 
-            // Fix for bug 1090767 Rests outside staves have wrong glyphs
-            // by William <rosegarden4c AT orthoset.com>
+            // Fix for bug #674 (was 1090767) Rests outside staves have wrong
+            // glyphs by William <rosegarden4c AT orthoset.com>
             // We use a "rest-outside-stave" glyph for any minim/semibreve/breve
             // rest that has been displaced vertically e.g. by fine-positioning
             // outside the stave. For small vertical displacements that keep
@@ -232,7 +231,7 @@ NotationVLayout::scanViewSegment(ViewSegment &staffBase, timeT, timeT, bool)
                 long height = 0;
                 if (!(*chord[j])->event()->get<Int>
                     (m_properties.HEIGHT_ON_STAFF, height)) {
-                    std::cerr << QString("ERROR: Event in chord at %1 has no HEIGHT_ON_STAFF property!\nThis is a bug (the program would previously have crashed by now)").arg((*chord[j])->getViewAbsoluteTime()) << std::endl;
+                    RG_WARNING << QString("ERROR: Event in chord at %1 has no HEIGHT_ON_STAFF property!\nThis is a bug (the program would previously have crashed by now)").arg((*chord[j])->getViewAbsoluteTime());
                     (*chord[j])->event()->dump(std::cerr);
                 }
                 h.push_back(height);

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -73,7 +73,7 @@ CountdownDialog::CountdownDialog(QWidget *parent, int seconds):
     layout->addWidget(m_stopButton, 0, Qt::AlignRight);
     setLayout(layout);
 
-    connect (m_stopButton, SIGNAL(released()), this, SIGNAL(stopped()));
+    connect (m_stopButton, &QAbstractButton::released, this, &CountdownDialog::stopped);
 
     // Set the total time to show the bar in initial position
     //
@@ -132,7 +132,7 @@ CountdownDialog::setElapsedTime(int elapsedSeconds)
 	// zero error, though the trace just listed it as an "Arithmetic
 	// exception."
         if (m_totalTime == 0) {
-	    RG_DEBUG << "CountdownDialog::setElapsedTime: FAILSAFE CODE FIRED, see bug #1838190 for details" << endl;
+	    RG_DEBUG << "CountdownDialog::setElapsedTime: FAILSAFE CODE FIRED, see bug #1838190 for details";
 	    m_totalTime = 1;
 	}
         int barPosition = m_progressBarWidth -
@@ -158,4 +158,3 @@ CountdownDialog::setPastEndMode()
 }
 
 }
-#include "CountdownDialog.moc"

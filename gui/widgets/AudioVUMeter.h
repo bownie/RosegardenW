@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -34,7 +34,7 @@ namespace Rosegarden
 class AudioVUMeter : public QWidget
 {
 public:
-    AudioVUMeter(QWidget *parent = 0,
+    AudioVUMeter(QWidget *parent = nullptr,
                  VUMeter::VUMeterType type = VUMeter::AudioPeakHoldShort,
                  bool stereo = true,
                  bool hasRecord = false,
@@ -55,7 +55,7 @@ public:
         m_meter->setRecordLevel(dBleft, dBright);
     }
 
-    virtual void paintEvent(QPaintEvent*);
+    void paintEvent(QPaintEvent*) override;
 
 protected:
     class AudioVUMeterImpl : public VUMeter
@@ -68,8 +68,8 @@ protected:
                          int width,
                          int height);
     protected:
-        virtual void meterStart() { }
-        virtual void meterStop() { }
+        void meterStart() override { }
+        void meterStop() override { }
     };
         
     AudioVUMeterImpl *m_meter;

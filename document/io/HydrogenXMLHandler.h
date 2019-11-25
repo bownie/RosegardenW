@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -52,19 +52,19 @@ public:
     /** 
       * Overloaded handler functions
       */
-    virtual bool startDocument();
-    virtual bool startElement(const QString& namespaceURI,
+    bool startDocument() override;
+    bool startElement(const QString& namespaceURI,
                               const QString& localName,
                               const QString& qName,
-                              const QXmlAttributes& atts);
+                              const QXmlAttributes& atts) override;
 
-    virtual bool endElement(const QString& namespaceURI,
+    bool endElement(const QString& namespaceURI,
                             const QString& localName,
-                            const QString& qName);
+                            const QString& qName) override;
 
-    virtual bool characters(const QString& ch);
+    bool characters(const QString& ch) override;
 
-    virtual bool endDocument ();
+    bool endDocument () override;
 
 private:
     virtual bool startElement_093(const QString& namespaceURI,

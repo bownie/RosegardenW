@@ -1,10 +1,9 @@
-
 /* -*- c-basic-offset: 4 indent-tabs-mode: nil -*- vi:set ts=8 sts=4 sw=4: */
 
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,12 +14,6 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
-
-/// Though called PitchBendSequenceDialog for historical reasons, this
-/// dialog deals with either pitchbend events or controller events,
-/// according the "m_control" parameter.  It inserts, erases, or
-/// replaces a series of such events in the a given segment.  It now
-/// supplies the functionality for several menu items.
 
 #ifndef RG_PITCHBENDSEQUENCEDIALOG_H
 #define RG_PITCHBENDSEQUENCEDIALOG_H
@@ -41,9 +34,20 @@ class ControlParameter;
 class MacroCommand;
 class Segment;
 
-// @authors: Jani (original author?)
-// Tom Breton (Tehom)
-// Tim Munro
+/// Dialog for inserting a controller sequence.
+/**
+ * Though called PitchBendSequenceDialog for historical reasons, this
+ * dialog deals with either pitchbend events or controller events,
+ * according the "m_control" parameter.  It inserts, erases, or
+ * replaces a series of such events in a given segment.  It now
+ * supplies the functionality for several menu items.
+ *
+ * Used by both the NotationView and the MatrixView.
+ *
+ * @authors Jani (original author?),
+ *          Tom Breton (Tehom),
+ *          Tim Munro
+ */
 class PitchBendSequenceDialog : public QDialog
 {
     Q_OBJECT
@@ -70,13 +74,13 @@ class PitchBendSequenceDialog : public QDialog
       StepSizeByCount,
     };
 
- public:
+public:
     PitchBendSequenceDialog(QWidget *parent, Segment *segment,
-			    const ControlParameter &control,
+                            const ControlParameter &control,
                             timeT startTime, timeT endTime);
 
 public slots:
-    virtual void accept();
+    void accept() override;
     void slotSequencePresetChanged(int);
     void slotHelpRequested();
 
@@ -88,32 +92,32 @@ protected slots:
 protected:
     /** Methods dealing with transforming to or from spinbox values **/
 
-    bool useTrueValues(void) const;
+    bool useTrueValues() const;
     int spinboxToControl(const QDoubleSpinBox *spinbox) const;
     int spinboxToControlDelta(const QDoubleSpinBox *spinbox) const;
-    double getMaxSpinboxValue(void) const;
-    double getMinSpinboxValue(void) const;
-    double getSmallestSpinboxStep(void) const;
+    double getMaxSpinboxValue() const;
+    double getMinSpinboxValue() const;
+    double getSmallestSpinboxStep() const;
     double valueDeltaToPercent(int valueDelta) const;
     int percentToValueDelta(double) const;
-    double getElapsedSeconds(void);
-    int numVibratoCycles(void);
+    double getElapsedSeconds();
+    int numVibratoCycles();
 
     /** Methods dealing with setting and reading radiobutton groups **/
 
-    ReplaceMode getReplaceMode(void);
+    ReplaceMode getReplaceMode();
     void setRampMode(RampMode rampMode);
-    RampMode getRampMode(void);
+    RampMode getRampMode();
     void setStepSizeCalculation(StepSizeCalculation stepSizeCalculation);
-    StepSizeCalculation getStepSizeCalculation(void);
+    StepSizeCalculation getStepSizeCalculation();
 
     /** Methods to help manage which widgets are enabled **/
 
-    void maybeEnableVibratoFields(void);
+    void maybeEnableVibratoFields();
 
     /** Methods dealing with saving/restoring presets **/
 
-    void saveSettings(void);
+    void saveSettings();
     void savePreset(int preset);
     void restorePreset(int preset);
     

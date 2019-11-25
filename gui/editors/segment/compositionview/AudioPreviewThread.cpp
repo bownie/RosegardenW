@@ -28,7 +28,7 @@
 #include <QObject>
 #include <QThread>
 
-#define DEBUG_AUDIO_PREVIEW_THREAD 1
+//#define DEBUG_AUDIO_PREVIEW_THREAD 0
 
 namespace Rosegarden
 {

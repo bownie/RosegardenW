@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,6 +18,7 @@
 
 #include "TextEventDialog.h"
 #include "misc/Strings.h"
+#include "misc/Debug.h"
 #include "misc/ConfigGroups.h"
 #include "base/NotationTypes.h"
 #include "gui/editors/notation/NotePixmapFactory.h"
@@ -72,7 +73,10 @@ TextEventDialog::TextEventDialog(QWidget *parent,
 
     // frame inside group box to contain white background
     QFrame *innerFrame = new QFrame;
-    innerFrame->setStyleSheet("background: white");
+    QPalette palette = innerFrame->palette();
+    palette.setColor(QPalette::Window, Qt::white);
+    innerFrame->setPalette(palette);
+    innerFrame->setAutoFillBackground(true);
     QVBoxLayout *innerFrameLayout = new QVBoxLayout;
     innerFrame->setLayout(innerFrameLayout);
     exampleBoxLayout->addWidget(innerFrame); 
@@ -352,8 +356,8 @@ TextEventDialog::TextEventDialog(QWidget *parent,
     m_prevLyric = settings.value("previous_lyric", "").toString();
     m_prevAnnotation = settings.value("previous_annotation", "").toString();
 
-    QObject::connect(m_text, SIGNAL(textChanged(const QString &)),
-                     this, SLOT(slotTextChanged(const QString &)));
+    QObject::connect(m_text, &QLineEdit::textChanged,
+                     this, &TextEventDialog::slotTextChanged);
     QObject::connect(m_typeCombo, SIGNAL(activated(const QString &)),
                      this, SLOT(slotTypeChanged(const QString &)));
     QObject::connect(m_dynamicShortcutCombo, SIGNAL(activated(const QString &)),
@@ -369,8 +373,8 @@ TextEventDialog::TextEventDialog(QWidget *parent,
     QObject::connect(m_lilyPondDirectiveCombo, SIGNAL(activated(const QString &)),
                      this, SLOT(slotLilyPondDirectiveChanged(const QString &)));
 
-    QObject::connect(m_optionLabel, SIGNAL(currentChanged(int)), this, SLOT(slotUpdateSize(int)));
-    QObject::connect(m_optionWidget, SIGNAL(currentChanged(int)), this, SLOT(slotUpdateSize(int)));
+    QObject::connect(m_optionLabel, &QStackedWidget::currentChanged, this, &TextEventDialog::slotUpdateSize);
+    QObject::connect(m_optionWidget, &QStackedWidget::currentChanged, this, &TextEventDialog::slotUpdateSize);
         
     m_text->setFocus();
     slotTypeChanged(strtoqstr(getTextType()));
@@ -383,12 +387,12 @@ TextEventDialog::TextEventDialog(QWidget *parent,
     m_text->setText(strtoqstr(defaultText.getText()));
     
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Help);
-    vboxLayout->addWidget(buttonBox, 1, 0);
+    vboxLayout->addWidget(buttonBox, 1, nullptr);
     //vboxLayout->setRowStretch(0, 10);
     
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(slotOK()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &TextEventDialog::slotOK);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &TextEventDialog::slotHelpRequested);
 
     settings.endGroup();
 
@@ -624,7 +628,7 @@ TextEventDialog::slotUpdateSize(int i)
 {
     // (i is just the index of the active widget in the QStackedWidget and is
     // only interesting to track to make sure something is changing)
-    std::cerr << "TextEventDialog::slotUpdateSize(" << i << ")" << std::endl;
+    RG_DEBUG << "TextEventDialog::slotUpdateSize(" << i << ")";
     adjustSize();
 }
 
@@ -642,4 +646,3 @@ TextEventDialog::slotHelpRequested()
     QDesktopServices::openUrl(QUrl(helpURL));
 }
 }
-#include "TextEventDialog.moc"

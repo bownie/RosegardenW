@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -25,6 +25,7 @@
 #include "NotationStaff.h"
 #include "NotationElement.h"
 #include "NotationMouseEvent.h"
+#include "gui/widgets/Panned.h"
 #include "document/CommandHistory.h"
 
 #include <QSettings>
@@ -57,6 +58,9 @@ NotationEraser::ready()
 {
     m_widget->setCanvasCursor(Qt::PointingHandCursor);
 //!!!    m_nParentView->setHeightTracking(false);
+
+    // The eraser tool doesn't use the wheel.
+    m_widget->getView()->setWheelZoomPan(true);
 }
 
 void
@@ -90,8 +94,7 @@ NotationEraser::slotSelectSelected()
     invokeInParentView("select");
 }
 
-const QString NotationEraser::ToolName = "notationeraser";
+QString NotationEraser::ToolName() { return "notationeraser"; }
 
 }
 
-#include "NotationEraser.moc"

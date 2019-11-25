@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2005-2011 Chris Cannam.
 
@@ -20,6 +20,7 @@
 
 #include "base/ThingFactory.h"
 
+#include <QFile>
 #include <QString>
 
 namespace Rosegarden {
@@ -58,7 +59,13 @@ public:
     size_t getSampleRate() const { return m_target.getSampleRate(); }
     
     virtual bool putInterleavedFrames(size_t count, float *frames) = 0;
-    
+
+    void remove()
+    {
+        QFile file(m_target.getPath());
+        file.remove();
+    }
+
 protected:
     AudioWriteStream(Target t) : m_target(t) { }
     Target m_target;

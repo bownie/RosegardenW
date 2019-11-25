@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file originally from Sonic Visualiser, copyright 2006 Chris
     Cannam.
@@ -30,8 +30,8 @@ class DirectoryCreationFailed : virtual public std::exception
 {
 public:
     DirectoryCreationFailed(QString directory) throw();
-    virtual ~DirectoryCreationFailed() throw();
-    virtual const char *what() const throw();
+    ~DirectoryCreationFailed() throw() override;
+    const char *what() const throw() override;
     
 protected:
     QString m_directory;

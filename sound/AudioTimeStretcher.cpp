@@ -5,7 +5,7 @@
     An audio file viewer and annotation editor.
     Centre for Digital Music, Queen Mary, University of London.
     This file copyright 2006 Chris Cannam and QMUL.
-
+    
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
@@ -15,18 +15,20 @@
 
 #include "AudioTimeStretcher.h"
 
-#include <iostream>
+#include <QtGlobal>
+
 #include <fstream>
-#include <cassert>
 #include <cstring>
 
-namespace Rosegarden
+namespace Rosegarden 
 {
 
-static double mod(double x, double y) { return x - (y * floor(x / y)); }
+    // (Unused)
+    // static double mod(double x, double y) { return x - (y * floor(x / y)); }
 static float modf(float x, float y) { return x - (y * floorf(x / y)); }
 
-static double princarg(double a) { return mod(a + M_PI, -2 * M_PI) + M_PI; }
+    // (Unused)
+    // static double princarg(double a) { return mod(a + M_PI, -2 * M_PI) + M_PI; }
 static float princargf(float a) { return modf(a + M_PI, -2 * M_PI) + M_PI; }
 
 
@@ -61,24 +63,23 @@ AudioTimeStretcher::~AudioTimeStretcher()
     std::cerr << "AudioTimeStretcher::~AudioTimeStretcher: actual ratio = " << (m_totalCount > 0 ? (float (m_n2total) / float(m_totalCount * m_n1)) : 1.f) << ", ideal = " << m_ratio << ", nominal = " << getRatio() << ")" << std::endl;
 
     cleanup();
-
+    
     pthread_mutex_destroy(&m_mutex);
 }
 
 void
 AudioTimeStretcher::initialise()
 {
-    /*
     std::cerr << "AudioTimeStretcher::initialise" << std::endl;
 
     calculateParameters();
-
+        
     m_analysisWindow = new SampleWindow<float>(SampleWindow<float>::Hanning, m_wlen);
     m_synthesisWindow = new SampleWindow<float>(SampleWindow<float>::Hanning, m_wlen);
 
     m_prevPhase = new float *[m_channels];
     m_prevAdjustedPhase = new float *[m_channels];
-
+/*
     m_prevTransientMag = (float *)fftwf_malloc(sizeof(float) * (m_wlen / 2 + 1));
     m_prevTransientScore = 0;
     m_prevTransient = false;
@@ -95,7 +96,7 @@ AudioTimeStretcher::initialise()
     m_mashbuf = new float *[m_channels];
 
     m_modulationbuf = (float *)fftwf_malloc(sizeof(float) * m_wlen);
-
+        
     for (size_t c = 0; c < m_channels; ++c) {
 
         m_prevPhase[c] = (float *)fftwf_malloc(sizeof(float) * (m_wlen / 2 + 1));
@@ -104,7 +105,7 @@ AudioTimeStretcher::initialise()
         m_time[c] = (float *)fftwf_malloc(sizeof(float) * m_wlen);
         m_freq[c] = (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) *
                                                   (m_wlen / 2 + 1));
-
+        
         m_plan[c] = fftwf_plan_dft_r2c_1d(m_wlen, m_time[c], m_freq[c], FFTW_ESTIMATE);
         m_iplan[c] = fftwf_plan_dft_c2r_1d(m_wlen, m_freq[c], m_time[c], FFTW_ESTIMATE);
 
@@ -115,9 +116,9 @@ AudioTimeStretcher::initialise()
 
         std::cerr << "making inbuf size " << m_inbuf[c]->getSize() << " (outbuf size is " << m_outbuf[c]->getSize() << ", ratio " << m_ratio << ")" << std::endl;
 
-
+           
         m_mashbuf[c] = (float *)fftwf_malloc(sizeof(float) * m_wlen);
-
+        
         for (size_t i = 0; i < m_wlen; ++i) {
             m_mashbuf[c][i] = 0.0;
         }
@@ -135,13 +136,11 @@ AudioTimeStretcher::initialise()
     for (size_t i = 0; i <= m_wlen/2; ++i) {
         m_prevTransientMag[i] = 0.0;
     }*/
-
 }
 
 void
 AudioTimeStretcher::calculateParameters()
 {
-    /*
     std::cerr << "AudioTimeStretcher::calculateParameters" << std::endl;
 
     m_wlen = 1024;
@@ -169,7 +168,7 @@ AudioTimeStretcher::calculateParameters()
     } else {
         if (m_ratio > 2) {
             m_n2 = 512;
-            m_wlen = 4096;
+            m_wlen = 4096; 
         } else if (m_ratio > 1.6) {
             m_n2 = 384;
             m_wlen = 2048;
@@ -199,15 +198,13 @@ AudioTimeStretcher::calculateParameters()
               << ", n1 = " << m_n1 << ", n2 = " << m_n2 << ", wlen = "
               << m_wlen << ", max = " << m_maxOutputBlockSize << std::endl;
 //              << ", outbuflen = " << m_outbuf[0]->getSize() << std::endl;
-              */
 }
 
 void
 AudioTimeStretcher::cleanup()
 {
-    /*
     std::cerr << "AudioTimeStretcher::cleanup" << std::endl;
-
+/*
     for (size_t c = 0; c < m_channels; ++c) {
 
         fftwf_destroy_plan(m_plan[c]);
@@ -237,15 +234,14 @@ AudioTimeStretcher::cleanup()
     delete[] m_freq;
     delete[] m_plan;
     delete[] m_iplan;
-
+*/
     delete m_analysisWindow;
-    delete m_synthesisWindow;*/
-}
+    delete m_synthesisWindow;
+}	
 
 void
 AudioTimeStretcher::setRatio(float ratio)
 {
-    /*
     pthread_mutex_lock(&m_mutex);
 
     size_t formerWlen = m_wlen;
@@ -285,27 +281,26 @@ AudioTimeStretcher::setRatio(float ratio)
                     m_inbuf[c]->read(tmp, ready);
                     newin[c]->write(tmp + ready - copy, copy);
                 }
-
+                
                 delete[] tmp;
             }
-
+            
             for (size_t c = 0; c < m_channels; ++c) {
                 delete m_inbuf[c];
             }
-
+            
             delete[] m_inbuf;
             m_inbuf = newin;
         }
 
     } else {
-
+        
         std::cerr << "wlen changed" << std::endl;
         cleanup();
         initialise();
     }
 
     pthread_mutex_unlock(&m_mutex);
-    */
 }
 
 size_t
@@ -330,7 +325,6 @@ AudioTimeStretcher::getRequiredInputSamples() const
 void
 AudioTimeStretcher::putInput(float **input, size_t samples)
 {
-    /*
     pthread_mutex_lock(&m_mutex);
 
     // We need to add samples from input to our internal buffer.  When
@@ -351,19 +345,19 @@ AudioTimeStretcher::putInput(float **input, size_t samples)
 
     while (consumed < samples) {
 
-    size_t writable = m_inbuf[0]->getWriteSpace();
-    writable = std::min(writable, samples - consumed);
+	size_t writable = m_inbuf[0]->getWriteSpace();
+	writable = std::min(writable, samples - consumed);
 
-    if (writable == 0) {
+	if (writable == 0) {
 #ifdef DEBUG_AUDIO_TIME_STRETCHER
-        std::cerr << "WARNING: AudioTimeStretcher::putInput: writable == 0 (inbuf has " << m_inbuf[0]->getReadSpace() << " samples available for reading, space for " << m_inbuf[0]->getWriteSpace() << " more)" << std::endl;
+	    std::cerr << "WARNING: AudioTimeStretcher::putInput: writable == 0 (inbuf has " << m_inbuf[0]->getReadSpace() << " samples available for reading, space for " << m_inbuf[0]->getWriteSpace() << " more)" << std::endl;
 #endif
             if (m_inbuf[0]->getReadSpace() < m_wlen ||
                 m_outbuf[0]->getWriteSpace() < m_n2) {
                 std::cerr << "WARNING: AudioTimeStretcher::putInput: Inbuf has " << m_inbuf[0]->getReadSpace() << ", outbuf has space for " << m_outbuf[0]->getWriteSpace() << " (n2 = " << m_n2 << ", wlen = " << m_wlen << "), won't be able to process" << std::endl;
                 break;
             }
-    } else {
+	} else {
 
 #ifdef DEBUG_AUDIO_TIME_STRETCHER
             std::cerr << "writing " << writable << " from index " << consumed << " to inbuf, consumed will be " << consumed + writable << std::endl;
@@ -375,18 +369,20 @@ AudioTimeStretcher::putInput(float **input, size_t samples)
             consumed += writable;
         }
 
-    while (m_inbuf[0]->getReadSpace() >= m_wlen &&
-           m_outbuf[0]->getWriteSpace() >= m_n2) {
+	while (m_inbuf[0]->getReadSpace() >= m_wlen &&
+	       m_outbuf[0]->getWriteSpace() >= m_n2) {
 
-        // We know we have at least m_wlen samples available
-        // in m_inbuf.  We need to peek m_wlen of them for
-        // processing, and then read m_n1 to advance the read
-        // pointer.
-
+	    // We know we have at least m_wlen samples available
+	    // in m_inbuf.  We need to peek m_wlen of them for
+	    // processing, and then read m_n1 to advance the read
+	    // pointer.
+            
             for (size_t c = 0; c < m_channels; ++c) {
 
+#ifndef NDEBUG
                 size_t got = m_inbuf[c]->peek(m_tempbuf, m_wlen);
-                assert(got == m_wlen);
+                Q_ASSERT(got == m_wlen);
+#endif
 
                 analyseBlock(c, m_tempbuf);
             }
@@ -414,25 +410,26 @@ AudioTimeStretcher::putInput(float **input, size_t samples)
                 float idealSquashy = idealTotal - fixed;
 
                 float squashyCount = m_totalCount - m_transientCount;
-
+                
                 float fn2 = idealSquashy / squashyCount;
 
                 n2 = int(fn2);
 
                 float remainder = fn2 - n2;
-                if (drand48() < remainder) ++n2;
+                /*if (drand48() < remainder) ++n2;
 
 #ifdef DEBUG_AUDIO_TIME_STRETCHER
                 if (n2 != m_n2) {
                     std::cerr << m_n2 << " -> " << n2 << " (ideal = " << (idealSquashy / squashyCount) << ")" << std::endl;
                 }
 #endif
+*/
             }
 
             for (size_t c = 0; c < m_channels; ++c) {
 
                 synthesiseBlock(c, m_mashbuf[c],
-                                c == 0 ? m_modulationbuf : 0,
+                                c == 0 ? m_modulationbuf : nullptr,
                                 m_prevTransient ? m_n1 : m_n2);
 
 
@@ -462,18 +459,18 @@ AudioTimeStretcher::putInput(float **input, size_t samples)
 
             for (size_t i = 0; i < m_wlen - n2; ++i) {
                 m_modulationbuf[i] = m_modulationbuf[i + n2];
-        }
+	    }
 
-        for (size_t i = m_wlen - n2; i < m_wlen; ++i) {
+	    for (size_t i = m_wlen - n2; i < m_wlen; ++i) {
                 m_modulationbuf[i] = 0.0f;
-        }
+	    }
 
             if (!transient) m_n2 = n2;
-    }
+	}
 
 
 #ifdef DEBUG_AUDIO_TIME_STRETCHER
-    std::cerr << "loop ended: inbuf read space " << m_inbuf[0]->getReadSpace() << ", outbuf write space " << m_outbuf[0]->getWriteSpace() << std::endl;
+	std::cerr << "loop ended: inbuf read space " << m_inbuf[0]->getReadSpace() << ", outbuf write space " << m_outbuf[0]->getWriteSpace() << std::endl;
 #endif
     }
 
@@ -485,7 +482,6 @@ AudioTimeStretcher::putInput(float **input, size_t samples)
 
 //    std::cerr << "ratio: nominal: " << getRatio() << " actual: "
 //              << m_total2 << "/" << m_total1 << " = " << float(m_total2) / float(m_total1) << " ideal: " << m_ratio << std::endl;
-    */
 }
 
 size_t
@@ -505,8 +501,8 @@ AudioTimeStretcher::getOutput(float **output, size_t samples)
     pthread_mutex_lock(&m_mutex);
 
     if (m_outbuf[0]->getReadSpace() < samples) {
-    std::cerr << "WARNING: AudioTimeStretcher::getOutput: not enough data (yet?) (" << m_outbuf[0]->getReadSpace() << " < " << samples << ")" << std::endl;
-    size_t fill = samples - m_outbuf[0]->getReadSpace();
+	std::cerr << "WARNING: AudioTimeStretcher::getOutput: not enough data (yet?) (" << m_outbuf[0]->getReadSpace() << " < " << samples << ")" << std::endl;
+	size_t fill = samples - m_outbuf[0]->getReadSpace();
         for (size_t c = 0; c < m_channels; ++c) {
             for (size_t i = 0; i < fill; ++i) {
                 output[c][i] = 0.0;
@@ -515,7 +511,7 @@ AudioTimeStretcher::getOutput(float **output, size_t samples)
         }
     } else {
 #ifdef DEBUG_AUDIO_TIME_STRETCHER
-    std::cerr << "enough data - writing " << samples << " from outbuf" << std::endl;
+	std::cerr << "enough data - writing " << samples << " from outbuf" << std::endl;
 #endif
         for (size_t c = 0; c < m_channels; ++c) {
             m_outbuf[c]->read(output[c], samples);
@@ -532,7 +528,6 @@ AudioTimeStretcher::getOutput(float **output, size_t samples)
 void
 AudioTimeStretcher::analyseBlock(size_t c, float *buf)
 {
-    /*
     size_t i;
 
     // buf contains m_wlen samples
@@ -544,34 +539,32 @@ AudioTimeStretcher::analyseBlock(size_t c, float *buf)
     m_analysisWindow->cut(buf);
 
     for (i = 0; i < m_wlen/2; ++i) {
-    float temp = buf[i];
-    buf[i] = buf[i + m_wlen/2];
-    buf[i + m_wlen/2] = temp;
+	float temp = buf[i];
+	buf[i] = buf[i + m_wlen/2];
+	buf[i + m_wlen/2] = temp;
     }
 
     for (i = 0; i < m_wlen; ++i) {
-    m_time[c][i] = buf[i];
+	m_time[c][i] = buf[i];
     }
 
-    fftwf_execute(m_plan[c]); // m_time -> m_freq
-    */
+    //fftwf_execute(m_plan[c]); // m_time -> m_freq
 }
 
 bool
 AudioTimeStretcher::isTransient()
 {
-    /*
     int count = 0;
 
     for (size_t i = 0; i <= m_wlen/2; ++i) {
 
         float real = 0.f, imag = 0.f;
-
+/*
         for (size_t c = 0; c < m_channels; ++c) {
             real += m_freq[c][i][0];
             imag += m_freq[c][i][1];
         }
-
+*/
         float sqrmag = (real * real + imag * imag);
 
         if (m_prevTransientMag[i] > 0.f) {
@@ -601,7 +594,6 @@ AudioTimeStretcher::isTransient()
     m_prevTransientScore = count;
 
     return isTransient;
-    */
 }
 
 void
@@ -610,11 +602,10 @@ AudioTimeStretcher::synthesiseBlock(size_t c,
                                     float *modulation,
                                     size_t lastStep)
 {
-    /*
     bool unchanged = (lastStep == m_n1);
-
+/*
     for (size_t i = 0; i <= m_wlen/2; ++i) {
-
+		
         float phase = princargf(atan2f(m_freq[c][i][1], m_freq[c][i][0]));
         float adjustedPhase = phase;
 
@@ -626,16 +617,16 @@ AudioTimeStretcher::synthesiseBlock(size_t c,
                               m_freq[c][i][1] * m_freq[c][i][1]);
 
             float omega = (2 * M_PI * m_n1 * i) / m_wlen;
-
+	
             float expectedPhase = m_prevPhase[c][i] + omega;
 
             float phaseError = princargf(phase - expectedPhase);
 
             float phaseIncrement = (omega + phaseError) / m_n1;
-
+            
             adjustedPhase = m_prevAdjustedPhase[c][i] +
                 lastStep * phaseIncrement;
-
+            
             float real = mag * cosf(adjustedPhase);
             float imag = mag * sinf(adjustedPhase);
             m_freq[c][i][0] = real;
@@ -653,7 +644,7 @@ AudioTimeStretcher::synthesiseBlock(size_t c,
         m_time[c][i] = m_time[c][i + m_wlen/2];
         m_time[c][i + m_wlen/2] = temp;
     }
-
+    
     for (size_t i = 0; i < m_wlen; ++i) {
         m_time[c][i] = m_time[c][i] / m_wlen;
     }

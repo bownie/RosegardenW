@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[MatrixMover]"
 
 #include "MatrixMover.h"
 
@@ -43,8 +45,8 @@ namespace Rosegarden
 
 MatrixMover::MatrixMover(MatrixWidget *parent) :
     MatrixTool("matrixmover.rc", "MatrixMover", parent),
-    m_currentElement(0),
-    m_currentViewSegment(0),
+    m_currentElement(nullptr),
+    m_currentViewSegment(nullptr),
     m_lastPlayedPitch(-1)
 {
     createAction("select", SLOT(slotSelectSelected()));
@@ -59,14 +61,14 @@ void
 MatrixMover::handleEventRemoved(Event *event)
 {
     if (m_currentElement && m_currentElement->event() == event) {
-        m_currentElement = 0;
+        m_currentElement = nullptr;
     }
 }
 
 void
 MatrixMover::handleLeftButtonPress(const MatrixMouseEvent *e)
 {
-    MATRIX_DEBUG << "MatrixMover::handleLeftButtonPress() : snapped time = " << e->snappedLeftTime << ", el = " << e->element << endl;
+    RG_DEBUG << "handleLeftButtonPress() : snapped time = " << e->snappedLeftTime << ", el = " << e->element;
 
     if (!e->element) return;
 
@@ -89,14 +91,17 @@ MatrixMover::handleLeftButtonPress(const MatrixMouseEvent *e)
     }
 
     if (!found) {
-        MATRIX_DEBUG << "Clicked element not owned by active segment.  Returning..." << endl;
+        RG_WARNING << "handleLeftButtonPress(): Clicked element not owned by active segment.  Returning...";
         return;
     }
 
     m_currentViewSegment = e->viewSegment;
 
     m_currentElement = e->element;
-    m_clickSnappedLeftTime = e->snappedLeftTime;
+
+    timeT snappedAbsoluteLeftTime =
+        getSnapGrid()->snapTime(m_currentElement->getViewAbsoluteTime());
+    m_clickSnappedLeftDeltaTime = e->snappedLeftTime - snappedAbsoluteLeftTime;
 
     m_quickCopy = (e->modifiers & Qt::ControlModifier);
 
@@ -122,7 +127,7 @@ MatrixMover::handleLeftButtonPress(const MatrixMouseEvent *e)
         } else {
             newSelection = new EventSelection(m_currentViewSegment->getSegment());
         }
-        
+
         // if the selection already contains the event, remove it from the
         // selection if shift is pressed
         if (selection->contains(event)) {
@@ -132,6 +137,7 @@ MatrixMover::handleLeftButtonPress(const MatrixMouseEvent *e)
         } else {
             newSelection->addEvent(event);
         }
+
         m_scene->setSelection(newSelection, true);
         selection = newSelection;
     } else {
@@ -171,17 +177,16 @@ MatrixMover::handleLeftButtonPress(const MatrixMouseEvent *e)
     }
 }
 
-MatrixTool::FollowMode
+FollowMode
 MatrixMover::handleMouseMove(const MatrixMouseEvent *e)
 {
-    if (!e) return NoFollow;
+    if (!e) return NO_FOLLOW;
 
-    MATRIX_DEBUG << "MatrixMover::handleMouseMove() snapped time = "
-                 << e->snappedLeftTime << endl;
+    //RG_DEBUG << "handleMouseMove() snapped time = " << e->snappedLeftTime;
 
     setBasicContextHelp(e->modifiers & Qt::ControlModifier);
 
-    if (!m_currentElement || !m_currentViewSegment) return NoFollow;
+    if (!m_currentElement || !m_currentViewSegment) return NO_FOLLOW;
 
     if (getSnapGrid()->getSnapSetting() != SnapGrid::NoSnap) {
         setContextHelp(tr("Hold Shift to avoid snapping to beat grid"));
@@ -189,8 +194,7 @@ MatrixMover::handleMouseMove(const MatrixMouseEvent *e)
         clearContextHelp();
     }
 
-    timeT newTime = m_currentElement->getViewAbsoluteTime() +
-        (e->snappedLeftTime - m_clickSnappedLeftTime);
+    timeT newTime = e->snappedLeftTime - m_clickSnappedLeftDeltaTime;
     int newPitch = e->pitch;
 
     emit hoveredOverNoteChanged(newPitch, true, newTime);
@@ -204,7 +208,7 @@ MatrixMover::handleMouseMove(const MatrixMouseEvent *e)
     if (m_currentElement->event()->has(PITCH)) {
         diffPitch = newPitch - m_currentElement->event()->get<Int>(PITCH);
     }
-    
+
     EventSelection* selection = m_scene->getSelection();
 
     // factor in transpose to adjust the height calculation
@@ -215,7 +219,7 @@ MatrixMover::handleMouseMove(const MatrixMouseEvent *e)
              selection->getSegmentEvents().begin();
          it != selection->getSegmentEvents().end(); ++it) {
 
-        MatrixElement *element = 0;
+        MatrixElement *element = nullptr;
         ViewElementList::iterator vi = m_currentViewSegment->findEvent(*it);
         if (vi != m_currentViewSegment->getViewElementList()->end()) {
             element = static_cast<MatrixElement *>(*vi);
@@ -233,9 +237,8 @@ MatrixMover::handleMouseMove(const MatrixMouseEvent *e)
         element->reconfigure(newTime + diffTime,
                              element->getViewDuration(),
                              epitch + diffPitch);
-                             
+
         element->setSelected(true);
-            
     }
 
     if (newPitch != m_lastPlayedPitch) {
@@ -245,7 +248,7 @@ MatrixMover::handleMouseMove(const MatrixMouseEvent *e)
         m_lastPlayedPitch = newPitch;
     }
 
-    return FollowMode(FollowHorizontal | FollowVertical);
+    return (FOLLOW_HORIZONTAL | FOLLOW_VERTICAL);
 }
 
 void
@@ -253,13 +256,11 @@ MatrixMover::handleMouseRelease(const MatrixMouseEvent *e)
 {
     if (!e) return;
 
-    MATRIX_DEBUG << "MatrixMover::handleMouseRelease() - newPitch = "
-                 << e->pitch << endl;
+    RG_DEBUG << "handleMouseRelease() - newPitch = " << e->pitch;
 
     if (!m_currentElement || !m_currentViewSegment) return;
 
-    timeT newTime = m_currentElement->getViewAbsoluteTime() +
-        (e->snappedLeftTime - m_clickSnappedLeftTime);
+    timeT newTime = e->snappedLeftTime - m_clickSnappedLeftDeltaTime;
     int newPitch = e->pitch;
 
     if (newPitch > 127) newPitch = 127;
@@ -287,7 +288,7 @@ MatrixMover::handleMouseRelease(const MatrixMouseEvent *e)
             delete m_duplicateElements[i];
         }
         m_duplicateElements.clear();
-        m_currentElement = 0;
+        m_currentElement = nullptr;
         return;
     }
 
@@ -350,7 +351,7 @@ MatrixMover::handleMouseRelease(const MatrixMouseEvent *e)
             newPitch = (*it)->get<Int>(PITCH) + diffPitch;
         }
 
-        Event *newEvent = 0;
+        Event *newEvent = nullptr;
 
         if (newTime < segment.getStartTime()) {
             newTime = segment.getStartTime();
@@ -384,12 +385,12 @@ MatrixMover::handleMouseRelease(const MatrixMouseEvent *e)
                                                 normalizeStart,
                                                 normalizeEnd));
     
-    m_scene->setSelection(0, false);
+    m_scene->setSelection(nullptr, false);
     CommandHistory::getInstance()->addCommand(macro);
     m_scene->setSelection(newSelection, false);
 
 //    m_mParentView->canvas()->update();
-    m_currentElement = 0;
+    m_currentElement = nullptr;
 
     setBasicContextHelp();
 }
@@ -423,8 +424,7 @@ void MatrixMover::setBasicContextHelp(bool ctrlPressed)
     }
 }
 
-const QString MatrixMover::ToolName = "mover";
+QString MatrixMover::ToolName() { return "mover"; }
 
 }
 
-#include "MatrixMover.moc"

@@ -21,6 +21,7 @@
 #include "document/Command.h"
 #include "BaseProperties.h"
 #include "base/SegmentNotationHelper.h"
+#include "misc/Debug.h"
 
 #include <algorithm>
 
@@ -31,22 +32,22 @@ SegmentLinker::SegmentLinkerId SegmentLinker::m_count = 0;
 
 SegmentLinker::SegmentLinker()
 {
-    connect(CommandHistory::getInstance(), SIGNAL(updateLinkedSegments(Command *)),
-        this, SLOT(slotUpdateLinkedSegments(Command *)));
+    connect(CommandHistory::getInstance(), &CommandHistory::updateLinkedSegments,
+        this, &SegmentLinker::slotUpdateLinkedSegments);
 
     ++m_count;
     m_id = m_count;
-    m_reference = 0;
+    m_reference = nullptr;
 }
 
 SegmentLinker::SegmentLinker(SegmentLinkerId id)
 {
-    connect(CommandHistory::getInstance(), SIGNAL(updateLinkedSegments(Command *)),
-        this, SLOT(slotUpdateLinkedSegments(Command *)));
+    connect(CommandHistory::getInstance(), &CommandHistory::updateLinkedSegments,
+        this, &SegmentLinker::slotUpdateLinkedSegments);
 
     m_id = id;
     m_count = std::max(m_count,m_id+1);
-    m_reference = 0;
+    m_reference = nullptr;
 }
 
 SegmentLinker::~SegmentLinker()
@@ -84,7 +85,7 @@ SegmentLinker::removeLinkedSegment(Segment *s)
     LinkedSegmentParamsList::iterator itr = findParamsItrForSegment(s);
     if (itr != m_linkedSegmentParamsList.end()) {
         m_linkedSegmentParamsList.erase(itr);
-        s->setLinker(0);
+        s->setLinker(nullptr);
     }
 }
 
@@ -179,7 +180,7 @@ SegmentLinker::slotUpdateLinkedSegments(Command *command)
                 linkedSegmentsUpdated = true;
             }
         } else {
-            std::cout << "oops, trying to update linked segment set twice!" << std::endl;
+            RG_WARNING << "oops, trying to update linked segment set twice!";
         }
 
         rs.setNeedsRefresh(false);
@@ -196,6 +197,9 @@ SegmentLinker::linkedSegmentChanged(Segment *s, const timeT from,
     const timeT sourceSegStartTime = s->getStartTime(); 
     const timeT refFrom = from - sourceSegStartTime;
     const timeT refTo = to - sourceSegStartTime;
+
+    // Used to memorize a possible change in lyrics
+    bool lyricsChanged = false;
 
     LinkedSegmentParamsList::iterator itr;
     for(itr = m_linkedSegmentParamsList.begin(); 
@@ -219,7 +223,8 @@ SegmentLinker::linkedSegmentChanged(Segment *s, const timeT from,
         timeT segTo = segStartTime + refTo;
         Segment::iterator itrFrom = linkedSegToUpdate->findTime(segFrom);
         Segment::iterator itrTo = linkedSegToUpdate->findTime(segTo);
-        eraseNonIgnored(linkedSegToUpdate,itrFrom,itrTo);
+        lyricsChanged = eraseNonIgnored(linkedSegToUpdate,
+                                        itrFrom, itrTo, lyricsChanged);
         
         //now go through s from 'from' to 'to', inserting the equivalent
         //event in linkedSegToUpdate
@@ -227,8 +232,11 @@ SegmentLinker::linkedSegmentChanged(Segment *s, const timeT from,
                                     itr != s->findTime(to); ++itr) {
             const Event *e = *itr;
         
-            timeT eventT = (e->getAbsoluteTime()-sourceSegStartTime)
+            timeT eventT = (e->getAbsoluteTime() - sourceSegStartTime)
                            + segStartTime;
+
+            timeT eventNotationT = (e->getNotationAbsoluteTime() - sourceSegStartTime)
+                                   + segStartTime;
 
             int semitones =
                     linkedSegToUpdate->getLinkTransposeParams().m_semitones -
@@ -236,9 +244,14 @@ SegmentLinker::linkedSegmentChanged(Segment *s, const timeT from,
             int steps = linkedSegToUpdate->getLinkTransposeParams().m_steps -
                                         s->getLinkTransposeParams().m_steps;
         
-            insertMappedEvent(linkedSegToUpdate,e,eventT,semitones,steps);
+            lyricsChanged = insertMappedEvent(linkedSegToUpdate, e, eventT,
+                                              eventNotationT, semitones, steps,
+                                              lyricsChanged);
         }
         
+        // Fix verses count if lyrics have been modified
+        if (lyricsChanged) linkedSegToUpdate->invalidateVerseCount();
+
         // Now only send one resize notification to observers if needed.
         linkedSegToUpdate->unlockResizeNotifications();
 
@@ -246,18 +259,27 @@ SegmentLinker::linkedSegmentChanged(Segment *s, const timeT from,
     }
 }
 
-void
-SegmentLinker::insertMappedEvent(Segment *seg, const Event *e, timeT t, 
-                                               int semitones, int steps)
+bool
+SegmentLinker::insertMappedEvent(Segment *seg,
+                                 const Event *e, timeT t, timeT nt,
+                                 int semitones, int steps,
+                                 bool lyricsAlreadyInserted)
 {
+    bool lyricInserted = lyricsAlreadyInserted;
+
     bool ignore;
     if (e->get<Bool>(BaseProperties::LINKED_SEGMENT_IGNORE_UPDATE, ignore) 
         && ignore) {
-        return;
+        return lyricInserted;
     }
-        
-    Event *refSegEvent = new Event(*e,t);
-    
+
+    Event *refSegEvent = new Event(*e,
+                                   t,
+                                   e->getDuration(),
+                                   e->getSubOrdering(),
+                                   nt,
+                                   e->getNotationDuration());
+
     bool needsInsertion = true;
 
     //correct for temporal (and pitch shift??) here eventually...
@@ -272,7 +294,7 @@ SegmentLinker::insertMappedEvent(Segment *seg, const Event *e, timeT t,
             Rosegarden::Key trKey = (Rosegarden::Key (*e)).transpose(semitones, 
                                                                          steps);
             delete refSegEvent; 
-            refSegEvent = 0;
+            refSegEvent = nullptr;
             SegmentNotationHelper helper(*seg);
             helper.insertKey(t,trKey);
             needsInsertion = false;
@@ -280,14 +302,30 @@ SegmentLinker::insertMappedEvent(Segment *seg, const Event *e, timeT t,
     }
     
     if (needsInsertion) {
+
+        if (! lyricInserted) {
+            // Is the inserted event a lyric?
+            if (e->isa(Text::EventType)) {
+                std::string textType;
+                lyricInserted =
+                    e->get<String>(Text::TextTypePropertyName, textType)
+                    && (textType == Text::Lyric);
+                }
+        }
+
         seg->insert(refSegEvent);
     }
+
+    return lyricInserted;
 }
 
-void
+bool
 SegmentLinker::eraseNonIgnored(Segment *s, Segment::const_iterator itrFrom, 
-                                           Segment::const_iterator itrTo)
+                                           Segment::const_iterator itrTo,
+                                           bool lyricsAlreadyErased)
 {
+    bool lyricErased = lyricsAlreadyErased;
+
     //only erase items which aren't ignored for link purposes
     Segment::iterator eraseItr;
     for(eraseItr=itrFrom; eraseItr!=s->end() && eraseItr!=itrTo; ) {
@@ -295,11 +333,24 @@ SegmentLinker::eraseNonIgnored(Segment *s, Segment::const_iterator itrFrom,
         (*eraseItr)->get<Bool>(BaseProperties::LINKED_SEGMENT_IGNORE_UPDATE,
                                 ignore);
         if (!ignore) {
+
+            if (! lyricErased) {
+                // Is the erased event a lyric?
+                Event *e = *eraseItr;
+                if (e->isa(Text::EventType)) {
+                    std::string textType;
+                    lyricErased =
+                        e->get<String>(Text::TextTypePropertyName, textType)
+                        && (textType == Text::Lyric);
+                }
+            }
+
             s->erase(eraseItr++);
         } else {
             ++eraseItr;
         }
     }
+    return lyricErased;
 } 
 
 void
@@ -322,11 +373,12 @@ void
 SegmentLinker::refreshSegment(Segment *seg)
 {
     timeT startTime = seg->getStartTime();
-    eraseNonIgnored(seg,seg->begin(),seg->end());
+    eraseNonIgnored(seg, seg->begin(), seg->end(), true);
+    // Last parameter set to true to avoid an useless search for lyrics
     
     //find another segment
-    Segment *sourceSeg = 0;
-    Segment *tempClone = 0;
+    Segment *sourceSeg = nullptr;
+    Segment *tempClone = nullptr;
     
     LinkedSegmentParamsList::iterator itr;
     for (itr = m_linkedSegmentParamsList.begin(); 
@@ -352,11 +404,15 @@ SegmentLinker::refreshSegment(Segment *seg)
         const Event *refEvent = *segitr;
 
         timeT refEventTime = refEvent->getAbsoluteTime() - sourceSegStartTime;
-        timeT freshEventTime = refEventTime+startTime;
-        
-        insertMappedEvent(seg,refEvent,freshEventTime,
+        timeT freshEventTime = refEventTime + startTime;
+        timeT refEventNotationTime = refEvent->getNotationAbsoluteTime() - sourceSegStartTime;
+        timeT freshEventNotationTime = refEventNotationTime + startTime;
+
+        insertMappedEvent(seg, refEvent, freshEventTime, freshEventNotationTime,
                           seg->getLinkTransposeParams().m_semitones,
-                          seg->getLinkTransposeParams().m_steps);
+                          seg->getLinkTransposeParams().m_steps,
+                          true);
+        // Last parameter set to true to avoid an useless search for lyrics
     }
     
     if (tempClone) {
@@ -402,4 +458,3 @@ SegmentLinker::LinkedSegmentParams::LinkedSegmentParams(Segment *s) :
 
 }
 
-#include "SegmentLinker.moc"

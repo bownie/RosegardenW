@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[EventEditDialog]"
 
 #include "EventEditDialog.h"
 
@@ -56,13 +57,13 @@ EventEditDialog::EventEditDialog(QWidget *parent,
                                  const Event &event,
                                  bool editable) :
         QDialog(parent),
-        m_durationDisplay(0),
-        m_durationDisplayAux(0),
-        m_persistentGrid(0),
-        m_persistentGridLay(0),
+        m_durationDisplay(nullptr),
+        m_durationDisplayAux(nullptr),
+        m_persistentGrid(nullptr),
+        m_persistentGridLay(nullptr),
         m_persistentGridRow(0),
-        m_nonPersistentGrid(0),
-        m_nonPersistentView(0),
+        m_nonPersistentGrid(nullptr),
+        m_nonPersistentView(nullptr),
         m_originalEvent(event),
         m_event(event),
         m_type(event.getType()),
@@ -182,8 +183,8 @@ EventEditDialog::EventEditDialog(QWidget *parent,
     p = event.getNonPersistentPropertyNames();
 
     if (p.begin() == p.end()) {
-        m_nonPersistentView = 0;
-        m_nonPersistentGrid = 0;
+        m_nonPersistentView = nullptr;
+        m_nonPersistentGrid = nullptr;
     } else {
 
         // create bottom area container (group-box) for non-persistent-events view
@@ -242,8 +243,8 @@ EventEditDialog::EventEditDialog(QWidget *parent,
             button->setFixedSize(QSize(24, 24));
             nonPersistentGridLay->addWidget(label, nonPersistentGridRow, 3);
             button->setToolTip(tr("Make persistent"));
-            QObject::connect(button, SIGNAL(clicked()),
-                                this, SLOT(slotPropertyMadePersistent()));
+            QObject::connect(button, &QAbstractButton::clicked,
+                                this, &EventEditDialog::slotPropertyMadePersistent);
 
             nonPersistentGridRow++;
         }
@@ -269,8 +270,8 @@ EventEditDialog::EventEditDialog(QWidget *parent,
                                                   : QDialogButtonBox::Ok);
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 void
@@ -353,8 +354,8 @@ EventEditDialog::addPersistentProperty(const PropertyName &name)
             checkBox->setObjectName(strtoqstr(name));
             checkBox->setChecked(m_originalEvent.get<Bool>(name));
             m_persistentGridLay->addWidget(checkBox, m_persistentGridRow, 2);
-            QObject::connect(checkBox, SIGNAL(toggled(bool)),
-                              this, SLOT(slotBoolPropertyChanged(bool)));
+            QObject::connect(checkBox, &QAbstractButton::toggled,
+                              this, &EventEditDialog::slotBoolPropertyChanged);
             checkBox->show();
             break;
         }
@@ -364,8 +365,8 @@ EventEditDialog::addPersistentProperty(const PropertyName &name)
                                   (strtoqstr(m_originalEvent.get<String>(name)));
             lineEdit->setObjectName(strtoqstr(name));
             m_persistentGridLay->addWidget(lineEdit, m_persistentGridRow, 2);
-            QObject::connect(lineEdit, SIGNAL(textChanged(const QString &)),
-                             this, SLOT(slotStringPropertyChanged(const QString &)));
+            QObject::connect(lineEdit, &QLineEdit::textChanged,
+                             this, &EventEditDialog::slotStringPropertyChanged);
             lineEdit->show();
             break;
         }
@@ -376,8 +377,8 @@ EventEditDialog::addPersistentProperty(const PropertyName &name)
     button->setFixedSize(QSize(24, 24));
     button->setToolTip(tr("Delete this property"));
     m_persistentGridLay->addWidget(button, m_persistentGridRow, 3);
-    QObject::connect(button, SIGNAL(clicked()),
-                     this, SLOT(slotPropertyDeleted()));
+    QObject::connect(button, &QAbstractButton::clicked,
+                     this, &EventEditDialog::slotPropertyDeleted);
     button->show();
 
     m_persistentGridRow++;
@@ -607,4 +608,3 @@ EventEditDialog::slotPropertyMadePersistent()
 }
 
 }
-#include "EventEditDialog.moc"

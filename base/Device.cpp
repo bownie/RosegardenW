@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -24,14 +24,14 @@ namespace Rosegarden
 
 const DeviceId Device::NO_DEVICE = 10000;
 const DeviceId Device::ALL_DEVICES = 10001;
+// "external controller" port.
 const DeviceId Device::CONTROL_DEVICE = 10002;
 
 Device::~Device()
 {
-    SEQUENCER_DEBUG
-        << "~Device"
-        << endl;
+    SEQUENCER_DEBUG << "~Device";
     InstrumentList::iterator it = m_instruments.begin();
+    // For each Instrument
     for (; it != m_instruments.end(); ++it) {
         (*it)->sendWholeDeviceDestroyed();
         delete (*it);
@@ -40,9 +40,9 @@ Device::~Device()
 }
 
 // Return a Controllable if we are a subtype that also inherits from
-// Controllable, otherwise return NULL
+// Controllable, otherwise return nullptr
 Controllable *
-Device::getControllable(void)
+Device::getControllable()
 {
     Controllable *c = dynamic_cast<MidiDevice *>(this);
     if (!c) {
@@ -52,10 +52,22 @@ Device::getControllable(void)
     return c;
 }
 
-// Base case: Device itself doesn't know AllocateChannels so gives NULL.
+// Base case: Device itself doesn't know AllocateChannels so gives nullptr.
 // @author Tom Breton (Tehom)
 AllocateChannels *
-Device::getAllocator(void)
-{ return 0; }
+Device::getAllocator()
+{ return nullptr; }
+
+void
+Device::sendChannelSetups()
+{
+    // For each Instrument, send channel setup
+    for (InstrumentList::iterator it = m_instruments.begin();
+         it != m_instruments.end();
+         ++it) {
+        (*it)->sendChannelSetup();
+    }
+}
+
 
 }

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[MappedEventBuffer]"
 
 #include "MappedEventBuffer.h"
 
@@ -28,7 +30,7 @@ namespace Rosegarden
 {
 
 MappedEventBuffer::MappedEventBuffer(RosegardenDocument *doc) :
-    m_buffer(0),
+    m_buffer(nullptr),
     m_capacity(0),
     m_size(0),
     m_doc(doc),
@@ -40,7 +42,7 @@ MappedEventBuffer::MappedEventBuffer(RosegardenDocument *doc) :
 
 MappedEventBuffer::~MappedEventBuffer()
 {
-    // Safe even if NULL.
+    // Safe even if nullptr.
     delete[] m_buffer;
 }
 
@@ -52,13 +54,12 @@ MappedEventBuffer::init()
     if (size > 0) {
         reserve(size);
 
-        SEQMAN_DEBUG << "SegmentMapper::init : size = " << size
-                     << endl;
+        RG_DEBUG << "init() : size = " << size;
 
         initSpecial();
         fillBuffer();
     } else {
-        SEQMAN_DEBUG << "SegmentMapper::init : mmap size = 0 - skipping mmapping for now\n";
+        RG_DEBUG << "init() : mmap size = 0 - skipping mmapping for now";
     }
 }
 
@@ -71,11 +72,10 @@ MappedEventBuffer::refresh()
     int oldSize = capacity();
 
 #ifdef DEBUG_MAPPED_EVENT_BUFFER    
-    SEQMAN_DEBUG << "SegmentMapper::refresh() - " << this
+    RG_DEBUG << "refresh() - " << this
                  << " - old size = " << oldSize
                  << " - old fill = " << size()
-                 << " - new fill = " << newFill
-                 << endl;
+                 << " - new fill = " << newFill;
 #endif
 
     // If we need to expand the buffer to hold the events
@@ -123,7 +123,7 @@ MappedEventBuffer::reserve(int newSize)
     }
 
 #ifdef DEBUG_MAPPED_EVENT_BUFFER
-    SEQUENCER_DEBUG << "MappedEventBuffer::reserve: Resized to " << newSize << " events" << endl;
+    SEQUENCER_DEBUG << "MappedEventBuffer::reserve: Resized to " << newSize << " events";
 #endif
 
     delete[] oldBuffer;
@@ -167,87 +167,16 @@ void
 MappedEventBuffer::
 makeReady(MappedInserterBase &/*inserter*/, RealTime /*time*/) {}
 
-void
-MappedEventBuffer::
-addOwner(void)
-{
-    ++m_refCount;
-
-#ifdef DEBUG_MAPPED_EVENT_BUFFER
-    SEQUENCER_DEBUG << "MappedEventBuffer::addOwner"
-                    << (void*)this
-                    << "giving refcount"
-                    << (int) m_refCount
-                    << endl;
-#endif
-}
-
-void
-MappedEventBuffer::
-removeOwner(void)
-{
-#ifdef DEBUG_MAPPED_EVENT_BUFFER
-    SEQUENCER_DEBUG << "MappedEventBuffer::removeOwner"
-                    << (void*)this
-                    << "which had refcount"
-                    << (int) m_refCount
-                    << endl;
-#endif
-
-    --m_refCount;
-    if (!m_refCount)  delete this;
-}
-
     /*** MappedEventBuffer::iterator ***/
 
-MappedEventBuffer::iterator::iterator(MappedEventBuffer *s) :
+MappedEventBuffer::iterator::iterator(QSharedPointer<MappedEventBuffer> s) :
     m_s(s),
     m_index(0),
     m_ready(false),
     m_active(false)
     //m_currentTime
 {
-    s->addOwner();
-}
-
-// UNTESTED
-MappedEventBuffer::iterator::iterator(const iterator &i) :
-    m_s(i.m_s),
-    m_index(i.m_index),
-    m_ready(i.m_ready),
-    m_active(i.m_active),
-    m_currentTime(i.m_currentTime)
-{
-    // Add a reference count for this
-    m_s->addOwner();
-}
-
-// UNTESTED
-MappedEventBuffer::iterator &
-MappedEventBuffer::iterator::operator=(const iterator& rhs)
-{
-    // Handle self-assignment gracefully.
-    // With this particular class, the issue is that the call to
-    // removeOwner() might cause the MappedEventBuffer to be deleted.
-    // Then the following call to addOwner() would be on a deleted
-    // object.
-    if (&rhs == this)
-        return *this;
-
-    // Adjust reference count
-    m_s->removeOwner();
-
-    // Full bitwise copy
-    m_s = rhs.m_s;
-    m_index = rhs.m_index;
-    m_ready = rhs.m_ready;
-    m_active = rhs.m_active;
-    m_currentTime = rhs.m_currentTime;
-
-    // Adjust reference count
-    m_s->addOwner();
-
-    return *this;
+    //RG_DEBUG << "iterator ctor";
 }
 
 // ++prefix
@@ -319,9 +248,9 @@ MappedEventBuffer::iterator::peek() const
 {
     // The lock formerly here has moved out to callers.
 
-    // If we're at the end, return NULL
+    // If we're at the end, return nullptr
     if (m_index >= m_s->size())
-        return 0;
+        return nullptr;
 
     // Otherwise return a pointer into the buffer.
     return &m_s->m_buffer[m_index];

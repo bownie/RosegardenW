@@ -3,10 +3,10 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is based on KLed from the KDE libraries
-    Copyright (C) 1998 Jörg Habenicht (j.habenicht@europemail.com)
+    Copyright (C) 1998 JÃ¶rg Habenicht (j.habenicht@europemail.com)
 
     Including antialiasing implementation from Chris Cannam, April 2004
 
@@ -20,288 +20,213 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[Led]"
+
 #include "Led.h"
+
+#include "misc/Debug.h"
 
 #include <QPainter>
 #include <QImage>
-#include <QColor>
-#include <QApplication>
-#include <QSettings>
-
-#include "misc/ConfigGroups.h"
+#include <QPixmap>
 
 namespace Rosegarden
 {
 
-class Led::LedPrivate
-{
-    friend class Led;
 
-    int dark_factor;
-    QColor offcolor;
-    QPixmap *off_map;
-    QPixmap *on_map;
-};
-
-
-Led::Led(const QColor& col, QWidget *parent) :
+Led::Led(const QColor &color, QWidget *parent) :
     QWidget(parent),
-    led_state(On)
+    m_state(On),
+    m_backgroundColor(),
+    m_color(),
+    m_darkFactor(300),
+    m_offColor()
 {
-    d = new Led::LedPrivate;
-    d->dark_factor = 300;
-    d->offcolor = col.dark(300);
-    d->off_map = 0;
-    d->on_map = 0;
-    setColor(col);
-
-    QSettings settings;
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    m_Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
+    setColor(color);
 }
 
 Led::~Led()
 {
-    delete d->off_map;
-    delete d->on_map;
-    delete d;
 }
 
 void
 Led::paintEvent(QPaintEvent *)
 {
-    QPainter paint;
-    QColor color;
-    QBrush brush;
-    QPen pen;
+    QPainter painter(this);
+    draw(painter);
+}
 
-    // First of all we want to know what area should be updated
-    // Initialize coordinates, width, and height of the LED
-    int	width = this->width();
+void
+Led::draw(QPainter &painter)
+{
+    int	width2 = width();
 
     // Make sure the LED is round!
-    if (width > this->height())
-        width = this->height();
-    width -= 2; // leave one pixel border
-    if (width < 0)
-        width = 0;
+    if (width2 > height())
+        width2 = height();
 
-    // maybe we could stop HERE, if width <=0 ?
+    // leave one pixel border
+    width2 -= 2;
 
-    int scale = 1;
-    QPixmap *tmpMap = 0;
-    bool smooth = true;
+    // Can't be seen?  Bail.
+    if (width2 <= 0)
+        return;
 
-    if (smooth)
-    {
-        if (led_state) {
-            if (d->on_map) {
-                paint.begin(this);
-                paint.drawPixmap(0, 0, *d->on_map);
-                paint.end();
-                return ;
-            }
-        } else {
-            if (d->off_map) {
-                paint.begin(this);
-                paint.drawPixmap(0, 0, *d->off_map);
-                paint.end();
-                return ;
-            }
-        }
+    // Draw it at three times the size we need.  Then we'll scale it down
+    // to make it look smooth and anti-aliased.
+    const int scale = 3;
+    width2 *= scale;
 
-        scale = 3;
-        width *= scale;
+    // ??? rename: bigPixmap?
+    QPixmap tmpMap(width2, width2);
 
-        tmpMap = new QPixmap(width, width);
-        QColor bg = m_Thorn ? QColor::fromRgb(0xDD, 0xDD, 0xDD) : palette().window().color();
+    // Fill in the pixmap's background.
+    tmpMap.fill(palette().window().color());
 
-        tmpMap->fill(bg);
-        paint.begin(tmpMap);
+    // Begin painting on the big QPixmap.
+    // ??? rename: bigPainter?
+    QPainter tmpPainter(&tmpMap);
 
-    } else
-    {
-        paint.begin(this);
-    }
-
-    paint.setRenderHint(QPainter::Antialiasing, false);
+    // We are going to do our own anti-aliasing.
+    tmpPainter.setRenderHint(QPainter::Antialiasing, false);
 
     // Set the color of the LED according to given parameters
-    color = ( led_state ) ? led_color : d->offcolor;
+    QColor color = m_state ? m_color : m_offColor;
 
-    // Set the brush to SolidPattern, this fills the entire area
-    // of the ellipse which is drawn first
-    brush.setStyle( Qt::SolidPattern );
-    brush.setColor( color );
-    paint.setBrush( brush );                // Assign the brush to the painter
 
-    // Draws a "flat" LED with the given color:
-    paint.drawEllipse( scale, scale, width - scale*2, width - scale*2 );
+    // *** Draw the flat LED
 
-    // Draw the bright light spot of the LED now, using modified "old"
-    // painter routine taken from KDEUI´s Led widget:
+    tmpPainter.setPen(Qt::NoPen);
+    QBrush brush(color);
+    tmpPainter.setBrush(brush);
+    tmpPainter.drawEllipse(0, 0, width2, width2);
 
-    // Setting the new width of the pen is essential to avoid "pixelized"
-    // shadow like it can be observed with the old LED code
-    pen.setWidth( 2 * scale );
 
-    // shrink the light on the LED to a size about 2/3 of the complete LED
-    int pos = width / 5 + 1;
-    int light_width = width;
-    light_width *= 2;
-    light_width /= 3;
+    // *** Draw the catchlight (specular highlight or bright spot) on the LED.
 
-    // Calculate the LED´s "light factor":
-    int light_quote = (130 * 2 / (light_width ? light_width : 1)) + 100;
+    // The catchlight gives the LED a 3D bulb-like appearance.
 
-    // Now draw the bright spot on the LED:
-    while (light_width)
+    // Draw using modified "old" painter routine taken from KDEUI's Led widget.
+
+    // Switch off the brush to avoid filling the ellipse.
+    tmpPainter.setBrush(Qt::NoBrush);
+
+    QPen pen;
+    pen.setWidth(2 * scale);
+
+    // Compute the center of the catchlight, (pos, pos).
+    int pos = width2 / 5 + 1;
+    // Shrink the catchlight to about 2/3 of the complete LED.
+    int catchlightWidth = width2 * 2 / 3;
+
+    int lightFactor = (130 * 2 / (catchlightWidth ? catchlightWidth : 1)) + 100;
+
+    QColor catchlightColor = color;
+
+    // Now draw the catchlight on the LED:
+    while (catchlightWidth)
     {
-        color = color.light( light_quote );                      // make color lighter
-        pen.setColor( color );                                   // set color as pen color
-        paint.setPen( pen );                                     // select the pen for drawing
-        paint.drawEllipse( pos, pos, light_width, light_width ); // draw the ellipse (circle)
-        light_width--;
-        if (!light_width)
+        // make color lighter
+        catchlightColor = catchlightColor.lighter(lightFactor);
+        pen.setColor(catchlightColor);
+        tmpPainter.setPen(pen);
+
+        tmpPainter.drawEllipse(pos, pos, catchlightWidth, catchlightWidth);
+        --catchlightWidth;
+        if (!catchlightWidth)
             break;
-        paint.drawEllipse( pos, pos, light_width, light_width );
-        light_width--;
-        if (!light_width)
+
+        tmpPainter.drawEllipse(pos, pos, catchlightWidth, catchlightWidth);
+        --catchlightWidth;
+        if (!catchlightWidth)
             break;
-        paint.drawEllipse( pos, pos, light_width, light_width );
-        pos++;
-        light_width--;
+
+        tmpPainter.drawEllipse(pos, pos, catchlightWidth, catchlightWidth);
+        --catchlightWidth;
+
+        // Shift toward the center.
+        ++pos;
     }
 
-    paint.drawPoint(pos, pos);
+    // Final center point of the catchlight.
+    tmpPainter.drawPoint(pos, pos);
 
-    // Drawing of bright spot finished, now draw a thin border
-    // around the LED which resembles a shadow with light coming
-    // from the upper left.
 
-    pen.setWidth( 2 * scale + 1 ); // ### shouldn't this value be smaller for smaller LEDs?
-    brush.setStyle( Qt::NoBrush );              // Switch off the brush
-    paint.setBrush( brush );                        // This avoids filling of the ellipse
+    // *** Draw the round sunken frame around the LED.
 
-    // Set the initial color value to palette().light() (bright) and start
-    // drawing the shadow border at 45° (45*16 = 720).
+    // ### shouldn't this value be smaller for smaller LEDs?
+    // Given that there's no way to get an LED any size other than 16x16,
+    // it makes no difference.
+    pen.setWidth(2 * scale);
 
-    int angle = -720;
-    //color = palette().light();
-    color = Qt::white;
+    // Set the initial color value to white.
+    QColor frameColor = Qt::white;
+    // Start drawing the shadow border at -45 degrees (-45*16 = -720).
+    const int angle = -720;
 
-    for ( int arc = 120; arc < 2880; arc += 240 )
+    // Compute the frameRect.
+    const int halfPenWidth = pen.width() / 2;
+    const int frameWidth = width2 - halfPenWidth - scale + 1;
+    const QRect frameRect(halfPenWidth, halfPenWidth, frameWidth, frameWidth);
+
+    // From the highlight to the shadow (7.5 degrees to 180 in steps of
+    // 15 degrees).
+    for (int arc = 120; arc < 2880; arc += 240)
     {
-        pen.setColor( color );
-        paint.setPen( pen );
-        int w = width - pen.width() / 2 - scale + 1;
-        paint.drawArc( pen.width() / 2, pen.width() / 2, w, w, angle + arc, 240 );
-        paint.drawArc( pen.width() / 2, pen.width() / 2, w, w, angle - arc, 240 );
-        color = color.dark( 110 ); //FIXME: this should somehow use the contrast value
-    }	// end for ( angle = 720; angle < 6480; angle += 160 )
+        pen.setColor(frameColor);
+        tmpPainter.setPen(pen);
 
-    paint.end();
-    //
-    // painting done
+        // Upper right half
+        tmpPainter.drawArc(frameRect, angle + arc, 240);
+        // Lower left half
+        tmpPainter.drawArc(frameRect, angle - arc, 240);
 
-    if (smooth)
-    {
-        QPixmap *&dest = led_state ? d->on_map : d->off_map;
-        QImage i = tmpMap->toImage();
-        width /= 3;
-        i = i.scaled(width, width, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-        delete tmpMap;
-        dest = new QPixmap(QPixmap::fromImage(i));
-        paint.begin(this);
-        paint.drawPixmap(0, 0, *dest);
-        paint.end();
+        // Darken the frame as we go from the highlight to the shadow.
+        frameColor = frameColor.darker(110);
     }
-}
 
-Led::State
-Led::state() const
-{
-    return led_state;
-}
+    tmpPainter.end();
 
-QColor
-Led::color() const
-{
-    return led_color;
+
+    // *** Scale the big pixmap back down to the proper size.
+
+    // Convert to a QImage for scaling.  We scale the image down to
+    // make it look smooth.
+    QImage image = tmpMap.toImage();
+    width2 /= scale;
+    image = image.scaled(width2, width2,
+                         Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+
+
+    // *** Draw it.
+
+    // Draw the image to the display.
+    painter.drawImage(0, 0, image);
 }
 
 void
-Led::setState( State state )
+Led::setState(State state)
 {
-    if (led_state != state) {
-        led_state = state;
-        update();
-    }
-}
+    // No change?  Bail.
+    if (state == m_state)
+        return;
 
-void
-Led::setColor(const QColor& col)
-{
-    if (led_color != col) {
-        led_color = col;
-        d->offcolor = col.dark(d->dark_factor);
-        delete d->on_map;
-        d->on_map = 0;
-        delete d->off_map;
-        d->off_map = 0;
-        update();
-    }
-}
-
-void
-Led::setDarkFactor(int darkfactor)
-{
-    if (d->dark_factor != darkfactor) {
-        d->dark_factor = darkfactor;
-        d->offcolor = led_color.dark(darkfactor);
-        update();
-    }
-}
-
-int
-Led::darkFactor() const
-{
-    return d->dark_factor;
-}
-
-void
-Led::toggle()
-{
-    led_state = (led_state == On) ? Off : On;
+    m_state = state;
     update();
 }
 
 void
-Led::on()
+Led::setColor(const QColor &color)
 {
-    setState(On);
+    // No change?  Bail.
+    if (color == m_color)
+        return;
+
+    m_color = color;
+    m_offColor = color.darker(m_darkFactor);
+
+    update();
 }
 
-void
-Led::off()
-{
-    setState(Off);
-}
-
-QSize
-Led::sizeHint() const
-{
-    return QSize(16, 16);
-}
-
-QSize
-Led::minimumSizeHint() const
-{
-    return QSize(16, 16 );
-}
 
 }
-
-#include "Led.moc"
-

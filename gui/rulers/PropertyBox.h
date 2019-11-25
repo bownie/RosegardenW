@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -45,13 +45,13 @@ public:
     PropertyBox(QString label,
                int width,
                int height,
-               QWidget *parent=0);
+               QWidget *parent=nullptr);
 
-    virtual QSize sizeHint() const;
-    virtual QSize minimumSizeHint() const;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
 protected:
-    virtual void paintEvent(QPaintEvent *);
+    void paintEvent(QPaintEvent *) override;
 
     //--------------- Data members ---------------------------------
 

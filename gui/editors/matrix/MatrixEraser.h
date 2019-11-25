@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -29,11 +29,11 @@ class MatrixEraser : public MatrixTool
     friend class MatrixToolBox;
 
 public:
-    virtual void handleLeftButtonPress(const MatrixMouseEvent *);
+    void handleLeftButtonPress(const MatrixMouseEvent *) override;
 
-    static const QString ToolName;
+    static QString ToolName();
 
-    virtual void ready();
+    void ready() override;
 
 protected:
     MatrixEraser(MatrixWidget *);

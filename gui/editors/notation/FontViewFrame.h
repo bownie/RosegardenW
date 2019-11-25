@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -37,10 +37,10 @@ class FontViewFrame : public QFrame
     Q_OBJECT
 
 public:
-    FontViewFrame(int pixelSize, QWidget *parent = 0);
-    virtual ~FontViewFrame();
+    FontViewFrame(int pixelSize, QWidget *parent = nullptr);
+    ~FontViewFrame() override;
 
-    QSize sizeHint() const;
+    QSize sizeHint() const override;
     bool hasRow(int row) const;
 
 public slots:
@@ -50,13 +50,13 @@ public slots:
 
 protected:
     QSize cellSize() const;
-    void paintEvent( QPaintEvent* );
+    void paintEvent( QPaintEvent* ) override;
     void loadFont();
 
 private:
     QString m_fontName;
     int m_fontSize;
-    void *m_tableFont;
+    QFont *m_tableFont;
     int m_ascent;
     int m_row;
     bool m_glyphs;

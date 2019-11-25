@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -62,7 +62,7 @@ public:
 
     // Return a new linked segment that corresponds in timing and
     // pitch to this triggered segment as invoked by trigger.  
-    // Returns NULL if it can't make a meaningful linked segment.
+    // Returns nullptr if it can't make a meaningful linked segment.
     Segment *makeLinkedSegment(Event *trigger, Segment *containing);
     Segment* makeExpansion(Event *trigger,
                            Segment *containing,

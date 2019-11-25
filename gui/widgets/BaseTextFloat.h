@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -66,7 +66,7 @@ public :
      */
     BaseTextFloat(QWidget *parent);
 
-    virtual ~BaseTextFloat() {}
+    ~BaseTextFloat() override {}
 
     /**
      * Move the text float to a new parent widget and/or look at the
@@ -75,7 +75,7 @@ public :
      * is moved or resized.
      * \arg newParent New parent, or 0 (default) if parent is not changed.
      */
-    void reparent(QWidget *newParent = 0);
+    void reparent(QWidget *newParent = nullptr);
 
     /**
      * Set the text to display inside the TextFloat box.
@@ -103,7 +103,7 @@ protected slots :
 
 protected :
 
-    virtual void paintEvent(QPaintEvent *e);
+    void paintEvent(QPaintEvent *e) override;
 
     // Currently displayed text
     QString  m_text;

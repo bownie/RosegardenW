@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -26,7 +26,7 @@ public:
     NotationQuantizer();
     NotationQuantizer(std::string source, std::string target);
     NotationQuantizer(const NotationQuantizer &);
-    ~NotationQuantizer();
+    ~NotationQuantizer() override;
 
     /**
      * Set the absolute time minimum unit.  Default is demisemiquaver.
@@ -68,9 +68,9 @@ public:
     bool getArticulate() const;
 
 protected:
-    virtual void quantizeRange(Segment *,
+    void quantizeRange(Segment *,
                                Segment::iterator,
-                               Segment::iterator) const;
+                               Segment::iterator) const override;
 
 protected:
     // avoid having to rebuild absolutely everything each time we

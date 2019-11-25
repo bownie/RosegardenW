@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -56,23 +56,23 @@ TimeSignatureDialog::TimeSignatureDialog(QWidget *parent,
         m_composition(composition),
         m_timeSignature(sig),
         m_time(insertionTime),
-        m_numLabel(0),
-        m_denomLabel(0),
-        m_explanatoryLabel(0),
-        m_commonTimeButton(0),
-        m_hideSignatureButton(0),
-        m_normalizeRestsButton(0),
-        m_asGivenButton(0),
-        m_startOfBarButton(0),
-        m_timeEditor(0)
+        m_numLabel(nullptr),
+        m_denomLabel(nullptr),
+        m_explanatoryLabel(nullptr),
+        m_commonTimeButton(nullptr),
+        m_hideSignatureButton(nullptr),
+        m_normalizeRestsButton(nullptr),
+        m_asGivenButton(nullptr),
+        m_startOfBarButton(nullptr),
+        m_timeEditor(nullptr)
 {
     setModal(true);
     setWindowTitle(tr("Time Signature"));
     setObjectName("MinorDialog");
 
-    static QFont *timeSigFont = 0;
+    static QFont *timeSigFont = nullptr;
 
-    if (timeSigFont == 0) {
+    if (timeSigFont == nullptr) {
         timeSigFont = new QFont("new century schoolbook", 8, QFont::Bold);
         timeSigFont->setPixelSize(20);
     }
@@ -93,7 +93,7 @@ TimeSignatureDialog::TimeSignatureDialog(QWidget *parent,
     QHBoxLayout *denomBoxLayout = new QHBoxLayout;
     groupBoxLayout->addWidget(denomBox);
 
-    QLabel *explanatoryLabel = 0;
+    QLabel *explanatoryLabel = nullptr;
     if (!explanatoryText.isEmpty()) {
         explanatoryLabel = new QLabel(explanatoryText, groupBox);
         groupBoxLayout->addWidget(explanatoryLabel);
@@ -123,10 +123,10 @@ TimeSignatureDialog::TimeSignatureDialog(QWidget *parent,
     denomBoxLayout->addWidget(denomUp);
     denomBox->setLayout(denomBoxLayout);
 
-    QObject::connect(numDown, SIGNAL(clicked()), this, SLOT(slotNumDown()));
-    QObject::connect(numUp, SIGNAL(clicked()), this, SLOT(slotNumUp()));
-    QObject::connect(denomDown, SIGNAL(clicked()), this, SLOT(slotDenomDown()));
-    QObject::connect(denomUp, SIGNAL(clicked()), this, SLOT(slotDenomUp()));
+    QObject::connect(numDown, &QAbstractButton::clicked, this, &TimeSignatureDialog::slotNumDown);
+    QObject::connect(numUp, &QAbstractButton::clicked, this, &TimeSignatureDialog::slotNumUp);
+    QObject::connect(denomDown, &QAbstractButton::clicked, this, &TimeSignatureDialog::slotDenomDown);
+    QObject::connect(denomUp, &QAbstractButton::clicked, this, &TimeSignatureDialog::slotDenomUp);
 
     if (timeEditable) {
 
@@ -137,12 +137,12 @@ TimeSignatureDialog::TimeSignatureDialog(QWidget *parent,
                         m_time,
                         true);
         vboxLayout->addWidget(m_timeEditor);
-        m_asGivenButton = 0;
-        m_startOfBarButton = 0;
+        m_asGivenButton = nullptr;
+        m_startOfBarButton = nullptr;
 
     } else {
 
-        m_timeEditor = 0;
+        m_timeEditor = nullptr;
 
         groupBox = new QGroupBox(tr("Scope"));
         groupBoxLayout = new QVBoxLayout;
@@ -220,8 +220,8 @@ TimeSignatureDialog::TimeSignatureDialog(QWidget *parent,
 
     groupBox->setLayout(groupBoxLayout);
 
-    QObject::connect(m_hideSignatureButton, SIGNAL(clicked()), this,
-                     SLOT(slotUpdateCommonTimeButton()));
+    QObject::connect(m_hideSignatureButton, &QAbstractButton::clicked, this,
+                     &TimeSignatureDialog::slotUpdateCommonTimeButton);
     slotUpdateCommonTimeButton();
     m_explanatoryLabel = explanatoryLabel;
 
@@ -233,9 +233,9 @@ TimeSignatureDialog::TimeSignatureDialog(QWidget *parent,
 
     vboxLayout->addWidget(buttonBox);
 
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &TimeSignatureDialog::slotHelpRequested);
 
 }
 
@@ -367,4 +367,3 @@ TimeSignatureDialog::slotHelpRequested()
     QDesktopServices::openUrl(QUrl(helpURL));
 }
 }
-#include "TimeSignatureDialog.moc"

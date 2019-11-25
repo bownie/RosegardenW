@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2005
         Immanuel Litzroth         <immanuel203@gmail.com>
@@ -49,7 +49,7 @@ class TranzportClient : public QObject, public CompositionObserver
 public:
     TranzportClient(RosegardenMainWindow* rgGUIApp);
       
-    virtual ~TranzportClient();
+    ~TranzportClient() override;
 
 public slots:
     void readData();
@@ -89,12 +89,12 @@ public:
 public:
     enum ButtonMasks
     {
-#if BIG_ENDIAN
+#if Q_BYTE_ORDER == Q_BIG_ENDIAN
     #define SWAP(x) ((((uint32_t)(x) & 0xff000000) >> 24) |     \
                      (((uint32_t)(x) & 0x00ff0000) >> 8)  |     \
                      (((uint32_t)(x) & 0x0000ff00) << 8)  |     \
                      (((uint32_t)(x) & 0x000000ff) << 24))
-#elif LITTLE_ENDIAN
+#elif Q_BYTE_ORDER == Q_LITTLE_ENDIAN
     #define SWAP(x) x
 #else
     #error No endianness defined
@@ -179,10 +179,7 @@ private:
     std::queue<CommandType> commands;
       
     // CompositionObserver overrides
-    virtual void soloChanged(const Composition *,
-                             bool solo,
-                             TrackId selectedTrack);
-    virtual void trackChanged(const Composition *c, Track* t);
+    void trackChanged(const Composition *c, Track* t) override;
     // tracksAdded() need not be overridden as adding a track will not change
     // anything the TranzPort would display.
     // tracksDeleted() should probably be overridden to clear the display on

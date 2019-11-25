@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -40,9 +40,9 @@ class ControlSelector : public ControlMover
     friend class ControlToolBox;
 
 public:
-    virtual void handleLeftButtonPress(const ControlMouseEvent *);
-    virtual FollowMode handleMouseMove(const ControlMouseEvent *);
-    virtual void handleMouseRelease(const ControlMouseEvent *);
+    void handleLeftButtonPress(const ControlMouseEvent *) override;
+    FollowMode handleMouseMove(const ControlMouseEvent *) override;
+    void handleMouseRelease(const ControlMouseEvent *) override;
 
     /**
      * Respond to an event being deleted -- it may be the one the tool
@@ -50,7 +50,7 @@ public:
      */
 //    virtual void handleEventRemoved(Event *event);
 
-    static const QString ToolName;
+    static QString ToolName();
 
 signals:
 //    void hoveredOverNoteChanged(int evPitch, bool haveEvent, timeT evTime);

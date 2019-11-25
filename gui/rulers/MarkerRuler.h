@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,7 +19,6 @@
 #ifndef RG_MARKERRULER_H
 #define RG_MARKERRULER_H
 
-#include "gui/general/HZoomable.h"
 #include "gui/general/ActionFileClient.h"
 #include <QSize>
 #include <QWidget>
@@ -28,7 +27,6 @@
 
 class QPaintEvent;
 class QMouseEvent;
-class QFont;
 class QMenu;
 class QMainWindow;
 
@@ -40,23 +38,20 @@ class RulerScale;
 class RosegardenDocument;
 
 
-class MarkerRuler : public QWidget, public HZoomable, public ActionFileClient
+class MarkerRuler : public QWidget, public ActionFileClient
 {
     Q_OBJECT
 
 public:
     MarkerRuler(RosegardenDocument *doc,
                      RulerScale *rulerScale,
-                     int buttonHeight,
-                     double xorigin = 0.0,
-                     QWidget* parent = 0,
-                     const char* name = 0);
-//                      WFlags f=0);
+                     QWidget* parent = nullptr,
+                     const char* name = nullptr);
 
-    virtual ~MarkerRuler();
+    ~MarkerRuler() override;
     
-    virtual QSize sizeHint() const;
-    virtual QSize minimumSizeHint() const;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
     void scrollHoriz(int x);
 
@@ -84,22 +79,19 @@ protected slots:
     void slotEditMarker();
     
 protected:
-    virtual void paintEvent(QPaintEvent*);
-    virtual void mousePressEvent(QMouseEvent *e);
-    virtual void mouseDoubleClickEvent(QMouseEvent *e);
+    void paintEvent(QPaintEvent*) override;
+    void mousePressEvent(QMouseEvent *e) override;
+    void mouseDoubleClickEvent(QMouseEvent *e) override;
 
     void createMenu();
     timeT getClickPosition();
     Rosegarden::Marker* getMarkerAtClickPosition();
     
     //--------------- Data members ---------------------------------
-    int m_barHeight;
-    double m_xorigin;
     int m_currentXOffset;
     int m_width;
     int m_clickX;
     
-    QFont 	*m_barFont;
     QMenu 	*m_menu;
     
     RosegardenDocument *m_doc;

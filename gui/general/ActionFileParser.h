@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -32,9 +32,11 @@ namespace Rosegarden
 {
 
 
-/// Convert .rc files to menus and actions.
-/*
- * @see ActionFileClient
+/// Convert a .rc file to QMenu and QToolBar objects.
+/**
+ * This class is used by ActionFileClient to load the menus and toolbars
+ * from a .rc file and translate them into QMenu and QToolBar objects that
+ * are then added as children to the ActionFileClient deriver.
  */
 class ActionFileParser : public QObject, public QXmlDefaultHandler
 {
@@ -42,11 +44,13 @@ class ActionFileParser : public QObject, public QXmlDefaultHandler
 
 public:
     ActionFileParser(QObject *actionOwner);
-    virtual ~ActionFileParser();
+    ~ActionFileParser() override;
     
     bool load(QString actionRcFile);
 
+    /// Enable/disable and show/hide actions based on the new state.
     void enterActionState(QString stateName);
+    /// Enable/disable and show/hide actions based on leaving the state.
     void leaveActionState(QString stateName);
 
 private slots:
@@ -143,38 +147,40 @@ private:
 
     // QXmlDefaultHandler methods
 
-    virtual bool startDocument();
+    bool startDocument() override;
 
-    virtual bool startElement(const QString& namespaceURI,
+    bool startElement(const QString& namespaceURI,
                               const QString& localName,
                               const QString& qName,
-                              const QXmlAttributes& atts);
+                              const QXmlAttributes& atts) override;
 
-    virtual bool endElement(const QString& namespaceURI,
+    bool endElement(const QString& namespaceURI,
                             const QString& localName,
-                            const QString& qName);
+                            const QString& qName) override;
 
-    virtual bool characters(const QString& ch);
+    bool characters(const QString& ch) override;
 
-    virtual bool endDocument();
+    bool endDocument() override;
 
-    bool error(const QXmlParseException &exception);
-    bool fatalError(const QXmlParseException &exception);
+    bool error(const QXmlParseException &exception) override;
+    bool fatalError(const QXmlParseException &exception) override;
 };
 
-// A QMenu needs a QWidget as its parent, but the action file client
-// will not necessarily be a QWidget -- for example, it might be a
-// tool object.  In this case, we need to make a menu that has no
-// parent, but we need to wrap it in something that is parented by the
-// action file client so that we can find it later and it shares the
-// scope of the client.  This is that wrapper.
+/**
+ * A QMenu needs a QWidget as its parent, but the action file client
+ * will not necessarily be a QWidget -- for example, it might be a
+ * tool object.  In this case, we need to make a menu that has no
+ * parent, but we need to wrap it in something that is parented by the
+ * action file client so that we can find it later and it shares the
+ * scope of the client.  This is that wrapper.
+ */
 class ActionFileMenuWrapper : public QObject
 {
     Q_OBJECT
 
 public:
     ActionFileMenuWrapper(QMenu *menu, QObject *parent);
-    virtual ~ActionFileMenuWrapper();
+    ~ActionFileMenuWrapper() override;
 
     QMenu *getMenu();
 

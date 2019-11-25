@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -79,8 +79,8 @@ InsertTupletDialog::InsertTupletDialog(QWidget *parent, unsigned int untupledCou
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Help);
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
     // No such slot
     // connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
 }
@@ -102,4 +102,3 @@ InsertTupletDialog::getTupledCount() const
 
 
 }
-#include "InsertTupletDialog.moc"

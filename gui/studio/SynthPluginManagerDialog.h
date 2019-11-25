@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,9 +19,13 @@
 #ifndef RG_SYNTHPLUGINMANAGERDIALOG_H
 #define RG_SYNTHPLUGINMANAGERDIALOG_H
 
+#include "base/Instrument.h"
 #include "base/MidiProgram.h"
 #include "gui/general/ActionFileClient.h"
+
 #include <QMainWindow>
+#include <QSharedPointer>
+
 #include <vector>
 
 
@@ -53,7 +57,7 @@ public:
                              RosegardenDocument *doc,
 			     AudioPluginOSCGUIManager *guiManager);
 
-    virtual ~SynthPluginManagerDialog();
+    ~SynthPluginManagerDialog() override;
 
     void updatePlugin(InstrumentId id, int plugin);
     
@@ -75,12 +79,12 @@ protected slots:
     void slotHelpRequested();
 
 protected:
-    virtual void closeEvent(QCloseEvent *);
+    void closeEvent(QCloseEvent *) override;
 
 protected:
     RosegardenDocument *m_document;
     Studio *m_studio;
-    AudioPluginManager *m_pluginManager;
+    QSharedPointer<AudioPluginManager> m_pluginManager;
     std::vector<int> m_synthPlugins;
     std::vector<QComboBox *> m_synthCombos;
     std::vector<QPushButton *> m_controlsButtons;

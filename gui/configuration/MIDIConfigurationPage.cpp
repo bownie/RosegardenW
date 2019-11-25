@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,10 +35,10 @@
 #include "TabbedConfigurationPage.h"
 #include "misc/Debug.h"
 #include "gui/widgets/LineEdit.h"
+#include "gui/widgets/FileDialog.h"
 
 #include <QComboBox>
 #include <QSettings>
-#include <QFileDialog>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QByteArray>
@@ -65,9 +65,9 @@ MIDIConfigurationPage::MIDIConfigurationPage(
     RosegardenDocument *doc,
     QWidget *parent):
         TabbedConfigurationPage(parent),
-        m_midiPitchOctave(0)
+        m_midiPitchOctave(nullptr)
 {
-//    RG_DEBUG << "MIDI CONFIGURATION PAGE CTOR" << endl;
+//    RG_DEBUG << "MIDI CONFIGURATION PAGE CTOR";
     // set the document in the super class
     m_doc = doc;
 
@@ -83,7 +83,7 @@ MIDIConfigurationPage::MIDIConfigurationPage(
     layout->setRowMinimumHeight(row, 15);
     ++row;
 
-    QLabel *label = 0;
+    QLabel *label = nullptr;
 
     QSettings settings;
     settings.beginGroup( GeneralOptionsConfigGroup );
@@ -107,7 +107,7 @@ MIDIConfigurationPage::MIDIConfigurationPage(
                                       frame), row, 0, 1, 2);
 
     m_studio = new QCheckBox(frame);
-    connect(m_studio, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_studio, &QCheckBox::stateChanged, this, &MIDIConfigurationPage::slotModified);
     m_studio->setChecked( qStrToBool( settings.value("alwaysusedefaultstudio", "false" ) ) );
     layout->addWidget(m_studio, row, 2);
     ++row;
@@ -116,18 +116,18 @@ MIDIConfigurationPage::MIDIConfigurationPage(
     // Send Controllers
     //
     settings.beginGroup( SequencerOptionsConfigGroup );
-    label = new QLabel(tr("Send all MIDI Controllers at start of each playback"), frame);
+    label = new QLabel(tr("Allow Reset All Controllers (CC 121)"), frame);
 
-    QString controllerTip = tr("Rosegarden can send all MIDI Controllers (Pan, Reverb etc) to all MIDI devices every\ntime you hit play if you so wish.  Please note that this option will usually incur a\ndelay at the start of playback due to the amount of data being transmitted.");
-    label->setToolTip(controllerTip);
+    QString resetTip = tr("Rosegarden can send a MIDI Reset All Controllers event when setting up a channel.");
+    label->setToolTip(resetTip);
     layout->addWidget(label, row, 0, row- row+1, 1- 0+1);
 
-    m_sendControllersAtPlay = new QCheckBox(frame);
-    connect(m_sendControllersAtPlay, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
-    bool sendControllers = qStrToBool( settings.value("alwayssendcontrollers", "false" ) ) ;
-    m_sendControllersAtPlay->setChecked(sendControllers);
-    m_sendControllersAtPlay->setToolTip(controllerTip);
-    layout->addWidget(m_sendControllersAtPlay, row, 2);
+    m_allowResetAllControllers = new QCheckBox(frame);
+    connect(m_allowResetAllControllers, &QCheckBox::stateChanged, this, &MIDIConfigurationPage::slotModified);
+    const bool sendResetAllControllers = qStrToBool( settings.value("allowresetallcontrollers", "true" ) ) ;
+    m_allowResetAllControllers->setChecked(sendResetAllControllers);
+    m_allowResetAllControllers->setToolTip(resetTip);
+    layout->addWidget(m_allowResetAllControllers, row, 2);
     ++row;
 
     // Timer selection
@@ -166,7 +166,7 @@ MIDIConfigurationPage::MIDIConfigurationPage(
     layout->addWidget(lbl, row, 0, row- row+1, 1- 0+1);
 
     m_sfxLoadEnabled = new QCheckBox(frame);
-    connect(m_sfxLoadEnabled, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_sfxLoadEnabled, &QCheckBox::stateChanged, this, &MIDIConfigurationPage::slotModified);
     layout->addWidget(m_sfxLoadEnabled, row, 2);
     m_sfxLoadEnabled->setToolTip(tooltip);
     ++row;
@@ -194,14 +194,14 @@ MIDIConfigurationPage::MIDIConfigurationPage(
         m_soundFontChoose->setEnabled(false);
     }
 
-    connect(m_sfxLoadEnabled, SIGNAL(toggled(bool)),
-            this, SLOT(slotSoundFontToggled(bool)));
+    connect(m_sfxLoadEnabled, &QAbstractButton::toggled,
+            this, &MIDIConfigurationPage::slotSoundFontToggled);
 
-    connect(m_sfxLoadChoose, SIGNAL(clicked()),
-            this, SLOT(slotSfxLoadPathChoose()));
+    connect(m_sfxLoadChoose, &QAbstractButton::clicked,
+            this, &MIDIConfigurationPage::slotSfxLoadPathChoose);
 
-    connect(m_soundFontChoose, SIGNAL(clicked()),
-            this, SLOT(slotSoundFontChoose()));
+    connect(m_soundFontChoose, &QAbstractButton::clicked,
+            this, &MIDIConfigurationPage::slotSoundFontChoose);
 
     layout->setRowStretch(row, 10);
 
@@ -289,7 +289,7 @@ MIDIConfigurationPage::MIDIConfigurationPage(
     hboxLayout->addWidget(label);
 //    layout->addWidget(label, row, 0);
     m_midiSyncAuto = new QCheckBox( hbox );
-    connect(m_midiSyncAuto, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_midiSyncAuto, &QCheckBox::stateChanged, this, &MIDIConfigurationPage::slotModified);
     hboxLayout->addWidget(m_midiSyncAuto);
     hbox->setLayout(hboxLayout);
 //    layout->addWidget(m_midiSyncAuto, row, 1);
@@ -318,7 +318,7 @@ MIDIConfigurationPage::slotSoundFontToggled(bool isChecked)
 void
 MIDIConfigurationPage::slotSfxLoadPathChoose()
 {
-    QString path = QFileDialog::getOpenFileName(this, tr("sfxload path"), QDir::currentPath() ); //":SFXLOAD"
+    QString path = FileDialog::getOpenFileName(this, tr("sfxload path"), QDir::currentPath() ); //":SFXLOAD"
 
     m_sfxLoadPath->setText(path);
 }
@@ -326,7 +326,7 @@ MIDIConfigurationPage::slotSfxLoadPathChoose()
 void
 MIDIConfigurationPage::slotSoundFontChoose()
 {
-    QString path = QFileDialog::getOpenFileName(this, tr("Soundfont path"), QDir::currentPath(),
+    QString path = FileDialog::getOpenFileName(this, tr("Soundfont path"), QDir::currentPath(),
                    tr("Sound fonts") + " (*.sb *.sf2 *.SF2 *.SB)" + ";;" +
                    tr("All files") + " (*)" ); // ":SOUNDFONTS"
 
@@ -336,12 +336,12 @@ MIDIConfigurationPage::slotSoundFontChoose()
 void
 MIDIConfigurationPage::apply()
 {
-    RG_DEBUG << "MIDI CONFIGURATION PAGE SETTINGS APPLIED" << endl;
+    RG_DEBUG << "MIDI CONFIGURATION PAGE SETTINGS APPLIED";
     QSettings settings;
     settings.beginGroup( SequencerOptionsConfigGroup );
 
-    settings.setValue("alwayssendcontrollers",
-                      m_sendControllersAtPlay->isChecked());
+    settings.setValue("allowresetallcontrollers",
+                      m_allowResetAllControllers->isChecked());
 
     settings.setValue("sfxloadenabled", m_sfxLoadEnabled->isChecked());
     settings.setValue("sfxloadpath", m_sfxLoadPath->text());
@@ -418,4 +418,3 @@ MIDIConfigurationPage::apply()
 }
 
 }
-#include "MIDIConfigurationPage.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[ControllerContextMap]"
 
 #include "ControllerContext.h"
 
@@ -77,7 +79,7 @@ searchSegment(const Segment *s, timeT noEarlierThan, timeT noLaterThan) const
 }
 
 // Search Segments A and B for the latest controller value. Search A
-// first.  B may be NULL but A must exist.
+// first.  B may be nullptr but A must exist.
 ControllerSearch::Maybe
 ControllerSearch::
 doubleSearch(Segment *a, Segment *b, timeT noLaterThan) const
@@ -279,11 +281,10 @@ makeControlValueAbsolute(Instrument *instrument, Segment *a,
         makeAbsolute(controlParameter, oldValue + baseline);
     adapter.setValue(newValue);
 #ifdef DEBUG_CONTROLLER_CONTEXT
-    SEQMAN_DEBUG << "ControllerContextMap::makeControlValueAbsolute"
+    RG_DEBUG << "makeControlValueAbsolute()"
                  << "oldValue - " << oldValue
                  << "newValue - " << newValue
                  << "baseline - " << result.second.value()
-                 << endl
         ;
 #endif
 }
@@ -324,7 +325,7 @@ storeLatestValue(Event *e)
 // @author Tom Breton (Tehom)
 void
 ControllerContextMap::
-clear(void)
+clear()
 {
     m_latestValues.clear();
     m_PitchBendLatestValue = Maybe(false,ControllerSearchValue());

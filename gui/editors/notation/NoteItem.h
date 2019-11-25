@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,6 +19,7 @@
 #define RG_NOTEITEM_H
 
 #include <QGraphicsItem>
+#include <QSharedPointer>
 
 #include "NotePixmapParameters.h"
 
@@ -40,20 +41,20 @@ class NoteItem : public QGraphicsItem
 {
 public:
     NoteItem(const NotePixmapParameters &params,
-             NoteStyle *style,
+             QSharedPointer<NoteStyle> style,
              bool selected,
              bool shaded,
 	     NotePixmapFactory *factory,
-	     QGraphicsItem *parent = 0);
-    virtual ~NoteItem();
+	     QGraphicsItem *parent = nullptr);
+    ~NoteItem() override;
 
-    QRectF boundingRect() const;
+    QRectF boundingRect() const override;
     QPointF offset() const;
     QPixmap makePixmap() const;
 
     void paint(QPainter *painter,
                const QStyleOptionGraphicsItem *option,
-               QWidget *widget);
+               QWidget *widget) override;
 
     enum DrawMode {
         DrawNormal,
@@ -64,7 +65,7 @@ public:
 
 protected:
     NotePixmapParameters m_parameters;
-    NoteStyle *m_style;
+    QSharedPointer<NoteStyle> m_style;
     bool m_selected;
     bool m_shaded;
     NotePixmapFactory *m_factory;

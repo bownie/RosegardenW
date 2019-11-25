@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -32,8 +32,8 @@
 #include <QFontMetrics>
 #include <QPixmap>
 #include <QPoint>
-
-#include <QCoreApplication>
+#include <QCoreApplication> // for Q_DECLARE_TR_FUNCTIONS
+#include <QSharedPointer>
 
 class QPainter;
 class QBitmap;
@@ -58,7 +58,7 @@ class StaffHeader;
  * Generates pixmaps and graphics items for various notation items.
  * This class is not re-entrant.
  */
-class NotePixmapFactory 
+class NotePixmapFactory
 {
     Q_DECLARE_TR_FUNCTIONS(Rosegarden::NotePixmapFactory)
 
@@ -118,8 +118,8 @@ public:
      */
     bool isShaded() const { return m_shaded; }
 
-    void setNoteStyle(NoteStyle *style) { m_style = style; }
-    const NoteStyle *getNoteStyle() const { return m_style; } 
+    void setNoteStyle(QSharedPointer<NoteStyle> style) { m_style = style; }
+    const QSharedPointer<NoteStyle> getNoteStyle() const { return m_style; }
 
     // Display methods -- create graphics items:
 
@@ -302,7 +302,7 @@ protected:
     int getStemLength(const NotePixmapParameters &) const;
 
     void makeRoomForAccidental(Accidental, bool cautionary, int shift, bool extra);
-    void drawAccidental(Accidental, bool cautionary);
+    void drawAccidental(const NotePixmapParameters &params);
 
     void makeRoomForMarks(bool isStemmed, const NotePixmapParameters &params, int stemLength);
     void drawMarks(bool isStemmed, const NotePixmapParameters &params, int stemLength, bool overRestHack = false);
@@ -332,6 +332,7 @@ protected:
     void drawShallowLine(float x0, float y0, float x1, float y1, float thickness);
     void drawTie(bool above, int length, int shift);
 
+    /// Draw a parenthesis for cautionary (courtesy) accidentals.
     void drawBracket(int length, bool left, bool curly, int x, int y);
 
     QFont getTextFont(const Text &text) const;
@@ -350,13 +351,21 @@ protected:
     /// draws selected/shaded status from m_selected/m_shaded:
     bool getCharacter(CharName name, NoteCharacter &ch, ColourType type, bool inverted);
 
+    /// Draw character with a specified QColor
+    //  This is a first step to a simpler use of colors
+    NoteCharacter getCharacter(CharName name, QColor color, bool inverted);
+
+    /// Draw character with a specified QColor
+    //  This is a first step to a simpler use of colors
+    bool getCharacter(CharName name, NoteCharacter &ch, QColor color, bool inverted);
+
     void drawNoteHalo(int x, int y, int w, int h);
 
     //--------------- Data members ---------------------------------
 
     NoteFont *m_font;
     NoteFont *m_graceFont;
-    NoteStyle *m_style;
+    QSharedPointer<NoteStyle> m_style;
     bool m_selected;
     bool m_shaded;
     bool m_haveGrace;
@@ -402,8 +411,6 @@ protected:
 
     typedef std::map<const char *, QFont> TextFontCache;
     mutable TextFontCache m_textFontCache;
-
-    static QPoint m_pointZero;
 };
 
 

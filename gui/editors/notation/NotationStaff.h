@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -21,7 +21,6 @@
 #include "base/ViewSegment.h"
 #include "base/ViewElement.h"
 #include "StaffLayout.h"
-#include "gui/general/ProgressReporter.h"
 #include <map>
 #include <set>
 #include <string>
@@ -54,7 +53,7 @@ class Clef;
 
 class NotationStaff : public ViewSegment,
                       public StaffLayout,
-                      public ProgressReporter //!!! maybe remove if we can make this fast enough
+                      public QObject  // Just for tr().  Could be cleaned up.
 {
     //Q_OBJECT
 public:
@@ -62,7 +61,7 @@ public:
                   int id,
                   NotePixmapFactory *normalFactory,
                   NotePixmapFactory *smallFactory);
-    virtual ~NotationStaff();
+    ~NotationStaff() override;
 
     void setNotePixmapFactories(NotePixmapFactory *normal,
                                 NotePixmapFactory *small);
@@ -92,7 +91,7 @@ public:
      * too much state for its methods to be const, but you should
      * treat the returned reference as if it were const anyway.
      */
-    virtual NotePixmapFactory& getNotePixmapFactory(bool grace) {
+    NotePixmapFactory& getNotePixmapFactory(bool grace) {
         return grace ? *m_graceNotePixmapFactory : *m_notePixmapFactory;
     }
 
@@ -109,10 +108,10 @@ public:
      * of a range, you will then need to call positionElements for the
      * changed range and the entire remainder of the staff.
      */
-    virtual void renderElements(NotationElementList::iterator from,
-                                NotationElementList::iterator to);
+    void renderElements(NotationElementList::iterator from,
+                                NotationElementList::iterator to) override;
 
-    virtual void renderElements(timeT from, timeT to);
+    void renderElements(timeT from, timeT to);
 
     
     /**
@@ -146,66 +145,43 @@ public:
      * passing from and to arguments corresponding to the times of those
      * passed to renderElements.
      */
-    virtual void positionElements(timeT from,
-                                  timeT to);
+    void positionElements(timeT from,
+                          timeT to) override;
 
-    /**
-     * Set a painter as the printer output.  If this painter is
-     * non-null, subsequent renderElements calls will only render
-     * those elements that cannot be rendered directly to a print
-     * painter; those that can, will be rendered by renderPrintable()
-     * instead.
-     */
-    virtual void setPrintPainter(QPainter *painter);
-
-    /**
-     * Render to the current print painter those elements that can be
-     * rendered directly to a print painter.  If no print painter is
-     * set, do nothing.
-     */
-    virtual void renderPrintable(timeT from,
-                                 timeT to);
-    
     /**
      * Insert time signature at x-coordinate \a x.
      * Use a gray color if \a grayed is true.
      */
-    virtual void insertTimeSignature(double layoutX,
-                                     const TimeSignature &timeSig, bool grayed);
+    void insertTimeSignature(double layoutX,
+                                     const TimeSignature &timeSig, bool grayed) override;
 
     /**
      * Delete all time signatures
      */
-    virtual void deleteTimeSignatures();
+    void deleteTimeSignatures() override;
     
     /**
      * Insert repeated clef and key at start of new line, at x-coordinate \a x.
      */
-    virtual void insertRepeatedClefAndKey(double layoutX, int barNo);
+    void insertRepeatedClefAndKey(double layoutX, int barNo) override;
 
     /**
      * Delete all repeated clefs and keys.
      */
-    virtual void deleteRepeatedClefsAndKeys();
+    void deleteRepeatedClefsAndKeys() override;
 
     /**
      * (Re)draw the staff name from the track's current name
      */
-    virtual void drawStaffName();
-
-    /**
-     * Return true if the staff name as currently drawn is up-to-date
-     * with that in the composition
-     */
-    virtual bool isStaffNameUpToDate();
+    void drawStaffName() override;
 
     /**
      * Return the clef and key in force at the given canvas
      * coordinates
      */
-    virtual void getClefAndKeyAtSceneCoords(double x, int y,
-                                             Clef &clef,
-                                             ::Rosegarden::Key &key) const;
+    void getClefAndKeyAtSceneCoords(double x, int y,
+                                    Clef &clef,
+                                    ::Rosegarden::Key &key) const;
 
     /**
      * Return the note name (C4, Bb3, whatever) corresponding to the
@@ -242,40 +218,42 @@ public:
      *
      * Also returns the clef and key in force at the given coordinates.
      */
-    virtual ViewElementList::iterator getElementUnderLayoutX
-    (double x, Event *&clef, Event *&key);
+    ViewElementList::iterator getElementUnderLayoutX
+    (double x, Event *&clef, Event *&key) override;
 
     /**
      * Draw a note on the staff to show an insert position prior to
      * an insert. 
      */
-    virtual void showPreviewNote(double layoutX, int heightOnStaff,
-                                 const Note &note, bool grace);
+    void showPreviewNote(double layoutX, int heightOnStaff,
+                         const Note &note, bool grace,
+                         Accidental accidental, bool cautious,
+                         QColor color);
 
     /**
      * Remove any visible preview note.
      */
-    virtual void clearPreviewNote();
+    void clearPreviewNote();
 
     /**
      * Overridden from Staff<T>.
      * We want to avoid wrapping things like controller events, if
      * our showUnknowns preference is off
      */
-    virtual bool wrapEvent(Event *);
+    bool wrapEvent(Event *) override;
 
     /**
      * Override from Staff<T>
      * Let tools know if their current element has gone
      */
-    virtual void eventRemoved(const Segment *, Event *);
+    void eventRemoved(const Segment *, Event *) override;
 
     /**
      * Return the view-local PropertyName definitions for this staff's view
      */
     const NotationProperties &getProperties() const;
 
-    virtual double getBarInset(int barNo, bool isFirstBarInRow) const;
+    double getBarInset(int barNo, bool isFirstBarInRow) const override;
 
     /**
      * Return the time at the given scene coordinates
@@ -286,41 +264,39 @@ public:
     
 protected:
 
-    virtual ViewElement* makeViewElement(Event*);
+    ViewElement* makeViewElement(Event*) override;
 
     // definition of staff
-    virtual int getLineCount() const         { return 5; }
-    virtual int getLegerLineCount() const    { return m_legerLineCount; }
-    virtual int getBottomLineHeight() const  { return 0; }
-    virtual int getHeightPerLine() const     { return 2; }
-    virtual int showBarNumbersEvery() const  { return m_barNumbersEvery; }
+    int getLineCount() const         override { return 5; }
+    int getLegerLineCount() const    override { return m_legerLineCount; }
+    int getBottomLineHeight() const  override { return 0; }
+    int getHeightPerLine() const     override { return 2; }
+    int showBarNumbersEvery() const  override { return m_barNumbersEvery; }
 
-    virtual BarStyle getBarStyle(int barNo) const;
+    BarStyle getBarStyle(int barNo) const override;
 
     /** 
      * Assign a suitable item to the given element (the clef is
      * needed in case it's a key event, in which case we need to judge
      * the correct pitch for the key)
      */
-    virtual void renderSingleElement(ViewElementList::iterator &,
-                                     const Clef &,
-                                     const ::Rosegarden::Key &,
-                                     bool selected);
-
-    bool isDirectlyPrintable(ViewElement *elt);
+    void renderSingleElement(ViewElementList::iterator &,
+                             const Clef &,
+                             const ::Rosegarden::Key &,
+                             bool selected);
 
     void setTuplingParameters(NotationElement *, NotePixmapParameters &);
 
     /**
      * Set an item representing the given note event to the given notation element
      */
-    virtual void renderNote(ViewElementList::iterator &);
+    void renderNote(ViewElementList::iterator &);
 
     /**
      * Return true if the element has a scene item that is already
      * at the correct y-coordinate
      */
-    virtual bool elementNotMovedInY(NotationElement *);
+    bool elementNotMovedInY(NotationElement *);
 
     /**
      * Returns true if the item at the given iterator appears to have
@@ -332,9 +308,9 @@ protected:
      * all other following iterators at the same time as well as the
      * first iterator found at a greater time.
      */
-    virtual bool elementShiftedOnly(NotationElementList::iterator);
+    bool elementShiftedOnly(NotationElementList::iterator);
 
-    virtual bool elementNeedsRegenerating(NotationElementList::iterator);
+    bool elementNeedsRegenerating(NotationElementList::iterator);
 
     enum FitPolicy {
         PretendItFittedAllAlong = 0,
@@ -343,29 +319,11 @@ protected:
     };
 
     /**
-     * Prepare a painter to draw an object of logical width w at
-     * layout-x coord x, starting at offset dx into the object, by
-     * setting the painter's clipping so as to crop the object at the
-     * right edge of the row if it would otherwise overrun.  The
-     * return value is the amount of the object visible on this row
-     * (i.e. the increment in offset for the next call to this method)
-     * or zero if no crop was necessary.  The scene coords at which
-     * the object should subsequently be drawn are returned in coords.
-     *
-     * This function calls painter.save(), and the caller must call
-     * painter.restore() after use.
-     */
-    virtual double setPainterClipping(QPainter *, double layoutX, int layoutY,
-                                      double dx, double w, StaffLayoutCoords &coords,
-                                      FitPolicy policy);
-
-    /**
      * Set a single item to a notation element, or split it into bits
      * if it overruns the end of a row and can be split, and set the
      * bits separately.
      */
-    virtual void setItem(NotationElement *, QGraphicsItem *, int z,
-                         FitPolicy policy);
+    void setItem(NotationElement *, QGraphicsItem *, int z, FitPolicy policy);
 
     bool isSelected(NotationElementList::iterator);
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -64,7 +64,7 @@ AudioConfigurationPage::AudioConfigurationPage(
     RosegardenDocument *doc,
     QWidget *parent):
     TabbedConfigurationPage(parent),
-    m_externalAudioEditorPath(0)
+    m_externalAudioEditorPath(nullptr)
 {
     // set the document in the super class
     m_doc = doc;
@@ -75,8 +75,6 @@ AudioConfigurationPage::AudioConfigurationPage(
     frame->setContentsMargins(10, 10, 10, 10);
     QGridLayout *layout = new QGridLayout(frame);
     layout->setSpacing(5);
-
-    QLabel *label = 0;
 
     int row = 0;
 
@@ -101,7 +99,7 @@ AudioConfigurationPage::AudioConfigurationPage(
 #ifdef HAVE_LIBJACK
     settings.beginGroup( SequencerOptionsConfigGroup );
 
-    label = new QLabel(tr("Record audio files as"), frame);
+    QLabel *label = new QLabel(tr("Record audio files as"), frame);
     m_audioRecFormat = new QComboBox(frame);
     connect(m_audioRecFormat, SIGNAL(activated(int)), this, SLOT(slotModified()));
     m_audioRecFormat->addItem(tr("16-bit PCM WAV format (smaller files)"));
@@ -132,7 +130,7 @@ AudioConfigurationPage::AudioConfigurationPage(
     }
 
     m_externalAudioEditorPath = new LineEdit(externalAudioEditor, frame);
-    connect(m_externalAudioEditorPath, SIGNAL(textChanged(const QString &)), this, SLOT(slotModified()));
+    connect(m_externalAudioEditorPath, &QLineEdit::textChanged, this, &AudioConfigurationPage::slotModified);
 //    m_externalAudioEditorPath->setMinimumWidth(150);
     layout->addWidget(m_externalAudioEditorPath, row, 1);
     
@@ -140,7 +138,7 @@ AudioConfigurationPage::AudioConfigurationPage(
         new QPushButton(tr("Choose..."), frame);
 
     layout->addWidget(changePathButton, row, 2);
-    connect(changePathButton, SIGNAL(clicked()), SLOT(slotFileDialog()));
+    connect(changePathButton, &QAbstractButton::clicked, this, &AudioConfigurationPage::slotFileDialog);
     ++row;
 
     settings.endGroup();
@@ -153,7 +151,7 @@ AudioConfigurationPage::AudioConfigurationPage(
     settings.beginGroup( SequencerOptionsConfigGroup );
 
     m_createFaderOuts = new QCheckBox(tr("for individual audio instruments"), frame);
-    connect(m_createFaderOuts, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_createFaderOuts, &QCheckBox::stateChanged, this, &AudioConfigurationPage::slotModified);
     m_createFaderOuts->setChecked( qStrToBool( settings.value("audiofaderouts", "false" ) ) );
 
 //    layout->addWidget(label, row, 0, Qt::AlignRight);
@@ -161,7 +159,7 @@ AudioConfigurationPage::AudioConfigurationPage(
     ++row;
 
     m_createSubmasterOuts = new QCheckBox(tr("for submasters"), frame);
-    connect(m_createSubmasterOuts, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_createSubmasterOuts, &QCheckBox::stateChanged, this, &AudioConfigurationPage::slotModified);
     m_createSubmasterOuts->setChecked( qStrToBool( settings.value("audiosubmasterouts", "false" ) ) );
 
 //    layout->addWidget(label, row, 0, Qt::AlignRight);
@@ -179,20 +177,20 @@ AudioConfigurationPage::AudioConfigurationPage(
     settings.beginGroup(SequencerOptionsConfigGroup);
 
     m_connectDefaultAudioOutputs = new QCheckBox(tr("audio outputs"));
-    connect(m_connectDefaultAudioOutputs, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_connectDefaultAudioOutputs, &QCheckBox::stateChanged, this, &AudioConfigurationPage::slotModified);
     m_connectDefaultAudioOutputs->setChecked(qStrToBool(settings.value("connect_default_jack_outputs", "true")));
     layout->addWidget(m_connectDefaultAudioOutputs, row, 1);
     ++row;
 
     m_connectDefaultAudioInputs = new QCheckBox(tr("audio inputs"));
-    connect(m_connectDefaultAudioInputs, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_connectDefaultAudioInputs, &QCheckBox::stateChanged, this, &AudioConfigurationPage::slotModified);
     m_connectDefaultAudioInputs->setChecked(qStrToBool(settings.value("connect_default_jack_inputs", "true")));
     layout->addWidget(m_connectDefaultAudioInputs, row, 1);
     ++row;
 
     layout->addWidget(new QLabel(tr("Start JACK automatically"),frame), row, 0);
     m_autoStartJackServer = new QCheckBox();
-    connect(m_autoStartJackServer, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_autoStartJackServer, &QCheckBox::stateChanged, this, &AudioConfigurationPage::slotModified);
     m_autoStartJackServer->setChecked(settings.value("autostartjack", "true").toBool());
     layout->addWidget(m_autoStartJackServer, row, 1);
     ++row;
@@ -245,7 +243,7 @@ AudioConfigurationPage::apply()
     if (extpath != "") {
         QFileInfo info(extpath);
         if (!info.exists() || !info.isExecutable()) {
-            QMessageBox::critical(0, tr("Rosegarden"), tr("External audio editor \"%1\" not found or not executable").arg(extpath));
+            QMessageBox::critical(nullptr, tr("Rosegarden"), tr("External audio editor \"%1\" not found or not executable").arg(extpath));
             settings.setValue("externalaudioeditor", "");
         } else {
             settings.setValue("externalaudioeditor", externalAudioEditor);
@@ -306,5 +304,4 @@ AudioConfigurationPage::getBestAvailableAudioEditor()
 }
 
 }
-#include "AudioConfigurationPage.moc"
 

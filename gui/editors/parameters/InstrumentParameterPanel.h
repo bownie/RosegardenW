@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -42,14 +42,10 @@ class InstrumentParameterPanel : public QFrame
 {
     Q_OBJECT
 public:
-    InstrumentParameterPanel(RosegardenDocument *doc, QWidget *parent);
-    virtual ~InstrumentParameterPanel() {}
-
-    void setDocument(RosegardenDocument *doc);
+    InstrumentParameterPanel(QWidget *parent);
+    ~InstrumentParameterPanel() override {}
 
 protected:
-    RosegardenDocument *m_doc;
-
     void setSelectedInstrument(Instrument *);
     Instrument *getSelectedInstrument();
 
@@ -57,9 +53,17 @@ protected:
 
 private slots:
     /// m_selectedInstrument is being destroyed
-    void slotInstrumentGone(void);
+    void slotInstrumentGone();
 
 private:
+    // ??? This needs to go.  If the panels need the selected instrument,
+    //     they need to get it directly from the document.  That
+    //     simplifies things by not needing to maintain this pointer.
+    //     And not needing to connect for the Instrument's destroy() signal.
+    //     See InstrumentParameterBox::slotDocumentModified() for the
+    //     proper steps to get the selected instrument pointer.
+    //     As an interim solution, we could move those steps into
+    //     getSelectedInstrument() and stub out setSelectedInstrument().
     Instrument *m_selectedInstrument;
 };
 

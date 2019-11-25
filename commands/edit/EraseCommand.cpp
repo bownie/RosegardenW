@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,7 +22,9 @@
 #include "misc/Debug.h"
 #include "base/NotationTypes.h"
 #include "base/Selection.h"
+#include "base/BaseProperties.h"
 #include "document/BasicSelectionCommand.h"
+#include "gui/editors/notation/NotationProperties.h"
 #include <QString>
 
 
@@ -52,7 +54,7 @@ EraseCommand::modifySegment()
 bool
 EraseCommand::eraseInSegment(EventSelection *selection)
 {
-    RG_DEBUG << "EraseCommand::eraseInSegment" << endl;
+    RG_DEBUG << "EraseCommand::eraseInSegment";
     timeT startTime  = selection->getStartTime();
     timeT endTime    = selection->getEndTime();
     Segment &segment = selection->getSegment();
@@ -68,6 +70,73 @@ EraseCommand::eraseInSegment(EventSelection *selection)
         if ((*i)->isa(Clef::EventType) ||
                 (*i)->isa(Key ::EventType)) {
             erasedLongEffectEvent = true;
+        } else if ((*i)->isa(Indication::EventType)) {
+
+            try {
+                int graceToAdjust = 0;
+                int minGraceSubOrdering = 0;
+                int maxDeltaGraceSubOrdering = 0;
+                int indicationSubOrdering = (*i)->getSubOrdering();
+                int minSubOrdering = 0;
+
+                // Adjust suborderings of any existing grace notes if necessary.
+
+                Segment::iterator h, j;
+                segment.getTimeSlice((*i)->getAbsoluteTime(), h, j);
+                for (Segment::iterator k = h; k != j; ++k) {
+                    if ((*k)->has(BaseProperties::IS_GRACE_NOTE)) {
+                        if ((*k)->getSubOrdering() < indicationSubOrdering) {
+                            ++graceToAdjust;
+                            if ((*k)->getSubOrdering() < minGraceSubOrdering) {
+                                minGraceSubOrdering = (*k)->getSubOrdering();
+                                maxDeltaGraceSubOrdering =
+                                    indicationSubOrdering - minGraceSubOrdering;
+                            }
+                        }
+                    } else if ((*i) != (*k) &&
+                               (*k)->getSubOrdering() < minSubOrdering) {
+                        minSubOrdering = (*k)->getSubOrdering();
+                    }
+                }
+
+                if (graceToAdjust > 0 &&
+                    minGraceSubOrdering < indicationSubOrdering &&
+                    minSubOrdering > indicationSubOrdering &&
+                    maxDeltaGraceSubOrdering >= graceToAdjust) {
+                    int incr = minSubOrdering - indicationSubOrdering;
+                    std::vector<Event *> toInsert, toErase;
+                    for (Segment::iterator k = h; k != j; ++k) {
+                        if ((*k)->has(BaseProperties::IS_GRACE_NOTE) &&
+                            (*k)->getSubOrdering() < indicationSubOrdering) {
+                            // Subordering of the grace note is incremented to
+                            // avoid (a rare) relevant decrement of that value.
+                            toErase.push_back(*k);
+                            toInsert.push_back
+                                (new Event(**k,
+                                           (*k)->getAbsoluteTime(),
+                                           (*k)->getDuration(),
+                                           (*k)->getSubOrdering() + incr,
+                                           (*k)->getNotationAbsoluteTime(),
+                                           (*k)->getNotationDuration()));
+                        }
+                    }
+                    for (std::vector<Event *>::iterator k = toErase.begin();
+                         k != toErase.end(); ++k) segment.eraseSingle(*k);
+                    for (std::vector<Event *>::iterator k = toInsert.begin();
+                         k != toInsert.end(); ++k) segment.insert(*k);
+                }
+
+                Indication indication(**i);
+                if (indication.isOttavaType()) {
+
+                    for (Segment::iterator j = segment.findTime ((*i)->getAbsoluteTime());
+                         j != segment.findTime
+                             ((*i)->getAbsoluteTime() + indication.getIndicationDuration());
+                         ++j) {
+                        (*j)->unset(NotationProperties::OTTAVA_SHIFT);
+                    }
+                }
+            } catch (...) {}
         }
 
         // We used to do this by calling SegmentNotationHelper::deleteEvent

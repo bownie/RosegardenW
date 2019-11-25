@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,7 +20,6 @@
 #define RG_LOOPRULER_H
 
 #include "base/SnapGrid.h"
-#include "gui/general/HZoomable.h"
 #include <QSize>
 #include <QWidget>
 #include <QPen>
@@ -44,7 +43,7 @@ class RosegardenDocument;
  * ruler-like scale, and reacts to mouse clicks by sending relevant
  * signals to modify position pointer and playback/looping states.
 */
-class LoopRuler : public QWidget, public HZoomable
+class LoopRuler : public QWidget
 {
     Q_OBJECT
 
@@ -52,23 +51,20 @@ public:
     LoopRuler(RosegardenDocument *doc,
               RulerScale *rulerScale,
               int height = 0,
-              double xorigin = 0.0,
               bool invert = false,
               bool isForMainWindow = false,
-              QWidget* parent = 0);
+              QWidget* parent = nullptr);
 
-    ~LoopRuler();
+    ~LoopRuler() override;
 
     void setSnapGrid(const SnapGrid *grid);
 
-    virtual QSize sizeHint() const;
-    virtual QSize minimumSizeHint() const;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
     void scrollHoriz(int x);
 
     void setMinimumWidth(int width) { m_width = width; }
-
-    void setHorizScaleFactor(double dy) { m_hScaleFactor = dy; }
 
     bool hasActiveMousePress() { return m_activeMousePress; }
 
@@ -81,12 +77,12 @@ public slots:
 protected:
     double mouseEventToSceneX(QMouseEvent *mE);
 
-    virtual void mousePressEvent       (QMouseEvent*);
-    virtual void mouseReleaseEvent     (QMouseEvent*);
-    virtual void mouseDoubleClickEvent (QMouseEvent*);
-    virtual void mouseMoveEvent        (QMouseEvent*);
+    void mousePressEvent       (QMouseEvent*) override;
+    void mouseReleaseEvent     (QMouseEvent*) override;
+    void mouseDoubleClickEvent (QMouseEvent*) override;
+    void mouseMoveEvent        (QMouseEvent*) override;
 
-    virtual void paintEvent(QPaintEvent*);
+    void paintEvent(QPaintEvent*) override;
 
     void setLoopingMode(bool value) { m_loopingMode = value; }
     void drawBarSections(QPainter*);
@@ -118,7 +114,6 @@ protected:
 
     //--------------- Data members ---------------------------------
     int  m_height;
-    double m_xorigin;
     bool m_invert;
     bool m_isForMainWindow;
     int  m_currentXOffset;

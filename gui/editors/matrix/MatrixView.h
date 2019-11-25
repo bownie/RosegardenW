@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -64,22 +64,22 @@ public:
     MatrixView(RosegardenDocument *doc,
 		  std::vector<Segment *> segments,
 		  bool drumMode,
-		  QWidget *parent = 0);
+		  QWidget *parent = nullptr);
 
-    virtual ~MatrixView();
+    ~MatrixView() override;
 
-    void closeEvent(QCloseEvent *event);
+    void closeEvent(QCloseEvent *event) override;
 
     /**
      * Get the velocity currently set in the velocity menu.
      */
     int getCurrentVelocity() const;
 
-    virtual Segment *getCurrentSegment();
-    virtual EventSelection *getSelection() const;
-    virtual void setSelection(EventSelection *s, bool preview);
+    Segment *getCurrentSegment() override;
+    EventSelection *getSelection() const override;
+    void setSelection(EventSelection *s, bool preview) override;
 
-    virtual void updateViewCaption() { }//!!!
+    void updateViewCaption() override { }//!!!
 
     virtual timeT getInsertionTime() const;
 
@@ -98,10 +98,12 @@ signals:
                      tempoT,  // tempo value
                      tempoT,  // target value
                      TempoDialog::TempoDialogAction); // tempo action
+    
+    void noteInsertedFromKeyboard(Segment * segment, int pitch);
 
 protected slots:
     /// Remove a segment from our list when it is deleted from the composition
-    void slotSegmentDeleted(Segment *);
+    void slotSegmentDeleted(Segment *) override;
 
     /// All segments have been deleted (close editor)
     void slotSceneDeleted();
@@ -145,6 +147,9 @@ protected slots:
     void slotSetSnapFromAction();
 
     /// Set the snaptime of the grid
+    /**
+     * ??? This is never used as a slot.  Move to private and rename.
+     */
     void slotSetSnap(timeT);
 
     /// Quantize a selection to a given level (when quantize combo changes)
@@ -158,9 +163,9 @@ protected slots:
 
     void slotUpdateMenuStates();
 
-    void slotEditCut();
-    void slotEditCopy();
-    void slotEditPaste();
+    void slotEditCut() override;
+    void slotEditCopy() override;
+    void slotEditPaste() override;
     void slotEditDelete();
 
     /// Show or hide rulers
@@ -251,8 +256,8 @@ protected slots:
     
 protected:
     const SnapGrid *getSnapGrid() const;
-    virtual void readOptions();
-    void conformRulerSelectionState(void);
+    void readOptions() override;
+    void conformRulerSelectionState();
     void insertControllerSequence(const ControlParameter &cp);
 
 private:
@@ -286,19 +291,14 @@ private:
      * If \a force point to a bool, then the bool's value
      * is used to show/hide the toolbar.
      */
-    void toggleNamedToolBar(const QString& toolBarName, bool* force = 0);
+    void toggleNamedToolBar(const QString& toolBarName, bool* force = nullptr);
 
     /**
      * Return the device of the current segment, if any
      */
     Device *getCurrentDevice();
 
-    virtual void initStatusBar();
-
-    /**
-     * Set the <<< << >> >>> buttons in the transport toolbar to auto repeat
-     */
-    void setRewFFwdToAutoRepeat();
+    void initStatusBar() override;
 
 };
 

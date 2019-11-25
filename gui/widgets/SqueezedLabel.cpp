@@ -2,7 +2,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -151,7 +151,7 @@ void SqueezedLabel::setTextElideMode(Qt::TextElideMode mode)
 
 void SqueezedLabel::contextMenuEvent(QContextMenuEvent* ev)
 {
-    // "We" means the KDE team here.
+    // "We" means the KDE team here (comment written by David Faure).
     //
     // We want to reimplement "Copy" to include the elided text.
     // But this means reimplementing the full popup menu, so no more
@@ -181,4 +181,4 @@ void SqueezedLabel::contextMenuEvent(QContextMenuEvent* ev)
 
 }
 
-#include "SqueezedLabel.moc"
+#include "moc_SqueezedLabel.cpp"

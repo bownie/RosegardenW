@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,9 +19,9 @@
 #ifndef RG_RG21LOADER_H
 #define RG_RG21LOADER_H
 
+#include "base/Instrument.h"
 #include "base/MidiProgram.h"
 #include "base/NotationTypes.h"
-#include "gui/general/ProgressReporter.h"
 #include <map>
 #include <string>
 #include <QString>
@@ -47,11 +47,10 @@ class Composition;
 /**
  * Rosegarden 2.1 file import
  */
-class RG21Loader : public ProgressReporter
+class RG21Loader
 {
 public:
-    RG21Loader(Studio *,
-               QObject *parent = 0);
+    RG21Loader(Studio *);
     ~RG21Loader();
     
     /**

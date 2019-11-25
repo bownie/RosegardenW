@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,12 +35,11 @@ class QMenu;
 class QPaintEvent;
 class QMouseEvent;
 class QEvent;
-class QMainWindow;
-
 
 namespace Rosegarden
 {
 
+class EditTempoController;
 class RulerScale;
 class RosegardenDocument;
 class Composition;
@@ -65,37 +64,20 @@ public:
      */
     TempoRuler(RulerScale *rulerScale,
                RosegardenDocument *doc,
-               QMainWindow *parentMainWindow,
-               double xorigin = 0.0,
                int height = 0,
                bool small = false,
                bool Thorn = true);
 
-    ~TempoRuler();
+    ~TempoRuler() override;
 
-    virtual QSize sizeHint() const;
-    virtual QSize minimumSizeHint() const;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
     void setMinimumWidth(int width) { m_width = width; }
 
-    void connectSignals();
-
 signals:
-    void doubleClicked(timeT);
-
-    void changeTempo(timeT,  // tempo change time
-                     tempoT,  // tempo value
-                     tempoT,  // tempo target
-                     TempoDialog::TempoDialogAction); // tempo action
-
-    void moveTempo(timeT, // old time
-                   timeT); // new time
-
-    void deleteTempo(timeT);
-
-    void editTempo(timeT);
-    void editTimeSignature(timeT);
-    void editTempos(timeT);
+    void mousePress();
+    void mouseRelease();
 
 public slots:
     void slotScrollHoriz(int x);
@@ -111,18 +93,17 @@ protected slots:
     void slotEditTempos();
 
 protected:
-    virtual void paintEvent(QPaintEvent *);
-    virtual void enterEvent(QEvent *);
-    virtual void leaveEvent(QEvent *);
-    virtual void mousePressEvent(QMouseEvent *);
-    virtual void mouseReleaseEvent(QMouseEvent *);
-    virtual void mouseMoveEvent(QMouseEvent *);
-    virtual void wheelEvent(QWheelEvent *);
+    void paintEvent(QPaintEvent *) override;
+    void enterEvent(QEvent *) override;
+    void leaveEvent(QEvent *) override;
+    void mousePressEvent(QMouseEvent *) override;
+    void mouseReleaseEvent(QMouseEvent *) override;
+    void mouseMoveEvent(QMouseEvent *) override;
+    void wheelEvent(QWheelEvent *) override;
 
     void createMenu();
 
 private:
-    double m_xorigin;
     int  m_height;
     int  m_currentXOffset;
     int  m_width;
@@ -157,7 +138,7 @@ private:
     Composition *m_composition;
     RulerScale  *m_rulerScale;
     QMenu       *m_menu;
-    QMainWindow *m_parentMainWindow;
+    EditTempoController *m_editTempoController;
 
     QFont        m_font;
     QFont        m_boldFont;

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -43,8 +43,9 @@ typedef std::vector<int> ParameterPatternBareParameters;
 // its nested types, and its descendants' vtables.  Only a static
 // instance of each subclass exists.
 // @author Tom Breton (Tehom)
-struct ParameterPattern
+class ParameterPattern
 {
+public:
     // Many of the nested classes had to be all public so that derived
     // classes could see them, so in order to have degree of
     // encapsulation, they are protected and the classes that would
@@ -109,8 +110,8 @@ protected:
             m_parameters(1, soleParameter)
         {}
 
-        EventSelection *getSelection(void);
-        void            modifySegment(void);
+        EventSelection *getSelection();
+        void            modifySegment();
         
         const SelectionSituation *m_situation;
         const ParameterPattern   *m_pattern;
@@ -148,6 +149,8 @@ public:
     /*** The abstract virtual methods ***/
 
 protected:
+    virtual ~ParameterPattern();
+
     virtual QString getText(QString propertyName) const =0;
 
     // Get the arguments that inform gui sliders or spinboxes.  This

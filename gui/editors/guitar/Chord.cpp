@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,6 +20,7 @@
 #include "misc/Strings.h"
 
 #include <QString>
+#include <QRegExp>
 
 namespace Rosegarden
 {
@@ -28,10 +29,10 @@ namespace Guitar
 {
 const std::string Chord::EventType              = "guitarchord";
 const short Chord::EventSubOrdering             = -60;
-const PropertyName Chord::RootPropertyName      = "root";
-const PropertyName Chord::ExtPropertyName       = "ext";
-const PropertyName Chord::FingeringPropertyName = "fingering";
 
+static const PropertyName RootPropertyName = "root";
+static const PropertyName ExtPropertyName = "ext";
+static const PropertyName FingeringPropertyName = "fingering";
 
 Chord::Chord()
     : m_isUserChord(false)
@@ -84,7 +85,11 @@ Event* Chord::getAsEvent(timeT absoluteTime) const
     return e;
 }
 
-const QRegExp Chord::ALT_BASS_REGEXP("/[A-G]");
+bool Chord::hasAltBass() const
+{
+    static const QRegExp ALT_BASS_REGEXP("/[A-G]");
+    return m_ext.contains(ALT_BASS_REGEXP);
+}
 
 bool operator<(const Chord& a, const Chord& b)
 {

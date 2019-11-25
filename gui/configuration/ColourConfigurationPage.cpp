@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -79,20 +79,20 @@ ColourConfigurationPage::ColourConfigurationPage(RosegardenDocument *doc, QWidge
     // disable until we can remove it after release
     deleteColourButton->setEnabled(false);
 
-    connect(addColourButton, SIGNAL(clicked()),
-            this, SLOT(slotAddNew()));
+    connect(addColourButton, &QAbstractButton::clicked,
+            this, &ColourConfigurationPage::slotAddNew);
 
-    connect(deleteColourButton, SIGNAL(clicked()),
-            this, SLOT(slotDelete()));
+    connect(deleteColourButton, &QAbstractButton::clicked,
+            this, &ColourConfigurationPage::slotDelete);
 
-    connect(this, SIGNAL(docColoursChanged()),
-            m_doc, SLOT(slotDocColoursChanged()));
+    connect(this, &ColourConfigurationPage::docColoursChanged,
+            m_doc, &RosegardenDocument::slotDocColoursChanged);
 
-    connect(m_colourtable, SIGNAL(entryTextChanged(unsigned int, QString)),
-            this, SLOT(slotTextChanged(unsigned int, QString)));
+    connect(m_colourtable, &ColourTable::entryTextChanged,
+            this, &ColourConfigurationPage::slotTextChanged);
 
-    connect(m_colourtable, SIGNAL(entryColourChanged(unsigned int, QColor)),
-            this, SLOT(slotColourChanged(unsigned int, QColor)));
+    connect(m_colourtable, &ColourTable::entryColourChanged,
+            this, &ColourConfigurationPage::slotColourChanged);
 
     addTab(frame, tr("Color Map"));
 
@@ -118,7 +118,7 @@ ColourConfigurationPage::apply()
     SegmentColourMapCommand *command = new SegmentColourMapCommand(m_doc, m_map);
     CommandHistory::getInstance()->addCommand(command);
 
-    RG_DEBUG << "ColourConfigurationPage::apply() emitting docColoursChanged()" << endl;
+    RG_DEBUG << "ColourConfigurationPage::apply() emitting docColoursChanged()";
     emit docColoursChanged();
 }
 
@@ -132,11 +132,8 @@ ColourConfigurationPage::slotAddNew()
     QString newName = InputDialog::getText(this, tr("New Color Name"),
                                            tr("Enter new name"), LineEdit::Normal,
                                            tr("New"),
-                                           &ok, 0);
+                                           &ok, nullptr);
 
-    // !!! This is very suspicious
-    bool c_ok;
-    
     if ((ok == true) && (!newName.isEmpty())) {
         //QColorDialog box(this, "", true);
 
@@ -144,11 +141,9 @@ ColourConfigurationPage::slotAddNew()
         //QColor col = QColorDialog::getColor();
         // QRgb rgba = QColorDialog::getRgba( 0xFFFFFFFF, &c_ok, 0 );    // 0 == parent
         
-        if ( c_ok ) {
-            Colour temp2 = GUIPalette::convertColour(temp);
-            m_map.addItem(temp2, qstrtostr(newName));
-            m_colourtable->populate_table(m_map, m_listmap);
-        }
+        Colour temp2 = GUIPalette::convertColour(temp);
+        m_map.addItem(temp2, qstrtostr(newName));
+        m_colourtable->populate_table(m_map, m_listmap);
         // Else we don't do anything as they either didn't give a name
         //  or didn't give a colour
     }
@@ -177,4 +172,3 @@ ColourConfigurationPage::slotDelete()
 }
 
 }
-#include "ColourConfigurationPage.moc"

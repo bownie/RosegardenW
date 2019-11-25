@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -76,13 +76,20 @@ TupletDialog::TupletDialog(QWidget *parent, Note::Type defaultUnitType,
             defaultUnitType = maxUnitType;
     }
 
-    timingLayout->addWidget(new QLabel(tr("Play "), timingBox), 0, 0);
+    int timingRow = 0;
+
+    m_hasTimingAlready = new QCheckBox
+        (tr("Timing is already correct: update display only"), timingBox);
+    m_hasTimingAlready->setChecked(false);
+    timingLayout->addWidget(m_hasTimingAlready, timingRow, 0, 1, 3);
+
+    timingLayout->addWidget(new QLabel(tr("Play "), timingBox), ++timingRow, 0);
 
     m_untupledCombo = new QComboBox(timingBox);
-    timingLayout->addWidget(m_untupledCombo, 0, 1);
+    timingLayout->addWidget(m_untupledCombo, timingRow, 1);
 
     m_unitCombo = new QComboBox(timingBox);
-    timingLayout->addWidget(m_unitCombo, 0, 2);
+    timingLayout->addWidget(m_unitCombo, timingRow, 2);
 
     for (Note::Type t = Note::Shortest; t <= Note::Longest; ++t) {
         Note note(t);
@@ -97,19 +104,14 @@ TupletDialog::TupletDialog(QWidget *parent, Note::Type defaultUnitType,
         }
     }
 
-    timingLayout->addWidget(new QLabel(tr("in the time of  "), timingBox), 1, 0);
+    timingLayout->addWidget(new QLabel(tr("in the time of  "), timingBox), ++timingRow, 0);
 
     m_tupledCombo = new QComboBox(timingBox);
-    timingLayout->addWidget(m_tupledCombo, 1, 1);
-
-    m_hasTimingAlready = new QCheckBox
-        (tr("Timing is already correct: update display only"), timingBox);
-    m_hasTimingAlready->setChecked(false);
-    timingLayout->addWidget(m_hasTimingAlready, 2, 0, 1, 3);
+    timingLayout->addWidget(m_tupledCombo, timingRow, 1);
 
     timingBox->setLayout(timingLayout);
 
-    connect(m_hasTimingAlready, SIGNAL(clicked()), this, SLOT(slotHasTimingChanged()));
+    connect(m_hasTimingAlready, &QAbstractButton::clicked, this, &TupletDialog::slotHasTimingChanged);
 
     updateUntupledCombo();
     updateTupledCombo();
@@ -131,7 +133,7 @@ TupletDialog::TupletDialog(QWidget *parent, Note::Type defaultUnitType,
                 Qt::AlignRight);
         row++;
     } else {
-        m_selectionDurationDisplay = 0;
+        m_selectionDurationDisplay = nullptr;
     }
 
     timingDisplayLayout->addWidget(new QLabel(tr("Group with current timing:")),
@@ -180,7 +182,7 @@ TupletDialog::TupletDialog(QWidget *parent, Note::Type defaultUnitType,
         timingDisplayLayout->addWidget(m_unchangedDurationDisplay, row, 2);
 
     } else {
-        m_unchangedDurationDisplay = 0;
+        m_unchangedDurationDisplay = nullptr;
     }
 
     m_timingDisplayGrid->setLayout(timingDisplayLayout);
@@ -204,9 +206,9 @@ TupletDialog::TupletDialog(QWidget *parent, Note::Type defaultUnitType,
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Help);
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &TupletDialog::slotHelpRequested);
 }
 
 void
@@ -410,4 +412,3 @@ TupletDialog::slotHelpRequested()
     QDesktopServices::openUrl(QUrl(helpURL));
 }
 }
-#include "TupletDialog.moc"

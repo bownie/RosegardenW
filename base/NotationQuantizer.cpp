@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -72,10 +72,10 @@ public:
 	// can treat them using the normal Chord class
     public:
 	ProvisionalQuantizer(Impl *i) : Quantizer("blah", "blahblah"), m_impl(i) { }
-	virtual timeT getQuantizedDuration(const Event *e) const {
+	timeT getQuantizedDuration(const Event *e) const override {
 	    return m_impl->getProvisional((Event *)e, DurationValue);
 	}
-	virtual timeT getQuantizedAbsoluteTime(const Event *e) const {
+	timeT getQuantizedAbsoluteTime(const Event *e) const override {
 	    timeT t = m_impl->getProvisional((Event *)e, AbsoluteTimeValue);
 #ifdef DEBUG_NOTATION_QUANTIZER
 	    cout << "ProvisionalQuantizer::getQuantizedAbsoluteTime: returning " << t << endl;

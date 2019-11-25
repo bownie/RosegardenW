@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -42,35 +42,31 @@ public:
         Record = 1
     };
 
-    enum VariationType {
-        NoVariations,
-        VariationFromLSB,
-        VariationFromMSB
-    };
+    MidiDevice(DeviceId id,
+               InstrumentId ibase,
+               const std::string &name,
+               DeviceDirection dir);
+    ~MidiDevice() override;
 
-    MidiDevice();
+    // Copy ctor.
+    // ??? Switch pointers to objects and rely on bitwise copy to take
+    //     care of this.  If that's workable, then this can go.
     MidiDevice(const MidiDevice &);
-    MidiDevice(DeviceId id,
-               InstrumentId ibase,
-               const MidiDevice &);
-    MidiDevice(DeviceId id,
-               InstrumentId ibase,
-               const std::string &name,
-               DeviceDirection dir);
-    MidiDevice(DeviceId id,
-               InstrumentId ibase,
-               const std::string &name,
-               const std::string &label,
-               DeviceDirection dir);
-    virtual ~MidiDevice();
 
-    // Assignment
-    MidiDevice &operator=(const MidiDevice &);
+    //MidiDevice();
+    //MidiDevice(DeviceId id,
+    //           InstrumentId ibase,
+    //           const MidiDevice &);
+    //MidiDevice(DeviceId id,
+    //           InstrumentId ibase,
+    //           const std::string &name,
+    //           const std::string &label,
+    //           DeviceDirection dir);
 
-    virtual AllocateChannels *getAllocator(void);
+    AllocateChannels *getAllocator() override;
 
     // Instrument must be on heap; I take ownership of it
-    virtual void addInstrument(Instrument*);
+    void addInstrument(Instrument*) override;
 
     void setMetronome(const MidiMetronome &);
     const MidiMetronome* getMetronome() const { return m_metronome; }
@@ -114,8 +110,8 @@ public:
     void mergeProgramList(const ProgramList &program);
     void mergeKeyMappingList(const KeyMappingList &mappings);
 
-    virtual InstrumentList getAllInstruments() const;
-    virtual InstrumentList getPresentationInstruments() const;
+    InstrumentList getAllInstruments() const override;
+    InstrumentList getPresentationInstruments() const override;
 
     // Retrieve Librarian details
     //
@@ -131,6 +127,14 @@ public:
 
     DeviceDirection getDirection() const { return m_direction; }
     void setDirection(DeviceDirection dir) { m_direction = dir; }
+    bool isOutput() const  override { return (m_direction == Play); }
+    bool isInput() const  override { return (m_direction == Record); }
+
+    enum VariationType {
+        NoVariations,
+        VariationFromLSB,
+        VariationFromMSB
+    };
 
     VariationType getVariationType() const { return m_variationType; }
     void setVariationType(VariationType v) { m_variationType = v; }
@@ -145,7 +149,7 @@ public:
 
     // implemented from Controllable interface
     //
-    virtual const ControlList &getControlParameters() const { return m_controlList; }
+    const ControlList &getControlParameters() const override { return m_controlList; }
 
     // Only those on the IPB list
     //
@@ -154,9 +158,9 @@ public:
     // Access ControlParameters (read/write)
     //
     virtual ControlParameter *getControlParameter(int index);
-    virtual const ControlParameter *getControlParameter(int index) const;
+    const ControlParameter *getControlParameter(int index) const override;
     virtual ControlParameter *getControlParameter(const std::string &type, MidiByte controllerNumber);
-    virtual const ControlParameter *getControlParameter(const std::string &type, MidiByte controllerNumber) const;
+    const ControlParameter *getControlParameter(const std::string &type, MidiByte controllerNumber) const override;
 
     // Modify ControlParameters
     //
@@ -168,7 +172,7 @@ public:
     bool modifyControlParameter(const ControlParameter &con, int index);
 
     void replaceControlParameters(const ControlList &);
-    void refreshControlParameters(void);
+    void refreshControlParameters();
 
     // Check to see if the passed ControlParameter is unique in
     // our ControlParameter list.
@@ -186,20 +190,15 @@ public:
     //
     void generateDefaultControllers();
 
-    virtual std::string toXmlString();
-
-    virtual void refreshForConnection(void);
-
-    // Accessors for recording property
-    bool isRecording() {return m_recording; }
+    std::string toXmlString() const override;
 
     static bool isPercussionNumber(int channel)
     { return channel == 9; }
 
 protected:
     void createInstruments(InstrumentId);
-    void renameInstruments();
-    void conformInstrumentControllers(void);
+    void renameInstruments() override;
+    //void conformInstrumentControllers(void);
 
     void generatePresentationList();
 
@@ -228,10 +227,6 @@ protected:
     //
     DeviceDirection m_direction; 
     
-    // Is this device recording?
-    //
-    static const bool m_recording = true;   
-    
     // Should we present LSB or MSB of bank info as a Variation number?
     //
     VariationType m_variationType;
@@ -242,6 +237,9 @@ protected:
 
     // The channel allocator.
     AllocateChannels  *m_allocator;
+
+private:
+    //MidiDevice &operator=(const MidiDevice &);
 };
 
 }

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -427,13 +427,13 @@ StaffLayout::getHeightAtSceneCoords(double x, int y) const
         //                              << " -> " << (ph + mi) << " (mi is " << mi << ", distance "
         //                              << md << ")" << endl;
         //         if (mi == 0) {
-        //             RG_DEBUG << "GOOD APPROXIMATION" << endl;
+        //             RG_DEBUG << "GOOD APPROXIMATION";
         //         } else {
-        //             RG_DEBUG << "BAD APPROXIMATION" << endl;
+        //             RG_DEBUG << "BAD APPROXIMATION";
         //         }
         return ph + mi;
     } else {
-        RG_DEBUG << "StaffLayout::getHeightAtSceneCoords: heuristic got " << ph << ", nothing within range (closest was " << (ph + testi) << " which is " << testMd << " away)" << endl;
+        RG_DEBUG << "StaffLayout::getHeightAtSceneCoords: heuristic got " << ph << ", nothing within range (closest was " << (ph + testi) << " which is " << testMd << " away)";
         return 0;
     }
 }
@@ -443,7 +443,7 @@ StaffLayout::getBarExtents(double x, int y) const
 {
     int row = getRowForSceneCoords(x, y);
 
-    RG_DEBUG << "getBarExtents(" << x << "," << y << "), row " << row << ", have " << m_barLines.size() << " bar records" << endl;
+    RG_DEBUG << "getBarExtents(" << x << "," << y << "), row " << row << ", have " << m_barLines.size() << " bar records";
 
     for (BarLineList::const_iterator i = m_barLines.begin();
          i != m_barLines.end(); ++i) {
@@ -453,7 +453,7 @@ StaffLayout::getBarExtents(double x, int y) const
         double layoutX = line->getLayoutX();
         int barRow = getRowForLayoutX(layoutX);
 
-        RG_DEBUG << "bar layoutX " << layoutX << ", row " << barRow << ", page mode " << m_pageMode << ", x " << line->x() << endl;
+        RG_DEBUG << "bar layoutX " << layoutX << ", row " << barRow << ", page mode " << m_pageMode << ", x " << line->x();
 
         if (m_pageMode != LinearMode && (barRow < row)) continue;
 
@@ -468,7 +468,7 @@ StaffLayout::getBarExtents(double x, int y) const
                         getSceneYForTopOfStaff(barRow),
                         int(line->x() - prevline->x()),
                         getHeightOfRow());
-        RG_DEBUG << "Returning rect " << r << endl;
+        RG_DEBUG << "Returning rect " << r;
         return r;
     }
 
@@ -589,7 +589,7 @@ StaffLayout::sizeStaff(HorizontalLayoutEngine &layout)
     deleteRepeatedClefsAndKeys();
     deleteTimeSignatures();
 
-    //    RG_DEBUG << "StaffLayout::sizeStaff" << endl;
+    //    RG_DEBUG << "StaffLayout::sizeStaff";
 
     int lastBar = layout.getLastVisibleBarOnViewSegment(*m_viewSegment);
 
@@ -621,10 +621,10 @@ StaffLayout::sizeStaff(HorizontalLayoutEngine &layout)
             // Ask for a gray color if the segment is a repetition
             bool grayed = m_viewSegment->getSegment().isTmp();
             insertTimeSignature(timeSigX, currentTimeSignature, grayed);
-            RG_DEBUG << "StaffLayout[" << this << "]::sizeStaff: bar no " << barNo << " has time signature at " << timeSigX << endl;
+            RG_DEBUG << "StaffLayout[" << this << "]::sizeStaff: bar no " << barNo << " has time signature at " << timeSigX;
         }
 
-        RG_DEBUG << "StaffLayout::sizeStaff: inserting bar at " << x << " on staff " << this << " (isNew " << isNew << ", timeSigX " << timeSigX << ")" << endl;
+        RG_DEBUG << "StaffLayout::sizeStaff: inserting bar at " << x << " on staff " << this << " (isNew " << isNew << ", timeSigX " << timeSigX << ")";
 
         bool showBarNo =
             (showBarNumbersEvery() > 0 &&
@@ -805,7 +805,7 @@ StaffLayout::insertBar(double layoutX, double width, bool isCorrect,
         m_barNumbers.push_back(barNoText);
     }
 
-    QGraphicsRectItem *rect = 0;
+    QGraphicsRectItem *rect = nullptr;
 
     if (showBeatLines()) {
 
@@ -930,7 +930,7 @@ StaffLayout::resizeStaffLines()
     int i;
     while ((int)m_staffLines.size() <= lastRow) {
         m_staffLines.push_back(ItemList());
-        m_staffConnectingLines.push_back(0);
+        m_staffConnectingLines.push_back(nullptr);
     }
 
     // Remove all the staff lines that precede the start of the staff
@@ -975,7 +975,7 @@ StaffLayout::clearStaffLineRow(int row)
     m_staffLines[row].clear();
 
     delete m_staffConnectingLines[row];
-    m_staffConnectingLines[row] = 0;
+    m_staffConnectingLines[row] = nullptr;
 }
 
 void
@@ -1025,7 +1025,7 @@ StaffLayout::resizeStaffLineRow(int row, double x, double length)
 
     delete m_staffConnectingLines[row];
 
-    if (m_pageMode != LinearMode && m_connectingLineLength > 0.1) {
+    if (m_pageMode != LinearMode && m_connectingLineLength > 0) {
 
         // rather arbitrary (dup in insertBar)
         int barThickness = m_resolution / 12 + 1;
@@ -1040,11 +1040,11 @@ StaffLayout::resizeStaffLineRow(int row, double x, double length)
         m_staffConnectingLines[row] = line;
 
     } else {
-        m_staffConnectingLines[row] = 0;
+        m_staffConnectingLines[row] = nullptr;
     }
 
     while ((int)m_staffLines[row].size() <= getLineCount() * m_lineThickness) {
-        m_staffLines[row].push_back(0);
+        m_staffLines[row].push_back(nullptr);
     }
 
     int lineIndex = 0;
@@ -1100,7 +1100,7 @@ StaffLayout::resizeStaffLineRow(int row, double x, double length)
 
     while (lineIndex < (int)m_staffLines[row].size()) {
         delete m_staffLines[row][lineIndex];
-        m_staffLines[row][lineIndex] = 0;
+        m_staffLines[row][lineIndex] = nullptr;
         ++lineIndex;
     }
 }
@@ -1117,20 +1117,6 @@ StaffLayout::renderElements(ViewElementList::iterator,
 {
     // nothing -- we assume rendering will be done by the implementation
     // of positionElements
-}
-
-void
-StaffLayout::renderAllElements()
-{
-    renderElements(m_viewSegment->getViewElementList()->begin(),
-                   m_viewSegment->getViewElementList()->end());
-}
-
-void
-StaffLayout::positionAllElements()
-{
-    positionElements(m_viewSegment->getSegment().getStartTime(),
-                     m_viewSegment->getSegment().getEndTime());
 }
 
 QRectF

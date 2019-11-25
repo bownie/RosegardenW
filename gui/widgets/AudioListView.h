@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,7 +19,7 @@
 #define RG_AUDIOLISTVIEW_H
 
 #include <QTreeWidget>
-
+#include <QUrl>
 
 namespace Rosegarden {
         
@@ -27,24 +27,24 @@ class AudioListView : public QTreeWidget
 {
     Q_OBJECT
 public:
-    AudioListView(QWidget *parent = 0, const char *name = 0);
+    AudioListView(QWidget *parent = nullptr, const char *name = nullptr);
 
 protected:
 signals:
     
-    void dropped(QDropEvent*, QTreeWidget*, QStringList );
+    void dropped(QDropEvent*, QTreeWidget*, const QList<QUrl>&);
     
 protected:
 //     bool acceptDrag(QDropEvent* e) const;
 
     
-    virtual void dragEnterEvent(QDragEnterEvent *event);
-    virtual void dropEvent(QDropEvent*);
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent*) override;
     
-    virtual void mouseMoveEvent(QMouseEvent *event);
+    void mouseMoveEvent(QMouseEvent *event) override;
     
 //     virtual QMimeData *mimeData(const QList<QTreeWidgetItem*> items) const;
-    virtual QStringList mimeTypes() const;
+    QStringList mimeTypes() const override;
     
 };
 

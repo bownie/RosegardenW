@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,7 +38,7 @@ class SegmentReconfigureCommand : public NamedCommand
 {
 public:
     SegmentReconfigureCommand(QString name, Composition *composition);
-    virtual ~SegmentReconfigureCommand();
+    ~SegmentReconfigureCommand() override;
 
     // rename: addChange()
     void addSegment(Segment *segment,
@@ -66,8 +66,8 @@ private:
     timeT swap();
     
     // Command overrides
-    void execute();
-    void unexecute();
+    void execute() override;
+    void unexecute() override;
 
     // unused
 //    void addSegments(const ChangeSet &changes);

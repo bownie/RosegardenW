@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -57,4 +57,7 @@ namespace Rosegarden
     const char* const PitchBendSequenceConfigGroup = "PitchBendSequence";
     const char* const CheckButtonConfigGroup = "CheckButton_Memory";
     const char* const SelectDialogConfigGroup = "SelectDialog_Memory";
+    const char* const GridQuantizeConfigGroup = "Grid_Quantize_Parameters_Memory";
+    const char* const NotationQuantizeConfigGroup = "Notation_Quantize_Parameters_Memory";
+    const char* const TextEventDialogConfigGroup = "TextEvent_Dialog";
 }

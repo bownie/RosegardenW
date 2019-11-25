@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -16,7 +16,7 @@
 #define RG_MODULE_STRING "[Instrument]"
 
 #include "Instrument.h"
-#include "InstrumentStaticSignals.h"
+
 #include "sound/Midi.h"
 #include "MidiDevice.h"
 #include "base/AllocateChannels.h"
@@ -24,6 +24,7 @@
 #include "base/AudioLevel.h"
 #include "gui/studio/StudioControl.h"
 #include "sound/ControlBlock.h"
+#include "misc/Debug.h"
 
 #include <cassert>
 
@@ -105,17 +106,19 @@ PluginContainer::emptyPlugins()
 
 // Get an instance for an index
 //
-AudioPluginInstance*
-PluginContainer::getPlugin(unsigned int position)
+AudioPluginInstance *
+PluginContainer::getPlugin(unsigned int position) const
 {
-    PluginInstanceIterator it = m_audioPlugins.begin();
-    for (; it != m_audioPlugins.end(); ++it)
-    {
+    // For each plugin
+    for (PluginInstanceConstIterator it = m_audioPlugins.begin();
+         it != m_audioPlugins.end();
+         ++it) {
+        // Found?  Return it.
         if ((*it)->getPosition() == position)
             return *it;
     }
 
-    return 0;
+    return nullptr;
 }
 
 
@@ -371,10 +374,11 @@ Instrument::getPresentationNumber() const
 std::string
 Instrument::getAlias() const
 {
-    // return the alias if available, else return the "presentation name" rather
-    // than an empty string
-    if (m_alias.size()) return m_alias;
-    else return m_name;
+    // If there is no alias, return the "presentation name".
+    if (m_alias.empty())
+        return m_name;
+
+    return m_alias;
 }
 
 void
@@ -383,6 +387,8 @@ Instrument::sendChannelSetup()
     // MIDI only
     if (m_type != Midi)
         return;
+
+    //RG_DEBUG << "sendChannelSetup(): channel" << m_channel;
 
     if (hasFixedChannel()) {
         StudioControl::sendChannelSetup(this, m_channel);
@@ -396,9 +402,6 @@ setProgram(const MidiProgram &program)
     m_program = program;
     emit changedChannelSetup();
     ControlBlock::getInstance()->instrumentChangedProgram(getId());
-    if (hasFixedChannel()) {
-        StudioControl::sendChannelSetup(this, m_channel);
-    }
 }
 
 bool
@@ -412,10 +415,18 @@ Instrument::isProgramValid() const
 
     BankList validBanks = md->getBanks(isPercussion());
 
-    bool bankValid =
-            (std::find(validBanks.begin(),
-                       validBanks.end(),
-                       m_program.getBank()) != validBanks.end());
+    bool bankValid = false;
+
+    // For each valid bank
+    for (BankList::const_iterator oBankIter = validBanks.begin();
+         oBankIter != validBanks.end();
+         ++oBankIter)
+    {
+        if (oBankIter->partialCompare(m_program.getBank())) {
+            bankValid = true;
+            break;
+        }
+    }
 
     if (!bankValid)
         return false;
@@ -425,10 +436,17 @@ Instrument::isProgramValid() const
 
     ProgramList programList = md->getPrograms(m_program.getBank());
 
-    bool programChangeValid =
-            (std::find(programList.begin(),
-                       programList.end(),
-                       m_program) != programList.end());
+    bool programChangeValid = false;
+
+    // For each program in this bank
+    for (ProgramList::const_iterator programIter = programList.begin();
+         programIter != programList.end();
+         ++programIter) {
+        if (programIter->partialCompare(m_program)) {
+            programChangeValid = true;
+            break;
+        }
+    }
 
     if (!programChangeValid)
         return false;
@@ -550,7 +568,7 @@ Instrument::getAudioInput(bool &isBuss, int &channel) const
 //
 //
 std::string
-Instrument::toXmlString()
+Instrument::toXmlString() const
 {
 
     std::stringstream instrument;
@@ -631,7 +649,7 @@ Instrument::toXmlString()
         instrument << "            <alias value=\""
                    << m_alias << "\"/>" << std::endl;
 
-        PluginInstanceIterator it = m_audioPlugins.begin();
+        std::vector<AudioPluginInstance*>::const_iterator it = m_audioPlugins.begin();
         for (; it != m_audioPlugins.end(); ++it)
         {
             instrument << (*it)->toXmlString();
@@ -664,6 +682,13 @@ Instrument::getProgramName() const
 }
 
 void
+Instrument::sendController(MidiByte controller, MidiByte value)
+{
+    if (hasFixedChannel())
+        StudioControl::sendController(this, m_channel, controller, value);
+}
+
+void
 Instrument::setControllerValue(MidiByte controller, MidiByte value)
 {
     // two special cases
@@ -680,10 +705,6 @@ Instrument::setControllerValue(MidiByte controller, MidiByte value)
         {
             it->second = value;
             emit changedChannelSetup();
-            if (hasFixedChannel()) {
-                StudioControl::sendController(this, m_channel,
-                                              controller, value);
-            }
             return;
         }
     }
@@ -724,7 +745,7 @@ const MidiKeyMapping *
 Instrument::getKeyMapping() const
 {
     MidiDevice *md = dynamic_cast<MidiDevice*>(m_device);
-    if (!md) return 0;
+    if (!md) return nullptr;
 
     const MidiKeyMapping *mkm = md->getKeyMappingForProgram(m_program);
     if (mkm) return mkm;
@@ -736,14 +757,14 @@ Instrument::getKeyMapping() const
         }
     }
 
-    return 0;
+    return nullptr;
 }    
 
 // Set a fixed channel.  For MIDI instruments, conform allocator
 // accordingly. 
 void
 Instrument::
-setFixedChannel(void)
+setFixedChannel()
 {
     if (m_fixed) { return; }
 
@@ -752,7 +773,6 @@ setFixedChannel(void)
         allocator->reserveFixedChannel(m_channel);
         m_fixed = true;
         emit channelBecomesFixed();
-        StudioControl::sendChannelSetup(this, m_channel);
         ControlBlock::getInstance()->instrumentChangedFixity(getId());
     }
 }
@@ -761,7 +781,7 @@ setFixedChannel(void)
 // @author Tom Breton (Tehom) 
 void
 Instrument::
-releaseFixedChannel(void)
+releaseFixedChannel()
 {
     if (!m_fixed) { return; }
     
@@ -795,12 +815,6 @@ Instrument::getStaticSignals()
     return instrumentStaticSignals;
 }
 
-void
-Instrument::changed()
-{
-    emit getStaticSignals()->changed(this);
-}
-
 
 /***** Buss *****/
 
@@ -818,7 +832,7 @@ Buss::~Buss()
 }
 
 std::string
-Buss::toXmlString()
+Buss::toXmlString() const
 {
     std::stringstream buss;
 
@@ -826,7 +840,7 @@ Buss::toXmlString()
     buss << "       <pan value=\"" << (int)m_pan << "\"/>" << std::endl;
     buss << "       <level value=\"" << m_level << "\"/>" << std::endl;
 
-    PluginInstanceIterator it = m_audioPlugins.begin();
+    std::vector<AudioPluginInstance*>::const_iterator it = m_audioPlugins.begin();
     for (; it != m_audioPlugins.end(); ++it) {
         buss << (*it)->toXmlString();
     }
@@ -868,7 +882,7 @@ RecordIn::~RecordIn()
 }
 
 std::string
-RecordIn::toXmlString()
+RecordIn::toXmlString() const
 {
     // We don't actually save these, as they have nothing persistent
     // in them.  The studio just remembers how many there should be.
@@ -878,4 +892,3 @@ RecordIn::toXmlString()
 
 }
 
-#include "Instrument.moc"

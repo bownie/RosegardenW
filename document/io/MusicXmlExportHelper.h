@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2002
         Hans Kieserman      <hkieserman@mail.com>
@@ -87,9 +87,6 @@ public:
             endTime = 0;
             firstVoice = 0;
             lastVoice = 0;
-            segments.clear();
-            Key key();
-            Clef clef();
         }
 
         TrackId                 trackId;

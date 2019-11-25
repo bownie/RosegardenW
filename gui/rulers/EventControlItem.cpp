@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -57,8 +57,9 @@ void EventControlItem::updateFromEvent()
     long value = 0;
     m_eventAdapter->getValue(value);
 
-    reconfigure(m_controlRuler->getRulerScale()->getXForTime(m_eventAdapter->getTime()),
-            m_controlRuler->valueToY(value));
+    double xscale = m_controlRuler->getXScale();
+    reconfigure(m_controlRuler->getRulerScale()->getXForTime(m_eventAdapter->getTime())*xscale,
+                m_controlRuler->valueToY(value));
 }
 
 void EventControlItem::setY(float y)

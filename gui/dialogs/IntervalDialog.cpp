@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -84,8 +84,8 @@ IntervalDialog::IntervalDialog(QWidget *parent, bool askChangeKey, bool askTrans
         affectKeyGroupLayout->addWidget(m_transposeChangingKey);
         affectKeyGroup->setLayout(affectKeyGroupLayout);
     } else {
-        m_transposeChangingKey = NULL;
-        m_transposeWithinKey = NULL;
+        m_transposeChangingKey = nullptr;
+        m_transposeWithinKey = nullptr;
     }
     
     if (askTransposeSegmentBack) {
@@ -94,21 +94,21 @@ IntervalDialog::IntervalDialog(QWidget *parent, bool askChangeKey, bool askTrans
         m_transposeSegmentBack->setTristate(false);
         m_transposeSegmentBack->setChecked(false);
     } else {
-        m_transposeSegmentBack = NULL;
+        m_transposeSegmentBack = nullptr;
     }
 
     vBox->setLayout(vBoxLayout);
 
-    connect(m_referencenote, SIGNAL(noteChanged(int,int,int)),
-            this, SLOT(slotSetReferenceNote(int,int,int)));
+    connect(m_referencenote, &DiatonicPitchChooser::noteChanged,
+            this, &IntervalDialog::slotSetReferenceNote);
 
-    connect(m_targetnote, SIGNAL(noteChanged(int,int,int)),
-            this, SLOT(slotSetTargetNote(int,int,int)));
+    connect(m_targetnote, &DiatonicPitchChooser::noteChanged,
+            this, &IntervalDialog::slotSetTargetNote);
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel );
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 // number of octaves the notes are apart
@@ -236,8 +236,6 @@ IntervalDialog::getIntervalName(int intervalDiatonic, int intervalChromatic)
                textIntervalDeviated += tr("a triply augmented");
            else if (deviation == 4)
                textIntervalDeviated += tr("a quadruply augmented");
-           else if (deviation == 0)
-               textIntervalDeviated += tr("a perfect");
            else
                textIntervalDeviated += tr("an (unknown, %1)").arg(deviation);
            break;
@@ -335,7 +333,7 @@ IntervalDialog::slotSetReferenceNote(int pitch, int octave, int step)
 bool
 IntervalDialog::getChangeKey()
 {
-    if (m_transposeChangingKey == NULL) {
+    if (m_transposeChangingKey == nullptr) {
         return false;
     } else {
         return m_transposeChangingKey->isChecked();
@@ -345,7 +343,7 @@ IntervalDialog::getChangeKey()
 bool
 IntervalDialog::getTransposeSegmentBack()
 {
-    if (m_transposeSegmentBack == NULL) {
+    if (m_transposeSegmentBack == nullptr) {
         return false;
     } else {
         return m_transposeSegmentBack->isChecked();	
@@ -353,4 +351,3 @@ IntervalDialog::getTransposeSegmentBack()
 }
 
 }
-#include "IntervalDialog.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,6 +20,7 @@
 
 #include <QDir>
 #include "misc/Strings.h"
+#include "misc/Debug.h"
 #include "base/Event.h"
 #include "base/Exception.h"
 #include "NotationProperties.h"
@@ -54,13 +55,13 @@ NoteStyleFactory::getAvailableStyleNames()
     }
 
     if (!foundDefault) {
-        std::cerr << "NoteStyleFactory::getAvailableStyleNames: WARNING: Default style name \"" << DefaultStyle << "\" not found" << std::endl;
+        RG_WARNING << "NoteStyleFactory::getAvailableStyleNames: WARNING: Default style name \"" << DefaultStyle << "\" not found";
     }
 
     return names;
 }
 
-NoteStyle *
+QSharedPointer<NoteStyle>
 NoteStyleFactory::getStyle(NoteStyleName name)
 {
     StyleMap::iterator i = m_styles.find(name);
@@ -68,14 +69,12 @@ NoteStyleFactory::getStyle(NoteStyleName name)
     if (i == m_styles.end()) {
 
         try {
-            NoteStyle *newStyle = NoteStyleFileReader(name).getStyle();
+            QSharedPointer<NoteStyle> newStyle = NoteStyleFileReader(name).getStyle();
             m_styles[name] = newStyle;
             return newStyle;
 
-        } catch (NoteStyleFileReader::StyleFileReadFailed f) {
-            std::cerr
-                << "NoteStyleFactory::getStyle: Style file read failed: "
-                << f.getMessage() << std::endl;
+        } catch (const NoteStyleFileReader::StyleFileReadFailed &f) {
+            RG_WARNING << "NoteStyleFactory::getStyle: Style file read failed:" << f.getMessage();
             throw StyleUnavailable("Style file read failed: " + f.getMessage());
         }
 
@@ -84,7 +83,7 @@ NoteStyleFactory::getStyle(NoteStyleName name)
     }
 }
 
-NoteStyle *
+QSharedPointer<NoteStyle>
 NoteStyleFactory::getStyleForEvent(Event *event)
 {
     std::string sname;

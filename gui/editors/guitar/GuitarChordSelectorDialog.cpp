@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -43,18 +43,6 @@ namespace Rosegarden
 GuitarChordSelectorDialog::GuitarChordSelectorDialog(QWidget *parent)
     : QDialog(parent)
 {
-    QString localStyle = "QListView {background-color: #FFFFFF; alternate-background-color: #EEEEFF; color: #000000; selection-background-color: #80AFFF; selection-color: #FFFFFF;}";
-    // we'll use "localStyle" as a future search point, but switch over to a
-    // more meaningful variable name for the actual style assignment
-    //
-    // Note that I'm just slapping another local stylesheet on these damn
-    // QListView objects, because they're stubbornly refusing to be touched from
-    // the external stylesheet, and I'm beyond losing patience with dicking
-    // around to solve problems like this.  Our stylesheet and style code are a
-    // complete mess, and I will probably have to rewrite all of this one day,
-    // but not before Thorn/Abraham Darby releases.
-    QString listStyle = localStyle;
-
     setModal(true);
     setWindowTitle(tr("Guitar Chord Selector"));
     setWindowIcon(IconLoader().loadPixmap("window-guitar"));
@@ -67,12 +55,10 @@ GuitarChordSelectorDialog::GuitarChordSelectorDialog(QWidget *parent)
     
     topLayout->addWidget(new QLabel(tr("Root"), page), 0, 0);
     m_rootNotesList = new QListWidget(page);
-    m_rootNotesList->setStyleSheet(listStyle);
     topLayout->addWidget(m_rootNotesList, 1, 0);
     
     topLayout->addWidget(new QLabel(tr("Extension"), page), 0, 1);
     m_chordExtList = new QListWidget(page);
-    m_chordExtList->setStyleSheet(listStyle);
     topLayout->addWidget(m_chordExtList, 1, 1);
     
     m_newFingeringButton = new QPushButton(tr("New"), page);
@@ -98,16 +84,15 @@ GuitarChordSelectorDialog::GuitarChordSelectorDialog(QWidget *parent)
     vboxLayout->addWidget(m_deleteFingeringButton); 
     vboxLayout->addWidget(m_editFingeringButton); 
     
-    connect(m_newFingeringButton, SIGNAL(clicked()),
-            this, SLOT(slotNewFingering()));
-    connect(m_deleteFingeringButton, SIGNAL(clicked()),
-            this, SLOT(slotDeleteFingering()));
-    connect(m_editFingeringButton, SIGNAL(clicked()),
-            this, SLOT(slotEditFingering()));
+    connect(m_newFingeringButton, &QAbstractButton::clicked,
+            this, &GuitarChordSelectorDialog::slotNewFingering);
+    connect(m_deleteFingeringButton, &QAbstractButton::clicked,
+            this, &GuitarChordSelectorDialog::slotDeleteFingering);
+    connect(m_editFingeringButton, &QAbstractButton::clicked,
+            this, &GuitarChordSelectorDialog::slotEditFingering);
     
     topLayout->addWidget(new QLabel(tr("Fingerings"), page), 0, 3);
     m_fingeringsList = new QListWidget(page);
-    m_fingeringsList->setStyleSheet(listStyle);
 
     // try setting size to something 200 can be divided into evenly, in the hope
     // of avoiding fuzzy half pixel scaling problems (50 was no good, but 100
@@ -119,10 +104,10 @@ GuitarChordSelectorDialog::GuitarChordSelectorDialog(QWidget *parent)
     m_fingeringBox = new FingeringBox(false, page, true);
     topLayout->addWidget(m_fingeringBox, 2, 0, 1, 2);
     
-    connect(m_rootNotesList, SIGNAL(currentRowChanged(int)),
-            this, SLOT(slotRootHighlighted(int)));
-    connect(m_chordExtList, SIGNAL(currentRowChanged(int)),
-            this, SLOT(slotChordExtHighlighted(int)));
+    connect(m_rootNotesList, &QListWidget::currentRowChanged,
+            this, &GuitarChordSelectorDialog::slotRootHighlighted);
+    connect(m_chordExtList, &QListWidget::currentRowChanged,
+            this, &GuitarChordSelectorDialog::slotChordExtHighlighted);
 
     // connect itemClicked() so it will fire if a user clicks directly on the
     // fingering list doodad thingummy (and comments like "fingering list doodad
@@ -148,7 +133,7 @@ GuitarChordSelectorDialog::GuitarChordSelectorDialog(QWidget *parent)
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 void
@@ -388,7 +373,7 @@ GuitarChordSelectorDialog::setChord(const Guitar::Chord& chord)
     if (chordExt.isEmpty()) {
         chordExt = "";
         //m_chordExtList->setSelected(0, true);
-        m_chordExtList->setCurrentItem(0);
+        m_chordExtList->setCurrentItem(nullptr);
     } else {                
         //QListWidgetItem* correspondingExt = m_chordExtList->findItem(chordExt, Qt::ExactMatch);
         QList<QListWidgetItem*> correspondingExt = m_chordExtList->findItems(chordExt, Qt::MatchExactly);
@@ -513,7 +498,7 @@ GuitarChordSelectorDialog::parseChordFile(const QString& chordFileName)
     QFile chordFile(chordFileName);
     bool ok = chordFile.open(QIODevice::ReadOnly);    
     if (!ok)
-        QMessageBox::critical(0, tr("Rosegarden"), tr("couldn't open file '%1'").arg(handler.errorString()));
+        QMessageBox::critical(nullptr, tr("Rosegarden"), tr("couldn't open file '%1'").arg(handler.errorString()));
 
     QXmlInputSource source(&chordFile);
     QXmlSimpleReader reader;
@@ -528,7 +513,7 @@ GuitarChordSelectorDialog::parseChordFile(const QString& chordFileName)
 // RG_DEBUG << "  parsed OK, without crashing!  W00t!";
 
     if (!ok)
-        QMessageBox::critical(0, tr("Rosegarden"), tr("couldn't parse chord dictionary : %1").arg(handler.errorString()));
+        QMessageBox::critical(nullptr, tr("Rosegarden"), tr("couldn't parse chord dictionary : %1").arg(handler.errorString()));
     
 }
 
@@ -586,4 +571,3 @@ GuitarChordSelectorDialog::saveUserChordMap()
 }
 
 
-#include "GuitarChordSelectorDialog.moc"

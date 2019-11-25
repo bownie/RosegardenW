@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -64,7 +64,7 @@ public:
                     RosegardenDocument *document,
                     int mode,
                     QString filename);
-    ~ProjectPackager() { };
+    ~ProjectPackager() override { };
 
     /** Return the true filename as discovered when analyzing the contents of
      * the .rgp file.  foo.rgp might contain bar.rg and directory bar/
@@ -136,7 +136,7 @@ protected slots:
 
     /** If user cancels, clean up tmp dir
      */
-    void reject();
+    void reject() override;
 
     /**
      * Begin the packing process.

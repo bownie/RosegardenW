@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -181,7 +181,7 @@ public:
     ConcreteThingBuilder(QUrl uri, QStringList tags) {
 	ThingFactory<Thing, Parameters>::getInstance()->registerBuilder(uri, this, tags);
     }
-    virtual Thing *build(Parameters p) {
+    Thing *build(Parameters p) override {
 	return new ConcreteThing(p);
     }
 };

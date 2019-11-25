@@ -406,4 +406,4 @@ ProgressDialog::show() {
 
 }
 
-#include "ProgressDialog.moc"
+#include "moc_ProgressDialog.cpp"

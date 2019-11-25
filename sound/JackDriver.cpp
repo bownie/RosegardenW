@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -12,6 +12,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[JackDriver]"
 
 #include "JackDriver.h"
 #include "AlsaDriver.h"
@@ -23,6 +25,7 @@
 #include "PluginFactory.h"
 
 #include "misc/ConfigGroups.h"
+#include "misc/Debug.h"
 
 #include <QSettings>
 #include <QtGlobal>
@@ -44,20 +47,20 @@ static RealTime startTime;
 #endif
 
 JackDriver::JackDriver(AlsaDriver *alsaDriver) :
-        m_client(0),
+        m_client(nullptr),
         m_bufferSize(0),
         m_sampleRate(0),
-        m_tempOutBuffer(0),
+        m_tempOutBuffer(nullptr),
         m_jackTransportEnabled(false),
         m_jackTransportMaster(false),
         m_waiting(false),
         m_waitingState(JackTransportStopped),
         m_waitingToken(0),
         m_ignoreProcessTransportCount(0),
-        m_bussMixer(0),
-        m_instrumentMixer(0),
-        m_fileReader(0),
-        m_fileWriter(0),
+        m_bussMixer(nullptr),
+        m_instrumentMixer(nullptr),
+        m_fileReader(nullptr),
+        m_fileWriter(nullptr),
         m_alsaDriver(alsaDriver),
         m_masterLevel(1.0),
         m_directMasterAudioInstruments(0L),
@@ -74,124 +77,116 @@ JackDriver::JackDriver(AlsaDriver *alsaDriver) :
 JackDriver::~JackDriver()
 {
 #ifdef DEBUG_JACK_DRIVER
-    std::cerr << "JackDriver::~JackDriver" << std::endl;
+    RG_DEBUG << "dtor";
 #endif
 
     m_ok = false; // prevent any more work in process()
 
     if (m_client) {
 #ifdef DEBUG_JACK_DRIVER
-        std::cerr << "JackDriver::shutdown - deactivating JACK client"
-        << std::endl;
+        RG_DEBUG << "dtor: deactivating JACK client";
 #endif
 
         if (jack_deactivate(m_client)) {
-            std::cerr << "JackDriver::shutdown - deactivation failed"
-            << std::endl;
-	}
+            RG_WARNING << "dtor: WARNING: deactivation failed";
+        }
     }
 
 #ifdef DEBUG_JACK_DRIVER
-    std::cerr << "JackDriver::~JackDriver: terminating buss mixer" << std::endl;
+    RG_DEBUG << "dtor: terminating buss mixer";
 #endif
 
     AudioBussMixer *bussMixer = m_bussMixer;
-    m_bussMixer = 0;
+    m_bussMixer = nullptr;
     if (bussMixer)
         bussMixer->terminate();
 
 #ifdef DEBUG_JACK_DRIVER
-    std::cerr << "JackDriver::~JackDriver: terminating instrument mixer" << std::endl;
+    RG_DEBUG << "dtor: terminating instrument mixer";
 #endif
 
     AudioInstrumentMixer *instrumentMixer = m_instrumentMixer;
-    m_instrumentMixer = 0;
+    m_instrumentMixer = nullptr;
     if (instrumentMixer) {
         instrumentMixer->terminate();
         instrumentMixer->destroyAllPlugins();
     }
 
 #ifdef DEBUG_JACK_DRIVER
-    std::cerr << "JackDriver::~JackDriver: terminating file reader" << std::endl;
+    RG_DEBUG << "dtor: terminating file reader";
 #endif
 
     AudioFileReader *reader = m_fileReader;
-    m_fileReader = 0;
+    m_fileReader = nullptr;
     if (reader)
         reader->terminate();
 
 #ifdef DEBUG_JACK_DRIVER
-    std::cerr << "JackDriver::~JackDriver: terminating file writer" << std::endl;
+    RG_DEBUG << "dtor: terminating file writer";
 #endif
 
     AudioFileWriter *writer = m_fileWriter;
-    m_fileWriter = 0;
+    m_fileWriter = nullptr;
     if (writer)
         writer->terminate();
 
     if (m_client) {
 
 #ifdef DEBUG_JACK_DRIVER
-        std::cerr << "JackDriver::shutdown - tearing down JACK client"
-        << std::endl;
+        RG_DEBUG << "dtor: tearing down JACK client";
 #endif
 
         for (size_t i = 0; i < m_inputPorts.size(); ++i) {
 #ifdef DEBUG_JACK_DRIVER
-            std::cerr << "unregistering input " << i << std::endl;
+            RG_DEBUG << "dtor: unregistering input " << i;
 #endif
 
             if (jack_port_unregister(m_client, m_inputPorts[i])) {
-                std::cerr << "JackDriver::shutdown - "
-                << "can't unregister input port " << i + 1
-                << std::endl;
+                RG_WARNING << "dtor: WARNING: can't unregister input port " << i + 1;
             }
         }
 
         for (size_t i = 0; i < m_outputSubmasters.size(); ++i) {
 #ifdef DEBUG_JACK_DRIVER
-            std::cerr << "unregistering output sub " << i << std::endl;
+            RG_DEBUG << "dtor: unregistering output sub " << i;
 #endif
 
             if (jack_port_unregister(m_client, m_outputSubmasters[i])) {
-                std::cerr << "JackDriver::shutdown - "
-                << "can't unregister output submaster " << i + 1 << std::endl;
+                RG_WARNING << "dtor: WARNING: can't unregister output submaster " << i + 1;
             }
         }
 
         for (size_t i = 0; i < m_outputMonitors.size(); ++i) {
 #ifdef DEBUG_JACK_DRIVER
-            std::cerr << "unregistering output mon " << i << std::endl;
+            RG_DEBUG << "dtor: unregistering output mon " << i;
 #endif
 
             if (jack_port_unregister(m_client, m_outputMonitors[i])) {
-                std::cerr << "JackDriver::shutdown - "
-                << "can't unregister output monitor " << i + 1 << std::endl;
+                RG_WARNING << "dtor: WARNING: can't unregister output monitor " << i + 1;
             }
         }
 
         for (size_t i = 0; i < m_outputMasters.size(); ++i) {
 #ifdef DEBUG_JACK_DRIVER
-            std::cerr << "unregistering output master " << i << std::endl;
+            RG_DEBUG << "dtor: unregistering output master " << i;
 #endif
 
             if (jack_port_unregister(m_client, m_outputMasters[i])) {
-                std::cerr << "JackDriver::shutdown - "
-                << "can't unregister output master " << i + 1 << std::endl;
+                RG_WARNING << "dtor: WARNING: can't unregister output master " << i + 1;
             }
         }
 
 #ifdef DEBUG_JACK_DRIVER
-        std::cerr << "closing client" << std::endl;
+        RG_DEBUG << "dtor: closing client";
 #endif
 
         jack_client_close(m_client);
-        std::cerr << "done" << std::endl;
-        m_client = 0;
+        RG_DEBUG << "dtor: done";
+        m_client = nullptr;
     }
 
 #ifdef DEBUG_JACK_DRIVER
-    std::cerr << "JackDriver: deleting mixers etc" << std::endl;
+    RG_DEBUG << "dtor: deleting mixers etc";
 #endif
 
     delete bussMixer;
@@ -200,8 +195,7 @@ JackDriver::~JackDriver()
     delete writer;
 
 #ifdef DEBUG_JACK_DRIVER
-
-    std::cerr << "JackDriver::~JackDriver exiting" << std::endl;
+    RG_DEBUG << "dtor: exiting";
 #endif
 }
 
@@ -210,8 +204,13 @@ JackDriver::initialise(bool reinitialise)
 {
     m_ok = false;
 
+    // Create a log that the user can easily see through the preferences
+    // even in a release build.
     Audit audit;
-    audit << std::endl;
+    audit << '\n';
+    audit << "===============================================================\n";
+    audit << "JackDriver::initialise() begin...\n";
+    RG_DEBUG << "initialise() begin...";
 
     std::string jackClientName = "rosegarden";
 
@@ -226,14 +225,12 @@ JackDriver::initialise(bool reinitialise)
 
     // attempt connection to JACK server
     //
-    if ((m_client = jack_client_open(jackClientName.c_str(), jackOptions, 0)) == 0) {
-        audit << "JackDriver::initialiseAudio - "
-	      << "JACK server not running"
-	      << std::endl
-              << "Attempt to start JACK server was "
-              << (jackOptions & JackNoStartServer ? "NOT " : "")
-              << "made per user config"
-              << std::endl;
+    if ((m_client = jack_client_open(jackClientName.c_str(), jackOptions, nullptr)) == nullptr) {
+        RG_WARNING << "initialise() - JACK server not running";
+        RG_WARNING << "  Attempt to start JACK server was " << (jackOptions & JackNoStartServer ? "NOT " : "") << "made per user config";
+        // Also send to user log.
+        audit << "JACK server not running\n";
+        audit << "  Attempt to start JACK server was " << (jackOptions & JackNoStartServer ? "NOT " : "") << "made per user config\n";
         return ;
     }
 
@@ -261,9 +258,8 @@ JackDriver::initialise(bool reinitialise)
     m_sampleRate = jack_get_sample_rate(m_client);
     m_bufferSize = jack_get_buffer_size(m_client);
 
-    audit << "JackDriver::initialiseAudio - JACK sample rate = "
-    << m_sampleRate << "Hz, buffer size = " << m_bufferSize
-    << std::endl;
+    RG_DEBUG << "initialise() - JACK sample rate = " << m_sampleRate << "Hz, buffer size = " << m_bufferSize;
+    audit << "JACK sample rate = " << m_sampleRate << "Hz, buffer size = " << m_bufferSize << '\n';
 
     PluginFactory::setSampleRate(m_sampleRate);
 
@@ -276,8 +272,8 @@ JackDriver::initialise(bool reinitialise)
         //
         m_tempOutBuffer = new sample_t[m_bufferSize];
 
-        audit << "JackDriver::initialiseAudio - "
-        << "creating disk thread" << std::endl;
+        RG_DEBUG << "initialise() - creating disk thread...";
+        audit << "Creating audio file thread...\n";
 
         m_fileReader = new AudioFileReader(m_alsaDriver, m_sampleRate);
         m_fileWriter = new AudioFileWriter(m_alsaDriver, m_sampleRate);
@@ -307,20 +303,20 @@ JackDriver::initialise(bool reinitialise)
     m_inputPorts.clear();
 
     if (!createMainOutputs()) { // one stereo pair master, one pair monitor
-        audit << "JackDriver::initialise - "
-        << "failed to create main outputs!" << std::endl;
+        RG_WARNING << "initialise() - failed to create main outputs!";
+        audit << "WARNING: failed to create main outputs!\n";
         return ;
     }
 
     if (!createRecordInputs(1)) {
-        audit << "JackDriver::initialise - "
-        << "failed to create record inputs!" << std::endl;
+        RG_WARNING << "initialise() - failed to create record inputs!";
+        audit << "WARNING: failed to create record inputs!\n";
         return ;
     }
 
     if (jack_activate(m_client)) {
-        audit << "JackDriver::initialise - "
-        << "client activation failed" << std::endl;
+        RG_WARNING << "initialise() - client activation failed";
+        audit << "WARNING: client activation failed\n";
         return ;
     }
 
@@ -330,7 +326,7 @@ JackDriver::initialise(bool reinitialise)
     bool connectDefaultInputs = settings.value("connect_default_jack_inputs", true).toBool();
     settings.endGroup();
 
-    const char **ports = jack_get_ports(m_client, NULL, NULL,
+    const char **ports = jack_get_ports(m_client, nullptr, nullptr,
             JackPortIsPhysical | JackPortIsInput);
     
     if (connectDefaultOutputs) {
@@ -347,61 +343,58 @@ JackDriver::initialise(bool reinitialise)
             unsigned int i = 0;
             for (i = 0; ports[i]; i++)
                 ;
-            audit << "JackDriver::initialiseAudio - "
-            << "found " << i << " JACK physical outputs"
-            << std::endl;
-        } else
-            audit << "JackDriver::initialiseAudio - "
-            << "no JACK physical outputs found"
-            << std::endl;
-        free(ports);
+            RG_DEBUG << "initialise() - found " << i << " JACK physical outputs";
+            audit << "Found " << i << " JACK physical outputs\n";
+
+            jack_free(ports);
+
+        } else {
+            RG_WARNING << "initialise() - no JACK physical outputs found";
+            audit << "WARNING: no JACK physical outputs found\n";
+        }
 
         if (playback_1 != "") {
-            audit << "JackDriver::initialiseAudio - "
-            << "connecting from "
-            << "\"" << jack_port_name(m_outputMasters[0])
-            << "\" to \"" << playback_1.c_str() << "\""
-            << std::endl;
+            RG_DEBUG << "initialise() - connecting from " << "\"" << jack_port_name(m_outputMasters[0]) << "\" to \"" << playback_1.c_str() << "\"";
+            audit << "connecting from " << "\"" << jack_port_name(m_outputMasters[0]) << "\" to \"" << playback_1.c_str() << "\"\n";
 
             // connect our client up to the ALSA ports - first left output
             //
             if (jack_connect(m_client, jack_port_name(m_outputMasters[0]),
                              playback_1.c_str())) {
-                audit << "JackDriver::initialiseAudio - "
-                << "cannot connect to JACK output port" << std::endl;
+                RG_WARNING << "initialise() - cannot connect to JACK output port";
+                audit << "WARNING: cannot connect to JACK output port\n";
                 return ;
             }
 
             /*
+                    // ??? monitors?
                     if (jack_connect(m_client, jack_port_name(m_outputMonitors[0]),
                                      playback_1.c_str()))
                     {
-                        audit << "JackDriver::initialiseAudio - "
-                              << "cannot connect to JACK output port" << std::endl;
+                        RG_WARNING << "initialise() - cannot connect to JACK output port";
+                        audit << "WARNING: cannot connect to JACK output port\n";
                         return;
                     }
             */
         }
 
         if (playback_2 != "") {
-            audit << "JackDriver::initialiseAudio - "
-            << "connecting from "
-            << "\"" << jack_port_name(m_outputMasters[1])
-            << "\" to \"" << playback_2.c_str() << "\""
-            << std::endl;
+            RG_DEBUG << "initialise() - connecting from " << "\"" << jack_port_name(m_outputMasters[1]) << "\" to \"" << playback_2.c_str() << "\"";
+            audit << "WARNING: connecting from " << "\"" << jack_port_name(m_outputMasters[1]) << "\" to \"" << playback_2.c_str() << "\"\n";
 
             if (jack_connect(m_client, jack_port_name(m_outputMasters[1]),
                              playback_2.c_str())) {
-                audit << "JackDriver::initialiseAudio - "
-                << "cannot connect to JACK output port" << std::endl;
+                RG_WARNING << "initialise() - cannot connect to JACK output port";
+                audit << "WARNING: cannot connect to JACK output port\n";
             }
 
             /*
+                    // ??? monitors?
                     if (jack_connect(m_client, jack_port_name(m_outputMonitors[1]),
                                      playback_2.c_str()))
                     {
-                        audit << "JackDriver::initialiseAudio - "
-                              << "cannot connect to JACK output port" << std::endl;
+                        RG_WARNING << "initialise() - cannot connect to JACK output port";
+                        audit << "WARNING: cannot connect to JACK output port\n";
                     }
             */
         }
@@ -413,7 +406,7 @@ JackDriver::initialise(bool reinitialise)
         std::string capture_1, capture_2;
 
         ports =
-            jack_get_ports(m_client, NULL, NULL,
+            jack_get_ports(m_client, nullptr, nullptr,
                            JackPortIsPhysical | JackPortIsOutput);
 
         if (ports) {
@@ -426,49 +419,43 @@ JackDriver::initialise(bool reinitialise)
             unsigned int i = 0;
             for (i = 0; ports[i]; i++)
                 ;
-            audit << "JackDriver::initialiseAudio - "
-            << "found " << i << " JACK physical inputs"
-            << std::endl;
-        } else
-            audit << "JackDriver::initialiseAudio - "
-            << "no JACK physical inputs found"
-            << std::endl;
-        free(ports);
+            RG_DEBUG << "initialise() - found " << i << " JACK physical inputs";
+            audit << "found " << i << " JACK physical inputs\n";
+
+            jack_free(ports);
+
+        } else {
+            RG_WARNING << "initialise() - no JACK physical inputs found";
+            audit << "WARNING: no JACK physical inputs found\n";
+        }
 
         if (capture_1 != "") {
 
-            audit << "JackDriver::initialiseAudio - "
-            << "connecting from "
-            << "\"" << capture_1.c_str()
-            << "\" to \"" << jack_port_name(m_inputPorts[0]) << "\""
-            << std::endl;
+            RG_DEBUG << "initialise() - connecting from " << "\"" << capture_1.c_str() << "\" to \"" << jack_port_name(m_inputPorts[0]) << "\"";
+            audit << "connecting from " << "\"" << capture_1.c_str() << "\" to \"" << jack_port_name(m_inputPorts[0]) << "\"\n";
 
             if (jack_connect(m_client, capture_1.c_str(),
                              jack_port_name(m_inputPorts[0]))) {
-                audit << "JackDriver::initialiseAudio - "
-                << "cannot connect to JACK input port" << std::endl;
+                RG_WARNING << "initialise() - cannot connect to JACK input port";
+                audit << "WARNING: cannot connect to JACK input port\n";
             }
         }
 
         if (capture_2 != "") {
 
-            audit << "JackDriver::initialiseAudio - "
-            << "connecting from "
-            << "\"" << capture_2.c_str()
-            << "\" to \"" << jack_port_name(m_inputPorts[1]) << "\""
-            << std::endl;
+            RG_DEBUG << "initialise() - connecting from " << "\"" << capture_2.c_str() << "\" to \"" << jack_port_name(m_inputPorts[1]) << "\"";
+            audit << "connecting from " << "\"" << capture_2.c_str() << "\" to \"" << jack_port_name(m_inputPorts[1]) << "\"\n";
 
             if (jack_connect(m_client, capture_2.c_str(),
                              jack_port_name(m_inputPorts[1]))) {
-                audit << "JackDriver::initialiseAudio - "
-                << "cannot connect to JACK input port" << std::endl;
+                RG_WARNING << "initialise() - cannot connect to JACK input port";
+                audit << "WARNING: cannot connect to JACK input port\n";
             }
         }
     }
 
-    audit << "JackDriver::initialiseAudio - "
-    << "initialised JACK audio subsystem"
-    << std::endl;
+    RG_DEBUG << "initialise() - initialised JACK audio subsystem";
+    audit << "initialised JACK audio subsystem\n";
 
     m_ok = true;
 }
@@ -523,17 +510,18 @@ JackDriver::createFaderOutputs(int audioPairs, int synthPairs)
 
     for (int i = pairsNow; i < pairs; ++i) {
 
-        char namebuffer[22];
-        jack_port_t *port;
+        QString portName;
 
         if (i < audioPairs) {
-            snprintf(namebuffer, 21, "audio fader %d out L", i + 1);
+            portName = QString("audio fader %1 out L").arg(i+1);
         } else {
-            snprintf(namebuffer, 21, "synth fader %d out L", i - audioPairs + 1);
+            portName = QString("synth fader %1 out L").arg(i - audioPairs + 1);
         }
 
+        jack_port_t *port;
+
         port = jack_port_register(m_client,
-                                  namebuffer,
+                                  portName.toLocal8Bit().constData(),
                                   JACK_DEFAULT_AUDIO_TYPE,
                                   JackPortIsOutput,
                                   0);
@@ -542,13 +530,13 @@ JackDriver::createFaderOutputs(int audioPairs, int synthPairs)
         m_outputInstruments.push_back(port);
 
         if (i < audioPairs) {
-            snprintf(namebuffer, 21, "audio fader %d out R", i + 1);
+            portName = QString("audio fader %1 out R").arg(i+1);
         } else {
-            snprintf(namebuffer, 21, "synth fader %d out R", i - audioPairs + 1);
+            portName = QString("synth fader %1 out R").arg(i - audioPairs + 1);
         }
 
         port = jack_port_register(m_client,
-                                  namebuffer,
+                                  portName.toLocal8Bit().constData(),
                                   JACK_DEFAULT_AUDIO_TYPE,
                                   JackPortIsOutput,
                                   0);
@@ -579,12 +567,12 @@ JackDriver::createSubmasterOutputs(int pairs)
 
     for (int i = pairsNow; i < pairs; ++i) {
 
-        char namebuffer[22];
+        QString name;
         jack_port_t *port;
 
-        snprintf(namebuffer, 21, "submaster %d out L", i + 1);
+        name = QString("submaster %d out L").arg(i + 1);
         port = jack_port_register(m_client,
-                                  namebuffer,
+                                  name.toLocal8Bit(),
                                   JACK_DEFAULT_AUDIO_TYPE,
                                   JackPortIsOutput,
                                   0);
@@ -592,9 +580,9 @@ JackDriver::createSubmasterOutputs(int pairs)
             return false;
         m_outputSubmasters.push_back(port);
 
-        snprintf(namebuffer, 21, "submaster %d out R", i + 1);
+        name = QString("submaster %d out R").arg(i + 1);
         port = jack_port_register(m_client,
-                                  namebuffer,
+                                  name.toLocal8Bit(),
                                   JACK_DEFAULT_AUDIO_TYPE,
                                   JackPortIsOutput,
                                   0);
@@ -625,12 +613,12 @@ JackDriver::createRecordInputs(int pairs)
 
     for (int i = pairsNow; i < pairs; ++i) {
 
-        char namebuffer[22];
+        QString name;
         jack_port_t *port;
 
-        snprintf(namebuffer, 21, "record in %d L", i + 1);
+        name = QString("record in %1 L").arg(i + 1);
         port = jack_port_register(m_client,
-                                  namebuffer,
+                                  name.toLocal8Bit(),
                                   JACK_DEFAULT_AUDIO_TYPE,
                                   JackPortIsInput,
                                   0);
@@ -638,9 +626,9 @@ JackDriver::createRecordInputs(int pairs)
             return false;
         m_inputPorts.push_back(port);
 
-        snprintf(namebuffer, 21, "record in %d R", i + 1);
+        name = QString("record in %1 R").arg(i + 1);
         port = jack_port_register(m_client,
-                                  namebuffer,
+                                  name.toLocal8Bit(),
                                   JACK_DEFAULT_AUDIO_TYPE,
                                   JackPortIsInput,
                                   0);
@@ -666,14 +654,20 @@ JackDriver::setAudioPorts(bool faderOuts, bool submasterOuts)
     if (!m_client)
         return ;
 
+    // Create a log that the user can easily see through the preferences
+    // even in a release build.
     Audit audit;
-#ifdef DEBUG_JACK_DRIVER
+    audit << '\n';
+    audit << "===============================================================\n";
+    audit << "JackDriver::setAudioPorts() begin...\n";
 
-    std::cerr << "JackDriver::setAudioPorts(" << faderOuts << "," << submasterOuts << ")" << std::endl;
+#ifdef DEBUG_JACK_DRIVER
+    RG_DEBUG << "setAudioPorts(" << faderOuts << "," << submasterOuts << ")";
 #endif
 
     if (!m_client) {
-        std::cerr << "JackDriver::setAudioPorts(" << faderOuts << "," << submasterOuts << "): no client yet" << std::endl;
+        RG_WARNING << "setAudioPorts(" << faderOuts << "," << submasterOuts << "): no client yet";
+        audit << "WARNING: setAudioPorts(" << faderOuts << "," << submasterOuts << "): no client yet\n";
         return ;
     }
 
@@ -685,7 +679,8 @@ JackDriver::setAudioPorts(bool faderOuts, bool submasterOuts)
         m_alsaDriver->getSoftSynthInstrumentNumbers(instrumentBase, synthInstruments);
         if (!createFaderOutputs(audioInstruments, synthInstruments)) {
             m_ok = false;
-            audit << "Failed to create fader outs!" << std::endl;
+            RG_WARNING << "setAudioPorts(): Failed to create fader outs!";
+            audit << "WARNING: Failed to create fader outs!\n";
             return ;
         }
     } else {
@@ -695,17 +690,18 @@ JackDriver::setAudioPorts(bool faderOuts, bool submasterOuts)
     if (submasterOuts) {
 
         // one fewer than returned here, because the master has a buss object too
-	int count =
-	    m_alsaDriver->getMappedStudio()->getObjectCount
-	    (MappedObject::AudioBuss);
-	if (count == 0) {
-	    audit << "Mapped studio contains no master buss!  Probably a symptom of a serious error" << std::endl;
-	} else {
-	    count = count - 1;
-	}
+        int count = m_alsaDriver->getMappedStudio()->getObjectCount(
+                MappedObject::AudioBuss);
+        if (count == 0) {
+            RG_WARNING << "setAudioPorts(): Mapped studio contains no master buss!  Probably a symptom of a serious error";
+            audit << "WARNING: Mapped studio contains no master buss!  Probably a symptom of a serious error\n";
+        } else {
+            count = count - 1;
+        }
         if (!createSubmasterOutputs(count)) {
             m_ok = false;
-            audit << "Failed to create submaster outs!" << std::endl;
+            RG_WARNING << "setAudioPorts(): Failed to create submaster outs!";
+            audit << "WARNING(): Failed to create submaster outs!\n";
             return ;
         }
 
@@ -720,10 +716,24 @@ JackDriver::getAudioPlayLatency() const
     if (!m_client)
         return RealTime::zeroTime;
 
+#if 0
+    // ??? DEPRECATED
+    //     jack_port_get_total_latency() is deprecated.  Replace with
+    //     jack_port_get_latency_range().
+
     jack_nframes_t latency =
         jack_port_get_total_latency(m_client, m_outputMasters[0]);
 
     return RealTime::frame2RealTime(latency, m_sampleRate);
+#else
+    jack_latency_range_t latencyRange;
+    jack_port_get_latency_range(
+            m_outputMasters[0], JackPlaybackLatency, &latencyRange);
+
+    // min and max appear to be the same, so we'll just go with max.
+    // ??? Might be better to average them?
+    return RealTime::frame2RealTime(latencyRange.max, m_sampleRate);
+#endif
 }
 
 RealTime
@@ -732,10 +742,24 @@ JackDriver::getAudioRecordLatency() const
     if (!m_client)
         return RealTime::zeroTime;
 
+#if 0
+    // ??? DEPRECATED
+    //     jack_port_get_total_latency() is deprecated.  Replace with
+    //     jack_port_get_latency_range().
+
     jack_nframes_t latency =
         jack_port_get_total_latency(m_client, m_inputPorts[0]);
 
     return RealTime::frame2RealTime(latency, m_sampleRate);
+#else
+    jack_latency_range_t latencyRange;
+    jack_port_get_latency_range(
+            m_inputPorts[0], JackCaptureLatency, &latencyRange);
+
+    // min and max appear to be the same, so we'll just go with max.
+    // ??? Might be better to average them?
+    return RealTime::frame2RealTime(latencyRange.max, m_sampleRate);
+#endif
 }
 
 RealTime
@@ -769,7 +793,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 {
     if (!m_ok || !m_client) {
 #ifdef DEBUG_JACK_PROCESS
-        std::cerr << "JackDriver::jackProcess: not OK" << std::endl;
+        RG_DEBUG << "jackProcess(): not OK";
 #endif
 
         return 0;
@@ -777,7 +801,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 
     if (!m_bussMixer) {
 #ifdef DEBUG_JACK_PROCESS
-        std::cerr << "JackDriver::jackProcess: no buss mixer" << std::endl;
+        RG_DEBUG << "jackProcess(): no buss mixer";
 #endif
 
         return jackProcessEmpty(nframes);
@@ -811,7 +835,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
                     m_instrumentMixer->releaseLock();
                     //#ifdef DEBUG_JACK_PROCESS
                 } else {
-                    std::cerr << "JackDriver::jackProcess: no instrument mixer lock available" << std::endl;
+                    RG_WARNING << "jackProcess(): WARNING: no instrument mixer lock available";
                     //#endif
                 }
                 if (m_bussMixer->getBussCount() > 0) {
@@ -820,7 +844,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
                         m_bussMixer->releaseLock();
                         //#ifdef DEBUG_JACK_PROCESS
                     } else {
-                        std::cerr << "JackDriver::jackProcess: no buss mixer lock available" << std::endl;
+                        RG_WARNING << "jackProcess(): WARNING: no buss mixer lock available";
                         //#endif
                     }
                 }
@@ -857,7 +881,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
         state = jack_transport_query(m_client, &position);
 
 #ifdef DEBUG_JACK_PROCESS
-        std::cerr << "JackDriver::jackProcess: JACK transport state is " << state << std::endl;
+        RG_DEBUG << "jackProcess(): JACK transport state is " << state;
 #endif
 
         if (state == JackTransportStopped) {
@@ -866,7 +890,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
                     m_alsaDriver->getExternalTransportControl();
                 if (transport) {
 #ifdef DEBUG_JACK_TRANSPORT
-                    std::cerr << "JackDriver::jackProcess: JACK transport stopped externally at " << position.frame << std::endl;
+                    RG_DEBUG << "jackProcess(): JACK transport stopped externally at " << position.frame;
 #endif
 
                     m_waitingToken = transport->transportJump(
@@ -877,7 +901,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
             } else if (clocksRunning) {
                 if (!asyncAudio) {
 #ifdef DEBUG_JACK_PROCESS
-                    std::cerr << "JackDriver::jackProcess: no interesting async events" << std::endl;
+                    RG_DEBUG << "jackProcess(): no interesting async events";
 #endif
                     // do this before record monitor, otherwise we lose monitor out
                     jackProcessEmpty(nframes);
@@ -887,7 +911,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
                 int rv = 0;
                 for (InstrumentId id = audioInstrumentBase;
                         id < audioInstrumentBase + audioInstruments; ++id) {
-                    int irv = jackProcessRecord(id, nframes, 0, 0, clocksRunning);
+                    int irv = jackProcessRecord(id, nframes, nullptr, nullptr, clocksRunning);
                     if (irv != 0)
                         rv = irv;
                 }
@@ -903,7 +927,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
         } else if (state == JackTransportStarting) {
             return jackProcessEmpty(nframes);
         } else if (state != JackTransportRolling) {
-            std::cerr << "JackDriver::jackProcess: unexpected JACK transport state " << state << std::endl;
+            RG_WARNING << "jackProcess(): WARNING: unexpected JACK transport state " << state;
         }
     }
 
@@ -911,11 +935,11 @@ JackDriver::jackProcess(jack_nframes_t nframes)
         if (m_waiting) {
             if (ignoreCount > 0) {
 #ifdef DEBUG_JACK_TRANSPORT
-                std::cerr << "JackDriver::jackProcess: transport rolling, but we're ignoring it (count = " << ignoreCount << ")" << std::endl;
+                RG_DEBUG << "jackProcess(): transport rolling, but we're ignoring it (count = " << ignoreCount << ")";
 #endif
             } else {
 #ifdef DEBUG_JACK_TRANSPORT
-                std::cerr << "JackDriver::jackProcess: transport rolling, telling ALSA driver to go!" << std::endl;
+                RG_DEBUG << "jackProcess(): transport rolling, telling ALSA driver to go!";
 #endif
 
                 m_alsaDriver->startClocksApproved();
@@ -924,24 +948,24 @@ JackDriver::jackProcess(jack_nframes_t nframes)
         }
 
 #ifdef DEBUG_JACK_PROCESS
-        std::cerr << "JackDriver::jackProcess (rolling or not on JACK transport)" << std::endl;
+        RG_DEBUG << "jackProcess(): (rolling or not on JACK transport)";
 #endif
 
         if (!clocksRunning) {
 #ifdef DEBUG_JACK_PROCESS
-            std::cerr << "JackDriver::jackProcess: clocks stopped" << std::endl;
+            RG_DEBUG << "jackProcess(): clocks stopped";
 #endif
 
             return jackProcessEmpty(nframes);
 
         } else if (!playing) {
 #ifdef DEBUG_JACK_PROCESS
-            std::cerr << "JackDriver::jackProcess: not playing" << std::endl;
+            RG_DEBUG << "jackProcess(): not playing";
 #endif
 
             if (!asyncAudio) {
 #ifdef DEBUG_JACK_PROCESS
-                std::cerr << "JackDriver::jackProcess: no interesting async events" << std::endl;
+                RG_DEBUG << "jackProcess(): no interesting async events";
 #endif
                 // do this before record monitor, otherwise we lose monitor out
                 jackProcessEmpty(nframes);
@@ -951,7 +975,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
             int rv = 0;
             for (InstrumentId id = audioInstrumentBase;
                     id < audioInstrumentBase + audioInstruments; ++id) {
-                int irv = jackProcessRecord(id, nframes, 0, 0, clocksRunning);
+                int irv = jackProcessRecord(id, nframes, nullptr, nullptr, clocksRunning);
                 if (irv != 0)
                     rv = irv;
             }
@@ -1009,7 +1033,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 
     for (int buss = 0; buss < bussCount; ++buss) {
 
-        sample_t *submaster[2] = { 0, 0 };
+        sample_t *submaster[2] = { nullptr, nullptr };
         sample_t peak[2] = { 0.0, 0.0 };
 
         if ((int)m_outputSubmasters.size() > buss * 2 + 1) {
@@ -1065,7 +1089,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
     }
 
 #ifdef DEBUG_JACK_PROCESS
-    std::cerr << "JackDriver::jackProcess: have " << audioInstruments << " audio and " << synthInstruments << " synth instruments and " << bussCount << " busses" << std::endl;
+    RG_DEBUG << "jackProcess(): have " << audioInstruments << " audio and " << synthInstruments << " synth instruments and " << bussCount << " busses";
 #endif
 
     bool allInstrumentsDormant = true;
@@ -1082,7 +1106,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
         if (m_instrumentMixer->isInstrumentEmpty(id))
             continue;
 
-        sample_t *instrument[2] = { 0, 0 };
+        sample_t *instrument[2] = { nullptr, nullptr };
         sample_t peak[2] = { 0.0, 0.0 };
 
         if (int(m_outputInstruments.size()) > i * 2 + 1) {
@@ -1115,7 +1139,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 
 #ifdef DEBUG_JACK_PROCESS
             if (id == 1000 || id == 10000) {
-                std::cerr << "JackDriver::jackProcess: instrument id " << id << ", base " << audioInstrumentBase << ", direct masters " << m_directMasterAudioInstruments << ": " << directToMaster << std::endl;
+                RG_DEBUG << "jackProcess(): instrument id " << id << ", base " << audioInstrumentBase << ", direct masters " << m_directMasterAudioInstruments << ": " << directToMaster;
             }
 #endif
 
@@ -1126,9 +1150,9 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 #ifdef DEBUG_JACK_PROCESS
                 if (id == 1000 || id == 10000) {
                     if (rb) {
-                        std::cerr << "JackDriver::jackProcess: instrument " << id << " dormant" << std::endl;
+                        RG_DEBUG << "jackProcess(): instrument " << id << " dormant";
                     } else {
-                        std::cerr << "JackDriver::jackProcess: instrument " << id << " has no ring buffer for channel " << ch << std::endl;
+                        RG_DEBUG << "jackProcess(): instrument " << id << " has no ring buffer for channel " << ch;
                     }
                 }
 #endif
@@ -1146,12 +1170,12 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 #ifdef DEBUG_JACK_PROCESS
 
                 if (id == 1000) {
-                    std::cerr << "JackDriver::jackProcess: read " << actual << " of " << nframes << " frames for instrument " << id << " channel " << ch << std::endl;
+                    RG_DEBUG << "jackProcess(): read " << actual << " of " << nframes << " frames for instrument " << id << " channel " << ch;
                 }
 #endif
 
                 if (actual < nframes) {
-                    std::cerr << "JackDriver::jackProcess: read " << actual << " of " << nframes << " frames for " << id << " ch " << ch << " (pl " << playing << ", cl " << clocksRunning << ", aa " << asyncAudio << ")" << std::endl;
+                    RG_WARNING << "jackProcess(): WARNING: read " << actual << " of " << nframes << " frames for " << id << " ch " << ch << " (pl " << playing << ", cl " << clocksRunning << ", aa " << asyncAudio << ")";
                     reportFailure(MappedEvent::FailureMixUnderrun);
                 }
 
@@ -1190,7 +1214,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
             dormantTime = dormantTime +
                           RealTime::frame2RealTime(m_bufferSize, m_sampleRate);
             if (dormantTime > RealTime(10, 0)) {
-                std::cerr << "JackDriver: dormantTime = " << dormantTime << ", resetting m_haveAsyncAudioEvent" << std::endl;
+                RG_WARNING << "jackProcess(): WARNING: dormantTime = " << dormantTime << ", resetting m_haveAsyncAudioEvent";
                 m_haveAsyncAudioEvent = false;
             }
         }
@@ -1224,7 +1248,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
         } else if (m_recordInputs[id].input < 1000) { // buss, already done
             // nothing
         } else if (!doneRecord) {
-            jackProcessRecord(id, nframes, 0, 0, clocksRunning);
+            jackProcessRecord(id, nframes, nullptr, nullptr, clocksRunning);
         }
     }
 
@@ -1245,7 +1269,7 @@ JackDriver::jackProcess(jack_nframes_t nframes)
 #endif
 
 #ifdef DEBUG_JACK_PROCESS
-    std::cerr << "JackDriver::jackProcess: " << nframes << " frames, " << framesThisPlay << " this play, " << m_framesProcessed << " total" << std::endl;
+    RG_DEBUG << "jackProcess(): " << nframes << " frames, " << framesThisPlay << " this play, " << m_framesProcessed << " total";
 #endif
 
     return 0;
@@ -1257,8 +1281,7 @@ JackDriver::jackProcessEmpty(jack_nframes_t nframes)
     sample_t *buffer;
 
 #ifdef DEBUG_JACK_PROCESS
-
-    std::cerr << "JackDriver::jackProcessEmpty" << std::endl;
+    RG_DEBUG << "jackProcessEmpty() begin";
 #endif
 
     buffer = static_cast<sample_t *>
@@ -1302,8 +1325,7 @@ JackDriver::jackProcessEmpty(jack_nframes_t nframes)
     framesThisPlay += nframes;
 #endif
 #ifdef DEBUG_JACK_PROCESS
-
-    std::cerr << "JackDriver::jackProcess: " << nframes << " frames, " << framesThisPlay << " this play, " << m_framesProcessed << " total" << std::endl;
+    RG_DEBUG << "jackProcess(): " << nframes << " frames, " << framesThisPlay << " this play, " << m_framesProcessed << " total";
 #endif
 
     return 0;
@@ -1329,13 +1351,12 @@ JackDriver::jackProcessRecord(InstrumentId id,
     sample_t peakLeft = 0.0, peakRight = 0.0;
 
 #ifdef DEBUG_JACK_PROCESS
-
-    std::cerr << "JackDriver::jackProcessRecord(" << id << "): clocksRunning " << clocksRunning << std::endl;
+    RG_DEBUG << "jackProcessRecord(" << id << "): clocksRunning " << clocksRunning;
 #endif
 
     // Get input buffers
     //
-    sample_t *inputBufferLeft = 0, *inputBufferRight = 0;
+    sample_t *inputBufferLeft = nullptr, *inputBufferRight = nullptr;
 
     int recInput = m_recordInputs[id].input;
 
@@ -1349,7 +1370,7 @@ JackDriver::jackProcessRecord(InstrumentId id,
     if (sourceBufferLeft) {
 
 #ifdef DEBUG_JACK_PROCESS
-        std::cerr << "JackDriver::jackProcessRecord(" << id << "): buss input provided" << std::endl;
+        RG_DEBUG << "jackProcessRecord(" << id << "): buss input provided";
 #endif
 
         inputBufferLeft = sourceBufferLeft;
@@ -1359,7 +1380,7 @@ JackDriver::jackProcessRecord(InstrumentId id,
     } else if (recInput < 1000) {
 
 #ifdef DEBUG_JACK_PROCESS
-        std::cerr << "JackDriver::jackProcessRecord(" << id << "): no known input" << std::endl;
+        RG_DEBUG << "jackProcessRecord(" << id << "): no known input";
 #endif
 
         return 0;
@@ -1367,7 +1388,7 @@ JackDriver::jackProcessRecord(InstrumentId id,
     } else {
 
 #ifdef DEBUG_JACK_PROCESS
-        std::cerr << "JackDriver::jackProcessRecord(" << id << "): record input " << recInput << std::endl;
+        RG_DEBUG << "jackProcessRecord(" << id << "): record input " << recInput;
 #endif
 
         int input = recInput - 1000;
@@ -1393,7 +1414,7 @@ JackDriver::jackProcessRecord(InstrumentId id,
         m_fileWriter->haveRecordFileOpen(id)) {
 
 #ifdef DEBUG_JACK_PROCESS
-        std::cerr << "JackDriver::jackProcessRecord(" << id << "): recording" << std::endl;
+        RG_DEBUG << "jackProcessRecord(" << id << "): recording";
 #endif
 
         memset(m_tempOutBuffer, 0, nframes * sizeof(sample_t));
@@ -1451,12 +1472,12 @@ JackDriver::jackProcessRecord(InstrumentId id,
         // want peak levels and monitors anyway, even if not recording
 
 #ifdef DEBUG_JACK_PROCESS
-        std::cerr << "JackDriver::jackProcessRecord(" << id << "): monitoring only" << std::endl;
+        RG_DEBUG << "jackProcessRecord(" << id << "): monitoring only";
 #endif
 
         if (inputBufferLeft) {
 
-            sample_t *buf = 0;
+            sample_t *buf = nullptr;
             if (!m_outputMonitors.empty()) {
                 buf = static_cast<sample_t *>
                     (jack_port_get_buffer(m_outputMonitors[0], nframes));
@@ -1472,7 +1493,7 @@ JackDriver::jackProcessRecord(InstrumentId id,
 
             if (channels == 2 && inputBufferRight) {
 
-                buf = 0;
+                buf = nullptr;
                 if (m_outputMonitors.size() > 1) {
                     buf = static_cast<sample_t *>
                         (jack_port_get_buffer(m_outputMonitors[1], nframes));
@@ -1494,9 +1515,9 @@ JackDriver::jackProcessRecord(InstrumentId id,
 
     LevelInfo info;
     info.level = AudioLevel::multiplier_to_fader
-	    (peakLeft, 127, AudioLevel::LongFader);
+            (peakLeft, 127, AudioLevel::LongFader);
     info.levelRight = AudioLevel::multiplier_to_fader
-	    (peakRight, 127, AudioLevel::LongFader);
+            (peakRight, 127, AudioLevel::LongFader);
     SequencerDataBlock::getInstance()->setInstrumentRecordLevel(id, info);
 
     if (wroteSomething) {
@@ -1528,11 +1549,9 @@ JackDriver::jackSyncCallback(jack_transport_state_t state,
 
 #ifdef DEBUG_JACK_TRANSPORT
 
-    std::cerr << "JackDriver::jackSyncCallback: state " << state << " [" << (state == 0 ? "stopped" : state == 1 ? "rolling" : state == 2 ? "looping" : state == 3 ? "starting" : "unknown") << "], frame " << position->frame << ", waiting " << inst->m_waiting << ", playing " << inst->m_alsaDriver->isPlaying() << std::endl;
-
-    std::cerr << "JackDriver::jackSyncCallback: m_waitingState " << inst->m_waitingState << ", unique_1 " << position->unique_1 << ", unique_2 " << position->unique_2 << std::endl;
-
-    std::cerr << "JackDriver::jackSyncCallback: rate " << position->frame_rate << ", bar " << position->bar << ", beat " << position->beat << ", tick " << position->tick << ", bpm " << position->beats_per_minute << std::endl;
+    RG_DEBUG << "jackSyncCallback(): state " << state << " [" << (state == 0 ? "stopped" : state == 1 ? "rolling" : state == 2 ? "looping" : state == 3 ? "starting" : "unknown") << "], frame " << position->frame << ", waiting " << inst->m_waiting << ", playing " << inst->m_alsaDriver->isPlaying();
+    RG_DEBUG << "jackSyncCallback(): m_waitingState " << inst->m_waitingState << ", unique_1 " << position->unique_1 << ", unique_2 " << position->unique_2;
+    RG_DEBUG << "jackSyncCallback(): rate " << position->frame_rate << ", bar " << position->bar << ", beat " << position->beat << ", tick " << position->tick << ", bpm " << position->beats_per_minute;
 
 #endif
 
@@ -1565,41 +1584,37 @@ JackDriver::jackSyncCallback(jack_transport_state_t state,
                                                    position->frame_rate);
 
 #ifdef DEBUG_JACK_TRANSPORT
-
-            std::cerr << "JackDriver::jackSyncCallback: Requesting jump to " << rt << std::endl;
+            RG_DEBUG << "jackSyncCallback(): Requesting jump to " << rt;
 #endif
 
             inst->m_waitingToken = transport->transportJump(request, rt);
 
 #ifdef DEBUG_JACK_TRANSPORT
-
-            std::cerr << "JackDriver::jackSyncCallback: My token is " << inst->m_waitingToken << std::endl;
+            RG_DEBUG << "jackSyncCallback(): My token is " << inst->m_waitingToken;
 #endif
 
         } else if (request == ExternalTransport::TransportStop) {
 
 #ifdef DEBUG_JACK_TRANSPORT
-            std::cerr << "JackDriver::jackSyncCallback: Requesting state change to " << request << std::endl;
+            RG_DEBUG << "jackSyncCallback(): Requesting state change to " << request;
 #endif
 
             inst->m_waitingToken = transport->transportChange(request);
 
 #ifdef DEBUG_JACK_TRANSPORT
-
-            std::cerr << "JackDriver::jackSyncCallback: My token is " << inst->m_waitingToken << std::endl;
+            RG_DEBUG << "jackSyncCallback(): My token is " << inst->m_waitingToken;
 #endif
 
         } else if (request == ExternalTransport::TransportNoChange) {
 
 #ifdef DEBUG_JACK_TRANSPORT
-            std::cerr << "JackDriver::jackSyncCallback: Requesting no state change!" << std::endl;
+            RG_DEBUG << "jackSyncCallback(): Requesting no state change!";
 #endif
 
             inst->m_waitingToken = transport->transportChange(request);
 
 #ifdef DEBUG_JACK_TRANSPORT
-
-            std::cerr << "JackDriver::jackSyncCallback: My token is " << inst->m_waitingToken << std::endl;
+            RG_DEBUG << "jackSyncCallback(): My token is " << inst->m_waitingToken;
 #endif
 
         }
@@ -1608,8 +1623,7 @@ JackDriver::jackSyncCallback(jack_transport_state_t state,
         inst->m_waitingState = state;
 
 #ifdef DEBUG_JACK_TRANSPORT
-
-        std::cerr << "JackDriver::jackSyncCallback: Setting waiting to " << inst->m_waiting << " and waiting state to " << inst->m_waitingState << " (request was " << request << ")" << std::endl;
+        RG_DEBUG << "jackSyncCallback(): Setting waiting to " << inst->m_waiting << " and waiting state to " << inst->m_waitingState << " (request was " << request << ")";
 #endif
 
         return 0;
@@ -1618,13 +1632,13 @@ JackDriver::jackSyncCallback(jack_transport_state_t state,
 
         if (transport->isTransportSyncComplete(inst->m_waitingToken)) {
 #ifdef DEBUG_JACK_TRANSPORT
-            std::cerr << "JackDriver::jackSyncCallback: Sync complete" << std::endl;
+            RG_DEBUG << "jackSyncCallback(): Sync complete";
 #endif
 
             return 1;
         } else {
 #ifdef DEBUG_JACK_TRANSPORT
-            std::cerr << "JackDriver::jackSyncCallback: Sync not complete" << std::endl;
+            RG_DEBUG << "jackSyncCallback(): Sync not complete";
 #endif
 
             return 0;
@@ -1639,19 +1653,16 @@ JackDriver::relocateTransportInternal(bool alsoStart)
         return true;
 
 #ifdef DEBUG_JACK_TRANSPORT
-
     const char *fn = (alsoStart ?
-                      "JackDriver::startTransport" :
-                      "JackDriver::relocateTransport");
+                      "JackDriver::startTransport()" :
+                      "JackDriver::relocateTransport()");
 #endif
 
 #ifdef DEBUG_JACK_TRANSPORT
-
-    std::cerr << fn << std::endl;
+    RG_DEBUG << "relocateTransportInternal(): called by " << fn;
 #else
 #ifdef DEBUG_JACK_DRIVER
-
-    std::cerr << "JackDriver::relocateTransportInternal" << std::endl;
+    RG_DEBUG << "relocateTransportInternal()";
 #endif
 #endif
 
@@ -1677,7 +1688,7 @@ JackDriver::relocateTransportInternal(bool alsoStart)
                 // Nope, this came from Rosegarden
 
 #ifdef DEBUG_JACK_TRANSPORT
-                std::cerr << fn << ": asking JACK transport to start, setting wait state" << std::endl;
+                RG_DEBUG << "relocateTransportInternal(): called by " << fn << ": asking JACK transport to start, setting wait state";
 #endif
 
                 m_waiting = true;
@@ -1705,7 +1716,7 @@ JackDriver::relocateTransportInternal(bool alsoStart)
                 }
             } else {
 #ifdef DEBUG_JACK_TRANSPORT
-                std::cerr << fn << ": waiting already" << std::endl;
+                RG_DEBUG << "relocateTransportInternal(): called by " << fn << ": waiting already";
 #endif
 
             }
@@ -1721,7 +1732,7 @@ JackDriver::relocateTransportInternal(bool alsoStart)
 #endif
 #ifdef DEBUG_JACK_TRANSPORT
 
-    std::cerr << fn << ": not on JACK transport, accepting right away" << std::endl;
+    RG_DEBUG << "relocateTransportInternal(): called by " << fn << ": not on JACK transport, accepting right away";
 #endif
 
     return true;
@@ -1746,7 +1757,8 @@ JackDriver::stopTransport()
     if (!m_client)
         return ;
 
-    std::cerr << "JackDriver::stopTransport: resetting m_haveAsyncAudioEvent" << std::endl;
+    RG_DEBUG << "stopTransport(): resetting m_haveAsyncAudioEvent";
+
     m_haveAsyncAudioEvent = false;
 
 #ifdef DEBUG_JACK_TRANSPORT
@@ -1754,7 +1766,7 @@ JackDriver::stopTransport()
     struct timeval tv;
     (void)gettimeofday(&tv, 0);
     RealTime endTime = RealTime(tv.tv_sec, tv.tv_usec * 1000); //!!!
-    std::cerr << "\nJackDriver::stop: frames this play: " << framesThisPlay << ", elapsed " << (endTime - startTime) << std::endl;
+    RG_DEBUG << "stopTransport(): frames this play: " << framesThisPlay << ", elapsed " << (endTime - startTime);
 #endif
 
     if (m_jackTransportEnabled) {
@@ -1773,7 +1785,7 @@ JackDriver::stopTransport()
                 // Rosegarden, so:
 
 #ifdef DEBUG_JACK_TRANSPORT
-                std::cerr << "JackDriver::stop: internal request, asking JACK transport to stop" << std::endl;
+                RG_DEBUG << "stopTransport(): internal request, asking JACK transport to stop";
 #endif
 
                 jack_transport_stop(m_client);
@@ -1782,7 +1794,7 @@ JackDriver::stopTransport()
                 // Nothing to do
 
 #ifdef DEBUG_JACK_TRANSPORT
-                std::cerr << "JackDriver::stop: external request, JACK transport is already stopped" << std::endl;
+                RG_DEBUG << "stopTransport(): external request, JACK transport is already stopped";
 #endif
 
             }
@@ -1802,9 +1814,7 @@ JackDriver::jackBufferSize(jack_nframes_t nframes, void *arg)
     JackDriver *inst = static_cast<JackDriver*>(arg);
 
 #ifdef DEBUG_JACK_DRIVER
-
-    std::cerr << "JackDriver::jackBufferSize - buffer size changed to "
-    << nframes << std::endl;
+    RG_DEBUG << "jackBufferSize() - buffer size changed to " << nframes;
 #endif
 
     inst->m_bufferSize = nframes;
@@ -1829,9 +1839,7 @@ JackDriver::jackSampleRate(jack_nframes_t nframes, void *arg)
     JackDriver *inst = static_cast<JackDriver*>(arg);
 
 #ifdef DEBUG_JACK_DRIVER
-
-    std::cerr << "JackDriver::jackSampleRate - sample rate changed to "
-    << nframes << std::endl;
+    RG_DEBUG << "jackSampleRate() - sample rate changed to " << nframes;
 #endif
 
     inst->m_sampleRate = nframes;
@@ -1843,19 +1851,17 @@ void
 JackDriver::jackShutdown(void *arg)
 {
 #ifdef DEBUG_JACK_DRIVER
-    std::cerr << "JackDriver::jackShutdown() - callback received - "
-    << "informing GUI" << std::endl;
+    RG_DEBUG << "jackShutdown() - callback received - informing GUI";
 #endif
 
 #ifdef DEBUG_JACK_XRUN
-
-    std::cerr << "JackDriver::jackShutdown" << std::endl;
+    RG_DEBUG << "jackShutdown()";
     Profiles::getInstance()->dump();
 #endif
 
     JackDriver *inst = static_cast<JackDriver*>(arg);
     inst->m_ok = false;
-    inst->m_kickedOutAt = time(0);
+    inst->m_kickedOutAt = time(nullptr);
     inst->reportFailure(MappedEvent::FailureJackDied);
 }
 
@@ -1863,12 +1869,11 @@ int
 JackDriver::jackXRun(void *arg)
 {
 #ifdef DEBUG_JACK_DRIVER
-    std::cerr << "JackDriver::jackXRun" << std::endl;
+    RG_DEBUG << "jackXRun()";
 #endif
 
 #ifdef DEBUG_JACK_XRUN
-
-    std::cerr << "JackDriver::jackXRun" << std::endl;
+    RG_DEBUG << "jackXRun()";
     Profiles::getInstance()->dump();
 #endif
 
@@ -1890,17 +1895,17 @@ JackDriver::restoreIfRestorable()
 
     if (m_client) {
         jack_client_close(m_client);
-        std::cerr << "closed client" << std::endl;
-        m_client = 0;
+        RG_DEBUG << "restoreIfRestorable(): closed client";
+        m_client = nullptr;
     }
 
-    time_t now = time(0);
+    time_t now = time(nullptr);
 
     if (now < m_kickedOutAt || now >= m_kickedOutAt + 3) {
 
         if (m_instrumentMixer)
             m_instrumentMixer->resetAllPlugins(true);
-        std::cerr << "reset plugins" << std::endl;
+        RG_DEBUG << "restoreIfRestorable(): reset plugins";
 
         initialise(true);
 
@@ -1942,9 +1947,7 @@ JackDriver::prebufferAudio()
     m_instrumentMixer->resetAllPlugins(false);
 
 #ifdef DEBUG_JACK_DRIVER
-
-    std::cerr << "JackDriver::prebufferAudio: sequencer time is "
-    << m_alsaDriver->getSequencerTime() << std::endl;
+    RG_DEBUG << "prebufferAudio(): sequencer time is " << m_alsaDriver->getSequencerTime();
 #endif
 
     RealTime sliceStart = getNextSliceStart(m_alsaDriver->getSequencerTime());
@@ -1962,7 +1965,7 @@ void
 JackDriver::kickAudio()
 {
 #ifdef DEBUG_JACK_PROCESS
-    std::cerr << "JackDriver::kickAudio" << std::endl;
+    RG_DEBUG << "kickAudio()";
 #endif
 
     if (m_fileReader)
@@ -1982,7 +1985,7 @@ JackDriver::updateAudioData()
         return ;
 
 #ifdef DEBUG_JACK_DRIVER 
-    //    std::cerr << "JackDriver::updateAudioData starting" << std::endl;
+    //RG_DEBUG << "updateAudioData() begin...";
 #endif
 
     MappedAudioBuss *mbuss =
@@ -2044,8 +2047,7 @@ JackDriver::updateAudioData()
 
         if (connections.empty()) {
 
-            std::cerr << "No connections in for record instrument "
-            << (id) << " (mapped id " << fader->getId() << ")" << std::endl;
+            RG_WARNING << "updateAudioData(): WARNING: No connections in for record instrument " << (id) << " (mapped id " << fader->getId() << ")";
 
             // oh dear.
             input = 1000;
@@ -2061,7 +2063,7 @@ JackDriver::updateAudioData()
 
             if (!obj) {
 
-                std::cerr << "No such object as " << *connections.begin() << std::endl;
+                RG_WARNING << "updateAudioData(): WARNING: No such object as " << *connections.begin();
                 input = 1000;
             } else if (obj->getType() == MappedObject::AudioBuss) {
                 input = (int)((MappedAudioBuss *)obj)->getBussId();
@@ -2069,14 +2071,13 @@ JackDriver::updateAudioData()
                 input = (int)((MappedAudioInput *)obj)->getInputNumber()
                         + 1000;
             } else {
-                std::cerr << "Object " << *connections.begin() << " is not buss or input" << std::endl;
+                RG_WARNING << "updateAudioData(): WARNING: Object " << *connections.begin() << " is not buss or input";
                 input = 1000;
             }
         }
 
         if (m_recordInputs[id].input != input) {
-            std::cerr << "Changing record input for instrument "
-            << id << " to " << input << std::endl;
+            RG_DEBUG << "updateAudioData(): Changing record input for instrument " << id << " to " << input;
         }
         m_recordInputs[id] = RecordInputDesc(input, inputChannel, level);
 
@@ -2151,7 +2152,7 @@ JackDriver::updateAudioData()
     }
 
 #ifdef DEBUG_JACK_DRIVER 
-    //    std::cerr << "JackDriver::updateAudioData exiting" << std::endl;
+    //RG_DEBUG << "updateAudioData() end";
 #endif
 }
 
@@ -2193,7 +2194,7 @@ JackDriver::getNextSliceStart(const RealTime &now) const
     if (rounded == frame)
         roundrt = RealTime::frame2RealTime(rounded, m_sampleRate);
     else if (neg)
-        roundrt = RealTime::frame2RealTime(rounded - m_bufferSize, m_sampleRate);
+        roundrt = RealTime::frame2RealTime(rounded, m_sampleRate);
     else
         roundrt = RealTime::frame2RealTime(rounded + m_bufferSize, m_sampleRate);
 
@@ -2215,7 +2216,7 @@ JackDriver::getAudioQueueLocks()
     int rv = 0;
     if (m_bussMixer) {
 #ifdef DEBUG_JACK_DRIVER
-        std::cerr << "JackDriver::getAudioQueueLocks: trying to lock buss mixer" << std::endl;
+        RG_DEBUG << "getAudioQueueLocks(): trying to lock buss mixer";
 #endif
 
         rv = m_bussMixer->getLock();
@@ -2224,7 +2225,7 @@ JackDriver::getAudioQueueLocks()
     }
     if (m_instrumentMixer) {
 #ifdef DEBUG_JACK_DRIVER
-        std::cerr << "JackDriver::getAudioQueueLocks: ok, now trying for instrument mixer" << std::endl;
+        RG_DEBUG << "getAudioQueueLocks(): ok, now trying for instrument mixer";
 #endif
 
         rv = m_instrumentMixer->getLock();
@@ -2233,7 +2234,7 @@ JackDriver::getAudioQueueLocks()
     }
     if (m_fileReader) {
 #ifdef DEBUG_JACK_DRIVER
-        std::cerr << "JackDriver::getAudioQueueLocks: ok, now trying for disk reader" << std::endl;
+        RG_DEBUG << "getAudioQueueLocks(): ok, now trying for disk reader";
 #endif
 
         rv = m_fileReader->getLock();
@@ -2242,13 +2243,13 @@ JackDriver::getAudioQueueLocks()
     }
     if (m_fileWriter) {
 #ifdef DEBUG_JACK_DRIVER
-        std::cerr << "JackDriver::getAudioQueueLocks: ok, now trying for disk writer" << std::endl;
+        RG_DEBUG << "getAudioQueueLocks(): ok, now trying for disk writer";
 #endif
 
         rv = m_fileWriter->getLock();
     }
 #ifdef DEBUG_JACK_DRIVER
-    std::cerr << "JackDriver::getAudioQueueLocks: ok" << std::endl;
+    RG_DEBUG << "getAudioQueueLocks(): ok";
 #endif
 
     return rv;
@@ -2304,8 +2305,7 @@ JackDriver::releaseAudioQueueLocks()
 {
     int rv = 0;
 #ifdef DEBUG_JACK_DRIVER
-
-    std::cerr << "JackDriver::releaseAudioQueueLocks" << std::endl;
+    RG_DEBUG << "releaseAudioQueueLocks()";
 #endif
 
     if (m_fileWriter)
@@ -2425,7 +2425,7 @@ JackDriver::getSynthPlugin(InstrumentId id)
     if (m_instrumentMixer)
         return m_instrumentMixer->getSynthPlugin(id);
     else
-        return 0;
+        return nullptr;
 }
 
 void
@@ -2434,7 +2434,7 @@ JackDriver::clearSynthPluginEvents()
     if (!m_instrumentMixer) return;
 
 #ifdef DEBUG_JACK_DRIVER
-    std::cerr << "JackDriver::clearSynthPluginEvents" << std::endl;
+    RG_DEBUG << "clearSynthPluginEvents()";
 #endif
 
     m_instrumentMixer->discardPluginEvents();
@@ -2450,7 +2450,7 @@ JackDriver::openRecordFile(InstrumentId id,
         }
         return m_fileWriter->openRecordFile(id, filename);
     } else {
-        std::cerr << "JackDriver::openRecordFile: No file writer available!" << std::endl;
+        RG_WARNING << "openRecordFile(): WARNING: No file writer available!";
         return false;
     }
 }

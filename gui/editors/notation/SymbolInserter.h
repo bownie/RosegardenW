@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -41,16 +41,19 @@ class SymbolInserter : public NotationTool
     friend class NotationToolBox;
 
 public:
-    virtual void ready();
+    void ready() override;
 
-    virtual void handleLeftButtonPress(const NotationMouseEvent *);
-    
+    void handleLeftButtonPress(const NotationMouseEvent *) override;
+
+
     /**
      * Useful to get the tool name from a NotationTool object
      */ 
-    virtual const QString getToolName() { return ToolName; }
+    const QString getToolName() override { return ToolName(); }
 
-    static const QString ToolName;
+    bool needsWheelEvents() override { return false; }
+
+    static QString ToolName();
 
 public slots:
     void slotSetSymbol(Symbol symbolType);

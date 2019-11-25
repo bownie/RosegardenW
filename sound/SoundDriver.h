@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -49,14 +49,14 @@ typedef enum
 // Status of a SoundDriver - whether we're got an audio and
 // MIDI subsystem or not.  This is reported right up to the
 // gui.
-//
-typedef enum
+typedef unsigned int SoundDriverStatus;
+enum
 {
     NO_DRIVER  = 0x00,          // Nothing's OK
     AUDIO_OK   = 0x01,          // AUDIO's OK
     MIDI_OK    = 0x02,          // MIDI's OK
     VERSION_OK = 0x04           // GUI and sequencer versions match
-} SoundDriverStatus;
+};
 
 
 // Used for MMC and MTC, not for JACK transport
@@ -173,11 +173,11 @@ public:
                                   const RealTime &sliceEnd) = 0;
 
     // Activate a recording state.  armedInstruments and audioFileNames
-    // can be NULL if no audio tracks recording.
+    // can be nullptr if no audio tracks recording.
     //
     virtual bool record(RecordStatus recordStatus,
-                        const std::vector<InstrumentId> *armedInstruments = 0,
-                        const std::vector<QString> *audioFileNames = 0) = 0;
+                        const std::vector<InstrumentId> *armedInstruments = nullptr,
+                        const std::vector<QString> *audioFileNames = nullptr) = 0;
 
     // Process anything that's pending
     //
@@ -366,7 +366,8 @@ public:
     RealTime getAudioWriteBufferLength() { return m_audioWriteBufferLength; }
     int getSmallFileSize() { return m_smallFileSize; }
 
-    void setLowLatencyMode(bool ll) { m_lowLatencyMode = ll; }
+    // ??? Always true.
+    //void setLowLatencyMode(bool ll) { m_lowLatencyMode = ll; }
     bool getLowLatencyMode() const { return m_lowLatencyMode; }
 
     // Cancel the playback of an audio file - either by instrument and audio file id
@@ -498,16 +499,21 @@ protected:
     TransportSyncStatus          m_mtcStatus;
     MidiByte                     m_mmcId;      // device id
 
-    // MIDI clock interval
-    //
+    /// Whether we are sending MIDI Clocks (transport master).
+    /**
+     * ??? This is basically (m_midiSyncStatus == TRANSPORT_MASTER).  It is
+     *     likely redundant and m_midiSyncStatus can be used instead.
+     */
     bool                         m_midiClockEnabled;
+    /// 24 MIDI clocks per quarter note.  MIDI Spec section 2, page 30.
+    /**
+     * If the Composition has tempo changes, this single interval is
+     * insufficient.  We should instead compute SPP based on bar/beat/pulse
+     * from the Composition.  Since the GUI and sequencer are separated,
+     * the bar/beat/pulse values would need to be pushed in at play and
+     * record time.  See RosegardenSequencer::m_songPosition.
+     */
     RealTime                     m_midiClockInterval;
-    RealTime                     m_midiClockSendTime;
-
-    // MIDI Song Position pointer
-    //
-    long                         m_midiSongPositionPointer;
-
 };
 
 }

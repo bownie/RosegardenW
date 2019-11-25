@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,13 +13,14 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[LSCPPatchExtractor]"
+
 #include "LSCPPatchExtractor.h"
 
 #include <QFile>
 #include <QTextStream>
 #include <QStringList>
-
-#include <iostream>
+#include "misc/Debug.h"
 
 class QFile;
 class QTextStream;
@@ -49,7 +50,7 @@ LSCPPatchExtractor::isLSCPFile(const QString& fileName)
                 // I'm just going to hard code this function to reject sfArk
                 // files.  Be my guest to engineer a much more elegant solution,
                 // because one is certainly possible!
-                std::cout << "Some doofus tried to import a .sfArk file.  I'm aborting so we avoid crashing later." << std::endl;
+                RG_WARNING << "Some doofus tried to import a .sfArk file.  I'm aborting so we avoid crashing later.";
                 return false;
 
 
@@ -61,11 +62,11 @@ LSCPPatchExtractor::isLSCPFile(const QString& fileName)
                 // thing must have come in as a patch I committed on someone's
                 // behalf, because I certainly didn't write this patch
                 // extractor.
-                std::cout << "MAP string found!" << std::endl;
+                RG_DEBUG << "MAP string found!";
                 return true;
             }
         }
-        std::cout << "Has extension, but it will not be useful!" << std::endl;
+        RG_WARNING << "Has extension, but it will not be useful!";
         return false;
     }
 }

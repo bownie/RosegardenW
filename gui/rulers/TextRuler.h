@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -69,12 +69,12 @@ public:
     TextRuler(RulerScale *rulerScale,
               Segment *segment,
               int height = 0,
-              QWidget* parent = 0);
+              QWidget* parent = nullptr);
 
-    ~TextRuler();
+    ~TextRuler() override;
 
-    virtual QSize sizeHint() const;
-    virtual QSize minimumSizeHint() const;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
     void setMinimumWidth(int width) { m_width = width; }
 
@@ -82,7 +82,7 @@ public slots:
     void slotScrollHoriz(int x);
 
 protected:
-    virtual void paintEvent(QPaintEvent *);
+    void paintEvent(QPaintEvent *) override;
 
 private:
     int  m_height;

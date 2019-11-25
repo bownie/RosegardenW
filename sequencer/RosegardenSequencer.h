@@ -1,9 +1,9 @@
-/* -*- c-basic-offset: 4 indent-tabs-mode: nil -*- vi:set ts=8 sts=4 sw=4: */
+﻿/* -*- c-basic-offset: 4 indent-tabs-mode: nil -*- vi:set ts=8 sts=4 sw=4: */
 
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -25,6 +25,7 @@
 #include "base/MidiDevice.h"
 
 #include <QMutex>
+#include <QObject>
 #include <QString>
 
 #include <deque>
@@ -45,10 +46,12 @@ class SoundDriver;
  * the Rosegarden GUI application, the high level marshalling of data,
  * and the main event loop of the sequencer.
  */
-class RosegardenSequencer : public ExternalTransport
+class RosegardenSequencer : public QObject, public ExternalTransport
 {
+    Q_OBJECT
+
 public:
-    virtual ~RosegardenSequencer();
+    ~RosegardenSequencer() override;
 
     /// Singleton
     static RosegardenSequencer *getInstance();
@@ -59,26 +62,18 @@ public:
 	
     /// Close the sequencer.
     void quit();
+    
+    /// Cleanup before deleting the sequencer
+    void cleanup();
 
     /// Play from a given time with given parameters.
     /**
      *  Based on RealTime timestamps.
      */
-    bool play(const RealTime &position,
-              const RealTime &readAhead,
-              const RealTime &audioMix,
-              const RealTime &audioRead,
-              const RealTime &audioWrite,
-              long smallFileSize);
+    bool play(const RealTime &time);
 
     /// Record from a given time with given parameters.
-    bool record(const RealTime &position,
-                const RealTime &readAhead,
-                const RealTime &audioMix,
-                const RealTime &audioRead,
-                const RealTime &audioWrite,
-                long smallFileSize,
-                long recordMode);
+    bool record(const RealTime &position, long recordMode);
 
     /// Punch out from recording to playback
     /**
@@ -245,8 +240,6 @@ public:
      */
     void setCurrentTimer(QString timer);
 
-    void setLowLatencyMode(bool);
-
     RealTime getAudioPlayLatency();
     RealTime getAudioRecordLatency();
 
@@ -333,9 +326,9 @@ public:
     /// Debug stuff, to check MappedEventBuffer::iterator
     void dumpFirstSegment();
 
-    void segmentModified(MappedEventBuffer *);
-    void segmentAdded(MappedEventBuffer *);
-    void segmentAboutToBeDeleted(MappedEventBuffer *);
+    void segmentModified(QSharedPointer<MappedEventBuffer>);
+    void segmentAdded(QSharedPointer<MappedEventBuffer>);
+    void segmentAboutToBeDeleted(QSharedPointer<MappedEventBuffer>);
     /// Close all mapped segments
     void compositionAboutToBeDeleted();
     /**
@@ -419,7 +412,7 @@ public:
      *
      * Used by processAsynchronousEvents() and processRecordedMidi().
      */
-    void routeEvents(MappedEventList *mC, bool useSelectedTrack);
+    void routeEvents(MappedEventList *mC, bool recording);
 
     /// Are we looping?
     bool isLooping() const { return !(m_loopStart == m_loopEnd); }
@@ -441,14 +434,18 @@ public:
     // external clients to call (via some low-level audio callback)
     // and requires sychronising with the GUI.
     
-    TransportToken transportChange(TransportRequest);
-    TransportToken transportJump(TransportRequest, RealTime);
-    bool isTransportSyncComplete(TransportToken token);
-    TransportToken getInvalidTransportToken() const { return 0; }
+    TransportToken transportChange(TransportRequest) override;
+    TransportToken transportJump(TransportRequest, RealTime) override;
+    bool isTransportSyncComplete(TransportToken token) override;
+    TransportToken getInvalidTransportToken() const override { return 0; }
 
     // ---------- End of ExternalTransport Interface -----------
 
-protected:
+private slots:
+    /// Connected to InstrumentStaticSignals::controlChange().
+    void slotControlChange(Instrument *instrument, int cc);
+
+private:
     /// Singleton.  See getInstance().
     RosegardenSequencer();
 
@@ -480,6 +477,10 @@ protected:
     RealTime m_lastFetchSongPosition;
 
     RealTime m_readAhead;
+    // ??? Rumor has it that this is ignored in low latency mode.  Track
+    //     this down and decide whether to remove altogether.  We default to
+    //     low latency mode now and likely have no need for "high latency"
+    //     mode.
     RealTime m_audioMix;
     RealTime m_audioRead;
     RealTime m_audioWrite;

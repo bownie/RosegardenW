@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -33,7 +33,7 @@ SegmentEraseCommand::SegmentEraseCommand(Segment *segment) :
         NamedCommand(tr("Erase Segment")),
         m_composition(segment->getComposition()),
         m_segment(segment),
-        m_mgr(0),
+        m_mgr(nullptr),
         m_audioFileName(""),
         m_detached(false)
 {

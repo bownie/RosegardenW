@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -27,17 +27,27 @@
 
 #include <QMainWindow>
 
-class QWidget;
-class QTimer;
-class QString;
-class QTreeWidget;
-class QTreeWidgetItem;
-class QLabel;
-class QDropEvent;
-class QCloseEvent;
-class QShortcut;
-class QUrl;
+#include <QWidget>
+#include <QTreeWidget>
+#include <QUrl>
+#include <QTimer>
+#include <QString>
+#include <QTreeWidgetItem>
+#include <QLabel>
+#include <QDropEvent>
+#include <QCloseEvent>
+#include <QShortcut>
 
+//class QWidget;
+//class QTimer;
+//class QString;
+//class QTreeWidget;
+//class QTreeWidgetItem;
+//class QLabel;
+//class QDropEvent;
+//class QCloseEvent;
+//class QShortcut;
+//class QUrl;
 //class KURL;
 
 
@@ -60,7 +70,7 @@ class AudioManagerDialog : public QMainWindow, public ActionFileClient
 public:
     AudioManagerDialog(QWidget *parent,
                        RosegardenDocument *doc);
-    ~AudioManagerDialog();
+    ~AudioManagerDialog() override;
 
     // Populate the file list from the AudioFileManager
     //
@@ -168,8 +178,7 @@ signals:
 
     void closing();
 protected slots:
-    //void slotDropped(QDropEvent*, QTreeWidgetItem*);
-    void slotDropped(QDropEvent *event, QTreeWidget*, QStringList sl ); // new
+    void slotDropped(QDropEvent *event, QTreeWidget*, const QList<QUrl> &sl );
     void slotCancelPlayingAudio();
 
 protected:
@@ -178,7 +187,7 @@ protected:
     void selectFileListItemNoSignal(QTreeWidgetItem*);
     void updateActionState(bool haveSelection);
 
-    virtual void closeEvent(QCloseEvent *);
+    void closeEvent(QCloseEvent *) override;
 
     //--------------- Data members ---------------------------------
 

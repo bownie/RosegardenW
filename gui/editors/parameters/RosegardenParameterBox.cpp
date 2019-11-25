@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,65 +19,36 @@
 
 #include "RosegardenParameterBox.h"
 
-#include "RosegardenParameterArea.h"
 #include "misc/Debug.h"
-#include <QTabWidget>
-#include <QFont>
-#include <QFrame>
-#include <QScrollArea>
-#include <QString>
-#include <QWidget>
-#include <QVBoxLayout>
-#include <QStackedWidget>
 
 
 namespace Rosegarden
 {
 
-RosegardenParameterBox::RosegardenParameterBox(const QString &shortLabel,
-        const QString &longLabel,
-        QWidget *parent) :
-        QFrame(parent),
-        m_shortLabel(shortLabel),
-        m_longLabel(longLabel),
-        m_mode(LANDSCAPE_MODE)
-{
-    init();
-}
 
-void RosegardenParameterBox::init()
+RosegardenParameterBox::RosegardenParameterBox(const QString &label,
+                                               QWidget *parent) :
+    QFrame(parent),
+    m_label(label)
 {
     QFont plainFont;
-    plainFont.setPointSize(plainFont.pointSize() * 90 / 100);
+    int defaultPointSize = plainFont.pointSize();
+    // Go with 82/100 the default point size.  On mine this goes from 11 to 9.
+    plainFont.setPointSize(defaultPointSize * 82 / 100);
     plainFont.setBold(false);
     m_font = plainFont;
 
-    RG_DEBUG << "RosegardenParameterBox::init: " << this << ": m_font size is " << m_font.pixelSize() << "px (" << m_font.pointSize() << "pt)" << endl;
-
+    // This font is picked up by the CollapsingFrame's in the
+    // TrackParameterBox.
+    // ??? Might want to make this more explicit.  Perhaps an m_boldFont and
+    //     then have TrackParameterBox pass it to CollapsingFrame?
     QFont boldFont;
-    boldFont.setPointSize(int(boldFont.pointSize() * 9.5 / 10.0 + 0.5));
-    if (boldFont.pixelSize() > 14)
-        boldFont.setPixelSize(14);
+    // 91/100 of the default point size.  On mine this goes from 11 to 10.
+    boldFont.setPointSize(defaultPointSize * 91 / 100);
     boldFont.setBold(true);
 
     setFont(boldFont);
 }
 
-QString RosegardenParameterBox::getShortLabel() const
-{
-    return m_shortLabel;
-}
-
-QString RosegardenParameterBox::getLongLabel() const
-{
-    return m_longLabel;
-}
-
-QString RosegardenParameterBox::getPreviousBox(RosegardenParameterArea::Arrangement) const
-{
-    // No ordering known -- depends on subclasses
-    return "";
-}
 
 }
-#include "RosegardenParameterBox.moc"

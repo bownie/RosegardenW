@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A MIDI and audio sequencer and musical notation editor.
-  Copyright 2000-2015 the Rosegarden development team.
+  Copyright 2000-2018 the Rosegarden development team.
  
   Other copyrights also apply to some parts of this work.  Please
   see the AUTHORS file and individual file headers for details.
@@ -20,11 +20,13 @@
 #include "CompositionView.h"
 
 #include "misc/Debug.h"
-#include "AudioPreviewThread.h"
+#include "AudioPeaksThread.h"
 #include "base/RulerScale.h"
 #include "base/Segment.h"
 #include "base/SnapGrid.h"
 #include "base/Profiler.h"
+#include "base/Instrument.h"
+#include "base/InstrumentStaticSignals.h"
 #include "CompositionColourCache.h"
 #include "ChangingSegment.h"
 #include "SegmentRect.h"
@@ -36,6 +38,8 @@
 #include "gui/general/RosegardenScrollView.h"
 #include "SegmentSelector.h"
 #include "SegmentToolBox.h"
+#include "sound/Midi.h"
+
 
 #include <QBrush>
 #include <QColor>
@@ -80,6 +84,7 @@ CompositionView::CompositionView(RosegardenDocument *doc,
     //m_audioPreview(),
     //m_notationPreview(),
     //m_updateTimer(),
+    m_deleteAudioPreviewsNeeded(false),
     m_updateNeeded(false),
     //m_updateRect()
     m_drawTextFloat(false),
@@ -97,7 +102,7 @@ CompositionView::CompositionView(RosegardenDocument *doc,
     m_drawSelectionRect(false),
     //m_selectionRect(),
     m_toolBox(new SegmentToolBox(this, doc)),
-    m_currentTool(0),
+    m_currentTool(nullptr),
     //m_toolContextHelp(),
     m_contextHelpShown(false),
     m_enableDrawing(true)
@@ -130,39 +135,44 @@ CompositionView::CompositionView(RosegardenDocument *doc,
 
     // *** Connections
 
-    connect(m_toolBox, SIGNAL(showContextHelp(const QString &)),
-            this, SLOT(slotToolHelpChanged(const QString &)));
+    connect(m_toolBox, &BaseToolBox::showContextHelp,
+            this, &CompositionView::slotToolHelpChanged);
 
     connect(m_model, SIGNAL(needUpdate()),
             this, SLOT(slotUpdateAll()));
     connect(m_model, SIGNAL(needUpdate(const QRect&)),
             this, SLOT(slotAllNeedRefresh(const QRect&)));
-    connect(m_model, SIGNAL(needArtifactsUpdate()),
-            this, SLOT(slotUpdateArtifacts()));
-    connect(m_model, SIGNAL(needSizeUpdate()),
-            this, SLOT(slotUpdateSize()));
+    connect(m_model, &CompositionModelImpl::needArtifactsUpdate,
+            this, &CompositionView::slotUpdateArtifacts);
+    connect(m_model, &CompositionModelImpl::needSizeUpdate,
+            this, &CompositionView::slotUpdateSize);
 
-    connect(doc, SIGNAL(docColoursChanged()),
-            this, SLOT(slotRefreshColourCache()));
+    connect(doc, &RosegardenDocument::docColoursChanged,
+            this, &CompositionView::slotRefreshColourCache);
 
     // recording-related signals
-    connect(doc, SIGNAL(newMIDIRecordingSegment(Segment*)),
-            this, SLOT(slotNewMIDIRecordingSegment(Segment*)));
-    connect(doc, SIGNAL(newAudioRecordingSegment(Segment*)),
-            this, SLOT(slotNewAudioRecordingSegment(Segment*)));
-    connect(doc, SIGNAL(stoppedAudioRecording()),
-            this, SLOT(slotStoppedRecording()));
-    connect(doc, SIGNAL(stoppedMIDIRecording()),
-            this, SLOT(slotStoppedRecording()));
-    connect(doc, SIGNAL(audioFileFinalized(Segment*)),
-            m_model, SLOT(slotAudioFileFinalized(Segment*)));
+    connect(doc, &RosegardenDocument::newMIDIRecordingSegment,
+            this, &CompositionView::slotNewMIDIRecordingSegment);
+    connect(doc, &RosegardenDocument::newAudioRecordingSegment,
+            this, &CompositionView::slotNewAudioRecordingSegment);
+    connect(doc, &RosegardenDocument::stoppedAudioRecording,
+            this, &CompositionView::slotStoppedRecording);
+    connect(doc, &RosegardenDocument::stoppedMIDIRecording,
+            this, &CompositionView::slotStoppedRecording);
+    connect(doc, &RosegardenDocument::audioFileFinalized,
+            m_model, &CompositionModelImpl::slotAudioFileFinalized);
+
+    // Connect for high-frequency control change notifications.
+    connect(Instrument::getStaticSignals().data(),
+                &InstrumentStaticSignals::controlChange,
+            this, &CompositionView::slotControlChange);
 
     // Audio Preview Thread
-    m_model->setAudioPreviewThread(&doc->getAudioPreviewThread());
-    doc->getAudioPreviewThread().setEmptyQueueListener(this);
+    m_model->setAudioPeaksThread(&doc->getAudioPeaksThread());
+    doc->getAudioPeaksThread().setEmptyQueueListener(this);
 
     // Update timer
-    connect(&m_updateTimer, SIGNAL(timeout()), this, SLOT(slotUpdateTimer()));
+    connect(&m_updateTimer, &QTimer::timeout, this, &CompositionView::slotUpdateTimer);
     m_updateTimer.start(100);
 
     // Init the halo offsets table.
@@ -174,6 +184,10 @@ CompositionView::CompositionView(RosegardenDocument *doc,
     m_haloOffsets.push_back(QPoint(+1,-1));
     m_haloOffsets.push_back(QPoint(+1, 0));
     m_haloOffsets.push_back(QPoint(+1,+1));
+
+    // The various tools expect this.
+    setMouseTracking(true);
+    setFocusPolicy(Qt::StrongFocus);
 
     // *** Debugging
 
@@ -190,7 +204,7 @@ CompositionView::CompositionView(RosegardenDocument *doc,
 void CompositionView::endAudioPreviewGeneration()
 {
     if (m_model) {
-        m_model->setAudioPreviewThread(0);
+        m_model->setAudioPeaksThread(nullptr);
     }
 }
 
@@ -273,7 +287,7 @@ void CompositionView::setTool(const QString &toolName)
     m_currentTool = m_toolBox->getTool(toolName);
 
     if (!m_currentTool) {
-        QMessageBox::critical(0, tr("Rosegarden"), QString("CompositionView::setTool() : unknown tool name %1").arg(toolName));
+        QMessageBox::critical(nullptr, tr("Rosegarden"), QString("CompositionView::setTool() : unknown tool name %1").arg(toolName));
         return;
     }
 
@@ -309,15 +323,39 @@ void CompositionView::slotExternalWheelEvent(QWheelEvent *e)
 
 void CompositionView::slotUpdateAll()
 {
-    // This one doesn't get called too often while recording.
-    //Profiler profiler("CompositionView::slotUpdateAll()");
+    Profiler profiler("CompositionView::slotUpdateAll()");
+
+    // ??? This routine gets hit really hard when recording.
+    //     Just holding down a single note results in 50 calls
+    //     per second.
 
     // Redraw the segments and artifacts.
+
+#if 1
+    // Since we might be reacting to a user change (e.g. zoom), we
+    // need to react immediately.
     updateAll();
+#else
+    QRect viewportContentsRect(
+            contentsX(), contentsY(),
+            viewport()->rect().width(), viewport()->rect().height());
+
+    // Redraw the segments and artifacts.
+    // Uses 55% less CPU than updateAll() when recording.  But introduces a
+    // delay of up to 1/10 second for user interaction like zoom.  We need to
+    // untangle user updates and automatic updates (like recording) so that we
+    // can treat them differently.
+    slotAllNeedRefresh(viewportContentsRect);
+#endif
 }
 
 void CompositionView::slotUpdateTimer()
 {
+    if (m_deleteAudioPreviewsNeeded) {
+        m_model->deleteCachedAudioPreviews();
+        m_deleteAudioPreviewsNeeded = false;
+    }
+
     if (m_updateNeeded) {
         updateAll2(m_updateRect);
         m_updateNeeded = false;
@@ -579,8 +617,8 @@ void CompositionView::drawSegments(const QRect &clipRect)
     // *** Get Segment and Preview Rectangles
 
     // Assume we aren't going to show previews.
-    CompositionModelImpl::NotationPreviewRanges *notationPreview = 0;
-    CompositionModelImpl::AudioPreviews *audioPreview = 0;
+    CompositionModelImpl::NotationPreviewRanges *notationPreview = nullptr;
+    CompositionModelImpl::AudioPreviews *audioPreview = nullptr;
 
     if (m_showPreviews) {
         // Clear the previews.
@@ -656,7 +694,9 @@ void CompositionView::drawSegments(const QRect &clipRect)
                 // Make the rect thicker vertically to match the old
                 // appearance.  Without this, the rect is thin, which gives
                 // slightly more information.
-                eventRect.adjust(0,0,0,1);
+                // Also make the rect longer to close the gaps between the
+                // events.  This is in keeping with the old appearance.
+                eventRect.adjust(0,0,1,1);
 
                 // Per the Qt docs, fillRect() should be faster than
                 // drawRect().  In practice, a small improvement was noted.
@@ -1226,7 +1266,7 @@ void CompositionView::drawTextFloat(QPainter *p)
 
 bool CompositionView::event(QEvent *e)
 {
-    if (e->type() == AudioPreviewThread::AudioPreviewQueueEmpty) {
+    if (e->type() == AudioPeaksThread::AudioPeaksQueueEmpty) {
         // Audio previews have been generated, redraw the segments.
         segmentsNeedRefresh();
         viewport()->update();
@@ -1245,6 +1285,8 @@ void CompositionView::enterEvent(QEvent *)
     // Ask RosegardenMainWindow to display the context help in the status bar.
     emit showContextHelp(m_toolContextHelp);
     m_contextHelpShown = true;
+    // So we can get shift/ctrl/alt key presses.
+    setFocus();
 }
 
 void CompositionView::leaveEvent(QEvent *)
@@ -1252,6 +1294,7 @@ void CompositionView::leaveEvent(QEvent *)
     // Ask RosegardenMainWindow to clear the context help in the status bar.
     emit showContextHelp("");
     m_contextHelpShown = false;
+    clearFocus();
 }
 
 void CompositionView::slotToolHelpChanged(const QString &text)
@@ -1286,7 +1329,7 @@ void CompositionView::mousePressEvent(QMouseEvent *e)
 void CompositionView::mouseReleaseEvent(QMouseEvent *e)
 {
     // In case there is no tool, and auto scroll is running.
-    slotStopAutoScroll();
+    stopAutoScroll();
 
     if (m_currentTool)
         m_currentTool->mouseReleaseEvent(e);;
@@ -1336,10 +1379,30 @@ void CompositionView::mouseMoveEvent(QMouseEvent *e)
     // ??? Can we push the rest of this down into the tools?
 
     setFollowMode(followMode);
+}
 
-    if (followMode != RosegardenScrollView::NoFollow) {
-        doAutoScroll();
-    }
+void CompositionView::keyPressEvent(QKeyEvent *e)
+{
+    // Let the baseclass have first dibs.
+    RosegardenScrollView::keyPressEvent(e);
+
+    if (!m_currentTool)
+        return;
+
+    // Delegate to the current tool.
+    m_currentTool->keyPressEvent(e);
+}
+
+void CompositionView::keyReleaseEvent(QKeyEvent *e)
+{
+    // Let the baseclass have first dibs.
+    RosegardenScrollView::keyReleaseEvent(e);
+
+    if (!m_currentTool)
+        return;
+
+    // Delegate to the current tool.
+    m_currentTool->keyPressEvent(e);
 }
 
 void CompositionView::drawPointer(int pos)
@@ -1348,11 +1411,11 @@ void CompositionView::drawPointer(int pos)
     if (m_pointerPos == pos)
         return;
 
+    Profiler profiler("CompositionView::drawPointer()");
+
     const int oldPos = m_pointerPos;
     m_pointerPos = pos;
 
-    // This routine calls us back for each recording segment to make
-    // sure we update the display as the recording segments expand.
     m_model->pointerPosChanged(pos);
 
     int deltaPos = abs(m_pointerPos - oldPos);
@@ -1413,6 +1476,33 @@ void CompositionView::drawTextFloat(int x, int y, const QString &text)
     slotUpdateArtifacts();
 }
 
+void CompositionView::slotControlChange(Instrument *instrument, int cc)
+{
+    // If an audio instrument's volume or pan is changed, we need to redraw
+    // the previews since the audio previews show the effects of volume and
+    // pan.
+
+    // This approach is a bit heavy-handed.  Even if the relevant audio
+    // segment isn't visible, we still force an update.  This is simple.
+    // Making it smarter probably isn't worth the time or the code.
+
+    if (instrument->getType() != Instrument::Audio)
+        return;
+    if (cc != MIDI_CONTROLLER_VOLUME  &&  cc != MIDI_CONTROLLER_PAN)
+        return;
+
+    // Signal that the audio previews need to be deleted on the next timer.
+    m_deleteAudioPreviewsNeeded = true;
+
+    // The entire viewport in contents coords.
+    // ??? This is copied all over.  Factor into a getViewportContentsRect().
+    QRect viewportContentsRect(
+            contentsX(), contentsY(),
+            viewport()->rect().width(), viewport()->rect().height());
+
+    // Signal that a refresh is needed on the next timer.
+    slotAllNeedRefresh(viewportContentsRect);
+}
+
 
 }
-#include "CompositionView.moc"

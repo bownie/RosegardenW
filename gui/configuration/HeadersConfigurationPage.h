@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -31,16 +31,22 @@ namespace Rosegarden
 {
 
 class RosegardenDocument;
+class ConfigureDialogBase;
 
 class HeadersConfigurationPage : public QWidget
 {
     Q_OBJECT
 
 public:
-    HeadersConfigurationPage(QWidget *parent = 0,
-	       RosegardenDocument *doc = 0);
+    // parentDialog is only used to allow enabling the apply button of
+    // the dialog. This is only the case when HeadersConfigurationPage is
+    // instantiated from DocumentMetaConfigurationPage.
+    // This parameter is also used to deal with the comments meta data in
+    // apply() when CommentsConfigurationPage has not been instantiated along
+    // with HeadersConfigurationPage.
+    HeadersConfigurationPage(QWidget *parent, RosegardenDocument *doc,
+                             ConfigureDialogBase *parentDialog = nullptr);
 
-public slots:
     void apply();
 
 protected slots:
@@ -49,6 +55,7 @@ protected slots:
  
 protected:
     RosegardenDocument *m_doc;
+    ConfigureDialogBase *m_parentDialog;
  
     // Header fields
     LineEdit *m_editDedication;

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,6 +38,7 @@ class QResizeEvent;
 class QPaintEvent;
 class QPainter;
 class QMouseEvent;
+class QKeyEvent;
 class QEvent;
 
 
@@ -111,11 +112,12 @@ public:
      * the following reasons only:
      *   1. The contents of a segment have changed.
      *   2. Zoom.
-     *   3. More?
+     *   3. Volume for an audio segment has changed.
+     *   4. More?
      */
     void deleteCachedPreviews();
 
-    /// Delegates to CompositionModelImpl::setAudioPreviewThread().
+    /// Delegates to CompositionModelImpl::setAudioPeaksThread().
     /**
      * This is called when the document is being destroyed or the
      * application is going down.
@@ -353,31 +355,37 @@ private slots:
      */
     void slotStoppedRecording();
 
+    /// Connected to InstrumentStaticSignals::controlChange().
+    void slotControlChange(Instrument *instrument, int cc);
+
 private:
 
     CompositionModelImpl *m_model;
 
     // --- Event Handlers ---------------------------------
 
-    /// Redraw in response to AudioPreviewThread::AudioPreviewQueueEmpty.
-    virtual bool event(QEvent *);
+    /// Redraw in response to AudioPeaksThread::AudioPeaksQueueEmpty.
+    bool event(QEvent *) override;
 
     /// Passes the event on to the current tool.
-    virtual void mousePressEvent(QMouseEvent *);
+    void mousePressEvent(QMouseEvent *) override;
     /// Passes the event on to the current tool.
-    virtual void mouseReleaseEvent(QMouseEvent *);
+    void mouseReleaseEvent(QMouseEvent *) override;
     /// Launches a segment editor or moves the position pointer.
-    virtual void mouseDoubleClickEvent(QMouseEvent *);
+    void mouseDoubleClickEvent(QMouseEvent *) override;
     /// Passes the event on to the current tool.
     /**
      * Also handles scrolling as needed.
      */
-    virtual void mouseMoveEvent(QMouseEvent *);
+    void mouseMoveEvent(QMouseEvent *) override;
+
+    void keyPressEvent(QKeyEvent *) override;
+    void keyReleaseEvent(QKeyEvent *) override;
 
     /// Delegates to drawAll().
-    virtual void paintEvent(QPaintEvent *);
+    void paintEvent(QPaintEvent *) override;
     /// Handles resize.  Uses slotUpdateSize().
-    virtual void resizeEvent(QResizeEvent *);
+    void resizeEvent(QResizeEvent *) override;
 
     /// Called when the mouse enters the view.
     /**
@@ -386,7 +394,7 @@ private:
      *
      * @see leaveEvent() and slotToolHelpChanged()
      */
-    virtual void enterEvent(QEvent *);
+    void enterEvent(QEvent *) override;
 
     /// Called when the mouse leaves the view.
     /**
@@ -396,7 +404,7 @@ private:
      *
      * @see enterEvent() and slotToolHelpChanged()
      */
-    virtual void leaveEvent(QEvent *);
+    void leaveEvent(QEvent *) override;
 
     // --- Segments ---------------------------------------
 
@@ -515,7 +523,14 @@ private:
 
     /// Drives slotUpdateTimer().
     QTimer m_updateTimer;
-    /// Lets slotUpdateTimer() know there's work to do.
+    /// Let slotUpdateTimer() know that audio previews need to be cleared.
+    /**
+     * Note that you'll also want to set m_updateNeeded and m_updateRect so
+     * that the display actually gets updated.  Use slotAllNeedRefresh() for
+     * that.
+     */
+    bool m_deleteAudioPreviewsNeeded;
+    /// Lets slotUpdateTimer() know that segments need to be redrawn.
     bool m_updateNeeded;
     /// Accumulated update rectangle.
     QRect m_updateRect;

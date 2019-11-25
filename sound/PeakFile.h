@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -16,25 +16,15 @@
 
 #include <QObject>
 #include <QDateTime>
+#include <QPointer>
+
+class QProgressDialog;
 
 #include "SoundFile.h"
 #include "base/RealTime.h"
 
 #ifndef RG_PEAKFILE_H
 #define RG_PEAKFILE_H
-
-// A PeakFile is generated to the BWF Supplement 3 Peak Envelope Chunk
-// format as defined here:
-//
-// http://www.ebu.ch/pmc_bwf.html
-//
-// To comply with BWF format files this chunk can be embedded into
-// the sample file itself (writeToHandle()) or used to generate an
-// external peak file (write()).  At the moment the only type of file
-// with an embedded peak chunk is the BWF file itself.
-//
-//
-
 
 
 namespace Rosegarden
@@ -45,109 +35,101 @@ class AudioFile;
 
 typedef std::pair<RealTime, RealTime> SplitPointPair;
 
+/**
+ * A PeakFile is generated to the Broadcast Wave Format (BWF) Peak Envelope
+ * Chunk format as defined in EBU Tech 3285 Supplement 3:
+ *
+ *   https://tech.ebu.ch/docs/tech/tech3285s3.pdf
+ *
+ * To comply with BWF format files this chunk can be embedded into
+ * the sample file itself (writeToHandle()) or used to generate an
+ * external peak file (write()).  At the moment the only type of file
+ * with an embedded peak chunk is the BWF file itself.
+ */
 class PeakFile : public QObject, public SoundFile
 {
     Q_OBJECT
 
 public:
     PeakFile(AudioFile *audioFile);
-    virtual ~PeakFile();
+    ~PeakFile() override;
 
-    // Copy constructor
-    //
-    PeakFile(const PeakFile &);
+    bool open() override;
+    void close() override;
 
-    // Standard file methods
-    //
-    virtual bool open();
-    virtual void close();
+    /// Set up a progress dialog for write().
+    void setProgressDialog(QPointer<QProgressDialog> progressDialog)
+            { m_progressDialog = progressDialog; }
 
-    // Write to standard peak file
-    //
-    virtual bool write();
+    /// Write to standard peak file
+    bool write() override;
 
-    // Write the file, emit value() signal and process app events
-    //
-    virtual bool write(unsigned short updatePercentage);
-
-    // Write peak chunk to file handle (BWF)
-    //
-    bool writeToHandle(std::ofstream *file, unsigned short updatePercentage);
-
-    // Is the peak file valid and up to date?
-    //
+    /// Is the peak file valid and up to date?
+    /**
+     * If the audio file is more recently modified than the modification time
+     * on this peak file then we're invalid.  The action to rectify this is
+     * usually to regenerate the peak data.
+     */
     bool isValid();
 
-    // Vital file stats
-    //
-    void printStats();
-
-    // Get a preview of a section of the audio file where that section
-    // is "width" pixels.
-    //
+    /// Get a preview of a section of the audio file.
     std::vector<float> getPreview(const RealTime &startTime,
                                   const RealTime &endTime,
                                   int width,
                                   bool showMinima);
 
-    AudioFile* getAudioFile() { return m_audioFile; }
-    const AudioFile* getAudioFile() const { return m_audioFile; }
+    AudioFile *getAudioFile()  { return m_audioFile; }
+    const AudioFile *getAudioFile() const  { return m_audioFile; }
 
-    // Scan to a peak and scan forward a number of peaks
-    //
-    bool scanToPeak(int peak);
-    bool scanForward(int numberOfPeaks);
-
-    // Find threshold crossing points
-    //
+    /// Find threshold crossing points
+    /**
+     * Get pairs of split points for areas that exceed a percentage
+     * threshold.
+     */
     std::vector<SplitPointPair> getSplitPoints(const RealTime &startTime,
                                                const RealTime &endTime,
                                                int threshold,
                                                const RealTime &minLength);
-    // Accessors
-    //
-    int getVersion() const { return m_version; }
-    int getFormat() const { return m_format; }
-    int getPointsPerValue() const { return m_pointsPerValue; }
-    int getBlockSize() const { return m_blockSize; }
-    int getChannels() const { return m_channels; }
-    int getNumberOfPeaks() const { return m_numberOfPeaks; }
-    int getPositionPeakOfPeaks() const { return m_positionPeakOfPeaks; }
-    int getOffsetToPeaks() const { return m_offsetToPeaks; }
-    int getBodyBytes() const { return m_bodyBytes; }
-    QDateTime getModificationTime() const { return m_modificationTime; }
-    std::streampos getChunkStartPosition() const
-        { return m_chunkStartPosition; }
 
-    bool isProcessingPeaks() const { return m_keepProcessing; }
-    void setProcessingPeaks(bool value) { m_keepProcessing = value; }
+    /// For debugging
+    void printStats();
 
-signals:
-    void setValue(int);
-    
+    /// Write peak chunk to file handle (BWF)
+    //bool writeToHandle(std::ofstream *file, unsigned short updatePercentage);
+
+    //int getVersion() const { return m_version; }
+    //int getFormat() const { return m_format; }
+    //int getPointsPerValue() const { return m_pointsPerValue; }
+    //int getBlockSize() const { return m_blockSize; }
+    //int getChannels() const { return m_channels; }
+    //int getNumberOfPeaks() const { return m_numberOfPeaks; }
+    //int getPositionPeakOfPeaks() const { return m_positionPeakOfPeaks; }
+    //int getOffsetToPeaks() const { return m_offsetToPeaks; }
+    //int getBodyBytes() const { return m_bodyBytes; }
+    //QDateTime getModificationTime() const { return m_modificationTime; }
+    //std::streampos getChunkStartPosition() const
+    //    { return m_chunkStartPosition; }
+
 protected:
-    // Write the peak header and the peaks themselves
-    //
+    /// Build up a header string and then pump it out to the file handle
     void writeHeader(std::ofstream *file);
-    void writePeaks(unsigned short updatePercentage,
-                    std::ofstream *file);
+    void writePeaks(std::ofstream *file);
 
-    // Get the position of a peak for a given time
-    //
+    /// Convert time to block.
+    /**
+     * rename: getBlock()
+     */
     int getPeak(const RealTime &time);
 
-    // And the time of a peak
-    //
-    RealTime getTime(int peak);
+    /// Convert block to time.
+    RealTime getTime(int block);
 
-    // Parse the header
-    //
     void parseHeader();
 
+    /// The AudioFile that this peak file is based on.
     AudioFile *m_audioFile;
 
-    // Some Peak Envelope Chunk parameters
-    //
+    // Peak Envelope Chunk parameters
     int m_version;
     int m_format;  // bytes in peak value (1 or 2)
     int m_pointsPerValue;
@@ -158,28 +140,29 @@ protected:
     int m_offsetToPeaks;
     int m_bodyBytes;
 
-    // Peak timestamp
-    //
+    /// Used to determine whether the peak file is out of sync with the audio file.
     QDateTime m_modificationTime;
 
+    /// Always zero since we don't support adding a peak chunk to an audio file.
     std::streampos m_chunkStartPosition;
 
-    // For cacheing of peak information in memory we use the last query 
-    // parameters as our key to the cached data.
-    //
+    // Parameters from the last call to getPreview() to determine whether
+    // m_lastPreviewCache is valid for a specific request.
     RealTime           m_lastPreviewStartTime;
     RealTime           m_lastPreviewEndTime;
     int                m_lastPreviewWidth;
     bool               m_lastPreviewShowMinima;
+    /// Cached preview to speed up getPreview().
     std::vector<float> m_lastPreviewCache;
 
-    // Do we actually want to keep processing this peakfile?
-    // In case we get a cancel.
-    //
-    bool               m_keepProcessing;
+    /// Optional progress dialog for write().
+    QPointer<QProgressDialog> m_progressDialog;
 
+    /// Cached in-memory copy of the peak file for getPreview().
     std::string        m_peakCache;
     
+    bool scanToPeak(int peak);
+    //bool scanForward(int numberOfPeaks);
 };
 
 }

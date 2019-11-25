@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -59,12 +59,14 @@
 #include "gui/widgets/Thumbwheel.h"
 
 #include "gui/general/IconLoader.h"
+#include "gui/general/ThornStyle.h"
 
 #include "gui/rulers/ControlRulerWidget.h"
 #include "gui/rulers/StandardRuler.h"
 #include "gui/rulers/TempoRuler.h"
 #include "gui/rulers/ChordNameRuler.h"
 #include "gui/rulers/RawNoteRuler.h"
+#include "gui/rulers/LoopRuler.h"
 
 #include "gui/seqmanager/SequenceManager.h"
 
@@ -72,6 +74,7 @@
 #include "misc/Strings.h"
 #include "misc/ConfigGroups.h"
 
+#include <QApplication>
 #include <QGraphicsView>
 #include <QGridLayout>
 #include <QBoxLayout>
@@ -87,33 +90,32 @@ namespace Rosegarden
 {
 
 NotationWidget::NotationWidget() :
-    m_document(0),
-    m_view(0),
-    m_scene(0),
+    m_document(nullptr),
+    m_view(nullptr),
+    m_scene(nullptr),
     m_leftGutter(20),
-    m_currentTool(0),
+    m_currentTool(nullptr),
     m_playTracking(true),
-    m_inMove(false),
     m_hZoomFactor(1.0),
     m_vZoomFactor(1.0),
-    m_referenceScale(0),
+    m_referenceScale(nullptr),
     m_lastZoomWasHV(true),
     m_lastV(0),
     m_lastH(0),
-    m_topStandardRuler(0),
-    m_bottomStandardRuler(0),
-    m_tempoRuler(0),
-    m_chordNameRuler(0),
-    m_rawNoteRuler(0),
-    m_controlsWidget(0),
-    m_headersGroup(0),
-    m_headersView(0),
-    m_headersScene(0),
-    m_headersButtons(0),
+    m_topStandardRuler(nullptr),
+    m_bottomStandardRuler(nullptr),
+    m_tempoRuler(nullptr),
+    m_chordNameRuler(nullptr),
+    m_rawNoteRuler(nullptr),
+    m_controlRulerWidget(nullptr),
+    m_headersGroup(nullptr),
+    m_headersView(nullptr),
+    m_headersScene(nullptr),
+    m_headersButtons(nullptr),
     m_headersLastY(0),
     m_headersNeedRegeneration(false),
-    m_headersTimer(0),
-    m_layout(0),
+    m_headersTimer(nullptr),
+    m_layout(nullptr),
     m_tempoRulerIsVisible(false),
     m_rawNoteRulerIsVisible(false),
     m_chordNameRulerIsVisible(false),
@@ -123,9 +125,8 @@ NotationWidget::NotationWidget() :
     m_graceMode(false),
     m_tupledCount(2),
     m_untupledCount(3),
-    m_updatesSuspended(false),
-    m_hSliderHacked(false),
-    m_vSliderHacked(false) {
+    m_updatesSuspended(false)
+{
     m_layout = new QGridLayout;
     setLayout(m_layout);
 
@@ -144,7 +145,7 @@ NotationWidget::NotationWidget() :
     bool texture = false;
     QSettings settings;
     settings.beginGroup(NotationViewConfigGroup);
-    texture =  settings.value("backgroundtextures", true).toBool();
+    texture = settings.value("backgroundtextures", true).toBool();
     settings.endGroup();
 
     QBrush bg = (texture ?
@@ -165,7 +166,8 @@ NotationWidget::NotationWidget() :
 
     // the segment changer roller(s) (we have to have one horizontal one, and
     // one vertical one, to accommodate different layout modes)
-    m_changerWidget = new QFrame;
+    m_changerWidget = new QWidget;
+    m_changerWidget->setAutoFillBackground(true);
     QVBoxLayout *changerWidgetLayout = new QVBoxLayout;
     m_changerWidget->setLayout(changerWidgetLayout);
 
@@ -180,8 +182,8 @@ NotationWidget::NotationWidget() :
     m_HsegmentChanger->setSpeed(0.05);
 
     m_lastSegmentChangerValue = m_HsegmentChanger->getValue();
-    connect(m_HsegmentChanger, SIGNAL(valueChanged(int)), this,
-            SLOT(slotSegmentChangerMoved(int)));
+    connect(m_HsegmentChanger, &Thumbwheel::valueChanged, this,
+            &NotationWidget::slotSegmentChangerMoved);
     changerWidgetLayout->addWidget(m_HsegmentChanger);
 
     m_VsegmentChanger = new Thumbwheel(Qt::Horizontal, useRed);
@@ -193,8 +195,8 @@ NotationWidget::NotationWidget() :
     m_VsegmentChanger->setValue(60);
     m_VsegmentChanger->setSpeed(0.05);
     m_lastSegmentChangerValue = m_VsegmentChanger->getValue();
-    connect(m_VsegmentChanger, SIGNAL(valueChanged(int)), this,
-            SLOT(slotSegmentChangerMoved(int)));
+    connect(m_VsegmentChanger, &Thumbwheel::valueChanged, this,
+            &NotationWidget::slotSegmentChangerMoved);
     changerWidgetLayout->addWidget(m_VsegmentChanger);
     m_VsegmentChanger->hide();
 
@@ -205,7 +207,7 @@ NotationWidget::NotationWidget() :
     m_hpanner->setMaximumHeight(80);
     m_hpanner->setBackgroundBrush(Qt::white);
     m_hpanner->setOptimizationFlag(QGraphicsView::DontAdjustForAntialiasing, true);
-    m_hpanner->setRenderHints(0);
+    m_hpanner->setRenderHints(nullptr);
 
     m_pannerLayout->addWidget(m_hpanner);
 
@@ -229,8 +231,8 @@ NotationWidget::NotationWidget() :
     m_lastHVzoomValue = m_HVzoom->getValue();
     controlsLayout->addWidget(m_HVzoom, 0, 0, Qt::AlignCenter);
 
-    connect(m_HVzoom, SIGNAL(valueChanged(int)), this,
-            SLOT(slotPrimaryThumbwheelMoved(int)));
+    connect(m_HVzoom, &Thumbwheel::valueChanged, this,
+            &NotationWidget::slotPrimaryThumbwheelMoved);
 
     m_Hzoom = new Thumbwheel(Qt::Horizontal);
     m_Hzoom->setFixedSize(QSize(50, 16));
@@ -241,8 +243,8 @@ NotationWidget::NotationWidget() :
     m_Hzoom->setDefaultValue(0);
     m_Hzoom->setBright(false);
     controlsLayout->addWidget(m_Hzoom, 1, 0);
-    connect(m_Hzoom, SIGNAL(valueChanged(int)), this,
-            SLOT(slotHorizontalThumbwheelMoved(int)));
+    connect(m_Hzoom, &Thumbwheel::valueChanged, this,
+            &NotationWidget::slotHorizontalThumbwheelMoved);
 
     m_Vzoom = new Thumbwheel(Qt::Vertical);
     m_Vzoom->setFixedSize(QSize(16, 50));
@@ -253,8 +255,8 @@ NotationWidget::NotationWidget() :
     m_Vzoom->setBright(false);
     controlsLayout->addWidget(m_Vzoom, 0, 1, Qt::AlignRight);
 
-    connect(m_Vzoom, SIGNAL(valueChanged(int)), this,
-            SLOT(slotVerticalThumbwheelMoved(int)));
+    connect(m_Vzoom, &Thumbwheel::valueChanged, this,
+            &NotationWidget::slotVerticalThumbwheelMoved);
 
     // a blank QPushButton forced square looks better than the tool button did
     m_reset = new QPushButton;
@@ -262,8 +264,8 @@ NotationWidget::NotationWidget() :
     m_reset->setToolTip(tr("Reset Zoom"));
     controlsLayout->addWidget(m_reset, 1, 1, Qt::AlignCenter);
 
-    connect(m_reset, SIGNAL(clicked()), this,
-            SLOT(slotResetZoomClicked()));
+    connect(m_reset, &QAbstractButton::clicked, this,
+            &NotationWidget::slotResetZoomClicked);
 
     m_pannerLayout->addWidget(controls);
 
@@ -299,8 +301,8 @@ NotationWidget::NotationWidget() :
     headersCloseButton->setIcon(IconLoader().loadPixmap("header-close-button"));
     headersCloseButton->setIconSize(QSize(14, 14));
     headersCloseButton->setToolTip(tr("Close track headers"));
-    connect(headersCloseButton, SIGNAL(clicked(bool)),
-            this, SLOT(slotCloseHeaders()));
+    connect(headersCloseButton, &QAbstractButton::clicked,
+            this, &NotationWidget::slotCloseHeaders);
 
     // Insert the button in a layout to push it on the right
     QHBoxLayout *buttonsLayout = new QHBoxLayout;
@@ -314,56 +316,42 @@ NotationWidget::NotationWidget() :
 
 
     // Hide or show the horizontal scroll bar when needed
-    connect(m_view->horizontalScrollBar(), SIGNAL(rangeChanged(int, int)),
-            this, SLOT(slotHScrollBarRangeChanged(int, int)));
+    connect(m_view->horizontalScrollBar(), &QAbstractSlider::rangeChanged,
+            this, &NotationWidget::slotHScrollBarRangeChanged);
 
-    connect(m_view, SIGNAL(pannedRectChanged(QRectF)),
-            m_hpanner, SLOT(slotSetPannedRect(QRectF)));
+    connect(m_view, &Panned::viewportChanged,
+            m_hpanner, &Panner::slotSetPannedRect);
 
-    connect(m_hpanner, SIGNAL(pannedRectChanged(QRectF)),
-            m_view, SLOT(slotSetPannedRect(QRectF)));
+    connect(m_hpanner, &Panner::pannedRectChanged,
+            m_view, &Panned::slotSetViewport);
 
-    connect(m_hpanner, SIGNAL(pannerChanged(QRectF)),
-             this, SLOT(slotAdjustHeadersVerticalPos(QRectF)));
+    connect(m_hpanner, &Panner::pannerChanged,
+             this, &NotationWidget::slotAdjustHeadersVerticalPos);
 
-    connect(m_view, SIGNAL(pannedContentsScrolled()),
-            this, SLOT(slotHScroll()));
+    connect(m_view, &Panned::pannedContentsScrolled,
+            this, &NotationWidget::slotHScroll);
 
-    connect(m_hpanner, SIGNAL(zoomIn()),
-            this, SLOT(slotSyncPannerZoomIn()));
+    connect(m_view, &Panned::zoomIn,
+            this, &NotationWidget::slotZoomIn);
+    connect(m_view, &Panned::zoomOut,
+            this, &NotationWidget::slotZoomOut);
 
-    connect(m_hpanner, SIGNAL(zoomOut()),
-            this, SLOT(slotSyncPannerZoomOut()));
+    connect(m_hpanner, &Panner::zoomIn,
+            this, &NotationWidget::slotSyncPannerZoomIn);
 
-    connect(m_headersView, SIGNAL(wheelEventReceived(QWheelEvent *)),
-            m_view, SLOT(slotEmulateWheelEvent(QWheelEvent *)));
+    connect(m_hpanner, &Panner::zoomOut,
+            this, &NotationWidget::slotSyncPannerZoomOut);
 
-    connect(this, SIGNAL(adjustNeeded(bool)),
-            this, SLOT(slotAdjustHeadersHorizontalPos(bool)),
+    connect(m_headersView, &Panned::wheelEventReceived,
+            m_view, &Panned::slotEmulateWheelEvent);
+
+    connect(this, &NotationWidget::adjustNeeded,
+            this, &NotationWidget::slotAdjustHeadersHorizontalPos,
             Qt::QueuedConnection);
 
     m_toolBox = new NotationToolBox(this);
 
-    slotSetTool(NoteRestInserter::ToolName);
-
-    // crude, but finally effective!
-    //
-    // somewhere beyond the end of the ctor and into the event loop,
-    // NotationWidget picks a stupid place to open the initial view to, and this
-    // causes its Panned object's scrollbars to emit valueChanged() signals,
-    // which we hijack as the timing cue that now is finally the appropriate
-    // time to move the view to a sane place.  Currently this just physically
-    // moves the scrollbars to 0 and 0, which is better than the almost random
-    // not quite center this code initializes to, but this can probably be
-    // improved now that the timing is established.
-    connect(m_view->horizontalScrollBar(), SIGNAL(valueChanged(int)),
-            this, SLOT(slotInitialHSliderHack(int)));
-    connect(m_view->verticalScrollBar(), SIGNAL(valueChanged(int)),
-            this, SLOT(slotInitialVSliderHack(int)));
-
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    m_Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
+    slotSetTool(NoteRestInserter::ToolName());
 
     // When a clef or a key is modified, the same signal "staffModified()" is
     // emitted three times from the concerned header.
@@ -371,10 +359,12 @@ NotationWidget::NotationWidget() :
     // only once when the same signal is emitted several times in less than
     // 100 ms. See comment and code in slotGenerateHeaders().
     m_headersTimer = new QTimer(this);
-    connect(m_headersTimer, SIGNAL(timeout()),
-            this, SLOT(slotGenerateHeaders()));
+    connect(m_headersTimer, &QTimer::timeout,
+            this, &NotationWidget::slotGenerateHeaders);
     m_headersTimer->setSingleShot(true);
     m_headersTimer->setInterval(100);  // 0.1 s
+
+    m_autoScroller.connectScrollArea(m_view);
 }
 
 NotationWidget::~NotationWidget()
@@ -382,21 +372,21 @@ NotationWidget::~NotationWidget()
 
 // Safe to call this more than once.
 void
-NotationWidget::clearAll(void)
+NotationWidget::clearAll()
 {
     delete m_scene;
-    m_scene = 0;
+    m_scene = nullptr;
     delete m_headersScene;
-    m_headersScene = 0;
+    m_headersScene = nullptr;
     delete m_referenceScale;
-    m_referenceScale = 0;
+    m_referenceScale = nullptr;
 }
-    
+
 void
 NotationWidget::setSegments(RosegardenDocument *document,
                             std::vector<Segment *> segments)
 {
-    std::cout << "*** NotationWidget::setSegments() - total segments: " << segments.size() << std::endl;
+    RG_DEBUG << "*** NotationWidget::setSegments() - total segments: " << segments.size();
 
     // The "hide redundant clefs and keys" mechanism can't work if
     // segments don't begin with default clef and key events.
@@ -408,11 +398,9 @@ NotationWidget::setSegments(RosegardenDocument *document,
         (*it)->enforceBeginWithClefAndKey();
     }
 
-
-
     if (m_document) {
-        disconnect(m_document, SIGNAL(pointerPositionChanged(timeT)),
-                   this, SLOT(slotPointerPositionChanged(timeT)));
+        disconnect(m_document, &RosegardenDocument::pointerPositionChanged,
+                   this, &NotationWidget::slotPointerPositionChanged);
     }
 
     m_document = document;
@@ -430,22 +418,25 @@ NotationWidget::setSegments(RosegardenDocument *document,
 
     m_referenceScale = new ZoomableRulerScale(m_scene->getRulerScale());
 
-    connect(m_scene, SIGNAL(mousePressed(const NotationMouseEvent *)),
-            this, SLOT(slotDispatchMousePress(const NotationMouseEvent *)));
+    connect(m_scene, &NotationScene::mousePressed,
+            this, &NotationWidget::slotDispatchMousePress);
 
-    connect(m_scene, SIGNAL(mouseMoved(const NotationMouseEvent *)),
-            this, SLOT(slotDispatchMouseMove(const NotationMouseEvent *)));
+    connect(m_scene, &NotationScene::mouseMoved,
+            this, &NotationWidget::slotDispatchMouseMove);
 
-    connect(m_scene, SIGNAL(mouseReleased(const NotationMouseEvent *)),
-            this, SLOT(slotDispatchMouseRelease(const NotationMouseEvent *)));
+    connect(m_scene, &NotationScene::mouseReleased,
+            this, &NotationWidget::slotDispatchMouseRelease);
 
-    connect(m_scene, SIGNAL(mouseDoubleClicked(const NotationMouseEvent *)),
-            this, SLOT(slotDispatchMouseDoubleClick(const NotationMouseEvent *)));
+    connect(m_scene, &NotationScene::mouseDoubleClicked,
+            this, &NotationWidget::slotDispatchMouseDoubleClick);
+
+    connect(m_scene, &NotationScene::wheelTurned,
+            this, &NotationWidget::slotDispatchWheelTurned);
 
     // Bug #2960243: the Qt::QueuedConnection flag is mandatory to avoid
     // a crash after deleting the notation scene from inside its own code.
-    connect(m_scene, SIGNAL(sceneNeedsRebuilding()),
-            this, SIGNAL(sceneNeedsRebuilding()), Qt::QueuedConnection);
+    connect(m_scene, &NotationScene::sceneNeedsRebuilding,
+            this, &NotationWidget::sceneNeedsRebuilding, Qt::QueuedConnection);
 
     // To fix this, create a new slot called slotCurrentStaffChanged() and
     // have it call slotUpdatePointerPosition(true).
@@ -469,61 +460,62 @@ NotationWidget::setSegments(RosegardenDocument *document,
     if (m_tempoRuler) delete m_tempoRuler;
     if (m_chordNameRuler) delete m_chordNameRuler;
     if (m_rawNoteRuler) delete m_rawNoteRuler;
-    if (m_controlsWidget) delete m_controlsWidget;
+    if (m_controlRulerWidget) delete m_controlRulerWidget;
 
-    m_controlsWidget = new ControlRulerWidget;
-    m_layout->addWidget(m_controlsWidget, CONTROLS_ROW, MAIN_COL, 1, 1);
-    m_controlsWidget->setSegments(document, segments);
-    m_controlsWidget->setViewSegment((ViewSegment *) m_scene->getCurrentStaff());
-    m_controlsWidget->setRulerScale(m_referenceScale, m_leftGutter);
+    m_controlRulerWidget = new ControlRulerWidget;
+    m_layout->addWidget(m_controlRulerWidget, CONTROLS_ROW, MAIN_COL, 1, 1);
+    m_controlRulerWidget->setSegments(document, segments);
+    m_controlRulerWidget->setViewSegment(m_scene->getCurrentStaff());
+    m_controlRulerWidget->setRulerScale(m_referenceScale, m_leftGutter);
 
-    connect(m_view, SIGNAL(pannedRectChanged(QRectF)),
-            m_controlsWidget, SLOT(slotSetPannedRect(QRectF)));
+    connect(m_view, &Panned::viewportChanged,
+            m_controlRulerWidget, &ControlRulerWidget::slotSetPannedRect);
 
-    // There's a slotEnsureTimeVisible in MatrixWidget.  Maybe this was
-    // copied from there?
-    //connect(m_controlsWidget, SIGNAL(dragScroll(timeT)),
-    //        this, SLOT(slotEnsureTimeVisible(timeT)));
+    // Relay context help from notation rulers
+    connect(m_controlRulerWidget, &ControlRulerWidget::showContextHelp,
+            this, &NotationWidget::showContextHelp);
 
-    connect(m_scene, SIGNAL(layoutUpdated(timeT,timeT)),
-            m_controlsWidget, SLOT(slotUpdateRulers(timeT,timeT)));
+    connect(m_scene, &NotationScene::layoutUpdated,
+            m_controlRulerWidget, &ControlRulerWidget::slotUpdateRulers);
 
-    connect(m_scene, SIGNAL(selectionChanged(EventSelection *)),
-            m_controlsWidget, SLOT(slotSelectionChanged(EventSelection *)));
+    connect(m_scene, &NotationScene::selectionChanged,
+            m_controlRulerWidget, &ControlRulerWidget::slotSelectionChanged);
 
-    connect(m_scene, SIGNAL(currentViewSegmentChanged(ViewSegment *)),
-            m_controlsWidget, SLOT(slotSetCurrentViewSegment(ViewSegment *)));
+    connect(m_scene, &NotationScene::currentViewSegmentChanged,
+            m_controlRulerWidget, &ControlRulerWidget::slotSetCurrentViewSegment);
 
-    connect(this, SIGNAL(toolChanged(QString)),
-            m_controlsWidget, SLOT(slotSetToolName(QString)));
+    connect(this, &NotationWidget::toolChanged,
+            m_controlRulerWidget, &ControlRulerWidget::slotSetToolName);
+
+    // Connect ControlRulerWidget for Auto-Scroll.
+    connect(m_controlRulerWidget, &ControlRulerWidget::mousePress,
+            this, &NotationWidget::slotCRWMousePress);
+    connect(m_controlRulerWidget, &ControlRulerWidget::mouseMove,
+            this, &NotationWidget::slotCRWMouseMove);
+    connect(m_controlRulerWidget, &ControlRulerWidget::mouseRelease,
+            this, &NotationWidget::slotCRWMouseRelease);
 
     m_topStandardRuler = new StandardRuler(document,
                                            m_referenceScale,
-                                           0, 25,
                                            false);
 
     m_bottomStandardRuler = new StandardRuler(document,
                                               m_referenceScale,
-                                              0, 25,
                                               true);
 
     m_tempoRuler = new TempoRuler(m_referenceScale,
                                   document,
-                                  RosegardenMainWindow::self(),
-                                  0,      // xorigin
                                   24,     // height
                                   true,   // small
-                                  m_Thorn);
+                                  ThornStyle::isEnabled());
 
     m_chordNameRuler = new ChordNameRuler(m_referenceScale,
                                           document,
                                           segments,
-                                          0,       // xorigin
                                           24);     // height
 
     m_rawNoteRuler = new RawNoteRuler(m_referenceScale,
                                       segments[0],
-                                      0,
                                       20);  // why not 24 as other rulers ?
 
     m_layout->addWidget(m_topStandardRuler, TOPRULER_ROW, MAIN_COL, 1, 1);
@@ -532,18 +524,30 @@ NotationWidget::setSegments(RosegardenDocument *document,
     m_layout->addWidget(m_chordNameRuler, CHORDNAMERULER_ROW, MAIN_COL, 1, 1);
     m_layout->addWidget(m_rawNoteRuler, RAWNOTERULER_ROW, MAIN_COL, 1, 1);
 
-    connect(m_topStandardRuler, SIGNAL(dragPointerToPosition(timeT)),
-            this, SLOT(slotPointerPositionChanged(timeT)));
-    connect(m_bottomStandardRuler, SIGNAL(dragPointerToPosition(timeT)),
-            this, SLOT(slotPointerPositionChanged(timeT)));
+    connect(m_topStandardRuler, &StandardRuler::dragPointerToPosition,
+            this, &NotationWidget::slotStandardRulerDrag);
+    connect(m_bottomStandardRuler, &StandardRuler::dragPointerToPosition,
+            this, &NotationWidget::slotStandardRulerDrag);
 
-    connect(m_document, SIGNAL(pointerPositionChanged(timeT)),
-            this, SLOT(slotPointerPositionChanged(timeT)));
+    connect(m_topStandardRuler->getLoopRuler(), &LoopRuler::startMouseMove,
+            this, &NotationWidget::slotSRStartMouseMove);
+    connect(m_topStandardRuler->getLoopRuler(), &LoopRuler::stopMouseMove,
+            this, &NotationWidget::slotSRStopMouseMove);
+    connect(m_bottomStandardRuler->getLoopRuler(), &LoopRuler::startMouseMove,
+            this, &NotationWidget::slotSRStartMouseMove);
+    connect(m_bottomStandardRuler->getLoopRuler(), &LoopRuler::stopMouseMove,
+            this, &NotationWidget::slotSRStopMouseMove);
+
+    connect(m_tempoRuler, &TempoRuler::mousePress,
+            this, &NotationWidget::slotTRMousePress);
+    connect(m_tempoRuler, &TempoRuler::mouseRelease,
+            this, &NotationWidget::slotTRMouseRelease);
+
+    connect(m_document, &RosegardenDocument::pointerPositionChanged,
+            this, &NotationWidget::slotPointerPositionChanged);
 
     m_topStandardRuler->connectRulerToDocPointer(document);
     m_bottomStandardRuler->connectRulerToDocPointer(document);
-
-    m_tempoRuler->connectSignals();
 
     m_chordNameRuler->setReady();
 
@@ -556,16 +560,16 @@ NotationWidget::setSegments(RosegardenDocument *document,
     slotGenerateHeaders();
 
     // Regenerate headers when font size changed
-    connect(m_scene, SIGNAL(staffsPositionned()),
-            this, SLOT(slotGenerateHeaders()));
+    connect(m_scene, &NotationScene::staffsPositionned,
+            this, &NotationWidget::slotGenerateHeaders);
 
     // Switch raw note ruler to another segment when needed
-    connect(m_scene, SIGNAL(currentViewSegmentChanged(ViewSegment *)),
-            this, SLOT(slotUpdateRawNoteRuler(ViewSegment *)));
+    connect(m_scene, &NotationScene::currentViewSegmentChanged,
+            this, &NotationWidget::slotUpdateRawNoteRuler);
 
     // Show current segment color on the background of the segment changer
-    connect(m_scene, SIGNAL(currentViewSegmentChanged(ViewSegment *)),
-            this, SLOT(slotUpdateSegmentChangerBackground()));
+    connect(m_scene, &NotationScene::currentViewSegmentChanged,
+            this, &NotationWidget::slotUpdateSegmentChangerBackground);
 
     hideOrShowRulers();
     
@@ -580,8 +584,20 @@ NotationWidget::setSegments(RosegardenDocument *document,
     // calculates position correctly for slotPointerPositionChanged.
     resumeLayoutUpdates();
 
-    slotPointerPositionChanged(m_document->getComposition().getPosition(),
-                               true);
+    // Draw the pointer
+    updatePointer(m_document->getComposition().getPosition());
+    // And jump to where it is.
+    // Note that calls to scrollToTopLeft() might override this.
+    m_view->ensurePositionPointerInView(false);
+
+    connect(m_scene, &NotationScene::currentStaffChanged,
+            this, &NotationWidget::slotStaffChanged);
+}
+
+void
+NotationWidget::scrollToTopLeft()
+{
+    m_view->centerOn(QPointF(0,0));
 }
 
 void
@@ -605,14 +621,15 @@ NotationWidget::slotGenerateHeaders()
     
     m_headersNeedRegeneration = false;
 
-    if (m_headersGroup) disconnect(m_headersGroup, SIGNAL(headersResized(int)),
-                                   this, SLOT(slotHeadersResized(int)));
+    if (m_headersGroup) disconnect(m_headersGroup, &HeadersGroup::headersResized,
+                                   this, &NotationWidget::slotHeadersResized);
     m_headersGroup = new HeadersGroup(m_document);
 
     m_headersGroup->setTracks(this, m_scene);
 
     m_headersGroup->setFixedSize(m_headersGroup->sizeHint());
     m_headersView->setFixedWidth(m_headersGroup->sizeHint().width());
+    m_headersButtons->setFixedWidth(m_headersGroup->sizeHint().width());
 
     delete m_headersScene;  // delete the old m_headersGroup if any
     m_headersScene = new QGraphicsScene();
@@ -628,8 +645,8 @@ NotationWidget::slotGenerateHeaders()
     QRectF headersRect = m_headersScene->sceneRect();
     headersRect.setHeight(viewRect.height());
     m_headersScene->setSceneRect(headersRect);
-    connect(m_headersGroup, SIGNAL(headersResized(int)),
-            this, SLOT(slotHeadersResized(int)));
+    connect(m_headersGroup, &HeadersGroup::headersResized,
+            this, &NotationWidget::slotHeadersResized);
 }
 
 void
@@ -641,7 +658,7 @@ NotationWidget::setCanvasCursor(QCursor c)
 Segment *
 NotationWidget::getCurrentSegment()
 {
-    if (!m_scene) return 0;
+    if (!m_scene) return nullptr;
     return m_scene->getCurrentSegment();
 }
 
@@ -682,7 +699,7 @@ NotationWidget::locatePanner(bool tall)
 }
 
 bool
-NotationWidget::linearMode()
+NotationWidget::linearMode() const
 {
     if (!m_scene) return true;    // Default to true when no scene
     return m_scene->getPageMode() == StaffLayout::LinearMode;
@@ -731,12 +748,14 @@ NotationWidget::slotSetFontName(QString name)
 void
 NotationWidget::slotSetFontSize(int size)
 {
-    if (m_scene) m_scene->setFontSize(size);
+    if (m_scene)
+        m_scene->setFontSize(size);
 
     // Force standard rulers and pointer pointer to refresh -- otherwise
     m_bottomStandardRuler->updateStandardRuler();
     m_topStandardRuler->updateStandardRuler();
-    slotUpdatePointerPosition(false);
+
+    updatePointer(m_document->getComposition().getPosition());
 }
 
 NotationTool *
@@ -759,45 +778,45 @@ NotationWidget::slotSetTool(QString name)
 void
 NotationWidget::slotSetEraseTool()
 {
-    slotSetTool(NotationEraser::ToolName);
+    slotSetTool(NotationEraser::ToolName());
 }
 
 void
 NotationWidget::slotSetSelectTool()
 {
-    slotSetTool(NotationSelector::ToolName);
+    slotSetTool(NotationSelector::ToolName());
 }
 
 void
 NotationWidget::slotSetSelectNoTiesTool()
 {
-    slotSetTool(NotationSelectorNoTies::ToolName);
+    slotSetTool(NotationSelectorNoTies::ToolName());
 }
 
 void
 NotationWidget::slotSetNoteRestInserter()
 {
-    slotSetTool(NoteRestInserter::ToolName);
+    slotSetTool(NoteRestInserter::ToolName());
 }
 
 void
 NotationWidget::slotSetNoteInserter()
 {
     NoteRestInserter *noteRestInserter = dynamic_cast<NoteRestInserter *>
-        (m_toolBox->getTool(NoteRestInserter::ToolName));
+        (m_toolBox->getTool(NoteRestInserter::ToolName()));
     noteRestInserter->setToRestInserter(false); // set to insert notes.
 
-    slotSetTool(NoteRestInserter::ToolName);
+    slotSetTool(NoteRestInserter::ToolName());
 }
 
 void
 NotationWidget::slotSetRestInserter()
 {
     NoteRestInserter *noteRestInserter = dynamic_cast<NoteRestInserter *>
-        (m_toolBox->getTool(NoteRestInserter::ToolName));
+        (m_toolBox->getTool(NoteRestInserter::ToolName()));
     noteRestInserter->setToRestInserter(true); // set to insert notes.
 
-    slotSetTool(NoteRestInserter::ToolName);
+    slotSetTool(NoteRestInserter::ToolName());
 }
 
 void
@@ -817,7 +836,7 @@ NotationWidget::slotSetAccidental(Accidental accidental, bool follow)
 {
     // You don't have to be in note insertion mode to change the accidental
     NoteRestInserter *ni = dynamic_cast<NoteRestInserter *>
-        (m_toolBox->getTool(NoteRestInserter::ToolName));
+        (m_toolBox->getTool(NoteRestInserter::ToolName()));
     if (ni) {
         ni->slotSetAccidental(accidental, follow);
         return;
@@ -827,7 +846,7 @@ NotationWidget::slotSetAccidental(Accidental accidental, bool follow)
 void
 NotationWidget::slotSetClefInserter()
 {
-    slotSetTool(ClefInserter::ToolName);
+    slotSetTool(ClefInserter::ToolName());
 }
 
 void
@@ -840,13 +859,13 @@ NotationWidget::slotSetInsertedClef(Clef type)
 void
 NotationWidget::slotSetTextInserter()
 {
-    slotSetTool(TextInserter::ToolName);
+    slotSetTool(TextInserter::ToolName());
 }
 
 void
 NotationWidget::slotSetGuitarChordInserter()
 {
-    slotSetTool(GuitarChordInserter::ToolName);
+    slotSetTool(GuitarChordInserter::ToolName());
 }
 
 void
@@ -854,7 +873,7 @@ NotationWidget::slotSetPlayTracking(bool tracking)
 {
     m_playTracking = tracking;
     if (m_playTracking) {
-        m_view->slotEnsurePositionPointerInView(true);
+        m_view->ensurePositionPointerInView(true);
     }
 }
 
@@ -865,138 +884,162 @@ NotationWidget::slotTogglePlayTracking()
 }
 
 void
-NotationWidget::slotUpdatePointerPosition(bool moveView)
+NotationWidget::updatePointerPosition(bool moveView)
 {
-    slotPointerPositionChanged(m_document->getComposition().getPosition(),
-                               moveView);
+    updatePointer(m_document->getComposition().getPosition());
+
+    if (moveView)
+        m_view->ensurePositionPointerInView(false);  // page
 }
 
 void
-NotationWidget::slotPointerPositionChanged(timeT t, bool moveView)
+NotationWidget::updatePointer(timeT t)
 {
-    QObject *s = sender();
-    bool fromDocument = (s == m_document);
+    if (!m_scene)
+        return;
 
-    RG_DEBUG << "slotPointerPositionChanged to " << t << endl;
+    SequenceManager *seqMgr = m_document->getSequenceManager();
 
-    if (!m_scene) return;
+    bool rolling =
+            (seqMgr  &&
+             (seqMgr->getTransportStatus() == PLAYING  ||
+              seqMgr->getTransportStatus() == RECORDING));
 
-    NotationScene::CursorCoordinates cc = m_scene->getCursorCoordinates(t);
+    //RG_DEBUG << "updatePointer(" << t << "): rolling = " << rolling;
 
-    bool rolling = false;
-    if (m_document->getSequenceManager() &&
-        (m_document->getSequenceManager()->getTransportStatus() == PLAYING ||
-         m_document->getSequenceManager()->getTransportStatus() == RECORDING)) {
-        rolling = true;
-    }
+    NotationScene::CursorCoordinates cursorPos =
+            m_scene->getCursorCoordinates(t);
 
-    RG_DEBUG << "slotPointerPositionChanged(" << t << "): rolling = " << rolling << endl;
+    // While rolling, display a playback position pointer that stretches
+    // across all staves.
+    const QLineF p = rolling ? cursorPos.allStaffs : cursorPos.currentStaff;
+    if (p == QLineF())
+        return;
 
-    QLineF p = cc.currentStaff;
-    if (rolling) p = cc.allStaffs;
-    if (p == QLineF()) return;
+    // p will also contain sensible Y (although not 100% sensible yet)
+    double pointerX = p.x1();
+    double pointerY = std::min(p.y1(), p.y2());
+    double pointerHeight = fabs(p.dy());
 
-//    QLineF p = m_scene->snapTimeToStaffPosition(t);
-//    if (p == QLineF()) return;
+    double sceneXMin = m_scene->sceneRect().left();
+    double sceneXMax = m_scene->sceneRect().right();
 
-    //!!! p will also contain sensible Y (although not 100% sensible yet)
-    double sceneX = p.x1();
-    double sceneY = std::min(p.y1(), p.y2());
-    double height = fabsf(p.y2() - p.y1());
-
-    // Never move the pointer outside the scene (else the scene will grow)
-    double x1 = m_scene->sceneRect().x();
-    double x2 = x1 + m_scene->sceneRect().width();
-
-    if ((sceneX < x1) || (sceneX > x2)) {
-        m_view->slotHidePositionPointer();
+    // If the pointer has gone outside the limits
+    if (pointerX < sceneXMin  ||  sceneXMax < pointerX) {
+        // Never move the pointer outside the scene (else the scene will grow)
+        m_view->hidePositionPointer();
         m_hpanner->slotHidePositionPointer();
     } else {
-        m_view->slotShowPositionPointer(QPointF(sceneX, sceneY), height);
-        m_hpanner->slotShowPositionPointer(QPointF(sceneX, sceneY), height);
+        m_view->showPositionPointer(QPointF(pointerX, pointerY),
+                                    pointerHeight);
+        m_hpanner->slotShowPositionPointer(QPointF(pointerX, pointerY),
+                                           pointerHeight);
     }
+}
 
-    if (getPlayTracking() || !fromDocument) {
-        if (moveView) m_view->slotEnsurePositionPointerInView(fromDocument);
-    }
+void
+NotationWidget::slotPointerPositionChanged(timeT t)
+{
+    updatePointer(t);
+
+    if (m_playTracking)
+        m_view->ensurePositionPointerInView(true);  // page
+}
+
+void
+NotationWidget::slotStandardRulerDrag(timeT t)
+{
+    updatePointer(t);
+}
+
+void
+NotationWidget::slotSRStartMouseMove()
+{
+    m_autoScroller.setFollowMode(FOLLOW_HORIZONTAL);
+    m_autoScroller.start();
+}
+
+void
+NotationWidget::slotSRStopMouseMove()
+{
+    m_autoScroller.stop();
+}
+
+void
+NotationWidget::slotCRWMousePress()
+{
+    m_autoScroller.start();
+}
+
+void
+NotationWidget::slotCRWMouseMove(FollowMode followMode)
+{
+    m_autoScroller.setFollowMode(followMode);
+}
+
+void
+NotationWidget::slotCRWMouseRelease()
+{
+    m_autoScroller.stop();
+}
+
+void
+NotationWidget::slotTRMousePress()
+{
+    m_autoScroller.setFollowMode(FOLLOW_HORIZONTAL);
+    m_autoScroller.start();
+}
+
+void
+NotationWidget::slotTRMouseRelease()
+{
+    m_autoScroller.stop();
 }
 
 void
 NotationWidget::slotDispatchMousePress(const NotationMouseEvent *e)
 {
-    if (e->buttons & Qt::LeftButton) {
-        if (e->modifiers & Qt::ControlModifier) {
-            // the function this used was an empty NOP
-            // if (m_scene) m_scene->slotSetInsertCursorPosition(e->time, true, true); //!!!
-            return;
-        }
-    }
+    if (!m_currentTool)
+        return;
 
-    if (!m_currentTool) return;
-
-    //!!! todo: handle equivalents of NotationView::slotXXXItemPressed
-
-    if (e->buttons & Qt::LeftButton) {
+    // Check for left and right *first*
+    if ((e->buttons & Qt::LeftButton)  &&  (e->buttons & Qt::RightButton)) {
+        m_currentTool->handleMidButtonPress(e);
+    } else if (e->buttons & Qt::LeftButton) {
         m_currentTool->handleLeftButtonPress(e);
     } else if (e->buttons & Qt::MidButton) {
         m_currentTool->handleMidButtonPress(e);
     } else if (e->buttons & Qt::RightButton) {
         m_currentTool->handleRightButtonPress(e);
     }
+
+    m_autoScroller.start();
 }
 
 void
 NotationWidget::slotDispatchMouseMove(const NotationMouseEvent *e)
 {
-    if (!m_currentTool) return;
-    NotationTool::FollowMode mode = m_currentTool->handleMouseMove(e);
+    if (!m_currentTool)
+        return;
 
-    if (mode != NotationTool::NoFollow) {
-        m_lastMouseMoveScenePos = QPointF(e->sceneX, e->sceneY);
-        slotEnsureLastMouseMoveVisible();
-        QTimer::singleShot(100, this, SLOT(slotEnsureLastMouseMoveVisible()));
-    }
+    FollowMode followMode = m_currentTool->handleMouseMove(e);
+
+    m_autoScroller.setFollowMode(followMode);
 
     if (e->staff) {
         QString s = e->staff->getNoteNameAtSceneCoords(e->sceneX, e->sceneY);
         emit hoveredOverNoteChanged(s);
     }
-
-    // NOTE: when you click the ruler and try to drag the loop/range selection
-    // thing in notation and matrix, it stops at the right edge and won't go.  I
-    // think the following blurb may be what made that work:
-    /*!!!
-if (getCanvasView()->isTimeForSmoothScroll()) {
-
-            if (follow & RosegardenScrollView::FollowHorizontal) {
-                getCanvasView()->scrollHorizSmallSteps(e->x());
-            }
-
-            if (follow & RosegardenScrollView::FollowVertical) {
-                getCanvasView()->scrollVertSmallSteps(e->y());
-            }
-
-        }
-    }
-    */
-}
-
-void
-NotationWidget::slotEnsureLastMouseMoveVisible()
-{
-    if (m_inMove) return;
-    m_inMove = true;
-    QPointF pos = m_lastMouseMoveScenePos;
-    if (m_scene) m_scene->constrainToSegmentArea(pos);
-    // Reduce margin from 5O (default) to 10 pixels to fix bug #2954074
-    m_view->ensureVisible(QRectF(pos, pos), 10, 10);
-    m_inMove = false;
 }
 
 void
 NotationWidget::slotDispatchMouseRelease(const NotationMouseEvent *e)
 {
-    if (!m_currentTool) return;
+    m_autoScroller.stop();
+
+    if (!m_currentTool)
+        return;
+
     m_currentTool->handleMouseRelease(e);
 }
 
@@ -1007,11 +1050,18 @@ NotationWidget::slotDispatchMouseDoubleClick(const NotationMouseEvent *e)
     m_currentTool->handleMouseDoubleClick(e);
 }
 
+void
+NotationWidget::slotDispatchWheelTurned(int delta, const NotationMouseEvent *e)
+{
+    if (!m_currentTool) return;
+    m_currentTool->handleWheelTurned(delta, e);
+}
+
 EventSelection *
 NotationWidget::getSelection() const
 {
     if (m_scene) return m_scene->getSelection();
-    else return 0;
+    else return nullptr;
 }
 
 void
@@ -1087,12 +1137,12 @@ NotationWidget::slotAdjustHeadersHorizontalPos(bool last)
 //  RG run ? Or on the Qt version ?
 //  The previous solution seems better.
 
-//std::cerr << "\nXproxy0=" << m_headersProxy->scenePos().x() << "\n";
+//RG_DEBUG << "\nXproxy0=" << m_headersProxy->scenePos().x() << "\n";
 
     double xinit;
 
     double x = xinit = m_headersView->mapToScene(0, 0).x();
-//std::cerr << " x0=" << x << "\n";
+//RG_DEBUG << " x0=" << x << "\n";
 
     // First trial
     if ((x > 1) || (x < -1)) {
@@ -1101,13 +1151,13 @@ NotationWidget::slotAdjustHeadersHorizontalPos(bool last)
         m_headersView->setSceneRect(view);
         x = m_headersView->mapToScene(0, 0).x();
     }
-//std::cerr << "x1=" << x << "\n";
+//RG_DEBUG << "x1=" << x << "\n";
 
     // Second trial. Why isn't the first iteration always sufficient ?
     // Number of iterations is limited to 3.
     int n = 1;
     while ((x > 1) || (x < -1)) {
-//std::cerr << "n=" << n << " xt2=" << x << "\n";
+//RG_DEBUG << "n=" << n << " xt2=" << x << "\n";
         QRectF view = m_headersView->sceneRect();
         view.translate(-x, 0);
         m_headersView->setSceneRect(view);
@@ -1115,14 +1165,14 @@ NotationWidget::slotAdjustHeadersHorizontalPos(bool last)
         if (n++ > 3) break;
     }
 
-//std::cerr << "x2=" << x << "\n";
+//RG_DEBUG << "x2=" << x << "\n";
 
     // Third trial.
     // If precedent trial doesn't succeed, try again with a coefficient...
     // Number of iterations is limited to 6.    int m = 1;
     int m = 1;
     while ((x > 1) || (x < -1)) {
-//std::cerr << "m=" << m << " xt3=" << x << "\n";
+//RG_DEBUG << "m=" << m << " xt3=" << x << "\n";
         QRectF view = m_headersView->sceneRect();
         view.translate(-x * 0.477, 0);
         m_headersView->setSceneRect(view);
@@ -1130,7 +1180,7 @@ NotationWidget::slotAdjustHeadersHorizontalPos(bool last)
         if (m++ > 6) break;
     }
 
-//std::cerr << "x3=" << x << "\n";
+//RG_DEBUG << "x3=" << x << "\n";
 
     // Probably totally useless here.
     m_headersView->update();
@@ -1138,7 +1188,7 @@ NotationWidget::slotAdjustHeadersHorizontalPos(bool last)
     // Now, sometimes, although x is null or almost null, the headers are
     // not fully visible !!??
 
-//std::cerr << "Xproxy1=" << m_headersProxy->scenePos().x() << "\n";
+//RG_DEBUG << "Xproxy1=" << m_headersProxy->scenePos().x() << "\n";
 
     // Call again the current slot if we have some reason to think it
     // did not succeed and if it has been called in the current context
@@ -1316,7 +1366,7 @@ NotationWidget::hideOrShowRulers()
             m_headersView->show();
             m_headersButtons->show();
         }
-        if (m_controlsWidget->isAnyRulerVisible()) m_controlsWidget->show();
+        if (m_controlRulerWidget->isAnyRulerVisible()) m_controlRulerWidget->show();
         m_bottomStandardRuler->show();
         m_topStandardRuler->show();
     } else {
@@ -1327,7 +1377,7 @@ NotationWidget::hideOrShowRulers()
             m_headersView->hide();
             m_headersButtons->hide();
         }
-        if (m_controlsWidget->isAnyRulerVisible()) m_controlsWidget->hide();
+        if (m_controlRulerWidget->isAnyRulerVisible()) m_controlRulerWidget->hide();
         m_bottomStandardRuler->hide();
         m_topStandardRuler->hide();
     }
@@ -1357,7 +1407,7 @@ NotationWidget::slotHeadersResized(int)
 void
 NotationWidget::slotSetSymbolInserter()
 {
-    slotSetTool(SymbolInserter::ToolName);
+    slotSetTool(SymbolInserter::ToolName());
 }
 
 void
@@ -1370,7 +1420,18 @@ NotationWidget::slotSetInsertedSymbol(Symbol type)
 void
 NotationWidget::setPointerPosition(timeT t)
 {
+    // Fixes problem with sustaining notes while adding notes with
+    // the pencil tool.  Also avoids moving playback position in
+    // playback mode, allowing editing of a loop in real-time.
+    disconnect(m_document, &RosegardenDocument::pointerPositionChanged,
+               RosegardenMainWindow::self(),
+               &RosegardenMainWindow::slotSetPointerPosition);
+
     m_document->slotSetPointerPosition(t);
+
+    connect(m_document, &RosegardenDocument::pointerPositionChanged,
+            RosegardenMainWindow::self(),
+            &RosegardenMainWindow::slotSetPointerPosition);
 }
 
 void
@@ -1393,15 +1454,7 @@ NotationWidget::slotHorizontalThumbwheelMoved(int v)
         else newZoom /= 1.1;
     }
 
-    // switching from primary/panner to axis-independent
-    if (m_lastZoomWasHV) {
-        slotResetZoomClicked();
-        m_HVzoom->setBright(false);
-        m_Hzoom->setBright(true);
-        m_Vzoom->setBright(true);
-    }
-
-    //std::cout << "v is: " << v << " h zoom factor was: " << m_lastH << " now: " << newZoom << " zooming " << (zoomingIn ? "IN" : "OUT") << std::endl;
+    //RG_DEBUG << "v is: " << v << " h zoom factor was: " << m_lastH << " now: " << newZoom << " zooming " << (zoomingIn ? "IN" : "OUT");
 
     setHorizontalZoomFactor(newZoom);
     m_lastH = v;
@@ -1428,15 +1481,7 @@ NotationWidget::slotVerticalThumbwheelMoved(int v)
         else newZoom /= 1.1;
     }
 
-    // switching from primary/panner to axis-independent
-    if (m_lastZoomWasHV) {
-        slotResetZoomClicked();
-        m_HVzoom->setBright(false);
-        m_Hzoom->setBright(true);
-        m_Vzoom->setBright(true);
-    }
-
-    //std::cout << "v is: " << v << " z zoom factor was: " << m_lastV << " now: " << newZoom << " zooming " << (zoomingIn ? "IN" : "OUT") << std::endl;
+    //RG_DEBUG << "v is: " << v << " z zoom factor was: " << m_lastV << " now: " << newZoom << " zooming " << (zoomingIn ? "IN" : "OUT");
 
     setVerticalZoomFactor(newZoom);
     m_lastV = v;
@@ -1446,18 +1491,6 @@ NotationWidget::slotVerticalThumbwheelMoved(int v)
 void
 NotationWidget::slotPrimaryThumbwheelMoved(int v)
 {
-    // not sure what else to do; you can get things grotesquely out of whack
-    // changing H or V independently and then trying to use the big zoom, so now
-    // we reset when changing to the big zoom, and this behaves independently
-
-    // switching from axi-independent to primary/panner
-    if (!m_lastZoomWasHV) {
-        slotResetZoomClicked();
-        m_HVzoom->setBright(true);
-        m_Hzoom->setBright(false);
-        m_Vzoom->setBright(false);
-    }
-
     // little bit of kludge work to deal with value manipulations that are
     // outside of the constraints imposed by the primary zoom wheel itself
     if (v < -20) v = -20;
@@ -1487,7 +1520,7 @@ NotationWidget::slotPrimaryThumbwheelMoved(int v)
 void
 NotationWidget::slotResetZoomClicked()
 {
-    std::cerr << "NotationWidget::slotResetZoomClicked()" << std::endl;
+    RG_DEBUG << "NotationWidget::slotResetZoomClicked()";
 
     m_hZoomFactor = 1.0;
     m_vZoomFactor = 1.0;
@@ -1579,39 +1612,15 @@ NotationWidget::getVerticalZoomFactor() const
 }
 
 void
-NotationWidget::slotInitialHSliderHack(int)
-{
-    if (m_hSliderHacked) return;
-
-    m_hSliderHacked = true;
-
-//    std::cout << "h slider position was: " << m_view->horizontalScrollBar()->sliderPosition() << std::endl;;
-    m_view->horizontalScrollBar()->setSliderPosition(0);
-//    std::cout << "h slider position now: " << m_view->horizontalScrollBar()->sliderPosition() << std::endl;;
-}
-
-void
-NotationWidget::slotInitialVSliderHack(int)
-{
-    if (m_vSliderHacked) return;
-
-    m_vSliderHacked = true;
-
-//    std::cout << "v slider position was: " << m_view->verticalScrollBar()->sliderPosition() << std::endl;;
-    m_view->verticalScrollBar()->setSliderPosition(0);
-//    std::cout << "v slider position now: " << m_view->verticalScrollBar()->sliderPosition() << std::endl;;
-}
-
-void
 NotationWidget::slotToggleVelocityRuler()
 {
-    m_controlsWidget->slotTogglePropertyRuler(BaseProperties::VELOCITY);
+    m_controlRulerWidget->slotTogglePropertyRuler(BaseProperties::VELOCITY);
 }
 
 void
 NotationWidget::slotTogglePitchbendRuler()
 {
-    m_controlsWidget->slotToggleControlRuler("PitchBend");
+    m_controlRulerWidget->slotToggleControlRuler("PitchBend");
 }
 
 void
@@ -1619,7 +1628,12 @@ NotationWidget::slotAddControlRuler(QAction *action)
 {
     QString name = action->text();
 
-//    std::cout << "my name is " << name.toStdString() << std::endl;
+    // FIX #1543: If name happens to come to us with an & included somewhere,
+    // strip the & so the string will match the one we are comparing later on.
+    //
+    name.replace(QRegExp("&"), "");
+
+//    RG_DEBUG << "my name is " << name.toStdString();
 
     // we just cheaply paste the code from NotationView that created the menu to
     // figure out what its indices must point to (and thinking about this whole
@@ -1660,9 +1674,9 @@ NotationWidget::slotAddControlRuler(QAction *action)
 
         if (name != itemStr) continue;
 
-        std::cout << "name: " << name.toStdString() << " should match  itemStr: " << itemStr.toStdString() << std::endl;
+        RG_DEBUG << "name: " << name.toStdString() << " should match  itemStr: " << itemStr.toStdString();
 
-        m_controlsWidget->slotAddControlRuler(*it);
+        m_controlRulerWidget->slotAddControlRuler(*it);
 
 //      if (i == menuIndex) m_controlsWidget->slotAddControlRuler(*p);
 //      else i++;
@@ -1674,7 +1688,7 @@ NotationWidget::getCurrentDevice()
 {
     Segment *segment = getCurrentSegment();
     if (!segment)
-        return 0;
+        return nullptr;
 
     Studio &studio = m_document->getStudio();
     Instrument *instrument =
@@ -1682,7 +1696,7 @@ NotationWidget::getCurrentDevice()
         (segment->getComposition()->getTrackById(segment->getTrack())->
          getInstrument());
     if (!instrument)
-        return 0;
+        return nullptr;
 
     return instrument->getDevice();
 }
@@ -1717,22 +1731,24 @@ NotationWidget::slotSegmentChangerMoved(int v)
 }
 
 void
+NotationWidget::slotStaffChanged()
+{
+    // Draw the pointer
+    updatePointer(m_document->getComposition().getPosition());
+    // Make sure it's in view.
+    m_view->ensurePositionPointerInView(false);
+}
+
+void
 NotationWidget::slotUpdateSegmentChangerBackground()
 {
     // set the changer widget background to the now current segment's
     // background, and reset the tooltip style to compensate
     Colour c = m_document->getComposition().getSegmentColourMap().getColourByIndex(m_scene->getCurrentSegment()->getColourIndex());
 
-    // converting the Colour into a hex triplet seems to be the only consistent
-    // way to get this to work, and turns out to require obscure and little used
-    // .arg() syntax to get hex strings 2 chars wide with blanks padded as '0'
-    QChar fillChar('0');
-    QString newColorStr = QString("#%1%2%3")
-                                  .arg(QString::number(c.getRed(),   16), 2, fillChar)
-                                  .arg(QString::number(c.getGreen(), 16), 2, fillChar)
-                                  .arg(QString::number(c.getBlue(),  16), 2, fillChar);
-    QString localStyle = QString("QFrame {background: %1; color: %1; } QToolTip {background-color: #FFFBD4; color: #000000;}").arg(newColorStr);
-    m_changerWidget->setStyleSheet(localStyle);
+    QPalette palette = m_changerWidget->palette();
+    palette.setColor(QPalette::Window, c.toQColor());
+    m_changerWidget->setPalette(palette);
 
     // have to deal with all this ruckus to get a few pieces of info about the
     // track:
@@ -1775,7 +1791,24 @@ NotationWidget::slotRegenerateHeaders() {
     }
 }
 
+void
+NotationWidget::slotZoomIn()
+{
+    int v = m_lastH - 1;
+
+    m_Hzoom->setValue(v);
+    slotHorizontalThumbwheelMoved(v);
+}
+
+void
+NotationWidget::slotZoomOut()
+{
+    int v = m_lastH + 1;
+
+    m_Hzoom->setValue(v);
+    slotHorizontalThumbwheelMoved(v);
+}
+
 
 }
 
-#include "NotationWidget.moc"

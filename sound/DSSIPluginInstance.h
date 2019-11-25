@@ -180,4 +180,3 @@ protected:
 };
 
 #endif // _DSSIPLUGININSTANCE_H_
-

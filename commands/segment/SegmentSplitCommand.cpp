@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -39,8 +39,8 @@ SegmentSplitCommand::SegmentSplitCommand(Segment *segment,
         timeT splitTime, bool keepLabel) :
         NamedCommand(tr("Split Segment")),
         m_segment(segment),
-        m_newSegmentA(0),
-        m_newSegmentB(0),
+        m_newSegmentA(nullptr),
+        m_newSegmentB(nullptr),
         m_splitTime(splitTime),
         m_detached(true),
         m_keepLabel(keepLabel),
@@ -84,8 +84,8 @@ getNewSegments(Segment *segment, timeT splitTime, bool keepLabel)
 
     // !!! Set Composition?
     
-    Event *clefEvent = 0;
-    Event *keyEvent = 0;
+    Event *clefEvent = nullptr;
+    Event *keyEvent = nullptr;
 
     // Copy the last occurrence of clef and key
     // from the left hand side of the split (nb. timesig events

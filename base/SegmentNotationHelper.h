@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -26,7 +26,7 @@ class SegmentNotationHelper : protected SegmentHelper
 {
 public:
     SegmentNotationHelper(Segment &t) : SegmentHelper(t) { }
-    virtual ~SegmentNotationHelper();
+    ~SegmentNotationHelper() override;
 
     using SegmentHelper::segment;
 

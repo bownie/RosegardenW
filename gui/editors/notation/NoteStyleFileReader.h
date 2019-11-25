@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,6 +23,7 @@
 #include "NoteStyle.h"
 
 #include <QCoreApplication>
+#include <QSharedPointer>
 
 namespace Rosegarden {
 
@@ -35,19 +36,19 @@ public:
 
     typedef Rosegarden::Exception StyleFileReadFailed;
     
-    NoteStyle *getStyle() { return m_style; }
+    QSharedPointer<NoteStyle> getStyle()  { return m_style; }
 
     // Xml handler methods:
 
-    virtual bool startElement
+    bool startElement
     (const QString& namespaceURI, const QString& localName,
-     const QString& qName, const QXmlAttributes& atts);
+     const QString& qName, const QXmlAttributes& atts) override;
     
 private:
     bool setFromAttributes(Note::Type type, const QXmlAttributes &attributes);
 
     QString m_errorString;
-    NoteStyle *m_style;
+    QSharedPointer<NoteStyle> m_style;
     bool m_haveNote;
 };
 

@@ -35,10 +35,10 @@ class SegmentQuickLinkCommand : public NamedCommand
 
 public:
     SegmentQuickLinkCommand(Segment *segment);
-    virtual ~SegmentQuickLinkCommand();
+    ~SegmentQuickLinkCommand() override;
 
-    virtual void execute();
-    virtual void unexecute();
+    void execute() override;
+    void unexecute() override;
 
     static QString getGlobalName() { return tr("Quick-Link Segment"); }
 

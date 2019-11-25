@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,32 +15,26 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[QuantizeParameters]"
 
 #include "QuantizeParameters.h"
 
-#include "misc/Strings.h"
-#include "base/NotationTypes.h"
+#include "misc/Debug.h"
+#include "misc/Strings.h"  // qStrToBool() etc...
+#include "misc/ConfigGroups.h"  // *ConfigGroup names
 #include "base/Quantizer.h"
 #include "base/BasicQuantizer.h"
 #include "base/LegatoQuantizer.h"
 #include "base/NotationQuantizer.h"
 #include "gui/editors/notation/NotationStrings.h"
 #include "gui/editors/notation/NotePixmapFactory.h"
+#include "gui/widgets/LineEdit.h"
 
-#include <QLayout>
-#include <QApplication>
-#include <QComboBox>
-#include <QSettings>
 #include <QCheckBox>
-#include <QFrame>
-#include <QGroupBox>
+#include <QComboBox>
 #include <QLabel>
-#include <QObject>
 #include <QPixmap>
-#include <QPushButton>
 #include <QString>
-#include <QWidget>
-#include <QHBoxLayout>
 #include <QVBoxLayout>
 
 
@@ -50,13 +44,16 @@ namespace Rosegarden
 
 QuantizeParameters::QuantizeParameters(QWidget *parent,
                                        QuantizerType defaultQuantizer,
-                                       bool showNotationOption,
-                                       QString configCategory) :
+                                       bool showNotationOption) :
         QFrame(parent),
-        m_configCategory(configCategory),
-        m_standardQuantizations
-        (BasicQuantizer::getStandardQuantizations())
+        m_standardQuantizations(BasicQuantizer::getStandardQuantizations())
 {
+    const bool inNotation = (defaultQuantizer == Notation);
+
+    m_settings.beginGroup(
+            inNotation ? NotationQuantizeConfigGroup :
+                         GridQuantizeConfigGroup);
+
     m_mainLayout = new QVBoxLayout;
     m_mainLayout->setSpacing(5);
     setContentsMargins(5, 5, 5, 5);
@@ -69,325 +66,362 @@ QuantizeParameters::QuantizeParameters(QWidget *parent,
     m_mainLayout->addWidget(quantizerBox);
 
     qbLayout->addWidget(new QLabel(tr("Quantizer type:"), quantizerBox), 0, 0);
-    m_typeCombo = new QComboBox(quantizerBox);
-    m_typeCombo->addItem(tr("Grid quantizer"));
-    m_typeCombo->addItem(tr("Legato quantizer"));
-    m_typeCombo->addItem(tr("Heuristic notation quantizer"));
-    qbLayout->addWidget(m_typeCombo, 0, 1);
+    m_quantizerType = new QComboBox(quantizerBox);
+    m_quantizerType->addItem(tr("Grid quantizer"));
+    m_quantizerType->addItem(tr("Legato quantizer"));
+    m_quantizerType->addItem(tr("Heuristic notation quantizer"));
+    QuantizerType quantizerType = static_cast<QuantizerType>(
+            m_settings.value("quantizetype", defaultQuantizer).toInt());
+    m_quantizerType->setCurrentIndex(quantizerType);
+    connect(m_quantizerType, SIGNAL(activated(int)), SLOT(slotTypeChanged(int)));
+    qbLayout->addWidget(m_quantizerType, 0, 1);
 
-    m_notationTarget = new QCheckBox
-                       (tr("Quantize for notation only (leave performance unchanged)"),
-                        quantizerBox);
-    qbLayout->addWidget(m_notationTarget, 1, 0, 1, 2);
+    m_quantizeNotation = new QCheckBox(
+            tr("Quantize for notation only (leave performance unchanged)"),
+            quantizerBox);
+    m_quantizeNotation->setChecked(qStrToBool(m_settings.value(
+            "quantizenotationonly", inNotation)));
+    qbLayout->addWidget(m_quantizeNotation, 1, 0, 1, 2);
 
-    if (!showNotationOption) m_notationTarget->hide();
+    // ??? Always false.  Only caller always sets this to false.
+    if (!showNotationOption)
+        m_quantizeNotation->hide();
 
 
-    // Notation box
+    // Notation parameters box
     m_notationBox = new QGroupBox( tr("Notation parameters"));
     QGridLayout *nbLayout = new QGridLayout;
     nbLayout->setSpacing(3);
     m_notationBox->setLayout(nbLayout);
     m_mainLayout->addWidget(m_notationBox);
 
+    // Base grid unit
     nbLayout->addWidget(new QLabel(tr("Base grid unit:"), m_notationBox), 1, 0);
-    m_notationUnitCombo = new QComboBox(m_notationBox);
-    nbLayout->addWidget(m_notationUnitCombo, 1, 1);
+    m_notationBaseGridUnit = new QComboBox(m_notationBox);
+    initBaseGridUnit("notationBaseGridUnit", m_notationBaseGridUnit);
+    nbLayout->addWidget(m_notationBaseGridUnit, 1, 1);
 
+    // Complexity
     nbLayout->addWidget(new QLabel(tr("Complexity:"), m_notationBox), 0, 0);
+    m_complexity = new QComboBox(m_notationBox);
+    m_complexity->addItem(tr("Very high"));
+    m_complexity->addItem(tr("High"));
+    m_complexity->addItem(tr("Normal"));
+    m_complexity->addItem(tr("Low"));
+    m_complexity->addItem(tr("Very low"));
+    m_complexity->setCurrentIndex(m_settings.value(
+            "quantizesimplicity", 13).toInt() - 11);
+    nbLayout->addWidget(m_complexity, 0, 1);
 
-    m_simplicityCombo = new QComboBox(m_notationBox);
-    m_simplicityCombo->addItem(tr("Very high"));
-    m_simplicityCombo->addItem(tr("High"));
-    m_simplicityCombo->addItem(tr("Normal"));
-    m_simplicityCombo->addItem(tr("Low"));
-    m_simplicityCombo->addItem(tr("Very low"));
-    nbLayout->addWidget(m_simplicityCombo, 0, 1);
-
+    // Tuplet level
     nbLayout->addWidget(new QLabel(tr("Tuplet level:"), m_notationBox), 2, 0);
-    m_maxTuplet = new QComboBox(m_notationBox);
-    m_maxTuplet->addItem(tr("None"));
-    m_maxTuplet->addItem(tr("2-in-the-time-of-3"));
-    m_maxTuplet->addItem(tr("Triplet"));
-    m_maxTuplet->addItem(tr("Any"));
-    nbLayout->addWidget(m_maxTuplet, 2, 1);
+    m_tupletLevel = new QComboBox(m_notationBox);
+    m_tupletLevel->addItem(tr("None"));
+    m_tupletLevel->addItem(tr("2-in-the-time-of-3"));
+    m_tupletLevel->addItem(tr("Triplet"));
+    m_tupletLevel->addItem(tr("Any"));
+    m_tupletLevel->setCurrentIndex(m_settings.value(
+            "quantizemaxtuplet", 3).toInt() - 1);
+    nbLayout->addWidget(m_tupletLevel, 2, 1);
 
-    m_counterpoint = new QCheckBox(tr("Permit counterpoint"), m_notationBox);
-    nbLayout->addWidget(m_counterpoint, 3, 0, 1, 1);
+    // Permit counterpoint
+    m_permitCounterpoint = new QCheckBox(tr("Permit counterpoint"), m_notationBox);
+    m_permitCounterpoint->setChecked(qStrToBool(m_settings.value(
+            "quantizecounterpoint", "false" )));
+    nbLayout->addWidget(m_permitCounterpoint, 3, 0, 1, 1);
 
 
-    // Grid box
+    // Grid parameters box
     m_gridBox = new QGroupBox( tr("Grid parameters"));
     QGridLayout *gbLayout = new QGridLayout;
     gbLayout->setSpacing(3);
     m_gridBox->setLayout(gbLayout);
     m_mainLayout->addWidget(m_gridBox);
 
+    // Base grid unit
     gbLayout->addWidget(new QLabel(tr("Base grid unit:"), m_gridBox), 0, 0);
-    m_gridUnitCombo = new QComboBox(m_gridBox);
-    gbLayout->addWidget(m_gridUnitCombo, 0, 1);
+    m_gridBaseGridUnit = new QComboBox(m_gridBox);
+    initBaseGridUnit("gridBaseGridUnit", m_gridBaseGridUnit);
+    connect(m_gridBaseGridUnit, static_cast<void(QComboBox::*)(int)>(
+                &QComboBox::currentIndexChanged),
+            this, &QuantizeParameters::gridUnitChanged);
+    gbLayout->addWidget(m_gridBaseGridUnit, 0, 1);
 
+    // Arbitrary grid unit
+    m_arbitraryGridUnitLabel = new QLabel(tr("Arbitrary grid unit:"), m_gridBox);;
+    gbLayout->addWidget(m_arbitraryGridUnitLabel, 1, 0);
+    m_arbitraryGridUnit = new LineEdit(m_gridBox);
+    int arbitraryGridUnit = m_settings.value("arbitraryGridUnit", 1).toInt();
+    m_arbitraryGridUnit->setText(QString::number(arbitraryGridUnit));
+    gbLayout->addWidget(m_arbitraryGridUnit, 1, 1);
+    // Enable/Disable Arbitrary grid unit controls as appropriate.
+    gridUnitChanged(m_gridBaseGridUnit->currentIndex());
+
+    // Swing
     m_swingLabel = new QLabel(tr("Swing:"), m_gridBox);
-    gbLayout->addWidget(m_swingLabel, 1, 0);
-    m_swingCombo = new QComboBox(m_gridBox);
-    gbLayout->addWidget(m_swingCombo, 1, 1);
+    gbLayout->addWidget(m_swingLabel, 2, 0);
+    m_swing = new QComboBox(m_gridBox);
 
-    m_iterativeLabel = new QLabel(tr("Iterative amount:"), m_gridBox);
-    gbLayout->addWidget(m_iterativeLabel, 2, 0);
-    m_iterativeCombo = new QComboBox(m_gridBox);
-    gbLayout->addWidget(m_iterativeCombo, 2, 1);
+    int swing = m_settings.value("quantizeswing", 0).toInt();
 
-    m_durationCheckBox = new QCheckBox
-                         (tr("Quantize durations as well as start times"), m_gridBox);
-    gbLayout->addWidget(m_durationCheckBox, 3, 0, 1, 1);
+    for (int i = -100; i <= 200; i += 10) {
+        m_swing->addItem(i == 0 ? tr("None") : QString("%1%").arg(i));
 
-    // Post-processing box
-    m_postProcessingBox = new QGroupBox
-                          (tr("After quantization"), this);
+        // Found it?  Select it.
+        if (i == swing)
+            m_swing->setCurrentIndex(m_swing->count() - 1);
+    }
+
+    gbLayout->addWidget(m_swing, 2, 1);
+
+    // Iterative amount
+    m_iterativeAmountLabel = new QLabel(tr("Iterative amount:"), m_gridBox);
+    gbLayout->addWidget(m_iterativeAmountLabel, 3, 0);
+    m_iterativeAmount = new QComboBox(m_gridBox);
+
+    int iterativeAmount = m_settings.value("quantizeiterate", 100).toInt();
+
+    for (int i = 10; i <= 100; i += 10) {
+        m_iterativeAmount->addItem(
+                i == 100 ? tr("Full quantize") : QString("%1%").arg(i));
+
+        // Found it?  Select it.
+        if (i == iterativeAmount)
+            m_iterativeAmount->setCurrentIndex(m_iterativeAmount->count() - 1);
+    }
+
+    gbLayout->addWidget(m_iterativeAmount, 3, 1);
+
+    // Quantize durations
+    m_quantizeDurations = new QCheckBox(
+            tr("Quantize durations as well as start times"), m_gridBox);
+    m_quantizeDurations->setChecked(qStrToBool(m_settings.value(
+            "quantizedurations", "false")));
+    gbLayout->addWidget(m_quantizeDurations, 4, 0, 1, 1);
+
+
+    // After quantization box
+    QGroupBox *afterQuantizationBox =
+            new QGroupBox(tr("After quantization"), this);
     QGridLayout *pbLayout = new QGridLayout;
     pbLayout->setSpacing(3);
-    m_postProcessingBox->setLayout(pbLayout);
-    m_mainLayout->addWidget(m_postProcessingBox);
+    afterQuantizationBox->setLayout(pbLayout);
+    m_mainLayout->addWidget(afterQuantizationBox);
 
-    m_rebeam = new QCheckBox(tr("Re-beam"), m_postProcessingBox);
-    m_articulate = new QCheckBox
-                   (tr("Add articulations (staccato, tenuto, slurs)"), m_postProcessingBox);
-    m_makeViable = new QCheckBox(tr("Tie notes at barlines etc"), m_postProcessingBox);
-    m_deCounterpoint = new QCheckBox(tr("Split-and-tie overlapping chords"), m_postProcessingBox);
+    // Re-beam
+    m_rebeam = new QCheckBox(tr("Re-beam"), afterQuantizationBox);
+    m_rebeam->setChecked(qStrToBool(m_settings.value(
+            "quantizerebeam", "true")));
+
+    // Add articulations
+    m_addArticulations = new QCheckBox(
+            tr("Add articulations (staccato, tenuto, slurs)"),
+            afterQuantizationBox);
+    m_addArticulations->setChecked(qStrToBool(m_settings.value(
+            "quantizearticulate", "true")));
+
+    // Tie notes at barlines
+    m_tieNotesAtBarlines = new QCheckBox(
+            tr("Tie notes at barlines etc"), afterQuantizationBox);
+    m_tieNotesAtBarlines->setChecked(qStrToBool(m_settings.value(
+            "quantizemakeviable", "false")));
+
+    // Split-and-tie overlapping chords
+    m_splitAndTie = new QCheckBox(
+            tr("Split-and-tie overlapping chords"), afterQuantizationBox);
+    m_splitAndTie->setChecked(qStrToBool(m_settings.value(
+            "quantizedecounterpoint", "false")));
 
     pbLayout->addWidget(m_rebeam, 0, 0);
-    pbLayout->addWidget(m_articulate, 1, 0);
-    pbLayout->addWidget(m_makeViable, 2, 0);
-    pbLayout->addWidget(m_deCounterpoint, 3, 0);
+    pbLayout->addWidget(m_addArticulations, 1, 0);
+    pbLayout->addWidget(m_tieNotesAtBarlines, 2, 0);
+    pbLayout->addWidget(m_splitAndTie, 3, 0);
 
+    // Show/Hide widgets as appropriate for the quantizer type.
+    slotTypeChanged(quantizerType);
+
+}
+
+void
+QuantizeParameters::initBaseGridUnit(QString settingsKey, QComboBox *comboBox)
+{
     QPixmap noMap = NotePixmapFactory::makeToolbarPixmap("menu-no-note");
 
-    int defaultType = 0;
-    timeT defaultUnit =
-        Note(Note::Demisemiquaver).getDuration();
+    timeT baseGridUnit = m_settings.value(
+            settingsKey,
+            static_cast<int>(
+                Note(Note::Demisemiquaver).getDuration())).toInt();
 
-    if (!m_configCategory.isEmpty()) {
-        if (defaultQuantizer == Notation)
-            m_configCategory = "Quantize Dialog Notation";
-        else
-            m_configCategory = "Quantize Dialog Grid";
-    }
+    bool found = false;
 
-    int defaultSwing = 0;
-    int defaultIterate = 100;
-
-    if (!m_configCategory.isEmpty()) {
-        QSettings settings;
-        settings.beginGroup( m_configCategory );
-
-        defaultType = settings.value("quantizetype", (defaultQuantizer == Notation)
-                ? 2 : (defaultQuantizer == Legato) ? 1 : 0).toInt();
-        defaultUnit = settings.value("quantizeunit", static_cast<unsigned long long>(defaultUnit)).toInt();
-        defaultSwing = settings.value("quantizeswing", defaultSwing).toInt();
-        defaultIterate = settings.value("quantizeiterate", defaultIterate).toInt();
-        m_notationTarget->setChecked(qStrToBool(settings.value
-                ("quantizenotationonly", (defaultQuantizer == Notation))));
-        m_durationCheckBox->setChecked(qStrToBool(settings.value
-                ("quantizedurations", "false")));
-        m_simplicityCombo->setCurrentIndex(settings.value
-                ("quantizesimplicity", 13).toInt()  - 11);
-        m_maxTuplet->setCurrentIndex(settings.value
-                ("quantizemaxtuplet", 3).toInt()  - 1);
-        m_counterpoint->setChecked(qStrToBool(settings.value
-                ("quantizecounterpoint", "false" )));
-        m_rebeam->setChecked(qStrToBool(settings.value
-                ("quantizerebeam", "true")));
-        m_makeViable->setChecked(qStrToBool(settings.value
-                ("quantizemakeviable", "false")));
-        m_deCounterpoint->setChecked(qStrToBool(settings.value
-                ("quantizedecounterpoint", "false")));
-        m_articulate->setChecked(qStrToBool(settings.value
-                ("quantizearticulate", "true")));
-
-        settings.endGroup();
-    } else {
-        defaultType =
-            (defaultQuantizer == Notation) ? 2 :
-            (defaultQuantizer == Legato) ? 1 : 0;
-        m_notationTarget->setChecked(defaultQuantizer == Notation);
-        m_durationCheckBox->setChecked(false);
-        m_simplicityCombo->setCurrentIndex(2);
-        m_maxTuplet->setCurrentIndex(2);
-        m_counterpoint->setChecked(false);
-        m_rebeam->setChecked(true);
-        m_makeViable->setChecked(defaultQuantizer == Notation);
-        m_deCounterpoint->setChecked(defaultQuantizer == Notation);
-        m_articulate->setChecked(true);
-    }
-
-    m_postProcessingBox->show();
-
+    // For each standard quantization
     for (unsigned int i = 0; i < m_standardQuantizations.size(); ++i) {
 
         timeT time = m_standardQuantizations[i];
         timeT error = 0;
 
         QPixmap pmap = NotePixmapFactory::makeNoteMenuPixmap(time, error);
-        QString label = NotationStrings::makeNoteMenuLabel(time, false, error);
+        QString label;
+        if (error == 0)
+            label = NotationStrings::makeNoteMenuLabel(time, false, error);
 
         if (error == 0) {
-            m_gridUnitCombo->addItem(pmap, label);
-            m_notationUnitCombo->addItem(pmap, label);
+            comboBox->addItem(pmap, label);
         } else {
-            m_gridUnitCombo->addItem(noMap, QString("%1").arg(time));
-            m_notationUnitCombo->addItem(noMap, QString("%1").arg(time));
+            // ??? We never end up in here since we are iterating through
+            //     the standard quantizations.  We can probably remove this.
+            comboBox->addItem(noMap, QString("%1").arg(time));
         }
 
-        if (m_standardQuantizations[i] == defaultUnit) {
-            m_gridUnitCombo->setCurrentIndex(m_gridUnitCombo->count() - 1);
-            m_notationUnitCombo->setCurrentIndex
-            (m_notationUnitCombo->count() - 1);
+        // Found it?  Select it.
+        if (m_standardQuantizations[i] == baseGridUnit) {
+            comboBox->setCurrentIndex(comboBox->count() - 1);
+            found = true;
         }
     }
 
-    for (int i = -100; i <= 200; i += 10) {
-        m_swingCombo->addItem(i == 0 ? tr("None") : QString("%1%").arg(i));
-        if (i == defaultSwing)
-            m_swingCombo->setCurrentIndex(m_swingCombo->count() - 1);
+    comboBox->addItem(noMap, "Arbitrary grid unit");
+    // Save the index for future reference.
+    m_arbitraryGridUnitIndex = comboBox->count() - 1;
+
+    // Nothing was found up to this point, go with arbitrary.
+    if (!found)
+        comboBox->setCurrentIndex(m_arbitraryGridUnitIndex);
+}
+
+void
+QuantizeParameters::saveSettings()
+{
+    m_settings.setValue("quantizetype", m_quantizerType->currentIndex());
+    m_settings.setValue("gridBaseGridUnit", static_cast<unsigned long long>(
+            m_standardQuantizations[m_gridBaseGridUnit->currentIndex()]));
+    m_settings.setValue("arbitraryGridUnit", m_arbitraryGridUnit->text());
+    m_settings.setValue("notationBaseGridUnit", static_cast<unsigned long long>(
+            m_standardQuantizations[m_notationBaseGridUnit->currentIndex()]));
+    m_settings.setValue("quantizeswing", m_swing->currentIndex() * 10 - 100);
+    m_settings.setValue("quantizeiterate",
+                        m_iterativeAmount->currentIndex() * 10 + 10);
+    m_settings.setValue("quantizenotationonly",
+                        m_quantizeNotation->isChecked());
+    m_settings.setValue("quantizedurations",
+                        m_quantizeDurations->isChecked());
+    m_settings.setValue("quantizesimplicity",
+                        m_complexity->currentIndex() + 11);
+    m_settings.setValue("quantizemaxtuplet",
+                        m_tupletLevel->currentIndex() + 1);
+    m_settings.setValue("quantizecounterpoint",
+                        m_permitCounterpoint->isChecked());
+    m_settings.setValue("quantizerebeam", m_rebeam->isChecked());
+    m_settings.setValue("quantizearticulate", m_addArticulations->isChecked());
+    m_settings.setValue("quantizemakeviable", m_tieNotesAtBarlines->isChecked());
+    m_settings.setValue("quantizedecounterpoint", m_splitAndTie->isChecked());
+}
+
+timeT
+QuantizeParameters::getGridUnit() const
+{
+    timeT unit = 1;
+
+    // Arbitrary grid unit selected?
+    if (m_gridBaseGridUnit->currentIndex() == m_arbitraryGridUnitIndex) {
+        // Use the arbitrary grid unit field.
+        unit = m_arbitraryGridUnit->text().toInt();
+        if (unit < 1)
+            unit = 1;
+    } else {
+        unit = m_standardQuantizations[
+                m_gridBaseGridUnit->currentIndex()];
     }
 
-    for (int i = 10; i <= 100; i += 10) {
-        m_iterativeCombo->addItem(i == 100 ? tr("Full quantize") :
-                                     QString("%1%").arg(i));
-        if (i == defaultIterate)
-            m_iterativeCombo->setCurrentIndex(m_iterativeCombo->count() - 1);
-    }
-
-    switch (defaultType) {
-    case 0:  // grid
-        m_gridBox->show();
-        m_swingLabel->show();
-        m_swingCombo->show();
-        m_iterativeLabel->show();
-        m_iterativeCombo->show();
-        m_notationBox->hide();
-        m_durationCheckBox->show();
-        m_typeCombo->setCurrentIndex(0);
-        break;
-    case 1:  // legato
-        m_gridBox->show();
-        m_swingLabel->hide();
-        m_swingCombo->hide();
-        m_iterativeLabel->hide();
-        m_iterativeCombo->hide();
-        m_notationBox->hide();
-        m_durationCheckBox->hide();
-        m_typeCombo->setCurrentIndex(1);
-    case 2:  // notation
-        m_gridBox->hide();
-        m_notationBox->show();
-        m_typeCombo->setCurrentIndex(2);
-        break;
-    }
-
-    connect(m_typeCombo, SIGNAL(activated(int)), SLOT(slotTypeChanged(int)));
+    return unit;
 }
 
 Quantizer *
-QuantizeParameters::getQuantizer() const
+QuantizeParameters::getQuantizer()
 {
-    //!!! Excessive duplication with
-    // EventQuantizeCommand::makeQuantizer in editcommands.cpp
+    // ??? Similar to EventQuantizeCommand::makeQuantizer().
+    //     Can we pull out a common routine?  Maybe a factory function
+    //     in Quantizer.  It would probably require a ton of parameters,
+    //     though.
 
-    int type = m_typeCombo->currentIndex();
-    timeT unit = 0;
+    QuantizerType type =
+            static_cast<QuantizerType>(m_quantizerType->currentIndex());
 
-    if (type == 0 || type == 1) {
-        unit = m_standardQuantizations[m_gridUnitCombo->currentIndex()];
-    } else {
-        unit = m_standardQuantizations[m_notationUnitCombo->currentIndex()];
-    }
+    Quantizer *quantizer = nullptr;
 
-    Quantizer *quantizer = 0;
+    switch (type) {
+    case Grid:
+        {
+            const timeT unit = getGridUnit();
+            const int swingPercent = m_swing->currentIndex() * 10 - 100;
+            const int iteratePercent =
+                    m_iterativeAmount->currentIndex() * 10 + 10;
 
-    int swing = m_swingCombo->currentIndex();
-    swing *= 10;
-    swing -= 100;
+            if (m_quantizeNotation->isChecked()) {
+                quantizer = new BasicQuantizer(
+                        Quantizer::RawEventData,  // source
+                        Quantizer::NotationPrefix,  // target
+                        unit,
+                        m_quantizeDurations->isChecked(),  // doDurations
+                        swingPercent,
+                        iteratePercent);
+            } else {  // Quantize the events.
+                quantizer = new BasicQuantizer(
+                        Quantizer::RawEventData,  // source
+                        Quantizer::RawEventData,  // target
+                        unit,
+                        m_quantizeDurations->isChecked(),  // doDurations
+                        swingPercent,
+                        iteratePercent);
+            }
 
-    int iterate = m_iterativeCombo->currentIndex();
-    iterate *= 10;
-    iterate += 10;
-
-    if (type == 0) {
-
-        if (m_notationTarget->isChecked()) {
-            quantizer = new BasicQuantizer
-                        (Quantizer::RawEventData,
-                         Quantizer::NotationPrefix,
-                         unit, m_durationCheckBox->isChecked(),
-                         swing, iterate);
-        } else {
-            quantizer = new BasicQuantizer
-                        (Quantizer::RawEventData,
-                         Quantizer::RawEventData,
-                         unit, m_durationCheckBox->isChecked(),
-                         swing, iterate);
+            break;
         }
-    } else if (type == 1) {
-        if (m_notationTarget->isChecked()) {
-            quantizer = new LegatoQuantizer
-                        (Quantizer::RawEventData,
-                         Quantizer::NotationPrefix, unit);
-        } else {
-            quantizer = new LegatoQuantizer
-                        (Quantizer::RawEventData,
-                         Quantizer::RawEventData,
-                         unit);
+    case Legato:
+        {
+            const timeT unit = getGridUnit();
+
+            if (m_quantizeNotation->isChecked()) {
+                quantizer = new LegatoQuantizer(
+                        Quantizer::RawEventData,  // source
+                        Quantizer::NotationPrefix,  // target
+                        unit);
+            } else {  // Quantize the events.
+                quantizer = new LegatoQuantizer(
+                        Quantizer::RawEventData,  // source
+                        Quantizer::RawEventData,  // target
+                        unit);
+            }
+
+            break;
         }
-    } else {
+    case Notation:
+        {
 
-        NotationQuantizer *nq;
+            NotationQuantizer *notationQuantizer = nullptr;
 
-        if (m_notationTarget->isChecked()) {
-            nq = new NotationQuantizer();
-        } else {
-            nq = new NotationQuantizer
-                 (Quantizer::RawEventData,
-                  Quantizer::RawEventData);
+            if (m_quantizeNotation->isChecked()) {
+                notationQuantizer = new NotationQuantizer();
+            } else {
+                notationQuantizer = new NotationQuantizer(
+                        Quantizer::RawEventData,  // source
+                        Quantizer::RawEventData);  // target
+            }
+
+            notationQuantizer->setUnit(m_standardQuantizations[
+                    m_notationBaseGridUnit->currentIndex()]);
+            notationQuantizer->setSimplicityFactor(
+                    m_complexity->currentIndex() + 11);
+            notationQuantizer->setMaxTuplet(m_tupletLevel->currentIndex() + 1);
+            notationQuantizer->setContrapuntal(
+                    m_permitCounterpoint->isChecked());
+            notationQuantizer->setArticulate(m_addArticulations->isChecked());
+
+            // Cast up to baseclass type.
+            quantizer = static_cast<Quantizer *>(notationQuantizer);
+
+            break;
         }
-
-        nq->setUnit(unit);
-        nq->setSimplicityFactor(m_simplicityCombo->currentIndex() + 11);
-        nq->setMaxTuplet(m_maxTuplet->currentIndex() + 1);
-        nq->setContrapuntal(m_counterpoint->isChecked());
-        nq->setArticulate(m_articulate->isChecked());
-
-        quantizer = nq;
-    }
-
-    if (!m_configCategory.isEmpty()) {
-        QSettings settings;
-        settings.beginGroup( m_configCategory );
-
-        settings.setValue("quantizetype", type);
-        settings.setValue("quantizeunit", static_cast<unsigned long long>(unit));
-        settings.setValue("quantizeswing", swing);
-        settings.setValue("quantizeiterate", iterate);
-        settings.setValue("quantizenotationonly",
-                           m_notationTarget->isChecked());
-        if (type == 0) {
-            settings.setValue("quantizedurations",
-                               m_durationCheckBox->isChecked());
-        } else {
-            settings.setValue("quantizesimplicity",
-                               m_simplicityCombo->currentIndex() + 11);
-            settings.setValue("quantizemaxtuplet",
-                               m_maxTuplet->currentIndex() + 1);
-            settings.setValue("quantizecounterpoint",
-                               m_counterpoint->isChecked());
-            settings.setValue("quantizearticulate",
-                               m_articulate->isChecked());
-        }
-        settings.setValue("quantizerebeam", m_rebeam->isChecked());
-        settings.setValue("quantizemakeviable", m_makeViable->isChecked());
-        settings.setValue("quantizedecounterpoint", m_deCounterpoint->isChecked());
-
-        settings.endGroup();
     }
 
     return quantizer;
@@ -399,30 +433,52 @@ QuantizeParameters::slotTypeChanged(int index)
     setSizePolicy(QSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum));
     parentWidget()->setSizePolicy(QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
 
-    if (index == 0) {
+    QuantizerType quantizerType = static_cast<QuantizerType>(index);
+
+    // Could do it this way too.  Not sure which is easiest on the eyes.
+    //m_gridBox->setVisible(quantizerType != Notation);
+    //m_swingLabel->setVisible(quantizerType == Grid);
+    //m_swing->setVisible(quantizerType == Grid);
+    // ...
+
+    switch (quantizerType) {
+    case Grid:
         m_gridBox->show();
         m_swingLabel->show();
-        m_swingCombo->show();
-        m_iterativeLabel->show();
-        m_iterativeCombo->show();
-        m_durationCheckBox->show();
+        m_swing->show();
+        m_iterativeAmountLabel->show();
+        m_iterativeAmount->show();
+        m_quantizeDurations->show();
         m_notationBox->hide();
-    } else if (index == 1) {
+        break;
+    case Legato:
         m_gridBox->show();
         m_swingLabel->hide();
-        m_swingCombo->hide();
-        m_iterativeLabel->hide();
-        m_iterativeCombo->hide();
-        m_durationCheckBox->hide();
+        m_swing->hide();
+        m_iterativeAmountLabel->hide();
+        m_iterativeAmount->hide();
+        m_quantizeDurations->hide();
         m_notationBox->hide();
-    } else {
+        break;
+    case Notation:
         m_gridBox->hide();
         m_notationBox->show();
+        break;
     }
 
     adjustSize();
     parentWidget()->adjustSize();
 }
 
+void
+QuantizeParameters::gridUnitChanged(int index)
+{
+    // Enable/Disable Arbitrary grid unit widgets
+    bool arbitraryEnabled = (index == m_arbitraryGridUnitIndex);
+    m_arbitraryGridUnitLabel->setEnabled(arbitraryEnabled);
+    m_arbitraryGridUnit->setEnabled(arbitraryEnabled);
+    m_arbitraryGridUnit->setText(QString::number(getGridUnit()));
 }
-#include "QuantizeParameters.moc"
+
+
+}

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,6 +23,7 @@
 #include "document/RosegardenDocument.h"
 #include "gui/seqmanager/SequenceManager.h"
 #include "sound/MappedEvent.h"
+#include "misc/Debug.h"
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QPushButton>
@@ -43,7 +44,7 @@ MidiFilterDialog::MidiFilterDialog(QWidget *parent,
         QDialog(parent),
         m_doc(doc),
         m_modified(true),
-        m_buttonBox(0)
+        m_buttonBox(nullptr)
 {
     //setHelp("studio-midi-filters");
 
@@ -173,43 +174,43 @@ MidiFilterDialog::MidiFilterDialog(QWidget *parent,
     metagrid->addWidget(m_buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
     connect(m_buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(m_buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(m_buttonBox, SIGNAL(helpRequested()), this, SLOT(help()));
+    connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(m_buttonBox, &QDialogButtonBox::helpRequested, this, &MidiFilterDialog::help);
 
     m_applyButton = m_buttonBox->button(QDialogButtonBox::Apply);
-    connect(m_applyButton, SIGNAL(clicked()), this, SLOT(slotApply()));
+    connect(m_applyButton, &QAbstractButton::clicked, this, &MidiFilterDialog::slotApply);
 
     
     // changing the state of any checkbox sets modified true
-    connect(noteThru, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(progThru, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(keyThru, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(chanThru, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(pitchThru, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(contThru, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(sysThru, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
+    connect(noteThru, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(progThru, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(keyThru, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(chanThru, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(pitchThru, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(contThru, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(sysThru, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
 
-    connect(noteRecord, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(progRecord, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(keyRecord, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(chanRecord, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(pitchRecord, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(contRecord, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
-    connect(sysRecord, SIGNAL(stateChanged(int)),
-            SLOT(slotSetModified(int)));
+    connect(noteRecord, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(progRecord, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(keyRecord, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(chanRecord, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(pitchRecord, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(contRecord, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
+    connect(sysRecord, &QCheckBox::stateChanged,
+            this, &MidiFilterDialog::slotSetModified);
 
     // setting the thing up initially changes states and trips signals, so we
     // have to do this to wipe the slate clean initially after all the false
@@ -232,7 +233,7 @@ MidiFilterDialog::help()
 void
 MidiFilterDialog::slotApply()
 {
-    std::cerr << "MidiFilterDialog::slotApply()" << std::endl;
+    RG_DEBUG << "MidiFilterDialog::slotApply()";
 
     MidiFilter thruFilter = 0,
                recordFilter = 0;
@@ -321,4 +322,3 @@ MidiFilterDialog::setModified(bool value)
 
 
 }
-#include "MidiFilterDialog.moc"

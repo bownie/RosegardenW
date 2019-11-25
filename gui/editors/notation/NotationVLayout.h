@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,10 +19,9 @@
 #ifndef RG_NOTATIONVLAYOUT_H
 #define RG_NOTATIONVLAYOUT_H
 
-#include "base/FastVector.h"
 #include "base/LayoutEngine.h"
-#include "gui/general/ProgressReporter.h"
 #include <map>
+#include <vector>
 #include "base/Event.h"
 
 #include "NotationElement.h"
@@ -44,14 +43,12 @@ class NotationProperties;
 class Composition;
 
 
+/// Vertical notation layout
 /**
- * Vertical notation layout
- *
  * computes the Y coordinate of notation elements
  */
-
-class NotationVLayout : public ProgressReporter,
-                        public VerticalLayoutEngine
+class NotationVLayout : public VerticalLayoutEngine,
+                        public QObject  // For tr().  Can probably be cleaned up.
 {
     //Q_OBJECT
 public:
@@ -59,7 +56,7 @@ public:
                     const NotationProperties &properties,
                     QObject* parent);
 
-    virtual ~NotationVLayout();
+    ~NotationVLayout() override;
 
     void setNotePixmapFactory(NotePixmapFactory *npf) {
         m_npf = npf;
@@ -68,15 +65,15 @@ public:
     /**
      * Resets internal data stores for all staffs
      */
-    virtual void reset();
+    void reset() override;
 
     /**
      * Lay out a single staff.
      */
-    virtual void scanViewSegment(ViewSegment &,
+    void scanViewSegment(ViewSegment &,
 				 timeT startTime,
 				 timeT endTime,
-				 bool full);
+				 bool full) override;
 
     /**
      * Do any layout dependent on more than one staff.  As it
@@ -84,14 +81,14 @@ public:
      * depends on the final results from the horizontal layout
      * (for slurs), so we should do that here
      */
-    virtual void finishLayout(timeT startTime,
+    void finishLayout(timeT startTime,
                               timeT endTime,
-			      bool full);
+			      bool full) override;
 
 private:
     void positionSlur(NotationStaff &staff, NotationElementList::iterator i);
 
-    typedef FastVector<NotationElementList::iterator> SlurList;
+    typedef std::vector<NotationElementList::iterator> SlurList;
     typedef std::map<ViewSegment *, SlurList> SlurListMap;
 
     //--------------- Data members ---------------------------------

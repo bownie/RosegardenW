@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,7 +28,6 @@
 #include "base/Device.h"
 #include "base/MidiDevice.h"
 #include "base/MidiProgram.h"
-#include "gui/widgets/RosegardenPopupMenu.h"
 #include "gui/widgets/LineEdit.h"
 #include "gui/general/IconLoader.h"
 
@@ -48,6 +47,7 @@
 #include <QSpinBox>
 #include <QString>
 #include <QToolTip>
+#include <QToolButton>
 #include <QWidget>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
@@ -60,19 +60,19 @@ namespace Rosegarden
 {
 
 MidiProgramsEditor::MidiProgramsEditor(BankEditorDialog* bankEditor,
-                                       QWidget* parent,
-                                       const char* name)
-        : NameSetEditor(bankEditor,
-                        tr("Bank and Program details"),
-                        parent, name, tr("Programs"), true),
-        m_device(0),
-        m_bankList(bankEditor->getBankList()),
-        m_programList(bankEditor->getProgramList()),
-        m_oldBank(false, 0, 0)
+                                       QWidget* parent) :
+    NameSetEditor(bankEditor,
+                  tr("Bank and Program details"),  // title
+                  parent,
+                  true),  // showKeyMapButtons
+    m_device(nullptr),
+    m_bankList(bankEditor->getBankList()),
+    m_programList(bankEditor->getProgramList()),
+    m_oldBank(false, 0, 0)
 {
-    QWidget *additionalWidget = makeAdditionalWidget(m_mainFrame);
+    QWidget *additionalWidget = makeAdditionalWidget(m_topFrame);
     if (additionalWidget) {
-        m_mainLayout->addWidget(additionalWidget, 0, 0, 3, 3);
+        m_topLayout->addWidget(additionalWidget, 0, 0, 3, 3);
     }
 }
 
@@ -92,8 +92,8 @@ MidiProgramsEditor::makeAdditionalWidget(QWidget *parent)
     gridLayout->addWidget(new QLabel(tr("Percussion"), frame),
                           0, 0, Qt::AlignLeft);
     gridLayout->addWidget(m_percussion, 0, 1, Qt::AlignLeft);
-    connect(m_percussion, SIGNAL(clicked()),
-            this, SLOT(slotNewPercussion()));
+    connect(m_percussion, &QAbstractButton::clicked,
+            this, &MidiProgramsEditor::slotNewPercussion);
 
     gridLayout->addWidget(new QLabel(tr("MSB Value"), frame),
                           1, 0, Qt::AlignLeft);
@@ -127,7 +127,7 @@ MidiProgramsEditor::getBankSubset(const MidiBank &bank)
     ProgramList::iterator it;
 
     for (it = m_programList.begin(); it != m_programList.end(); ++it) {
-        if (it->getBank() == bank)
+        if (it->getBank().partialCompare(bank))
             program.push_back(*it);
     }
 
@@ -147,7 +147,7 @@ MidiProgramsEditor::modifyCurrentPrograms(const MidiBank &oldBank,
     ProgramList::iterator it;
 
     for (it = m_programList.begin(); it != m_programList.end(); ++it) {
-        if (it->getBank() == oldBank) {
+        if (it->getBank().partialCompare(oldBank)) {
             *it = MidiProgram(newBank, it->getProgram(), it->getName());
         }
     }
@@ -168,7 +168,7 @@ MidiProgramsEditor::clearAll()
     m_lsb->setValue(0);
     m_librarian->clear();
     m_librarianEmail->clear();
-    m_currentBank = 0;
+    m_currentBank = nullptr;
     setEnabled(false);
 
     blockAllSignals(false);
@@ -286,11 +286,11 @@ MidiProgramsEditor::reset()
 void
 MidiProgramsEditor::slotNewPercussion()
 {
-    RG_DEBUG << "MidiProgramsEditor::slotNewPercussion" << endl;
+    RG_DEBUG << "MidiProgramsEditor::slotNewPercussion";
     bool percussion = false; // Doesn't matter
     MidiBank *newBank;
     if (banklistContains(MidiBank(percussion, m_msb->value(), m_lsb->value()))) {
-        RG_DEBUG << "MidiProgramsEditor::slotNewPercussion: calling setChecked(" << !percussion << ")" << endl;
+        RG_DEBUG << "MidiProgramsEditor::slotNewPercussion: calling setChecked(" << !percussion << ")";
         newBank = new MidiBank(m_percussion->isChecked(),
                          m_msb->value(),
                          m_lsb->value(), getCurrentBank()->getName());
@@ -392,77 +392,73 @@ struct ProgramCmp
 void
 MidiProgramsEditor::slotNameChanged(const QString& programName)
 {
-    const LineEdit* lineEdit = dynamic_cast<const LineEdit*>(sender());
+    const LineEdit *lineEdit = dynamic_cast<const LineEdit *>(sender());
+
     if (!lineEdit) {
-        RG_DEBUG << "MidiProgramsEditor::slotNameChanged() : %%% ERROR - signal sender is not a Rosegarden::LineEdit\n";
-        return ;
-    }
-
-    QString senderName = sender()->objectName();
-    // "Harpsichord" in default GM bank 1:0, "Coupled Harpsichord" in bank 8:0
-//    if (senderName == "7") std::cout << "senderName is: " << senderName.toStdString()
-//                                     << " programName is: " << programName.toStdString() << std::endl;
-
-    // Adjust value back to zero rated
-    //
-    unsigned int id = senderName.toUInt() - 1;
-//    std::cout << "id is: " << id << std::endl;
-
-    RG_DEBUG << "MidiProgramsEditor::slotNameChanged(" << programName << ") : id = " << id << endl;
-    
-    MidiBank* currBank;
-    currBank = getCurrentBank();
-    if (!currBank) {
-        RG_DEBUG << "Error: currBank is NULL in MidiProgramsEditor::slotNameChanged() " << endl;
+        RG_WARNING << "slotNameChanged(): WARNING: Signal sender is not a LineEdit.";
         return;
-    } else {
-        RG_DEBUG << "currBank: " << currBank << endl;
     }
 
-    RG_DEBUG << "current bank name: " << currBank->getName() << endl;
-    MidiProgram *program = getProgram(*currBank, id);
-//     MidiProgram *program = getProgram(*currBank, id);
+    const unsigned id = lineEdit->property("index").toUInt();
 
-    if (program == 0) {
+    //RG_DEBUG << "slotNameChanged(" << programName << ") : id = " << id;
+    
+    MidiBank *currBank = getCurrentBank();
+
+    if (!currBank) {
+        RG_WARNING << "slotNameChanged(): WARNING: currBank is nullptr.";
+        return;
+    }
+
+    //RG_DEBUG << "slotNameChanged(): currBank: " << currBank;
+
+    //RG_DEBUG << "slotNameChanged(): current bank name: " << currBank->getName();
+
+    MidiProgram *program = getProgram(*currBank, id);
+
+    // If the MidiProgram doesn't exist
+    if (!program) {
         // Do nothing if program name is empty
         if (programName.isEmpty())
-            return ;
+            return;
 
-        program = new MidiProgram(*getCurrentBank(), id);
-        m_programList.push_back(*program);
+        // Create a new MidiProgram and add it to m_programList.
+        MidiProgram newProgram(*getCurrentBank(), id);
+        m_programList.push_back(newProgram);
 
-        // Sort the program list by id
+        // Sort by program number.
         std::sort(m_programList.begin(), m_programList.end(), ProgramCmp());
 
-        // Now, get with the program
-        //
+        // Now, get the MidiProgram from the m_programList.
         program = getProgram(*getCurrentBank(), id);
-    } else {
-        // If we've found a program and the label is now empty
-        // then remove it from the program list.
-        //
-        if (programName.isEmpty()) {
-            ProgramList::iterator it = m_programList.begin();
-            ProgramList tmpProg;
 
-            for (; it != m_programList.end(); ++it) {
-                if (((unsigned int)it->getProgram()) == id) {
+    } else {
+        // If we've found a program and the label is now empty,
+        // remove it from the program list.
+        if (programName.isEmpty()) {
+            for (ProgramList::iterator it = m_programList.begin();
+                 it != m_programList.end();
+                 ++it) {
+                if (static_cast<unsigned>(it->getProgram()) == id) {
                     m_programList.erase(it);
                     m_bankEditor->slotApply();
-                    RG_DEBUG << "deleting empty program (" << id << ")" << endl;
-                    return ;
+
+                    //RG_DEBUG << "slotNameChanged(): deleting empty program (" << id << ")";
+
+                    return;
                 }
             }
         }
     }
 
     if (!program) {
-        RG_DEBUG << "Error: program is NULL in MidiProgramsEditor::slotNameChanged() " << endl;
+        RG_WARNING << "slotNameChanged(): WARNING: program is nullptr.";
         return;
-    } else {
-        RG_DEBUG << "program: " << program << endl;
     }
-    
+
+    //RG_DEBUG << "slotNameChanged(): program: " << program;
+
+    // If the name has actually changed
     if (qstrtostr(programName) != program->getName()) {
         program->setName(qstrtostr(programName));
         m_bankEditor->slotApply();
@@ -472,32 +468,30 @@ MidiProgramsEditor::slotNameChanged(const QString& programName)
 void
 MidiProgramsEditor::slotKeyMapButtonPressed()
 {
-    QToolButton* button = dynamic_cast<QToolButton*>(const_cast<QObject *>(sender()));
+    QToolButton *button = dynamic_cast<QToolButton *>(sender());
+
     if (!button) {
-        RG_DEBUG << "MidiProgramsEditor::slotKeyMapButtonPressed() : %%% ERROR - signal sender is not a QPushButton\n";
-        return ;
+        RG_WARNING << "slotKeyMapButtonPressed() : WARNING: Sender is not a QPushButton.";
+        return;
     }
 
-//    std::cout << "editor button name" << button->objectName().toStdString() << std::endl;
-
-    QString senderName = button->objectName();
-
     if (!m_device)
-        return ;
+        return;
 
     const KeyMappingList &kml = m_device->getKeyMappings();
     if (kml.empty())
-        return ;
+        return;
 
-    // Adjust value back to zero rated
-    //
-    unsigned int id = senderName.toUInt() - 1;
+    const unsigned id = button->property("index").toUInt();
+
     MidiProgram *program = getProgram(*getCurrentBank(), id);
     if (!program)
-        return ;
+        return;
+
     m_currentMenuProgram = id;
 
-    RosegardenPopupMenu *menu = new RosegardenPopupMenu(button);
+    // Create a new popup menu.
+    QMenu *menu = new QMenu(button);
 
     const MidiKeyMapping *currentMapping =
         m_device->getKeyMappingForProgram(*program);
@@ -510,18 +504,28 @@ MidiProgramsEditor::slotKeyMapButtonPressed()
     for (size_t i = 0; i < kml.size(); ++i) {
         a = menu->addAction(strtoqstr(kml[i].getName()));
         a->setObjectName(QString("%1").arg(i+1));
-        if (currentMapping && (kml[i] == *currentMapping)) currentKeyMap = int(i + 1);
+
+        if (currentMapping  &&  (kml[i] == *currentMapping))
+            currentKeyMap = static_cast<int>(i + 1);
     }
 
     connect(menu, SIGNAL(triggered(QAction *)),
             this, SLOT(slotKeyMapMenuItemSelected(QAction *)));
 
-    int itemHeight = menu->actionGeometry(actions().value(0)).height() + 2;
+    // Compute the position for the pop-up menu.
+
+    // QMenu::popup() can do this for us, but it doesn't place the
+    // cursor over top of the current selection.
+
+    // Get the QRect for the current entry.
+    QRect actionRect =
+            menu->actionGeometry(menu->actions().value(currentKeyMap));
+
     QPoint pos = QCursor::pos();
-
     pos.rx() -= 10;
-    pos.ry() -= (itemHeight / 2 + currentKeyMap * itemHeight);
+    pos.ry() -= actionRect.top() + actionRect.height() / 2;
 
+    // Display the menu.
     menu->popup(pos);
 }
 
@@ -624,14 +628,15 @@ MidiProgramsEditor::ensureUniqueLSB(int lsb, bool ascending)
 bool
 MidiProgramsEditor::banklistContains(const MidiBank &bank)
 {
-    BankList::iterator it;
-
-    MidiBank bankNotPercussion = MidiBank(!bank.isPercussion(),
-                                          bank.getMSB(), bank.getLSB());
-    
-    for (it = m_bankList.begin(); it != m_bankList.end(); ++it)
-        if (*it == bank || *it == bankNotPercussion)
+    // For each bank
+    for (BankList::iterator it = m_bankList.begin();
+         it != m_bankList.end();
+         ++it)
+    {
+        // Just compare the MSB/LSB.
+        if (it->getMSB() == bank.getMSB()  &&  it->getLSB() == bank.getLSB())
             return true;
+    }
 
     return false;
 }
@@ -642,14 +647,16 @@ MidiProgramsEditor::getProgram(const MidiBank &bank, int programNo)
     ProgramList::iterator it = m_programList.begin();
 
     for (; it != m_programList.end(); ++it) {
-        if (it->getBank() == bank && it->getProgram() == programNo) {
+        if (it->getBank().partialCompare(bank)  &&
+            it->getProgram() == programNo) {
+
             //Only show hits to avoid overflow of console.
-            RG_DEBUG << "it->getBank() " << "== bank" << endl;
+            RG_DEBUG << "it->getBank() " << "== bank";
             return &(*it);
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 void
@@ -672,4 +679,3 @@ void MidiProgramsEditor::blockAllSignals(bool block)
 }
 
 }
-#include "MidiProgramsEditor.moc"

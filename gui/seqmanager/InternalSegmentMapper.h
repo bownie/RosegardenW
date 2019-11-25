@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -57,22 +57,24 @@ class RealTime;
  */
 class InternalSegmentMapper : public SegmentMapper
 {
-    friend class SegmentMapperFactory;
+public:
+    InternalSegmentMapper(RosegardenDocument *doc, Segment *segment);
+    ~InternalSegmentMapper() override;
+
+private:
+    // Hide copy ctor and op= since dtor is non-trivial.
+    InternalSegmentMapper(const InternalSegmentMapper &);
+    InternalSegmentMapper operator=(const InternalSegmentMapper &);
+
     friend class ControllerSearch;
     friend class ControllerContextMap;
 
-    class Callbacks : public ChannelManager::Callbacks
-        {
-        public:
-    
-        Callbacks(InternalSegmentMapper *mapper) :
-            m_mapper(mapper) {}
-        private:
-            virtual ControllerAndPBList
-                getControllers(Instrument *instrument, RealTime start);
-            InternalSegmentMapper *m_mapper;
-        };
-    friend class Callbacks;
+    /// Get CCs and PitchBend at a time for this Segment.
+    /**
+     * ??? This returns a copy.  Consider taking in a reference instead to
+     *     avoid the copy.
+     */
+    ControllerAndPBList getControllers(Instrument *instrument, RealTime start);
 
     typedef std::pair<timeT, int> Noteoff;
     struct NoteoffCmp
@@ -90,27 +92,27 @@ class InternalSegmentMapper : public SegmentMapper
     typedef std::multiset<Noteoff, NoteoffCmp>
         NoteoffContainer;
 
-    InternalSegmentMapper(RosegardenDocument *doc, Segment *segment);
-    ~InternalSegmentMapper(void);
+    // Do channel-setup for Auto channel mode.
+    void makeReady(MappedInserterBase &inserter, RealTime time) override;
 
-    // Do channel-setup
-    virtual void makeReady(MappedInserterBase &inserter, RealTime time);
+    // Do channel-setup for Fixed channel mode.
+    void insertChannelSetup(MappedInserterBase &) override;
 
     // Insert the event "evt"
-    virtual void doInsert(MappedInserterBase &inserter, MappedEvent &evt,
-                         RealTime start, bool firstOutput);
+    void doInsert(MappedInserterBase &inserter, MappedEvent &evt,
+                         RealTime start, bool firstOutput) override;
 
     // Return whether the event should be played.
-    virtual bool shouldPlay(MappedEvent *evt, RealTime startTime);
+    bool shouldPlay(MappedEvent *evt, RealTime startTime) override;
 
-    virtual int calculateSize();
+    int calculateSize() override;
 
     int addSize(int size, Segment *);
 
     /// dump all segment data in the file
-    virtual void fillBuffer();
+    void fillBuffer() override;
 
-    Instrument *getInstrument(void) const
+    Instrument *getInstrument() const
     { return m_channelManager.getInstrument(); }
 
     void popInsertNoteoff(int trackid, Composition &comp);
@@ -124,7 +126,7 @@ class InternalSegmentMapper : public SegmentMapper
 
     /** Data members **/
 
-    IntervalChannelManager m_channelManager;
+    ChannelManager m_channelManager;
 
     // Separate storage for triggered events.  This storage, like
     // original segment, contains just one time thru; logic in "fillBuffer"

@@ -20,12 +20,16 @@
 
 #include "gui/seqmanager/MappedEventBuffer.h"
 #include "sound/MappedEvent.h"
+#include "base/RealTime.h"
 
 #include <set>
+#include <vector>
 
 namespace Rosegarden {
 
+
 class MappedInserterBase;
+
 
 /// Combines MappedEvent objects from a number of MappedEventBuffer objects.
 /**
@@ -40,6 +44,12 @@ class MappedInserterBase;
  * MappedEventList via a MappedEventInserter.  A better name for this class
  * might be MappedEventBufferMixer (or Combiner).
  *
+ * An instance of this class is owned by RosegardenSequencer and used
+ * for playback of the Composition.
+ *
+ * An instance of this class is created by MidiFile and used for exporting
+ * standard MIDI files.
+ *
  * This is the second part of a two-part process to convert the Event objects
  * in a Composition into MappedEvent objects that can be sent to ALSA.  For
  * the first part of this conversion, see InternalSegmentMapper.
@@ -47,51 +57,61 @@ class MappedInserterBase;
 class MappedBufMetaIterator
 {
 public:
-    MappedBufMetaIterator();
+    MappedBufMetaIterator()  { }
     ~MappedBufMetaIterator();
 
-    void addSegment(MappedEventBuffer *);
-    void removeSegment(MappedEventBuffer *);
+    void addSegment(QSharedPointer<MappedEventBuffer>);
+    void removeSegment(QSharedPointer<MappedEventBuffer>);
 
     /// Delete all iterators and forget all segments
     void clear();
 
-    /// Reset all iterators to beginning
-    void reset();
+    void fetchFixedChannelSetup(MappedInserterBase &inserter);
 
-    bool jumpToTime(const RealTime&);
+    void jumpToTime(const RealTime &);
 
     /// Fetch events from start to end into a mapped event list (via inserter).
     /**
      * Fetch events that play during the interval from start to end.
      * They are passed to inserter, which normally inserts them into a
      * mapped event list.
-     * @return void.  It used to return whether there were
-     * non-metronome events remaining, but this was never used.
      *
+     * @return void.  It used to return whether there were
+     *   non-metronome events remaining, but this was never used.
      */
     void fetchEvents(MappedInserterBase &inserter,
-                     const RealTime& start,
-                     const RealTime& end);
+                     const RealTime &start,
+                     const RealTime &end);
 
-    /// re-seek to current time on the iterator for this segment
-    void resetIteratorForSegment(MappedEventBuffer *s, bool immediate);
+    /// Re-seek to current time on the iterator for this segment.
+    /**
+     * @param immediate means to reset it right away, presumably because
+     *   we are playing right now.
+     */
+    void resetIteratorForSegment(QSharedPointer<MappedEventBuffer> s, bool immediate);
 
     void getAudioEvents(std::vector<MappedEvent> &);
-
-    std::set<MappedEventBuffer *> getSegments() const { return m_segments; }
 
     // Manipulate a vector of currently mapped audio segments so that we
     // can cross check them against PlayableAudioFiles (and stop if
     // necessary).  This will account for muting/soloing too I should
     // hope.
     //
-    //!!! to be obsoleted, hopefully
-    std::vector<MappedEvent>& getPlayingAudioFiles
-    (const RealTime &songPosition);
+    // !!! to be obsoleted, hopefully
+    //std::vector<MappedEvent> &getPlayingAudioFiles(const RealTime &songPosition);
 
-protected:
-    // Fetch events during an interval, with non-competing mappers.
+    // For debugging.
+    std::set<QSharedPointer<MappedEventBuffer> > getSegments() const { return m_segments; }
+
+private:
+    // Dtor is non-trivial.  Hide copy ctor and op=.
+    MappedBufMetaIterator(const MappedBufMetaIterator &);
+    MappedBufMetaIterator &operator=(const MappedBufMetaIterator &);
+
+    /// Reset all iterators to beginning
+    void reset();
+
+    /// Fetch events during an interval, with non-competing mappers.
     /**
      * Caller guarantees that the mappers are non-competing, meaning
      * that no active mappers use the same channel during this slice
@@ -99,24 +119,25 @@ protected:
      * impossible).
     */
     void fetchEventsNoncompeting(MappedInserterBase &inserter,
-                                 const RealTime& start,
-                                 const RealTime& end);
+                                 const RealTime &start,
+                                 const RealTime &end);
 
-    bool moveIteratorToTime(MappedEventBuffer::iterator&,
-                            const RealTime&);
+    void moveIteratorToTime(MappedEventBuffer::iterator &,
+                            const RealTime &);
 
     //--------------- Data members ---------------------------------
 
     RealTime m_currentTime;
 
-    typedef std::set<MappedEventBuffer *> mappedsegments;
-    mappedsegments m_segments;
+    typedef std::set<QSharedPointer<MappedEventBuffer> > MappedSegments;
+    MappedSegments m_segments;
 
-    typedef std::vector<MappedEventBuffer::iterator*> segmentiterators;
-    segmentiterators m_iterators;
+    typedef std::vector<MappedEventBuffer::iterator *> SegmentIterators;
+    SegmentIterators m_iterators;
 
     std::vector<MappedEvent> m_playingAudioSegments;
 };
+
 
 }
 

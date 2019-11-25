@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,19 +38,18 @@ using namespace BaseProperties;
 
 
 KeyInsertionCommand::KeyInsertionCommand(Segment &segment, timeT time,
-        Key key,
-        bool convert,
-        bool transpose,
-        bool transposeKey,
-	bool ignorePercussion) :
-        BasicCommand(getGlobalName(&key), segment, time, segment.getEndTime()),
-        m_key(key),
-        m_lastInsertedEvent(0),
-        m_convert(convert),
-        m_transpose(transpose),
-        m_transposeKey(transposeKey),
-	m_ignorePercussion(ignorePercussion)
-
+                                         Key key,
+                                         bool convert,
+                                         bool transpose,
+                                         bool transposeKey,
+                                         bool ignorePercussion) :
+    BasicCommand(getGlobalName(&key), segment, time, segment.getEndTime()),
+    m_key(key),
+    m_lastInsertedEvent(nullptr),
+    m_convert(convert),
+    m_transpose(transpose),
+    m_transposeKey(transposeKey),
+    m_ignorePercussion(ignorePercussion)
 {
     // nothing
 }
@@ -224,7 +223,7 @@ KeyInsertionCommand::modifySegment()
         // create a new key with the newly derived name, and swap it for the
         // user-specified version
         Key k(newKeyName);
-        RG_DEBUG << "KeyInsertCommand: inserting transposed key" << endl
+        RG_DEBUG << "KeyInsertCommand: inserting transposed key"
         << "        user key was: " << m_key.getName() << endl
         << "    tranposed key is: " << k.getName() << endl;
         m_key = k;

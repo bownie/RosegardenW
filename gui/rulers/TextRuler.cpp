@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -51,7 +51,7 @@ TextRuler::TextRuler(RulerScale *rulerScale,
         m_font("helvetica", 12),
         m_fontMetrics(m_font)
 {
-    m_mySegmentMaybe = (m_segment->getComposition() != 0);
+    m_mySegmentMaybe = (m_segment->getComposition() != nullptr);
 //    setBackgroundColor(GUIPalette::getColour(GUIPalette::TextRulerBackground));
 
     m_font.setPixelSize(10);
@@ -149,4 +149,3 @@ TextRuler::paintEvent(QPaintEvent* e)
 }
 
 }
-#include "TextRuler.moc"

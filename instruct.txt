@@ -1,3 +1,17 @@
+- Install latest QtCreator with latets version Qt compatibility and mingw support
+- Install Perl (Strawberry) to convert mocs and run conversoin script
+- Add Qt bins to path and run
+  - in gui\studio:
+     $ uic DeviceManagerDialogUi.ui > DeviceManagerDialogUi.h
+	 
+	 
+
+
+
+
+
+--- OLD INSTRUCTIONS
+
 Install only:
 
 - install qt-sdk-win-opensource-2010.05.exe (default path)

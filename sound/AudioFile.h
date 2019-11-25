@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -67,7 +67,7 @@ public:
               unsigned int sampleRate,
               unsigned int bitsPerSample);
 
-    ~AudioFile();
+    ~AudioFile() override;
 
     /// Id of this audio file (used by AudioFileManager)
     ///
@@ -98,9 +98,9 @@ public:
     /// information to an audio file that has been written and is now
     /// being closed.
     ///
-    virtual bool open() = 0;
-    virtual bool write() = 0;
-    virtual void close() = 0;
+    bool open() override = 0;
+    bool write() override = 0;
+    void close() override = 0;
 
     /// Show the information we have on this file
     ///

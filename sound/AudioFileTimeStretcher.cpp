@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,15 +15,19 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[AudioFileTimeStretcher]"
+
 #include "AudioFileTimeStretcher.h"
+
 #include "AudioTimeStretcher.h"
 #include "AudioFileManager.h"
 #include "WAVAudioFile.h"
 #include "base/RealTime.h"
+#include "misc/Debug.h"
 
 #include <QApplication>
+#include <QProgressDialog>
 
-#include <iostream>
 #include <fstream>
 
 #ifdef __FreeBSD__
@@ -35,9 +39,8 @@
 namespace Rosegarden {
 
 
-AudioFileTimeStretcher::AudioFileTimeStretcher(AudioFileManager *manager) :
-    m_manager(manager),
-    m_timestretchCancelled(false)
+AudioFileTimeStretcher::AudioFileTimeStretcher(AudioFileManager *afm) :
+        m_audioFileManager(afm)
 {
 }
 
@@ -49,31 +52,32 @@ AudioFileId
 AudioFileTimeStretcher::getStretchedAudioFile(AudioFileId source,
                                               float ratio)
 {
-    /*
-    AudioFile *sourceFile = m_manager->getAudioFile(source);
+    AudioFile *sourceFile = m_audioFileManager->getAudioFile(source);
     if (!sourceFile) {
-    throw SoundFile::BadSoundFileException
-        ("<unknown source>",
-         "Source file not found in AudioFileTimeStretcher::getStretchedAudioFile");
+        RG_WARNING << "getStretchedAudioFile(): WARNING: Source file not found for ID" << source;
+        return -1;
     }
 
-    std::cerr << "AudioFileTimeStretcher: got source file id " << source
-              << ", name " << sourceFile->getFilename() << std::endl;
+    RG_DEBUG << "getStretchedAudioFile(): got source file id " << source << ", name " << sourceFile->getFilename();
 
-    AudioFile *file = m_manager->createDerivedAudioFile(source, "stretch");
+    AudioFile *file = m_audioFileManager->createDerivedAudioFile(source, "stretch");
     if (!file) {
-    throw AudioFileManager::BadAudioPathException(m_manager->getAudioPath());
+        RG_WARNING << "getStretchedAudioFile(): WARNING: createDerivedAudioFile() failed for ID" << source << ", using path: " << m_audioFileManager->getAudioPath();
+        return -1;
     }
 
-    std::cerr << "AudioFileTimeStretcher: got derived file id " << file->getId()
-              << ", name " << file->getFilename() << std::endl;
+    RG_DEBUG << "getStretchedAudioFile(): got derived file id " << file->getId() << ", name " << file->getFilename();
 
-    std::ifstream streamIn(sourceFile->getFilename(),
-               std::ios::in | std::ios::binary);
+    std::ifstream streamIn(sourceFile->getFilename().toLocal8Bit(),
+                           std::ios::in | std::ios::binary);
     if (!streamIn) {
-    throw SoundFile::BadSoundFileException
-        (file->getFilename(),
-         "Failed to open source stream for time stretcher");
+        RG_WARNING << "getStretchedAudioFile(): WARNING: Creation of ifstream failed for file " << sourceFile->getFilename();
+        return -1;
+    }
+    
+    if (m_progressDialog) {
+        m_progressDialog->setLabelText(tr("Rescaling audio file..."));
+        m_progressDialog->setRange(0, 100);
     }
 
     //!!!
@@ -91,10 +95,10 @@ AudioFileTimeStretcher::getStretchedAudioFile(AudioFileId source,
          32);
 
     if (!writeFile.write()) {
-        throw AudioFileManager::BadAudioPathException
-            (file->getFilename());
+        RG_WARNING << "getStretchedAudioFile(): WARNING: write() failed for file " << file->getFilename();
+        return -1;
     }
-
+    
     int obs = 1024;
     int ibs = obs / ratio;
     int ch = sourceFile->getChannels();
@@ -112,28 +116,28 @@ AudioFileTimeStretcher::getStretchedAudioFile(AudioFileId source,
 
     char *ebf = (char *)alloca
         (ch * ibs * sourceFile->getBytesPerFrame());
-
+    
     std::vector<float *> dbfs;
     for (int c = 0; c < ch; ++c) {
         dbfs.push_back((float *)alloca((ibs > int(padding) ? size_t(ibs) : padding)
                                        * sizeof(float)));
     }
-
+    
     float **ibfs = (float **)alloca(ch * sizeof(float *));
     float **obfs = (float **)alloca(ch * sizeof(float *));
-
+            
     for (int c = 0; c < ch; ++c) {
         ibfs[c] = dbfs[c];
     }
-
+        
     for (int c = 0; c < ch; ++c) {
         obfs[c] = (float *)alloca(obs * sizeof(float));
     }
-
+        
     char *oebf = (char *)alloca(ch * obs * sizeof(float));
-
+        
     int totalIn = 0, totalOut = 0;
-
+        
     for (int c = 0; c < ch; ++c) {
         for (size_t i = 0; i < padding; ++i) {
             ibfs[c][i] = 0.f;
@@ -148,16 +152,15 @@ AudioFileTimeStretcher::getStretchedAudioFile(AudioFileId source,
 
     long expectedOut = ceil(fileTotalIn * ratio);
 
-    m_timestretchCancelled = false;
     bool inputExhausted = false;
 
     sourceFile->scanTo(&streamIn, RealTime::zeroTime);
 
     while (1) {
-
-        if (m_timestretchCancelled) {
-            std::cerr << "AudioFileTimeStretcher::getStretchedAudioFile: cancelled" << std::endl;
-            throw CancelledException();
+            
+        if (m_progressDialog  &&  m_progressDialog->wasCanceled()) {
+            RG_DEBUG << "getStretchedAudioFile(): cancelled";
+            return -1;
         }
 
         unsigned int thisRead = 0;
@@ -166,7 +169,7 @@ AudioFileTimeStretcher::getStretchedAudioFile(AudioFileId source,
             thisRead = sourceFile->getSampleFrames(&streamIn, ebf, ibs);
             if (int(thisRead) < ibs) inputExhausted = true;
         }
-
+            
         if (thisRead == 0) {
             if (totalOut >= expectedOut) break;
             else {
@@ -180,22 +183,22 @@ AudioFileTimeStretcher::getStretchedAudioFile(AudioFileId source,
                 thisRead = ibs;
             }
         }
-
+            
         if (!sourceFile->decode((unsigned char *)ebf,
                                 thisRead * sourceFile->getBytesPerFrame(),
                                 sr, ch,
                                 thisRead, dbfs, false)) {
-            std::cerr << "ERROR: Stupid audio file class failed to decode its own output" << std::endl;
+            RG_WARNING << "getStretchedAudioFile(): ERROR: AudioFile failed to decode its own output";
             break;
         }
-
+            
         stretcher.putInput(ibfs, thisRead);
         totalIn += thisRead;
-
+            
         unsigned int available = stretcher.getAvailableOutputSamples();
-
+            
         while (available > 0) {
-
+                
             unsigned int count = available;
             if (count > (unsigned int)obs) count = (unsigned int)obs;
 
@@ -212,9 +215,9 @@ AudioFileTimeStretcher::getStretchedAudioFile(AudioFileId source,
                     padding = 0;
                 }
             }
-
+                
             stretcher.getOutput(obfs, count);
-
+                
             char *encodePointer = oebf;
             for (unsigned int i = 0; i < count; ++i) {
                 for (int c = 0; c < ch; ++c) {
@@ -223,7 +226,7 @@ AudioFileTimeStretcher::getStretchedAudioFile(AudioFileId source,
                     encodePointer += sizeof(float);
                 }
             }
-
+                
             if (totalOut < expectedOut &&
                 totalOut + int(count) > expectedOut) {
                 count = expectedOut - totalOut;
@@ -235,36 +238,31 @@ AudioFileTimeStretcher::getStretchedAudioFile(AudioFileId source,
 
             if (totalOut >= expectedOut) break;
         }
-
+            
         if (++progressCount == 100) {
-            int progress = int
-                ((100.f * float(totalIn)) / float(fileTotalIn));
-            emit setValue(progress);
-            qApp->processEvents();
+            int progress = static_cast<int>(100.0 * totalIn / fileTotalIn);
+            if (m_progressDialog)
+                m_progressDialog->setValue(progress);
+
             progressCount = 0;
         }
+
+        qApp->processEvents();
     }
+        
+    if (m_progressDialog)
+        m_progressDialog->setValue(100);
 
-    emit setValue(100);
     qApp->processEvents();
-    writeFile.close();
 
-    std::cerr << "AudioFileTimeStretcher::getStretchedAudioFile: success, id is "
-                 << file->getId() << std::endl;
+    writeFile.close();
+    
+    RG_DEBUG << "getStretchedAudioFile(): success, id is " << file->getId();
 
     return file->getId();
-    */
-          return 0;
-}
-
-void
-AudioFileTimeStretcher::slotStopTimestretch()
-{
-    m_timestretchCancelled = true;
 }
 
 
 }
 
-#include "moc_AudioFileTimeStretcher.cpp"
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -111,7 +111,7 @@ void PlayListView::mouseMoveEvent(QMouseEvent *event){
      if (!(event->buttons() & Qt::LeftButton)) return;
     
     // if no item selected, return (else it would crash)
-     if (currentItem() == NULL) return;
+     if (currentItem() == nullptr) return;
     
     QDrag *drag = new QDrag(this);
     QMimeData *mimeData = new QMimeData;
@@ -128,7 +128,7 @@ void PlayListView::mouseMoveEvent(QMouseEvent *event){
     //mimeData->setData( line.toUtf8(), "text/uri-list" );
     drag->setMimeData(mimeData);
     
-    RG_DEBUG << "Starting drag from PlayListView::mouseMoveEvent() with mime : " << mimeData->formats() << " - " << mimeData->urls()[0] << endl;
+    RG_DEBUG << "Starting drag from PlayListView::mouseMoveEvent() with mime : " << mimeData->formats() << " - " << mimeData->urls()[0];
     
     // start drag
     drag->start(Qt::CopyAction | Qt::MoveAction);
@@ -180,12 +180,12 @@ void PlayListView::dropEvent(QDropEvent* e)
         }
     } else {
         e->ignore();
-        RG_DEBUG << "PlayListView::dropEvent: ignored dropEvent (invalid mime) " << endl;
+        RG_DEBUG << "PlayListView::dropEvent: ignored dropEvent (invalid mime) ";
         return;
     }
 
     if (uriList.empty() && text == "") {
-        RG_DEBUG << "PlayListView::dropEvent: Nothing dropped" << endl;
+        RG_DEBUG << "PlayListView::dropEvent: Nothing dropped";
         return;
     }
     if( text != "" ){
@@ -220,6 +220,5 @@ QTreeWidgetItem* PlayListView::previousSibling(QTreeWidgetItem* item)
 
 }
 
-#include "PlayListView.moc"
 
 

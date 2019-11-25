@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,7 +22,10 @@
 #include "base/NotationTypes.h"
 #include <map>
 #include "NoteCharacterNames.h"
+
+#include <QSharedPointer>
 #include <QString>
+
 #include <utility>
 
 
@@ -118,13 +121,13 @@ protected:
     typedef std::map<Note::Type, NoteDescription> NoteDescriptionMap;
 
     NoteDescriptionMap m_notes;
-    NoteStyle *m_baseStyle;
+    QSharedPointer<NoteStyle> m_baseStyle;
     NoteStyleName m_name;
 
     void checkDescription(Note::Type type);
 
 protected: // for use by NoteStyleFileReader
-    NoteStyle(NoteStyleName name) : m_baseStyle(0), m_name(name) { }
+    NoteStyle(NoteStyleName name) : m_name(name) { }
     friend class NoteStyleFileReader;
 };
 

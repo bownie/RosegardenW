@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -27,7 +27,7 @@ class PlayListView : public QTreeWidget
 {
     Q_OBJECT
 public:
-    PlayListView(QWidget *parent=0, const char *name=0);
+    PlayListView(QWidget *parent=nullptr, const char *name=nullptr);
 
     QTreeWidgetItem* previousSibling(QTreeWidgetItem*);
 
@@ -36,16 +36,16 @@ protected: signals:
     
 protected:
     
-     virtual void dragEnterEvent(QDragEnterEvent *event);
-     virtual void dropEvent(QDropEvent*);
+     void dragEnterEvent(QDragEnterEvent *event) override;
+     void dropEvent(QDropEvent*) override;
 
 //     virtual bool acceptDrag(QDropEvent*) const;
     
 //     virtual void mousePressEvent ( QMouseEvent * event );
-    virtual void mouseMoveEvent(QMouseEvent *event);
+    void mouseMoveEvent(QMouseEvent *event) override;
     
 //     virtual QMimeData *mimeData(const QList<QTreeWidgetItem*> items) const;
-    virtual QStringList mimeTypes() const;
+    QStringList mimeTypes() const override;
 };
 
 }

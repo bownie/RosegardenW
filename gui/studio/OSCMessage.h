@@ -18,7 +18,7 @@
 #ifndef RG_OSCMESSAGE_H
 #define RG_OSCMESSAGE_H
 
-#include <lo/lo.h>
+//#include <lo/lo.h>
 
 #include <string>
 #include <utility>
@@ -45,17 +45,17 @@ public:
     std::string getMethod() const { return m_method; }
 
     void clearArgs();
-    void addArg(char type, lo_arg *arg);
+    //void addArg(char type, lo_arg *arg);
 
     size_t getArgCount() const;
-    const lo_arg *getArg(size_t i, char &type) const;
+    //const lo_arg *getArg(size_t i, char &type) const;
 
 private:
     int m_target;
     int m_targetData;
     std::string m_method;
-    typedef std::pair<char, lo_arg *> OSCArg;
-    std::vector<OSCArg> m_args;
+    //typedef std::pair<char, lo_arg *> OSCArg;
+    //std::vector<OSCArg> m_args;
 };
 
 

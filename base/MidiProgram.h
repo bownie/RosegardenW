@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef RG_MIDIBANK_H
-#define RG_MIDIBANK_H
+#ifndef RG_MIDIPROGRAM_H
+#define RG_MIDIPROGRAM_H
 
 #include <string>
 #include <vector>
@@ -23,23 +23,40 @@
 namespace Rosegarden
 {
 typedef unsigned char MidiByte;
-typedef unsigned int InstrumentId;
 
+/**
+ * ??? This data structure doesn't match the concept of a bank.  A bank
+ *     is a container of programs.  There is no such containment here.  If
+ *     there were, it is possible that much of the code that works with
+ *     banks would be simplified.  E.g. there are many places throughout
+ *     the system where a program list is searched for all programs in a
+ *     bank.  That would be eliminated.
+ */
 class MidiBank
 {
 public:
     MidiBank();
     MidiBank(bool percussion, MidiByte msb, MidiByte lsb, std::string name = "");
 
-    // comparator disregards name
-    bool operator==(const MidiBank &b) const;
-    
     bool                isPercussion() const;
     MidiByte            getMSB() const;
     MidiByte            getLSB() const;
-    std::string         getName() const;
 
     void                setName(std::string name);
+    std::string         getName() const;
+
+    /// A full comparison of all fields.
+    /**
+     * This probably isn't what you want.  See partialCompare().
+     */
+    bool operator==(const MidiBank &rhs) const;
+    bool operator!=(const MidiBank &rhs) const  { return !operator==(rhs); }
+    /// Compare all fields except name.
+    /**
+     * Since MidiProgram stores a partial MidiBank object (without name),
+     * a partial comparison such as this is frequently needed.
+     */
+    bool partialCompare(const MidiBank &rhs) const;
 
 private:
     bool m_percussion;
@@ -57,9 +74,6 @@ public:
     MidiProgram(const MidiBank &bank, MidiByte program, std::string name = "",
                 std::string keyMapping = "");
 
-    // comparator disregards name
-    bool operator==(const MidiProgram &p) const;
-    
     const MidiBank&     getBank() const;
     MidiByte            getProgram() const;
     const std::string  &getName() const;
@@ -67,6 +81,13 @@ public:
 
     void                setName(const std::string &name);
     void                setKeyMapping(const std::string &name);
+
+    // Only compares m_bank and m_program.  Does not compare m_name or
+    // m_keyMapping.
+    bool partialCompare(const MidiProgram &rhs) const;
+    // Only compares m_bank, m_program, and m_name.  Does not compare
+    // m_keyMapping.
+    bool partialCompareWithName(const MidiProgram &rhs) const;
 
 private:
     MidiBank m_bank;
@@ -76,6 +97,21 @@ private:
 };
 
 typedef std::vector<MidiProgram> ProgramList;
+
+inline bool
+partialCompareWithName(const ProgramList &lhs, const ProgramList &rhs)
+{
+    if (lhs.size() != rhs.size())
+        return false;
+
+    for (unsigned i = 0; i < lhs.size(); ++i) {
+        if (!lhs[i].partialCompareWithName(rhs[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 class MidiKeyMapping
 {

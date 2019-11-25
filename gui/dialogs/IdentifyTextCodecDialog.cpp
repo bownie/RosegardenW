@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -120,7 +120,7 @@ IdentifyTextCodecDialog::IdentifyTextCodecDialog(QWidget *parent,
 
     QSet<QTextCodec *> seen;
 
-    QTextCodec *cc = 0;
+    QTextCodec *cc = nullptr;
     int currentWeight = -1;
     QMap<QString, int> codecWeights;
     codecWeights["UTF-8"] = 20;
@@ -206,7 +206,13 @@ IdentifyTextCodecDialog::IdentifyTextCodecDialog(QWidget *parent,
 
     gl->addWidget(new QLabel(tr("\nExample text from file:")));
     m_example = new QLabel;
-    m_example->setStyleSheet("background: #fff3c3; color: black;");
+
+    // background: #fff3c3; color: black;
+    QPalette pal;
+    pal.setColor(QPalette::Base, QColor(0xff, 0xf3, 0xc3));
+    pal.setColor(QPalette::Text, Qt::black);
+    m_example->setPalette(pal);
+
     gl->addWidget(m_example, 20);
     QFont font;
     font.setStyleHint(QFont::TypeWriter);
@@ -216,8 +222,8 @@ IdentifyTextCodecDialog::IdentifyTextCodecDialog(QWidget *parent,
     slotCodecSelected(current);
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok);
     vboxLayout->addWidget(buttonBox);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 void
@@ -259,4 +265,3 @@ IdentifyTextCodecDialog::getExampleText()
 }    
 
 }
-#include "IdentifyTextCodecDialog.moc"

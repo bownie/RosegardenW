@@ -20,7 +20,6 @@
 #define RG_MUSICXMLLOADER_H
 
 #include "base/PropertyName.h"
-#include "gui/general/ProgressReporter.h"
 #include "document/io/MusicXMLXMLHandler.h"
 #include <string>
 #include <vector>
@@ -44,11 +43,10 @@ class MusicXMLXMLHandler;
  *
  */
 
-class MusicXMLLoader : public ProgressReporter
+class MusicXMLLoader
 {
 public:
-    MusicXMLLoader(Studio *,
-            QObject *parent = 0, const char *name = 0);
+    MusicXMLLoader(Studio *);
 
     /**
       * Load and parse the Music XML file \a fileName, and write it into the

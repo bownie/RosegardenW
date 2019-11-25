@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -27,6 +27,8 @@
 #include "base/ViewElement.h"
 #include "base/Profiler.h"
 
+#include <iostream>
+
 namespace Rosegarden
 {
 
@@ -36,8 +38,8 @@ NotationElement::NotationElement(Event *event) :
     ViewElement(event),
     m_recentlyRegenerated(false),
     m_isColliding(false),
-    m_item(0),
-    m_extraItems(0)
+    m_item(nullptr),
+    m_extraItems(nullptr)
 {
     //     NOTATION_DEBUG << "new NotationElement "
     //                          << this << " wrapping " << event << endl;
@@ -150,10 +152,10 @@ NotationElement::removeItem()
 
     m_recentlyRegenerated = false;
 
-//    NOTATION_DEBUG << "NotationElement::removeItem" << endl;
+//    NOTATION_DEBUG << "NotationElement::removeItem";
 
     delete m_item;
-    m_item = 0;
+    m_item = nullptr;
 
     if (m_extraItems) {
 
@@ -162,7 +164,7 @@ NotationElement::removeItem()
         m_extraItems->clear();
 
         delete m_extraItems;
-        m_extraItems = 0;
+        m_extraItems = nullptr;
     }
 }
 
@@ -205,7 +207,7 @@ NotationElement *
 NotationElement::getNotationElement(QGraphicsItem *item)
 {
     QVariant v = item->data(NotationElementData);
-    if (v.isNull()) return 0;
+    if (v.isNull()) return nullptr;
     return (NotationElement *)v.value<void *>();
 }
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -13,55 +13,43 @@
     COPYING included with this distribution for more information.
 */
 
-
-// Accepts a file handle positioned somewhere in sample data (could
-// be at the start) along with the necessary meta information for
-// decoding (channels, bits per sample) and turns the sample data
-// into peak data and generates a BWF format peak chunk file.  This
-// file can exist by itself (in the case this is being generated
-// by a WAV) or be accomodated inside a BWF format file.
-//
-//
-
-#include <string>
-#include <vector>
-
-#include <QObject>
+#define RG_MODULE_STRING "[PeakFileManager]"
 
 #include "PeakFileManager.h"
+
+#include <vector>
+
+#include <QProgressDialog>
+
 #include "AudioFile.h"
 #include "base/RealTime.h"
 #include "PeakFile.h"
+#include "misc/Debug.h"
 
 namespace Rosegarden
 {
 
 
-PeakFileManager::PeakFileManager():
-        m_updatePercentage(0),
-        m_currentPeakFile(0)
-{}
+PeakFileManager::PeakFileManager()
+{
+}
 
 PeakFileManager::~PeakFileManager()
-{}
+{
+}
 
-// Inserts PeakFile based on AudioFile if it doesn't already exist
 bool
 PeakFileManager::insertAudioFile(AudioFile *audioFile)
 {
-    std::vector<PeakFile*>::iterator it;
-
-    for (it = m_peakFiles.begin(); it != m_peakFiles.end(); ++it) {
+    // For each PeakFile
+    for (std::vector<PeakFile *>::iterator it = m_peakFiles.begin();
+         it != m_peakFiles.end();
+         ++it) {
         if ((*it)->getAudioFile()->getId() == audioFile->getId())
             return false;
     }
 
-    /*
-    std::cout << "PeakFileManager::insertAudioFile - creating peak file "
-              << m_peakFiles.size() + 1
-              << " for \"" << audioFile->getFilename()
-              << "\"" << std::endl;
-    */
+    //RG_DEBUG << "insertAudioFile() - creating peak file " << m_peakFiles.size() + 1 << " for \"" << audioFile->getFilename() << "\"";
 
     // Insert
     m_peakFiles.push_back(new PeakFile(audioFile));
@@ -69,17 +57,14 @@ PeakFileManager::insertAudioFile(AudioFile *audioFile)
     return true;
 }
 
-// Removes peak file from PeakFileManager - doesn't affect audioFile
-//
 bool
 PeakFileManager::removeAudioFile(AudioFile *audioFile)
 {
-    std::vector<PeakFile*>::iterator it;
-
-    for (it = m_peakFiles.begin(); it != m_peakFiles.end(); ++it) {
+    // For each PeakFile
+    for (std::vector<PeakFile *>::iterator it = m_peakFiles.begin();
+         it != m_peakFiles.end();
+         ++it) {
         if ((*it)->getAudioFile()->getId() == audioFile->getId()) {
-            if (m_currentPeakFile == *it)
-                m_currentPeakFile = 0;
             delete *it;
             m_peakFiles.erase(it);
             return true;
@@ -89,35 +74,35 @@ PeakFileManager::removeAudioFile(AudioFile *audioFile)
     return false;
 }
 
-// Auto-insert PeakFile into manager if it doesn't already exist
-//
-PeakFile*
+PeakFile *
 PeakFileManager::getPeakFile(AudioFile *audioFile)
 {
-    std::vector<PeakFile*>::iterator it;
-    PeakFile *ptr = 0;
+    PeakFile *ptr = nullptr;
 
-    while (ptr == 0) {
-        for (it = m_peakFiles.begin(); it != m_peakFiles.end(); ++it)
+    while (ptr == nullptr) {
+        // For each PeakFile
+        for (std::vector<PeakFile *>::iterator it = m_peakFiles.begin();
+             it != m_peakFiles.end();
+             ++it) {
             if ((*it)->getAudioFile()->getId() == audioFile->getId())
                 ptr = *it;
+        }
 
         // If nothing is found then insert and retry
         //
-        if (ptr == 0) {
+        if (ptr == nullptr) {
             // Insert - if we fail we return as empty
             //
+            // ??? If this would return the pointer, we can get rid of the
+            //     while loop.
             if (insertAudioFile(audioFile) == false)
-                return 0;
+                return nullptr;
         }
     }
 
     return ptr;
 }
 
-
-// Does a given AudioFile have a valid peak file or peak chunk?
-//
 bool
 PeakFileManager::hasValidPeaks(AudioFile *audioFile)
 {
@@ -125,10 +110,9 @@ PeakFileManager::hasValidPeaks(AudioFile *audioFile)
         // Check external peak file
         PeakFile *peakFile = getPeakFile(audioFile);
 
-        if (peakFile == 0) {
+        if (peakFile == nullptr) {
 #ifdef DEBUG_PEAKFILEMANAGER
-            std::cerr << "PeakFileManager::hasValidPeaks - no peak file found"
-            << std::endl;
+            RG_WARNING << "hasValidPeaks() - no peak file found";
 #endif
 
             return false;
@@ -145,8 +129,7 @@ PeakFileManager::hasValidPeaks(AudioFile *audioFile)
         // check internal peak chunk
     } else {
 #ifdef DEBUG_PEAKFILEMANAGER
-        std::cout << "PeakFileManager::hasValidPeaks - unsupported file type"
-        << std::endl;
+        RG_WARNING << "hasValidPeaks() - unsupported file type";
 #endif
 
         return false;
@@ -156,53 +139,43 @@ PeakFileManager::hasValidPeaks(AudioFile *audioFile)
 
 }
 
-// Generate the peak file.  Checks to see if peak file exists
-// already and if so if it's up to date.  If it isn't then we
-// regenerate.
-//
 void
-PeakFileManager::generatePeaks(AudioFile *audioFile,
-                               unsigned short updatePercentage)
+PeakFileManager::generatePeaks(AudioFile *audioFile)
 {
 #ifdef DEBUG_PEAKFILEMANAGER
-    std::cout << "PeakFileManager::generatePeaks - generating peaks for \""
-    << audioFile->getFilename() << "\"" << std::endl;
+    RG_DEBUG << "generatePeaks() - generating peaks for \"" << audioFile->getFilename() << "\"";
 #endif
 
     if (audioFile->getType() == WAV) {
-        m_currentPeakFile = getPeakFile(audioFile);
+        PeakFile *currentPeakFile = getPeakFile(audioFile);
 
-        QObject::connect(m_currentPeakFile, SIGNAL(setValue(int)),
-                         this, SIGNAL(setValue(int)));
+        currentPeakFile->setProgressDialog(m_progressDialog);
 
         // Just write out a peak file
         //
-        if (m_currentPeakFile->write(updatePercentage) == false) {
-            std::cerr << "Can't write peak file for " << audioFile->getFilename() << " - no preview generated" << std::endl;
-            throw BadPeakFileException
-            (audioFile->getFilename(), __FILE__, __LINE__);
+        if (currentPeakFile->write() == false) {
+            RG_WARNING << "generatePeaks() - Can't write peak file for " << audioFile->getFilename() << " - no preview generated";
+            throw BadPeakFileException(
+                    audioFile->getFilename(), __FILE__, __LINE__);
         }
 
-        // The m_currentPeakFile might have been cancelled (see stopPreview())
-        //
-        if (m_currentPeakFile) {
-            // close writes out important things
-            m_currentPeakFile->close();
-            m_currentPeakFile->disconnect();
+        // If we were cancelled, don't leave a partial peak file lying
+        // around.
+        if (m_progressDialog  &&  m_progressDialog->wasCanceled()) {
+            QFile file(currentPeakFile->getFilename());
+            file.remove();
+            return;
         }
+
+        // close writes out important things
+        currentPeakFile->close();
+
     } else if (audioFile->getType() == BWF) {
         // write the file out and incorporate the peak chunk
+        RG_WARNING << "generatePeaks() - unsupported file type: BWF";
     } else {
-#ifdef DEBUG_PEAKFILEMANAGER
-        std::cerr << "PeakFileManager::generatePeaks - unsupported file type"
-        << std::endl;
-#endif
-
-        return ;
+        RG_WARNING << "generatePeaks() - unknown file type";
     }
-
-    m_currentPeakFile = 0;
-
 }
 
 std::vector<float>
@@ -230,13 +203,9 @@ PeakFileManager::getPreview(AudioFile *audioFile,
                                       endTime,
                                       width,
                                       showMinima);
-        } catch (SoundFile::BadSoundFileException e) {
+        } catch (const SoundFile::BadSoundFileException &e) {
 #ifdef DEBUG_PEAKFILEMANAGER
-            std::cout << "PeakFileManager::getPreview "
-            << "\"" << e << "\"" << std::endl;
-#else
-
-            ;
+            RG_WARNING << "getPreview() - \"" << e << "\"";
 #endif
 
             throw BadPeakFileException(e);
@@ -246,8 +215,7 @@ PeakFileManager::getPreview(AudioFile *audioFile,
     }
 #ifdef DEBUG_PEAKFILEMANAGER
     else {
-        std::cerr << "PeakFileManager::getPreview - unsupported file type"
-        << std::endl;
+        RG_WARNING << "getPreview() - unsupported file type";
     }
 #endif
 
@@ -257,16 +225,14 @@ PeakFileManager::getPreview(AudioFile *audioFile,
 void
 PeakFileManager::clear()
 {
-    std::vector<PeakFile*>::iterator it;
-
-    for (it = m_peakFiles.begin(); it != m_peakFiles.end(); ++it)
+    // Delete the PeakFile objects.
+    for (std::vector<PeakFile *>::iterator it = m_peakFiles.begin();
+         it != m_peakFiles.end();
+         ++it)
         delete (*it);
 
     m_peakFiles.erase(m_peakFiles.begin(), m_peakFiles.end());
-
-    m_currentPeakFile = 0;
 }
-
 
 std::vector<SplitPointPair>
 PeakFileManager::getSplitPoints(AudioFile *audioFile,
@@ -277,47 +243,14 @@ PeakFileManager::getSplitPoints(AudioFile *audioFile,
 {
     PeakFile *peakFile = getPeakFile(audioFile);
 
-    if (peakFile == 0)
+    if (peakFile == nullptr)
         return std::vector<SplitPointPair>();
 
     return peakFile->getSplitPoints(startTime,
                                     endTime,
                                     threshold,
                                     minTime);
-
-}
-
-void
-PeakFileManager::stopPreview()
-{
-    if (m_currentPeakFile) {
-        // Stop processing
-        //
-        QString fileName = m_currentPeakFile->getFilename();
-        m_currentPeakFile->setProcessingPeaks(false);
-        m_currentPeakFile->disconnect();
-
-        QFile file(fileName);
-        bool removed = file.remove();
-
-#ifdef DEBUG_PEAKFILEMANAGER
-
-        if (removed) {
-            std::cout << "PeakFileManager::stopPreview() - removed preview"
-            << std::endl;
-        }
-#else
-        (void)removed;
-#endif
-        //delete m_currentPeakFile;
-        m_currentPeakFile = 0;
-    }
 }
 
 
-
-
 }
-
-
-#include "moc_PeakFileManager.cpp"

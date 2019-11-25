@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -44,7 +44,7 @@ MatrixElement::MatrixElement(MatrixScene *scene, Event *event,
     m_scene(scene),
     m_drum(drum),
     m_current(true),
-    m_item(0),
+    m_item(nullptr),
     m_pitchOffset(pitchOffset)
 {
     reconfigure();
@@ -151,7 +151,10 @@ MatrixElement::reconfigure(timeT time, timeT duration, int pitch, int velocity)
             m_scene->addItem(m_item);
         }
         float width = m_width;
-        if (width < 1) width = 1;
+        if (width < 1) {
+            x0 = std::max(0.0, x1 - 1);
+            width = 1;
+        }
         QRectF rect(0, 0, width, fres + 1);
         item->setRect(rect);
         item->setPen
@@ -189,11 +192,11 @@ MatrixElement::setSelected(bool selected)
         dynamic_cast<QAbstractGraphicsShapeItem *>(m_item);
     if (!item) return;
 
-    QColor colour;
-
     if (selected) {
-        item->setPen(QPen(GUIPalette::getColour(GUIPalette::SelectedElement),
-                          2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+        QPen pen(GUIPalette::getColour(GUIPalette::SelectedElement), 2,
+                 Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
+        pen.setCosmetic(!m_drum);
+        item->setPen(pen);
     } else {
         item->setPen
             (QPen(GUIPalette::getColour(GUIPalette::MatrixElementBorder), 0));
@@ -241,7 +244,7 @@ MatrixElement *
 MatrixElement::getMatrixElement(QGraphicsItem *item)
 {
     QVariant v = item->data(MatrixElementData);
-    if (v.isNull()) return 0;
+    if (v.isNull()) return nullptr;
     return (MatrixElement *)v.value<void *>();
 }
 

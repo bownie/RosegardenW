@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file is Copyright 2002
@@ -97,13 +97,11 @@ public:
         friend class CompositionTimeSliceAdapter;
 
     public:
-        iterator() :
-            m_a(0), m_curEvent(0), m_curTrack(-1), m_needFill(true) { }
-        iterator(const CompositionTimeSliceAdapter *a) :
-            m_a(a), m_curEvent(0), m_curTrack(-1), m_needFill(true) { }
+        iterator(const CompositionTimeSliceAdapter *a = nullptr) :
+            m_a(a), m_curEvent(nullptr), m_curTrack(-1), m_needFill(true) { }
         iterator(const iterator &);
         iterator &operator=(const iterator &);
-        ~iterator() { };
+        ~iterator() {}
 
         iterator &operator++();
         iterator &operator--();

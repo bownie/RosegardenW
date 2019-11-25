@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -69,20 +69,20 @@ public:
     void setRecordLevel(double level);
     void setRecordLevel(double leftLevel, double rightLevel);
 
-    virtual void paintEvent(QPaintEvent*);
+    void paintEvent(QPaintEvent*) override;
 
 protected:
     // Constructor is protected - we can only create an object
     // from a sub-class of this type from a sub-class.
     //
-    VUMeter(QWidget *parent = 0,
+    VUMeter(QWidget *parent = nullptr,
             VUMeterType type = Plain,
             bool stereo = false,
             bool hasRecord = false,
             int width = 0,
             int height = 0,
             VUAlignment alignment = Horizontal);
-    ~VUMeter();
+    ~VUMeter() override;
 
     virtual void meterStart() = 0;
     virtual void meterStop() = 0;

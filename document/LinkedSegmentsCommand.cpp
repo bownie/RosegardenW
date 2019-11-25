@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -46,7 +46,7 @@ LinkedSegmentsCommand::LinkedSegmentsCommand(const QString &name,
 #endif            
 }
 
-LinkedSegmentsCommand::~LinkedSegmentsCommand(void)
+LinkedSegmentsCommand::~LinkedSegmentsCommand()
 {
     if (m_detached) {
         for (SegmentVec::iterator i = m_newSegments.begin();
@@ -57,7 +57,7 @@ LinkedSegmentsCommand::~LinkedSegmentsCommand(void)
     }
 }
 void
-LinkedSegmentsCommand::executeAttachDetach(void)
+LinkedSegmentsCommand::executeAttachDetach()
 {
     m_composition->detachAllSegments(m_originalSegments);
     m_composition->addAllSegments(m_newSegments);
@@ -65,7 +65,7 @@ LinkedSegmentsCommand::executeAttachDetach(void)
 }
 
 void
-LinkedSegmentsCommand::unexecuteAttachDetach(void)
+LinkedSegmentsCommand::unexecuteAttachDetach()
 {
     m_composition->detachAllSegments(m_newSegments);
     m_composition->addAllSegments(m_originalSegments);
@@ -88,5 +88,4 @@ copyAuxProperties(Segment *source, Segment *target)
 
 }
 
-// #include "LinkedSegmentsCommand.moc"
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -145,17 +145,17 @@ MarkerEditor::MarkerEditor(QWidget *parent,
 
     btnBox->setLayout(layout);
 
-    connect(m_addButton, SIGNAL(released()),
-            SLOT(slotAdd()));
+    connect(m_addButton, &QAbstractButton::released,
+            this, &MarkerEditor::slotAdd);
 
-    connect(m_deleteButton, SIGNAL(released()),
-            SLOT(slotDelete()));
+    connect(m_deleteButton, &QAbstractButton::released,
+            this, &MarkerEditor::slotDelete);
 
-    connect(m_closeButton, SIGNAL(released()),
-            SLOT(slotClose()));
+    connect(m_closeButton, &QAbstractButton::released,
+            this, &MarkerEditor::slotClose);
 
-    connect(m_deleteAllButton, SIGNAL(released()),
-            SLOT(slotDeleteAll()));
+    connect(m_deleteAllButton, &QAbstractButton::released,
+            this, &MarkerEditor::slotDeleteAll);
 
     setupActions();
 
@@ -164,13 +164,13 @@ MarkerEditor::MarkerEditor(QWidget *parent,
     connect(CommandHistory::getInstance(), SIGNAL(commandExecuted()),
             this, SLOT(slotUpdate()));
 
-    connect(m_listView, SIGNAL(itemDoubleClicked(QTreeWidgetItem *, int)),
-            SLOT(slotEdit(QTreeWidgetItem *, int)));
+    connect(m_listView, &QTreeWidget::itemDoubleClicked,
+            this, &MarkerEditor::slotEdit);
     
     // qt4 code:
     // on pressed
-    connect( m_listView, SIGNAL(itemPressed( QTreeWidgetItem*, int)), //item,column
-            this, SLOT(slotItemClicked(QTreeWidgetItem*, int)) );
+    connect( m_listView, &QTreeWidget::itemPressed, //item,column
+            this, &MarkerEditor::slotItemClicked );
 //     // on clicked
 //     connect( m_listView, SIGNAL(itemClicked( QTreeWidgetItem*, int)), //item,column
 //             this, SLOT(slotItemClicked(QTreeWidgetItem*, int)) );
@@ -243,21 +243,21 @@ MarkerEditor::updatePosition()
 
 MarkerEditor::~MarkerEditor()
 {
-    RG_DEBUG << "MarkerEditor::~MarkerEditor" << endl;
+    RG_DEBUG << "MarkerEditor::~MarkerEditor";
 
 }
 
 void
 MarkerEditor::initDialog()
 {
-    RG_DEBUG << "MarkerEditor::initDialog" << endl;
+    RG_DEBUG << "MarkerEditor::initDialog";
     slotUpdate();
 }
 
 void
 MarkerEditor::slotUpdate()
 {
-    RG_DEBUG << "MarkerEditor::slotUpdate" << endl;
+    RG_DEBUG << "MarkerEditor::slotUpdate";
 
     MarkerEditorViewItem *item;
 
@@ -311,7 +311,7 @@ MarkerEditor::slotUpdate()
 void
 MarkerEditor::slotDeleteAll()
 {
-    RG_DEBUG << "MarkerEditor::slotDeleteAll" << endl;
+    RG_DEBUG << "MarkerEditor::slotDeleteAll";
     MacroCommand *command = new MacroCommand(tr("Remove all markers"));
 
 //     QTreeWidgetItem *item = m_listView->firstChild();
@@ -343,7 +343,7 @@ MarkerEditor::slotDeleteAll()
 void
 MarkerEditor::slotAdd()
 {
-    RG_DEBUG << "MarkerEditor::slotAdd" << endl;
+    RG_DEBUG << "MarkerEditor::slotAdd";
 
     AddMarkerCommand *command =
         new AddMarkerCommand(&m_doc->getComposition(),
@@ -357,7 +357,7 @@ MarkerEditor::slotAdd()
 void
 MarkerEditor::slotDelete()
 {
-    RG_DEBUG << "MarkerEditor::slotDelete" << endl;
+    RG_DEBUG << "MarkerEditor::slotDelete";
     QTreeWidgetItem *item = m_listView->currentItem();
 
     MarkerEditorViewItem *ei =
@@ -380,11 +380,11 @@ MarkerEditor::slotDelete()
 void
 MarkerEditor::slotClose()
 {
-    RG_DEBUG << "MarkerEditor::slotClose" << endl;
+    RG_DEBUG << "MarkerEditor::slotClose";
 
 //     if (m_doc)
 //         CommandHistory::getInstance()->detachView(actionCollection());    //&&&
-    m_doc = 0;
+    m_doc = nullptr;
 
     close();
 }
@@ -395,7 +395,7 @@ MarkerEditor::setupActions()
     createAction("file_close", SLOT(slotClose())); //!!! uh-oh, file_close_discard in rc file
     
     m_closeButton->setText(tr("Close"));
-    connect(m_closeButton, SIGNAL(released()), this, SLOT(slotClose()));
+    connect(m_closeButton, &QAbstractButton::released, this, &MarkerEditor::slotClose);
 
     QSettings settings;
     settings.beginGroup(MarkerEditorConfigGroup);
@@ -417,7 +417,7 @@ MarkerEditor::setupActions()
     createAction("marker_help", SLOT(slotHelpRequested()));
     createAction("help_about_app", SLOT(slotHelpAbout()));
 
-    createGUI("markereditor.rc"); //@@@ JAS orig 0
+    createMenusAndToolbars("markereditor.rc"); //@@@ JAS orig 0
 
     settings.endGroup();
 }
@@ -432,7 +432,7 @@ MarkerEditor::addCommandToHistory(Command *command)
 void
 MarkerEditor::setModified(bool modified)
 {
-    RG_DEBUG << "MarkerEditor::setModified(" << modified << ")" << endl;
+    RG_DEBUG << "MarkerEditor::setModified(" << modified << ")";
 
     if (modified) {}
     else {}
@@ -451,7 +451,7 @@ MarkerEditor::checkModified()
 void
 MarkerEditor::slotEdit(QTreeWidgetItem *i, int)
 {
-    RG_DEBUG << "MarkerEditor::slotEdit" << endl;
+    RG_DEBUG << "MarkerEditor::slotEdit";
 
     if (m_listView->selectionMode() == QTreeWidget::NoSelection) {
         // The marker list is empty, so we shouldn't allow editing the
@@ -516,7 +516,7 @@ MarkerEditor::slotItemClicked(QTreeWidgetItem *item, int column )
         if( column ){ }; // removes warning
         return;
     }
-    RG_DEBUG << "MarkerEditor::slotItemClicked" << endl;
+    RG_DEBUG << "MarkerEditor::slotItemClicked";
     MarkerEditorViewItem *ei =
         dynamic_cast<MarkerEditorViewItem *>(item);
 
@@ -582,7 +582,6 @@ MarkerEditor::slotMusicalTime()
 void
 MarkerEditor::slotRealTime()
 {
-    std::cout << "scooby dooby dooo!!" << std::endl;
     QSettings settings;
     settings.beginGroup(MarkerEditorConfigGroup);
 
@@ -630,4 +629,3 @@ MarkerEditor::slotHelpAbout()
     new AboutDialog(this);
 }
 }
-#include "MarkerEditor.moc"

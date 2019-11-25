@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -59,6 +59,9 @@ class InstrumentStaticSignals;
  *
  * These widgets are created based on the RosegardenDocument.
  *
+ * TrackEditor owns the single instance of this class.  See
+ * TrackEditor::m_trackButtons.
+ *
  * Suggestion: This class appears to be the focus for track related changes.
  * It would probably be better to have the system make direct changes to
  * Composition, then call a notification routine which would trigger an
@@ -85,9 +88,9 @@ public:
                  int trackLabelWidth,
                  bool showTrackLabels,
                  int overallHeight,
-                 QWidget* parent = 0);
+                 QWidget* parent = nullptr);
 
-    ~TrackButtons();
+    ~TrackButtons() override;
 
     /// Return a vector of highlighted track positions
     /// @see selectTrack()
@@ -106,6 +109,14 @@ public:
      */
     void populateInstrumentPopup(Instrument *thisTrackInstr, QMenu* instrumentPopup);
 
+    /// Toggle solo on the selected track.
+    /**
+     * Used by the solo buttons/menu items on the various editors.
+     */
+    void toggleSolo();
+
+    void selectInstrument(Track *track, Instrument *instrument);
+
 signals:
     /// Emitted when a track button has been clicked.
     /**
@@ -115,12 +126,6 @@ signals:
      * @see slotLabelSelected()
      */
     void trackSelected(int trackId);
-
-    /// Emitted when an instrument is selected from the popup.
-    /**
-     * @see slotInstrumentSelected()
-     */
-    void instrumentSelected(int instrumentId);
 
     /// Emitted when a track's name changes.
     /**
@@ -223,6 +228,13 @@ protected slots:
      */
     void slotToggleMute(int position);
 
+    /// Toggles the solo state for the track at the given position.
+    /**
+     * Called when the user clicks on a solo button.
+     * @see m_soloSigMapper
+     */
+    void slotToggleSolo(int position);
+
 protected:
 
     /// Initializes the instrument names.
@@ -281,10 +293,11 @@ protected:
     QColor getRecordLedColour(Rosegarden::Instrument *ins);
 
     // CompositionObserver overrides
-    virtual void tracksAdded(const Composition *, std::vector<TrackId> &trackIds);
-    virtual void trackChanged(const Composition *, Track*);
-    virtual void tracksDeleted(const Composition *, std::vector<TrackId> &trackIds);
-    virtual void trackSelectionChanged(const Composition *, TrackId trackId);
+    void tracksAdded(const Composition *, std::vector<TrackId> &trackIds) override;
+    void trackChanged(const Composition *, Track*) override;
+    void tracksDeleted(const Composition *, std::vector<TrackId> &trackIds) override;
+    void trackSelectionChanged(const Composition *, TrackId trackId) override;
+    void segmentRemoved(const Composition *, Segment *) override;
 
     int labelWidth();
     int trackHeight(TrackId trackId);
@@ -306,6 +319,7 @@ protected:
     std::vector<TrackVUMeter *>       m_trackMeters;
     std::vector<LedButton *>          m_muteLeds;
     std::vector<LedButton *>          m_recordLeds;
+    std::vector<LedButton *>          m_soloLeds;
     std::vector<TrackLabel *>         m_trackLabels;
 
     /**
@@ -316,6 +330,7 @@ protected:
 
     QSignalMapper                    *m_recordSigMapper;
     QSignalMapper                    *m_muteSigMapper;
+    QSignalMapper                    *m_soloSigMapper;
     QSignalMapper                    *m_clickedSigMapper;
     QSignalMapper                    *m_instListSigMapper;
 
@@ -348,11 +363,11 @@ protected:
     static const int m_vuSpacing;
 
 private slots:
+    /// Called when the document is modified in some way.
+    void slotDocumentModified(bool);
+
     /// Handles clicks from m_clickedSigMapper.
     void slotTrackSelected(int trackId);
-
-    /// Handles a change to the Program in the Instrument Parameters box.
-    void slotInstrumentChanged(Instrument *instrument);
 
 private:
     // Hide copy ctor and op=
@@ -361,8 +376,6 @@ private:
 
     /// Select the given track.  This displays it with a highlight.
     void selectTrack(int position);
-
-    QSharedPointer<InstrumentStaticSignals> m_instrumentStaticSignals;
 };
 
 

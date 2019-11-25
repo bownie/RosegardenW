@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[AddTracksCommand]"
 
 #include "AddTracksCommand.h"
 
@@ -22,6 +23,11 @@
 #include "base/Composition.h"
 #include "base/MidiProgram.h"
 #include "base/Track.h"
+#include "base/Instrument.h"
+#include "base/Studio.h"
+#include "document/RosegardenDocument.h"
+#include "gui/application/RosegardenMainWindow.h"
+
 #include <QString>
 
 
@@ -126,6 +132,13 @@ void AddTracksCommand::execute()
     }
 
     m_composition->notifyTracksAdded(trackIds);
+
+    // Send channel setup in case it hasn't been sent for this instrument.
+    RosegardenDocument *document = RosegardenMainWindow::self()->getDocument();
+    Instrument *instrument =
+            document->getStudio().getInstrumentById(m_instrumentId);
+    if (instrument)
+        instrument->sendChannelSetup();
 }
 
 void AddTracksCommand::unexecute()

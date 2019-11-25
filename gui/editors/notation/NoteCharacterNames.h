@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -94,6 +94,7 @@ extern const CharName PEDAL_UP_MARK;
 extern const CharName C_CLEF;
 extern const CharName G_CLEF;
 extern const CharName F_CLEF;
+extern const CharName TWO_BAR_CLEF;
 
 extern const CharName COMMON_TIME;
 extern const CharName CUT_TIME;

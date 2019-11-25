@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -48,7 +48,7 @@ namespace Rosegarden
 {
 
 
-const QString SegmentMover::ToolName = "segmentmover";
+QString SegmentMover::ToolName() { return "segmentmover"; }
 
 SegmentMover::SegmentMover(CompositionView *c, RosegardenDocument *d)
         : SegmentTool(c, d),
@@ -62,7 +62,7 @@ SegmentMover::SegmentMover(CompositionView *c, RosegardenDocument *d)
 void SegmentMover::ready()
 {
     m_canvas->viewport()->setCursor(Qt::SizeAllCursor);
-    setBasicContextHelp();
+    setContextHelp2();
 }
 
 void SegmentMover::stow()
@@ -141,6 +141,8 @@ void SegmentMover::mousePressEvent(QMouseEvent *e)
     }
 
     m_canvas->update();
+
+    setContextHelp2(e->modifiers());
 }
 
 void SegmentMover::mouseReleaseEvent(QMouseEvent *e)
@@ -237,7 +239,7 @@ void SegmentMover::mouseReleaseEvent(QMouseEvent *e)
 
     setChangingSegment(ChangingSegmentPtr());
 
-    setBasicContextHelp();
+    setContextHelp2();
 }
 
 int SegmentMover::mouseMoveEvent(QMouseEvent *e)
@@ -247,18 +249,13 @@ int SegmentMover::mouseMoveEvent(QMouseEvent *e)
 
     // If we aren't moving anything, bail.
     if (!getChangingSegment())
-        return RosegardenScrollView::NoFollow;
+        return NO_FOLLOW;
 
     QPoint pos = m_canvas->viewportToContents(e->pos());
 
     setSnapTime(e, SnapGrid::SnapToBeat);
 
-    // If shift isn't being held down
-    if ((e->modifiers() & Qt::ShiftModifier) == 0) {
-        setContextHelp(tr("Hold Shift to avoid snapping to beat grid"));
-    } else {
-        clearContextHelp();
-    }
+    setContextHelp2(e->modifiers());
 
     const SnapGrid &grid = m_canvas->grid();
 
@@ -325,15 +322,39 @@ int SegmentMover::mouseMoveEvent(QMouseEvent *e)
 
 	m_canvas->update();
 
-    return RosegardenScrollView::FollowHorizontal |
-           RosegardenScrollView::FollowVertical;
+    return FOLLOW_HORIZONTAL | FOLLOW_VERTICAL;
 }
 
-void SegmentMover::setBasicContextHelp()
+void SegmentMover::keyPressEvent(QKeyEvent *e)
 {
+    // In case shift was pressed, update the context help.
+    setContextHelp2(e->modifiers());
+}
+
+void SegmentMover::keyReleaseEvent(QKeyEvent *e)
+{
+    // In case shift was released, update the context help.
+    setContextHelp2(e->modifiers());
+}
+
+void SegmentMover::setContextHelp2(Qt::KeyboardModifiers modifiers)
+{
+    // If we're moving something
+    if (getChangingSegment()) {
+        bool shift = ((modifiers & Qt::ShiftModifier) != 0);
+
+        // If shift isn't being held down
+        if (!shift) {
+            setContextHelp(tr("Hold Shift to avoid snapping to beat grid"));
+        } else {
+            clearContextHelp();
+        }
+
+        return;
+    }
+
     setContextHelp(tr("Click and drag to move a segment"));
 }
 
 
 }
-#include "SegmentMover.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -63,7 +63,7 @@ public:
      */
     ClefKeyContext();
 
-    ~ClefKeyContext();
+    ~ClefKeyContext() override;
 
     void setSegments(NotationScene *scene);
 
@@ -88,15 +88,15 @@ public:
     void dumpKeyContext();
 
 /** SegmentObserver methods **/
-    virtual void eventAdded(const Segment *, Event *);
+    void eventAdded(const Segment *, Event *) override;
 
-    virtual void eventRemoved(const Segment *, Event *);
+    void eventRemoved(const Segment *, Event *) override;
 
-    virtual void startChanged(const Segment *, timeT);
+    void startChanged(const Segment *, timeT) override;
 
-    virtual void endMarkerTimeChanged(const Segment *, bool /*shorten*/);
+    void endMarkerTimeChanged(const Segment *, bool /*shorten*/) override;
 
-    virtual void segmentDeleted(const Segment *) { }
+    void segmentDeleted(const Segment *) override { }
     // Nothing to do here : the cleanup is handled by NotationScene
 
 

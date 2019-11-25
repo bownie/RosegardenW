@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,6 +22,7 @@
 #include "base/MidiProgram.h"
 
 #include <QDialog>
+#include <QSharedPointer>
 #include <QString>
 #include <QStringList>
 
@@ -55,11 +56,11 @@ class AudioPluginDialog : public QDialog
 
 public:
     AudioPluginDialog(QWidget *parent,
-                      AudioPluginManager *aPM,
+                      QSharedPointer<AudioPluginManager> aPM,
                       AudioPluginOSCGUIManager *aGM,
                       PluginContainer *instrument,
                       int index);
-    virtual ~AudioPluginDialog();
+    ~AudioPluginDialog() override;
 
     PluginContainer* getPluginContainer() const { return m_pluginContainer; }
 
@@ -114,7 +115,7 @@ protected:
 
     //--------------- Data members ---------------------------------
 
-    AudioPluginManager  *m_pluginManager;
+    QSharedPointer<AudioPluginManager> m_pluginManager;
     AudioPluginOSCGUIManager *m_pluginGUIManager;
     PluginContainer     *m_pluginContainer;
     InstrumentId         m_containerId;

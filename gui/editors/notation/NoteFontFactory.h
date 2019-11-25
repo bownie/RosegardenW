@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -26,11 +26,13 @@
 
 #include <QString>
 #include <QCoreApplication>
+#include <QMutex>
 
 
 namespace Rosegarden
 {
 
+class NoteFontFactoryStatic;
 class NoteFont;
 
 
@@ -44,30 +46,32 @@ public:
     // Any method passed a fontName argument may throw BadFont or
     // MappingFileReadFailed; any other method may throw NoFontsAvailable
 
-    static NoteFont *getFont(QString fontName, int size);
+    static NoteFont *getFont(const QString &fontName, int size);
 
     // This is called with forceRescan from the startup tester thread;
     // at all other times, the cached results are used
     static std::set<QString> getFontNames(bool forceRescan = false);
-    static std::vector<int> getAllSizes(QString fontName); // sorted
-    static std::vector<int> getScreenSizes(QString fontName); // sorted
+    static std::vector<int> getAllSizes(const QString &fontName); // sorted
+    static std::vector<int> getScreenSizes(const QString &fontName); // sorted
 
     static QString getDefaultFontName();
 
     /// Return the default single staff size (prefers 8)
-    static int getDefaultSize(QString fontName);
+    static int getDefaultSize(const QString &fontName);
 
     /// Return the default multi-staff size (prefers 6)
-    static int getDefaultMultiSize(QString fontName);
+    static int getDefaultMultiSize(const QString &fontName);
 
-    static bool isAvailableInSize(QString fontName, int size);
+    static bool isAvailableInSize(const QString &fontName, int size);
 
 private:
-    static std::set<QString> m_fontNames;
-    static std::map<std::pair<QString, int>, NoteFont *> m_fonts;
+    NoteFontFactory() {}
+    friend class NoteFontFactoryStatic;
+
+    std::set<QString> m_fontNames;
+    std::map<std::pair<QString, int>, NoteFont *> m_fonts;
+    QMutex m_mutex;
 };
-
-
 
 }
 

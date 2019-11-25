@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,6 +23,7 @@
 #include "base/NotationRules.h"
 #include "base/NotationTypes.h"
 #include "base/Quantizer.h"
+#include "misc/Debug.h"
 #include "NotationProperties.h"
 #include "NoteStyleFactory.h"
 
@@ -165,7 +166,7 @@ NotationChord::isNoteHeadShifted(const Iterator &itr) const
     }
 
     if (i == size()) {
-        std::cerr << "NotationChord::isNoteHeadShifted: Warning: Unable to find note head " << getAsEvent(itr) << std::endl;
+        RG_WARNING << "NotationChord::isNoteHeadShifted: Warning: Unable to find note head " << getAsEvent(itr);
         return false;
     }
 

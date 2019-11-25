@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -26,6 +26,8 @@
 
 #include "InstrumentParameterPanel.h"
 #include "document/RosegardenDocument.h"
+#include "gui/application/RosegardenMainWindow.h"
+#include "gui/seqmanager/SequenceManager.h"
 #include "gui/widgets/SqueezedLabel.h"
 #include "gui/widgets/Rotary.h"
 #include "sequencer/RosegardenSequencer.h"
@@ -61,23 +63,14 @@
 namespace Rosegarden
 {
 
-MIDIInstrumentParameterPanel::MIDIInstrumentParameterPanel(
-        RosegardenDocument *doc, QWidget *parent) :
-    InstrumentParameterPanel(doc, parent),
-    m_rotaryFrame(NULL),
-    m_rotaryGrid(NULL)
+MIDIInstrumentParameterPanel::MIDIInstrumentParameterPanel(QWidget *parent) :
+    InstrumentParameterPanel(parent),
+    m_rotaryFrame(nullptr),
+    m_rotaryGrid(nullptr)
 {
     RG_DEBUG << "MIDIInstrumentParameterPanel ctor";
 
     setObjectName("MIDI Instrument Parameter Panel");
-
-    // Grid
-    setContentsMargins(2, 2, 2, 2);
-    m_mainGrid = new QGridLayout(this);
-    m_mainGrid->setMargin(0);
-    m_mainGrid->setSpacing(3);
-    m_mainGrid->setColumnStretch(2, 1);
-    setLayout(m_mainGrid);
 
     // Font
     QFont f;
@@ -88,154 +81,132 @@ MIDIInstrumentParameterPanel::MIDIInstrumentParameterPanel(
     // so large that they make a mess out of the layout.
     const int labelWidth = metrics.width("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
 
+    // Widgets
+
     // Instrument Label
     m_instrumentLabel->setFont(f);
     // Set a fixed width to prevent the label from growing too large.
     m_instrumentLabel->setFixedWidth(labelWidth);
     m_instrumentLabel->setAlignment(Qt::AlignCenter);
-    m_mainGrid->addWidget(m_instrumentLabel, 0, 0, 1, 4, Qt::AlignCenter);
 
     // Connection Label
-    m_connectionLabel = new SqueezedLabel(this);
+    m_connectionLabel = new SqueezedLabel;
     m_connectionLabel->setFont(f);
     // Set a fixed width to prevent the label from growing too large.
     m_connectionLabel->setFixedWidth(labelWidth);
     m_connectionLabel->setAlignment(Qt::AlignCenter);
-    m_mainGrid->addWidget(m_connectionLabel, 1, 0, 1, 4, Qt::AlignCenter);
 
     // Percussion Label
     QLabel *percussionLabel = new QLabel(tr("Percussion"), this);
     percussionLabel->setFont(f);
-    m_mainGrid->addWidget(percussionLabel, 3, 0, 1, 2, Qt::AlignLeft);
 
     // Percussion CheckBox
-    m_percussionCheckBox = new QCheckBox(this);
+    m_percussionCheckBox = new QCheckBox;
     m_percussionCheckBox->setFont(f);
     m_percussionCheckBox->setToolTip(tr("<qt><p>Check this to tell Rosegarden that this is a percussion instrument.  This allows you access to any percussion key maps and drum kits you may have configured in the studio</p></qt>"));
-    connect(m_percussionCheckBox, SIGNAL(clicked(bool)),
-            this, SLOT(slotPercussionClicked(bool)));
-    m_mainGrid->addWidget(m_percussionCheckBox, 3, 3, Qt::AlignLeft);
+    connect(m_percussionCheckBox, &QAbstractButton::clicked,
+            this, &MIDIInstrumentParameterPanel::slotPercussionClicked);
 
     // Bank Label
-    m_bankLabel = new QLabel(tr("Bank"), this);
+    m_bankLabel = new QLabel;
+    m_bankLabel->setText(tr("Bank"));
     m_bankLabel->setFont(f);
-    m_mainGrid->addWidget(m_bankLabel, 4, 0, Qt::AlignLeft);
 
     // Bank CheckBox
-    m_bankCheckBox = new QCheckBox(this);
+    m_bankCheckBox = new QCheckBox;
     m_bankCheckBox->setFont(f);
     m_bankCheckBox->setToolTip(tr("<qt>Send bank select</qt>"));
-    connect(m_bankCheckBox, SIGNAL(clicked(bool)),
-            this, SLOT(slotBankClicked(bool)));
-    m_mainGrid->addWidget(m_bankCheckBox, 4, 1, Qt::AlignRight);
+    connect(m_bankCheckBox, &QAbstractButton::clicked,
+            this, &MIDIInstrumentParameterPanel::slotBankClicked);
 
-    // Ensure a reasonable amount of space in the dropdowns even
-    // if no instrument initially selected.
-    // setMinimumWidth() using QFontMetrics wasn't cutting it at all, so let's
-    // try what I used in the plugin manager dialog, with
-    // setMinimumContentsLength() instead:
-    const int comboWidth = 25;
+    // Since these ComboBoxes may have a very large number of items,
+    // expand the maximum dropdown size (normally 10) to show more of
+    // them at a time.
+    const int maxVisibleItems = 20;
+    // Ensure the comboboxes are all at least this wide (in characters).
+    const int minimumContentsLength = 25;
 
     // Bank ComboBox
-    m_bankComboBox = new QComboBox(this);
+    m_bankComboBox = new QComboBox;
     m_bankComboBox->setFont(f);
     m_bankComboBox->setToolTip(tr("<qt>Set the MIDI bank from which to select programs</qt>"));
-    m_bankComboBox->setMaxVisibleItems(20);
-    m_bankComboBox->setMinimumContentsLength(comboWidth);
-    // Activated by m_bankCheckBox
-    //m_bankComboBox->setDisabled(true);
+    m_bankComboBox->setMaxVisibleItems(maxVisibleItems);
+    m_bankComboBox->setMinimumContentsLength(minimumContentsLength);
     connect(m_bankComboBox, SIGNAL(activated(int)),
-            this, SLOT(slotSelectBank(int)));
-    //m_bankComboBox->setCurrentIndex(-1);
-    m_mainGrid->addWidget(m_bankComboBox, 4, 2, 1, 2, Qt::AlignRight);
+            SLOT(slotSelectBank(int)));
 
     // Program Label
-    m_programLabel = new QLabel(tr("Program"), this);
+    m_programLabel = new QLabel;
+    m_programLabel->setText(tr("Program"));
     m_programLabel->setFont(f);
-    m_mainGrid->addWidget(m_programLabel, 5, 0, Qt::AlignLeft);
 
     // Program CheckBox
-    m_programCheckBox = new QCheckBox(this);
+    m_programCheckBox = new QCheckBox;
     m_programCheckBox->setFont(f);
     m_programCheckBox->setToolTip(tr("<qt>Send program change</qt>"));
-    connect(m_programCheckBox, SIGNAL(clicked(bool)),
-            this, SLOT(slotProgramClicked(bool)));
-    m_mainGrid->addWidget(m_programCheckBox, 5, 1, Qt::AlignRight);
+    connect(m_programCheckBox, &QAbstractButton::clicked,
+            this, &MIDIInstrumentParameterPanel::slotProgramClicked);
 
     // Program ComboBox
-    m_programComboBox = new QComboBox(this);
+    m_programComboBox = new QComboBox;
     m_programComboBox->setFont(f);
     m_programComboBox->setToolTip(tr("<qt>Set the MIDI program or &quot;patch&quot;</p></qt>"));
-    m_programComboBox->setMaxVisibleItems(20);
-    m_programComboBox->setMinimumContentsLength(comboWidth);
-    // Activated by m_programCheckBox
-    //m_programComboBox->setDisabled(true);
+    m_programComboBox->setMaxVisibleItems(maxVisibleItems);
+    m_programComboBox->setMinimumContentsLength(minimumContentsLength);
     connect(m_programComboBox, SIGNAL(activated(int)),
-            this, SLOT(slotSelectProgram(int)));
-    //m_programComboBox->setCurrentIndex(-1);
-    m_mainGrid->addWidget(m_programComboBox, 5, 2, 1, 2, Qt::AlignRight);
+            SLOT(slotSelectProgram(int)));
 
     // Variation Label
-    m_variationLabel = new QLabel(tr("Variation"), this);
+    m_variationLabel = new QLabel;
+    m_variationLabel->setText(tr("Variation"));
     m_variationLabel->setFont(f);
-    m_mainGrid->addWidget(m_variationLabel, 6, 0);
 
     // Variation CheckBox
-    m_variationCheckBox = new QCheckBox(this);
+    m_variationCheckBox = new QCheckBox;
     m_variationCheckBox->setFont(f);
     m_variationCheckBox->setToolTip(tr("<qt>Send bank select for variation</qt>"));
-    connect(m_variationCheckBox, SIGNAL(clicked(bool)),
-            this, SLOT(slotVariationClicked(bool)));
-    m_mainGrid->addWidget(m_variationCheckBox, 6, 1);
+    connect(m_variationCheckBox, &QAbstractButton::clicked,
+            this, &MIDIInstrumentParameterPanel::slotVariationClicked);
 
     // Variation ComboBox
-    m_variationComboBox = new QComboBox(this);
+    m_variationComboBox = new QComboBox;
     m_variationComboBox->setFont(f);
     m_variationComboBox->setToolTip(tr("<qt>Set variations on the program above, if available in the studio</qt>"));
-    m_variationComboBox->setMaxVisibleItems(20);
-    m_variationComboBox->setMinimumContentsLength(comboWidth);
-    // Activated by m_variationCheckBox
-    //m_variationComboBox->setDisabled(true);
+    m_variationComboBox->setMaxVisibleItems(maxVisibleItems);
+    m_variationComboBox->setMinimumContentsLength(minimumContentsLength);
     connect(m_variationComboBox, SIGNAL(activated(int)),
-            this, SLOT(slotSelectVariation(int)));
-    //m_variationComboBox->setCurrentIndex(-1);
-    m_mainGrid->addWidget(m_variationComboBox, 6, 2, 1, 2, Qt::AlignRight);
+            SLOT(slotSelectVariation(int)));
 
     // Channel Label
     QLabel *channelLabel = new QLabel(tr("Channel"), this);
     channelLabel->setFont(f);
     QString channelTip(tr("<qt><p><i>Auto</i>, allocate channel automatically; <i>Fixed</i>, fix channel to instrument number</p></qt>"));
     channelLabel->setToolTip(channelTip);
-    m_mainGrid->addWidget(channelLabel, 7, 0, Qt::AlignLeft);
 
     // Channel ComboBox
-    m_channelValue = new QComboBox(this);
+    m_channelValue = new QComboBox;
     m_channelValue->setFont(f);
     m_channelValue->setToolTip(channelTip);
     m_channelValue->setMaxVisibleItems(2);
     // Everything else sets up elsewhere, but these don't vary per instrument:
     m_channelValue->addItem(tr("Auto"));
     m_channelValue->addItem(tr("Fixed"));
-    m_channelValue->setMinimumContentsLength(comboWidth);
+    m_channelValue->setMinimumContentsLength(minimumContentsLength);
     connect(m_channelValue, SIGNAL(activated(int)),
-            this, SLOT(slotSelectChannel(int)));
-    //m_channelValue->setCurrentIndex(-1);
-    m_mainGrid->addWidget(m_channelValue, 7, 2, 1, 2, Qt::AlignRight);
+            SLOT(slotSelectChannel(int)));
 
     // Receive External Label
-    m_receiveExternalLabel = new QLabel(tr("Receive external"), this);
-    m_receiveExternalLabel->setFont(f);
+    QLabel *receiveExternalLabel = new QLabel(tr("Receive external"), this);
+    receiveExternalLabel->setFont(f);
     QString receiveExternalTip = tr("<qt>Use program changes from an external source to manipulate these controls (only valid for the currently-active track) [Shift + P]</qt>");
-    m_receiveExternalLabel->setToolTip(receiveExternalTip);
-    m_mainGrid->addWidget(m_receiveExternalLabel, 8, 0, 1, 3, Qt::AlignLeft);
+    receiveExternalLabel->setToolTip(receiveExternalTip);
     
     // Receive External CheckBox
-    m_receiveExternalCheckBox = new QCheckBox(this);
+    m_receiveExternalCheckBox = new QCheckBox;
     m_receiveExternalCheckBox->setFont(f);
     m_receiveExternalCheckBox->setToolTip(receiveExternalTip);
     m_receiveExternalCheckBox->setShortcut((QKeySequence)"Shift+P");
     m_receiveExternalCheckBox->setChecked(false);
-    m_mainGrid->addWidget(m_receiveExternalCheckBox, 8, 3, Qt::AlignLeft);
 
     // Rotary Frame and Grid
     m_rotaryFrame = new QFrame(this);
@@ -245,45 +216,73 @@ MIDIInstrumentParameterPanel::MIDIInstrumentParameterPanel(
     m_rotaryGrid->setMargin(0);
     m_rotaryGrid->addItem(new QSpacerItem(10, 4), 0, 1);
     m_rotaryFrame->setLayout(m_rotaryGrid);
-    // Add the rotary frame to the main grid layout.
-    m_mainGrid->addWidget(m_rotaryFrame, 10, 0, 1, 4, Qt::AlignHCenter);
-    // Add a spacer to take up the rest of the space.  This keeps
-    // the widgets above compact vertically.
-    m_mainGrid->addItem(new QSpacerItem(1, 1), 11, 0, 1, 4);
-    m_mainGrid->setRowStretch(11, 1);
 
     // Rotary Mapper
     m_rotaryMapper = new QSignalMapper(this);
     connect(m_rotaryMapper, SIGNAL(mapped(int)),
-            this, SLOT(slotControllerChanged(int)));
+            SLOT(slotControllerChanged(int)));
 
-    // Hold on to this to make sure it stays around as long as we do.
-    m_instrumentStaticSignals = Instrument::getStaticSignals();
+    // Layout
 
-    connect(m_instrumentStaticSignals.data(),
-            SIGNAL(changed(Instrument *)),
-            this,
-            SLOT(slotInstrumentChanged(Instrument *)));
-}
+    QGridLayout *mainGrid = new QGridLayout(this);
+    mainGrid->setMargin(0);
+    mainGrid->setSpacing(3);
+    mainGrid->setColumnStretch(2, 1);
 
-void
-MIDIInstrumentParameterPanel::clearReceiveExternal()
-{
-    RG_DEBUG << "clearReceiveExternal()";
+    mainGrid->addWidget(m_instrumentLabel, 0, 0, 1, 4, Qt::AlignCenter);
 
-    m_receiveExternalCheckBox->setChecked(false);
-}
+    mainGrid->addWidget(m_connectionLabel, 1, 0, 1, 4, Qt::AlignCenter);
 
-void
-MIDIInstrumentParameterPanel::displayInstrument(Instrument *instrument)
-{
-    if (!instrument)
-        return;
+    mainGrid->addItem(new QSpacerItem(1, 5), 2, 0, 1, 4);
 
-    setSelectedInstrument(instrument);
-    m_instrumentLabel->setText(instrument->getLocalizedPresentationName());
+    mainGrid->addWidget(percussionLabel, 3, 0, 1, 2, Qt::AlignLeft);
+    mainGrid->addWidget(m_percussionCheckBox, 3, 3, Qt::AlignLeft);
 
-    updateWidgets();
+    mainGrid->addWidget(m_bankLabel, 4, 0, Qt::AlignLeft);
+    mainGrid->addWidget(m_bankCheckBox, 4, 1, Qt::AlignRight);
+    mainGrid->addWidget(m_bankComboBox, 4, 2, 1, 2, Qt::AlignRight);
+
+    mainGrid->addWidget(m_programLabel, 5, 0, Qt::AlignLeft);
+    mainGrid->addWidget(m_programCheckBox, 5, 1, Qt::AlignRight);
+    mainGrid->addWidget(m_programComboBox, 5, 2, 1, 2, Qt::AlignRight);
+
+    mainGrid->addWidget(m_variationLabel, 6, 0);
+    mainGrid->addWidget(m_variationCheckBox, 6, 1);
+    mainGrid->addWidget(m_variationComboBox, 6, 2, 1, 2, Qt::AlignRight);
+
+    mainGrid->addWidget(channelLabel, 7, 0, Qt::AlignLeft);
+    mainGrid->addWidget(m_channelValue, 7, 2, 1, 2, Qt::AlignRight);
+
+    mainGrid->addWidget(m_receiveExternalCheckBox, 8, 3, Qt::AlignLeft);
+    mainGrid->addWidget(receiveExternalLabel, 8, 0, 1, 3, Qt::AlignLeft);
+
+    mainGrid->addItem(new QSpacerItem(1, 5), 9, 0, 1, 4);
+
+    // Add the rotary frame to the main grid layout.
+    mainGrid->addWidget(m_rotaryFrame, 10, 0, 1, 4, Qt::AlignHCenter);
+
+    mainGrid->addItem(new QSpacerItem(1, 1), 11, 0, 1, 4);
+    // Let the last row take up the rest of the space.  This keeps
+    // the widgets above compact vertically.
+    mainGrid->setRowStretch(11, 1);
+
+    setLayout(mainGrid);
+
+    setContentsMargins(2, 7, 2, 2);
+
+    // Connections
+
+    connect(RosegardenMainWindow::self(),
+                &RosegardenMainWindow::documentChanged,
+            this, &MIDIInstrumentParameterPanel::slotNewDocument);
+
+    connect(Instrument::getStaticSignals().data(),
+                &InstrumentStaticSignals::controlChange,
+            this, &MIDIInstrumentParameterPanel::slotControlChange);
+
+    connect(RosegardenMainWindow::self()->getSequenceManager(),
+                &SequenceManager::sigProgramChange,
+            this, &MIDIInstrumentParameterPanel::slotExternalProgramChange);
 }
 
 void
@@ -296,7 +295,7 @@ MIDIInstrumentParameterPanel::updateWidgets()
 
     MidiDevice *md = dynamic_cast<MidiDevice *>(getSelectedInstrument()->getDevice());
     if (!md) {
-        std::cerr << "WARNING: MIDIInstrumentParameterPanel::updateWidgets(): No MidiDevice for Instrument " << getSelectedInstrument()->getId() << '\n';
+        RG_WARNING << "updateWidgets(): WARNING: No MidiDevice for Instrument " << getSelectedInstrument()->getId();
         RG_DEBUG << "setupForInstrument() end";
         return;
     }
@@ -375,7 +374,8 @@ MIDIInstrumentParameterPanel::setupControllers(MidiDevice *md)
     // we just set its text; if a rotary exists, we only replace it
     // if we actually need a different one.
 
-    Composition &comp = m_doc->getComposition();
+    Composition &comp =
+            RosegardenMainWindow::self()->getDocument()->getComposition();
 
     ControlList list = md->getControlParameters();
 
@@ -400,7 +400,7 @@ MIDIInstrumentParameterPanel::setupControllers(MidiDevice *md)
                 it->getColourIndex());
         const QColor knobColour = QColor(c.getRed(), c.getGreen(), c.getBlue());
 
-        Rotary *rotary = 0;
+        Rotary *rotary = nullptr;
 
         // If the Rotary widgets have already been created, update them.
         if (rotaryIter != m_rotaries.end()) {
@@ -547,7 +547,7 @@ MIDIInstrumentParameterPanel::updateBankComboBox()
 
         // Find the selected bank in the MIDI Device's bank list.
         for (unsigned int i = 0; i < banks.size(); ++i) {
-            if (getSelectedInstrument()->getProgram().getBank() == banks[i]) {
+            if (getSelectedInstrument()->getProgram().getBank().partialCompare(banks[i])) {
                 currentBank = i;
                 break;
             }
@@ -636,7 +636,7 @@ MIDIInstrumentParameterPanel::updateBankComboBox()
         // Format bank MSB:LSB and add to combobox.
         MidiBank bank = getSelectedInstrument()->getProgram().getBank();
         QString bankString = QString("%1:%2").arg(bank.getMSB()).arg(bank.getLSB());
-        m_bankComboBox->addItem(bankString);
+        m_bankComboBox.addItem(bankString);
         currentBank = banks.size();
     }
 #endif
@@ -705,7 +705,7 @@ MIDIInstrumentParameterPanel::updateProgramComboBox()
     }
 
     // If the programs have changed, we need to repopulate the combobox.
-    if (programs != m_programs)
+    if (!partialCompareWithName(programs, m_programs))
     {
         // Update the cache.
         m_programs = programs;
@@ -730,7 +730,7 @@ MIDIInstrumentParameterPanel::updateProgramComboBox()
     if (currentProgram < 0  &&  !m_programs.empty()) {
         // Format program change and add to combobox.
         MidiByte programChange = getSelectedInstrument()->getProgram().getProgram();
-        m_programComboBox->addItem(QString::number(programChange + 1));
+        m_programComboBox.addItem(QString::number(programChange + 1));
         currentProgram = programs.size();
     }
 #endif
@@ -822,14 +822,14 @@ MIDIInstrumentParameterPanel::updateVariationComboBox()
 
     // For each variation
     for (size_t i = 0; i < variations.size(); ++i) {
-        if (getSelectedInstrument()->getProgram() == variations[i]) {
+        if (getSelectedInstrument()->getProgram().partialCompare(variations[i])) {
             currentVariation = i;
             break;
         }
     }
 
     // If the variations have changed, repopulate the combobox.
-    if (m_variations != variations) {
+    if (!partialCompareWithName(variations, m_variations)) {
         RG_DEBUG << "updateVariationComboBox(): Repopulating the combobox";
 
         // Update the cache.
@@ -864,7 +864,50 @@ MIDIInstrumentParameterPanel::updateVariationComboBox()
 }
 
 void
-MIDIInstrumentParameterPanel::slotInstrumentChanged(Instrument *instrument)
+MIDIInstrumentParameterPanel::slotNewDocument(RosegardenDocument *doc)
+{
+    connect(doc, &RosegardenDocument::documentModified,
+            this, &MIDIInstrumentParameterPanel::slotDocumentModified);
+}
+
+void
+MIDIInstrumentParameterPanel::slotDocumentModified(bool)
+{
+    RosegardenDocument *doc = RosegardenMainWindow::self()->getDocument();
+
+    // Get the selected Track's Instrument.
+    InstrumentId instrumentId =
+            doc->getComposition().getSelectedInstrumentId();
+
+    Instrument *instrument = nullptr;
+
+    // If an instrument has been selected.
+    if (instrumentId != NoInstrument)
+        instrument = doc->getStudio().getInstrumentById(instrumentId);
+
+    // If the user has selected a different instrument
+    if (getSelectedInstrument() != instrument) {
+        // Clear the "Receive external" checkbox.
+        m_receiveExternalCheckBox->setChecked(false);
+    }
+
+    if (!instrument) {
+        setSelectedInstrument(nullptr);
+        return;
+    }
+
+    if (instrument->getType() != Instrument::Midi) {
+        setSelectedInstrument(nullptr);
+        return;
+    }
+
+    setSelectedInstrument(instrument);
+
+    updateWidgets();
+}
+
+void
+MIDIInstrumentParameterPanel::slotControlChange(Instrument *instrument, int cc)
 {
     if (!instrument)
         return;
@@ -876,7 +919,29 @@ MIDIInstrumentParameterPanel::slotInstrumentChanged(Instrument *instrument)
     if (getSelectedInstrument()->getId() != instrument->getId())
         return;
 
-    updateWidgets();
+    // Just update the relevant rotary.
+
+    // For each rotary...
+    for (RotaryInfoVector::iterator rotaryIter = m_rotaries.begin();
+            rotaryIter != m_rotaries.end(); ++rotaryIter) {
+
+        // If this is the one we want, update it.
+        if (rotaryIter->controller == cc)
+        {
+            try {
+
+                MidiByte value =
+                        getSelectedInstrument()->getControllerValue(cc);
+                rotaryIter->rotary->setPosition(static_cast<float>(value));
+
+            } catch (...) {
+                RG_WARNING << "slotControlChange(): WARNING: Encountered unexpected cc " << cc;
+            }
+
+            break;
+        }
+
+    }
 }
 
 void
@@ -889,7 +954,8 @@ MIDIInstrumentParameterPanel::slotPercussionClicked(bool checked)
 
     // Update the Instrument.
     getSelectedInstrument()->setPercussion(checked);
-    getSelectedInstrument()->changed();
+
+    RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
 
     // At this point, the bank will be invalid.  We could select
     // the first valid bank/program for the current mode (percussion
@@ -913,7 +979,8 @@ MIDIInstrumentParameterPanel::slotBankClicked(bool checked)
 
     // Update the Instrument.
     getSelectedInstrument()->setSendBankSelect(checked);
-    getSelectedInstrument()->changed();
+
+    RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
 }
 
 void
@@ -926,7 +993,8 @@ MIDIInstrumentParameterPanel::slotProgramClicked(bool checked)
 
     // Update the Instrument.
     getSelectedInstrument()->setSendProgramChange(checked);
-    getSelectedInstrument()->changed();
+
+    RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
 }
 
 void
@@ -946,7 +1014,8 @@ MIDIInstrumentParameterPanel::slotVariationClicked(bool checked)
 
     // Update the Instrument.
     getSelectedInstrument()->setSendBankSelect(checked);
-    getSelectedInstrument()->changed();
+
+    RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
 }
 
 void
@@ -1039,7 +1108,9 @@ MIDIInstrumentParameterPanel::slotSelectBank(int index)
         }
     }
 
-    // This is why changed() isn't called within
+    getSelectedInstrument()->sendChannelSetup();
+
+    // This is why slotDocumentModified() isn't called within
     // the setters.  If it were, then each of the above changes would
     // result in a change notification going out.  Worst case, that
     // would be three change notifications and the first two would be
@@ -1048,11 +1119,12 @@ MIDIInstrumentParameterPanel::slotSelectBank(int index)
     // Why?  It reduces the number of notifications which improves
     // performance.  It avoids sending notifications when an object's
     // state is inconsistent.  It avoids endless loops.
-    getSelectedInstrument()->changed();
+    RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
 }
 
 void
-MIDIInstrumentParameterPanel::slotExternalProgramChange(int programChange, int bankLSB, int bankMSB )
+MIDIInstrumentParameterPanel::slotExternalProgramChange(
+        int bankMSB, int bankLSB, int programChange)
 {
     RG_DEBUG << "slotExternalProgramChange()";
 
@@ -1104,7 +1176,7 @@ MIDIInstrumentParameterPanel::slotExternalProgramChange(int programChange, int b
 
     // Just one change notification for the three potential changes.
     // See comments in slotSelectBank() for further discussion.
-    getSelectedInstrument()->changed();
+    RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
 }
 
 void
@@ -1157,9 +1229,11 @@ MIDIInstrumentParameterPanel::slotSelectProgram(int index)
         }
     }
 
+    getSelectedInstrument()->sendChannelSetup();
+
     // Just one change notification for the two potential changes.
     // See comments in slotSelectBank() for further discussion.
-    getSelectedInstrument()->changed();
+    RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
 }
 
 void
@@ -1187,7 +1261,9 @@ MIDIInstrumentParameterPanel::slotSelectVariation(int index)
     if (!changed)
         return;
 
-    getSelectedInstrument()->changed();
+    getSelectedInstrument()->sendChannelSetup();
+
+    RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
 }
 
 // In place of the old sendBankAndProgram, instruments themselves now
@@ -1214,8 +1290,10 @@ MIDIInstrumentParameterPanel::slotControllerChanged(int controllerNumber)
     }
 
     getSelectedInstrument()->setControllerValue(
-            MidiByte(controllerNumber), MidiByte(value));
-    getSelectedInstrument()->changed();
+            static_cast<MidiByte>(controllerNumber),
+            static_cast<MidiByte>(value));
+    Instrument::emitControlChange(getSelectedInstrument(), controllerNumber);
+    RosegardenMainWindow::self()->getDocument()->setModified();
 }
 
 void
@@ -1233,10 +1311,11 @@ slotSelectChannel(int index)
     else  // Auto
         getSelectedInstrument()->releaseFixedChannel();
 
+    getSelectedInstrument()->sendChannelSetup();
+
     // A call to getSelectedInstrument()->changed() is not required as the
     // auto/fixed channel feature has its own notification mechanisms.
 }
 
 
 }
-#include "MIDIInstrumentParameterPanel.moc"

@@ -32,14 +32,12 @@
 // maybe move this out of this file?
 #include <math.h>
 
-#define DEBUG_PRINT_ALL 0
-
 //using namespace Rosegarden;
 namespace Rosegarden {
 
 PitchGraphWidget::PitchGraphWidget(PitchHistory &history, QWidget *parent) :
         QWidget(parent),
-        m_tuning(NULL),
+        m_tuning(nullptr),
 	m_history(history)
 {
     setMinimumHeight(100);
@@ -259,5 +257,4 @@ PitchGraphWidget::paintEvent(QPaintEvent */* event */)
 }
 
 }
-#include "PitchGraphWidget.moc"
 

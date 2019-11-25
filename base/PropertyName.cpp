@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -26,8 +26,8 @@ namespace Rosegarden
 {
 using std::string;
 
-PropertyName::intern_map *PropertyName::m_interns = 0;
-PropertyName::intern_reverse_map *PropertyName::m_internsReversed = 0;
+PropertyName::intern_map *PropertyName::m_interns = nullptr;
+PropertyName::intern_reverse_map *PropertyName::m_internsReversed = nullptr;
 int PropertyName::m_nextValue = 0;
 
 int PropertyName::intern(const string &s)

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -41,7 +41,7 @@ public:
     PasteToTriggerSegmentWorker
       (Composition *composition,
        // This takes ownership of clipboard.
-       // OK to pass NULL clipboard
+       // OK to pass nullptr clipboard
        Clipboard *clipboard,
        // The label given to the ornament.
        QString label,
@@ -64,13 +64,13 @@ public:
     // Since TriggerSegmentId is unsigned, we can't "x<0" it to check
     // if it's valid.  So we resort to a hack: since m_segment gets a
     // non-null value at the same time, we check for that.
-    bool hasTriggerSegmentId(void)
-    { return m_segment != 0; }
-    TriggerSegmentId getTriggerSegmentId(void)
+    bool hasTriggerSegmentId()
+    { return m_segment != nullptr; }
+    TriggerSegmentId getTriggerSegmentId()
     { return m_id; }
-    int getBasePitch(void)
+    int getBasePitch()
     { return m_basePitch;}
-    int getBaseVelocity(void)
+    int getBaseVelocity()
     { return m_baseVelocity;}
     
 protected:
@@ -95,10 +95,10 @@ public:
                                  QString label,
                                  int basePitch = -1,
                                  int baseVelocity = -1);
-    virtual ~PasteToTriggerSegmentCommand();
+    ~PasteToTriggerSegmentCommand() override;
 
-    virtual void execute();
-    virtual void unexecute();
+    void execute() override;
+    void unexecute() override;
 
 protected:
     PasteToTriggerSegmentWorker m_worker;

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2005-2011 Chris Cannam.
 
@@ -40,8 +40,8 @@ AudioReadStream::AudioReadStream() :
     m_channelCount(0),
     m_sampleRate(0),
     m_retrievalRate(0),
-    m_resampler(0),
-    m_resampleBuffer(0)
+    m_resampler(nullptr),
+    m_resampleBuffer(nullptr)
 {
 }
 

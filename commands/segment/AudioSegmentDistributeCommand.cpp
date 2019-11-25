@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,7 +38,7 @@ AudioSegmentDistributeCommand::AudioSegmentDistributeCommand(
         NamedCommand(getGlobalName()),
         m_composition(comp),
         m_selection(inputSelection),
-        m_audioFile(0),
+        m_audioFile(nullptr),
         m_audioSegment(audioSegment),
         m_executed(false)
 {}
@@ -51,7 +51,7 @@ AudioSegmentDistributeCommand::AudioSegmentDistributeCommand(
         m_composition(comp),
         m_selection(inputSelection),
         m_audioFile(audioFile),
-        m_audioSegment(0),
+        m_audioSegment(nullptr),
         m_executed(false)
 {}
 

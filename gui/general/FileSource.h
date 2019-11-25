@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file originally from Sonic Visualiser, copyright 2007 Queen
     Mary, University of London.
@@ -30,8 +30,6 @@ class QFile;
 
 namespace Rosegarden {
 
-
-class ProgressDialog;
 
 /**
  * FileSource is a class used to refer to the contents of a file that
@@ -68,29 +66,18 @@ public:
     /**
      * Construct a FileSource using the given local file path or URL.
      * The URL may be raw or encoded.
-     *
-     * If a ProgressDialog is provided, it will be updated with
-     * progress status.  Note that the progress() signal will also be
-     * emitted regularly during retrieval, even if no progress is
-     * supplied here.  Caller retains ownership of the progress object.
      */
-    FileSource(QString fileOrUrl,
-               ProgressDialog *progress = 0,
-               QString preferredContentType = "");
+//    FileSource(QString fileOrUrl,
+//               QString preferredContentType = "");
 
     /**
      * Construct a FileSource using the given remote URL.
-     *
-     * If a ProgressDialog is provided, it will be updated with
-     * progress status.  Note that the progress() signal will also be
-     * emitted regularly during retrieval, even if no progress is
-     * supplied here.  Caller retains ownership of the progress object.
      */
-    FileSource(QUrl url, ProgressDialog *progress = 0);
+    FileSource(QUrl url);
 
     FileSource(const FileSource &);
 
-    virtual ~FileSource();
+    ~FileSource() override;
 
     /**
      * Block on a sub-event-loop until the availability of the file or
@@ -195,6 +182,9 @@ signals:
     /**
      * Emitted during URL retrieval, when the retrieval progress
      * notches up to a new percentage.
+     *
+     * ??? It looks like this is unused.  A search on "SIGNAL(progress"
+     *     turns up nothing.
      */
     void progress(int percent);
 
@@ -236,7 +226,6 @@ protected:
     bool m_remote;
     bool m_done;
     bool m_leaveLocalFile;
-    ProgressDialog *m_progress;
 
     typedef std::map<QUrl, int> RemoteRefCountMap;
     typedef std::map<QUrl, QString> RemoteLocalMap;

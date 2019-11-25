@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -25,33 +25,33 @@
 #include "base/RealTime.h"
 #include "base/Segment.h"
 #include "base/Studio.h"
-#include "gui/editors/segment/compositionview/AudioPreviewThread.h"
-#include "gui/widgets/ProgressDialog.h"
+#include "gui/editors/segment/compositionview/AudioPeaksThread.h"
 #include "sound/AudioFileManager.h"
 #include "base/Event.h"
 
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QProgressDialog>
+#include <QPointer>
+#include <QSharedPointer>
 
 #include <map>
 #include <vector>
 
+class QLockFile;
 class QWidget;
 class QTextStream;
 class NoteOnRecSet;
-
 
 namespace Rosegarden
 {
 
 class SequenceManager;
 class RosegardenMainViewWidget;
-class ProgressDialog;
 class MappedEventList;
 class Event;
 class EditViewBase;
-class Clipboard;
 class AudioPluginManager;
 
 
@@ -61,9 +61,8 @@ static const int MERGE_KEEP_OLD_TIMINGS = (1 << 2);
 static const int MERGE_KEEP_NEW_TIMINGS = (1 << 3);
 
 
+/// The document object for a document-view model.
 /**
-  * RosegardenDocument provides a document object for a document-view model.
-  *
   * The RosegardenDocument class provides a document object that can be
   * used in conjunction with the classes RosegardenMainWindow and
   * RosegardenMainViewWidget to create a document-view model 
@@ -74,12 +73,17 @@ static const int MERGE_KEEP_NEW_TIMINGS = (1 << 3);
   * objects. Also, RosegardenDocument contains the methods for
   * serialization of the document data from and to files.
   *
+  * An instance of RosegardenDocument is owned by RosegardenMainWindow.
+  * The easiest way to get here without passing pointers around:
+  *
+  *   RosegardenDocument *doc = RosegardenMainWindow::self()->getDocument();
+  *
   * RosegardenDocument owns the Composition in the document.
   */
-
-class RosegardenDocument : public QObject
+class ROSEGARDENPRIVATE_EXPORT RosegardenDocument : public QObject
 {
     Q_OBJECT
+
 public:
 
     /**
@@ -91,13 +95,14 @@ public:
      * clearing the command history here, or certain commands wipe out the
      * entire undo history needlessly.
      */
-    RosegardenDocument(QWidget *parent,
-                     AudioPluginManager *audioPluginManager = 0,
-                     bool skipAutoload = false,
-                     bool clearCommandHistory = true);
+    RosegardenDocument(QObject *parent,
+                       QSharedPointer<AudioPluginManager> audioPluginManager,
+                       bool skipAutoload = false,
+                       bool clearCommandHistory = true,
+                       bool enableSound = true);
 
 private:
-    RosegardenDocument(RosegardenDocument *doc);
+    RosegardenDocument(const RosegardenDocument &doc);
     RosegardenDocument& operator=(const RosegardenDocument &doc);
 
 public:
@@ -108,7 +113,7 @@ public:
     /**
      * Destructor for the fileclass of the application
      */
-    ~RosegardenDocument();
+    ~RosegardenDocument() override;
 
     /**
      * adds a view to the document which represents the document
@@ -136,24 +141,24 @@ public:
      */
     void deleteEditViews();
 
-protected:
+    /// Set the modified flag but do not notify observers.
     /**
-     * sets the modified flag for the document after a modifying
-     * action on the view connected to the document.
+     * This also clears m_autoSaved.
      *
-     * this is just an accessor, other components should call
-     * slotDocumentModified() and clearModifiedStatus() instead of
-     * this method, which perform all the related housework.
-     * 
+     * Use this rather than slotDocumentModified() when you do not
+     * want the entire UI to refresh.  This can be used for very high
+     * frequency changes that might cause high CPU usage if the UI
+     * were refreshed every time.
+     *
+     * See slotDocumentModified() and emitDocumentModified().
      */
-    void setModified(bool m=true);
+    void setModified();
 
-public:
     /**
      * returns if the document is modified or not. Use this to
      * determine if your document needs saving by the user on closing.
      */
-    bool isModified() const { return m_modified; };
+    bool isModified() const { return m_modified; }
 
     /**
      * clears the 'modified' status of the document (sets it back to false).
@@ -161,11 +166,15 @@ public:
      */
     void clearModifiedStatus();
 
+    /// Emit the documentModified() signal.
     /**
-     * "save modified" - asks the user for saving if the document is
-     * modified
+     * Use this in situations where you need a UI refresh, but the document
+     * hasn't been modified to the point of requiring a save (e.g. the Track
+     * selection has changed).
+     *
+     * See setModified() and slotDocumentModified().
      */
-    bool saveIfModified();
+    void emitDocumentModified()  { emit documentModified(true); }
 
     /**
      * get the autosave interval in seconds
@@ -183,8 +192,8 @@ public:
      */
     bool openDocument(const QString &filename,
                       bool permanent = true,
-                      bool squelch = false,
-                      const char *format = 0);
+                      bool squelchProgressDialog = false,
+                      bool enableLock = true);
 
     /**
      * merge another document into this one
@@ -198,6 +207,9 @@ public:
      */ 
     bool saveDocument(const QString &filename, QString& errMsg,
                       bool autosave = false);
+
+    /// Save under a new name.
+    bool saveAs(const QString &newName, QString &errMsg);
 
     /**
      * exports all or part of the studio to a file.  If devices is
@@ -219,6 +231,11 @@ public:
     const QString &getAbsFilePath() const;
 
     /**
+     * removes the autosave file (e.g. after saving)
+     */
+    void deleteAutoSaveFile();
+
+    /**
      * sets the filename of the document
      */
     void setTitle(const QString &title);
@@ -232,7 +249,7 @@ public:
      * Returns true if the file is a regular Rosegarden ".rg" file,
      * false if it's an imported file or a new file (not yet saved)
      */
-    bool isRegularDotRGFile();
+    bool isRegularDotRGFile() const;
 
     void setQuickMarker();
     void jumpToQuickMarker();    
@@ -256,13 +273,13 @@ public:
     const Studio& getStudio() const { return m_studio;}
 
     /*
-     * return the AudioPreviewThread
+     * return the AudioPeaksThread
      */
-    AudioPreviewThread& getAudioPreviewThread()
-        { return m_audioPreviewThread; }
+    AudioPeaksThread& getAudioPeaksThread()
+        { return m_audioPeaksThread; }
 
-    const AudioPreviewThread& getAudioPreviewThread() const
-        { return m_audioPreviewThread; }
+    const AudioPeaksThread& getAudioPeaksThread() const
+        { return m_audioPeaksThread; }
 
     /*
      * return the AudioFileManager
@@ -282,14 +299,9 @@ public:
         { return m_config; }
 
     /**
-     * returns the cut/copy/paste clipboard
+     * Returns whether playing sound is enabled at all
      */
-    Clipboard *getClipboard();
-
-    /**
-     * Returns whether the sequencer us running
-     */
-    bool isSequencerRunning();
+    bool isSoundEnabled() const;
 
     /// Insert some recorded MIDI events into our recording Segment.
     /**
@@ -404,7 +416,7 @@ public:
     /**
      * Return the AudioPluginManager
      */
-    AudioPluginManager* getPluginManager()
+    QSharedPointer<AudioPluginManager> getPluginManager()
         { return m_pluginManager; }
     
     /**
@@ -419,11 +431,6 @@ public:
     void clearAllPlugins();
 
     /**
-     * Clear the studio at the sequencer
-     */
-    void clearStudio();
-
-    /**
      * Initialise the Studio with a new document's settings
      */
     void initialiseStudio();
@@ -433,6 +440,11 @@ public:
      */
     SequenceManager* getSequenceManager();
 
+    /**
+     * Set the sequence manager (called by SequenceManager itself)
+     */
+    void setSequenceManager(SequenceManager *sm);
+
     QStringList getTimers();
     QString getCurrentTimer();
     void setCurrentTimer(QString);
@@ -440,7 +452,7 @@ public:
     /**
      * return the list of the views currently connected to the document
      */
-    QList<RosegardenMainViewWidget*>& getViewList() { return m_viewList; } //### prepended *
+    QList<RosegardenMainViewWidget*>& getViewList() { return m_viewList; }
 
     bool isBeingDestroyed() { return m_beingDestroyed; }
 
@@ -448,6 +460,10 @@ public:
 
     /// Verify that the audio path exists and can be written to.
     void checkAudioPath(Track *track);
+
+    bool deleteOrphanedAudioFiles(bool documentWillNotBeSaved);
+
+    void stealLockFile(RosegardenDocument *other);
 
 public slots:
     /**
@@ -458,11 +474,17 @@ public slots:
      */
     void slotUpdateAllViews(RosegardenMainViewWidget *sender);
 
+    /// Set the modified flag and notify observers via documentModified().
     /**
-     * set the 'modified' flag of the document to true,
-     * clears the 'autosaved' flag, emits the 'documentModified' signal.
+     * This also clears m_autoSaved and emits documentModified().
      *
-     * always call this when changes have occurred on the document.
+     * Call this when modifications have been made to the document and
+     * an immediate update to the UI is needed.  Do not call this too
+     * frequently as it causes a refresh of the entire UI which is very
+     * expensive.  For high-frequency changes, use setModified() and
+     * let the UI update on a timer at a reasonable pace.
+     *
+     * See setModified() and emitDocumentModified().
      */
     void slotDocumentModified();
     void slotDocumentRestored();
@@ -479,8 +501,14 @@ public slots:
     void slotDocColoursChanged();
 
 signals:
+    /// Emitted when the document is modified.
     /**
-     * Emitted when document is modified or saved
+     * See slotDocumentModified().
+     *
+     * ??? These signals should be moved out of RosegardenDocument into
+     *     a separate global signal class.  Then the document can come and
+     *     go, and the various observers of these signals can stay up and
+     *     connected.  RosegardenDocument should not derive from QObject.
      */
     void documentModified(bool);
 
@@ -518,10 +546,20 @@ signals:
 
     void playPositionChanged(timeT);
     void loopChanged(timeT, timeT);
+    /**
+     * We probably want to keep this notification as a special case.
+     * The reason being that to detect a change to the color list will
+     * require comparing a list of 420 strings.  That's a bit too much.
+     * I guess we could implement some sort of trickery like a hash
+     * or a change count that clients can cache and compare with the
+     * current value to detect a change.  Clever.  But is it too
+     * clever?  Which is easier to understand?  A special notification
+     * or a change count?
+     */
     void docColoursChanged();
     void devicesResyncd();
 
-protected:
+private:
     /**
      * initializes the document generally
      */
@@ -542,7 +580,6 @@ protected:
      * @see RoseXmlHandler
      */
     bool xmlParse(QString fileContents, QString &errMsg,
-                  ProgressDialog *progress,
                   bool permanent,
                   bool &cancelled);
 
@@ -576,12 +613,9 @@ protected:
     /**
      * Save one segment to the given text stream
      */
-    void saveSegment(QTextStream&, Segment*, ProgressDialog*,
+    void saveSegment(QTextStream&, Segment*,
                      long totalNbOfEvents, long &count,
                      QString extraAttributes = QString::null);
-
-    bool deleteOrphanedAudioFiles(bool documentWillNotBeSaved);
-
 
     /// Identifies a specific event within a specific segment.
     /**
@@ -628,17 +662,27 @@ protected:
      */
     void transposeRecordedSegment(Segment *s);
 
+    // File locking functions to prevent multiple users from editing
+    // the same file.
+
+    /// Returns true if the lock was successful.
+    bool lock();
+    void release();
+
+    static QLockFile *createLock(const QString &absFilePath);
+    static QString lockFilename(const QString &absFilePath);
+
     //--------------- Data members ---------------------------------
 
     /**
      * the list of the views currently connected to the document
      */
-	QList<RosegardenMainViewWidget*> m_viewList;		//@@@ shouldn't this be a ptr: QList<RosegardenMainViewWidget*> instead QList<RosegardenMainViewWidget> ? changed !!
+    QList<RosegardenMainViewWidget*> m_viewList;
 
     /**
      * the list of the edit views currently editing a part of this document
      */
-    QList<EditViewBase*> m_editViewList;	//### added *
+    QList<EditViewBase*> m_editViewList;
 
     /**
      * the modified flag of the current document
@@ -661,6 +705,11 @@ protected:
     QString m_absFilePath;
 
     /**
+     * absolute file path of the current document
+     */
+    QLockFile *m_lockFile;
+
+    /**
      * the composition this document is wrapping
      */
     Composition m_composition;
@@ -673,7 +722,7 @@ protected:
     /**
      * calculates AudioFile previews
      */
-    AudioPreviewThread m_audioPreviewThread;
+    AudioPeaksThread m_audioPeaksThread;
 
     typedef std::map<InstrumentId, Segment *> RecordingSegmentMap;
 
@@ -719,10 +768,12 @@ protected:
      */
     DocumentConfiguration m_config;
 
+    SequenceManager *m_seqManager;
+
     /**
      * AudioPluginManager - sequencer and local plugin management
      */
-    AudioPluginManager *m_pluginManager;
+    QSharedPointer<AudioPluginManager> m_pluginManager;
 
     RealTime m_audioRecordLatency;
 
@@ -746,6 +797,14 @@ protected:
      * construction.  Usually true.
      */
     bool m_clearCommandHistory;
+
+    /// Enable/disable playing sounds
+    bool m_soundEnabled;
+
+    /// Allow file lock to be released.
+    bool m_release;
+
+    QPointer<QProgressDialog> m_progressDialog;
 };
 
 

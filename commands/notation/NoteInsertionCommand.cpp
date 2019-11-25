@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -30,6 +30,7 @@
 #include "base/BaseProperties.h"
 #include "base/Selection.h"
 #include "misc/Strings.h"
+#include "misc/Debug.h"
 
 
 namespace Rosegarden
@@ -61,7 +62,7 @@ NoteInsertionCommand::NoteInsertionCommand(Segment &segment, timeT time,
         m_targetSubordering(targetSubordering),
         m_noteStyle(noteStyle),
         m_velocity(velocity),
-        m_lastInsertedEvent(0)
+        m_lastInsertedEvent(nullptr)
 {
     // nothing
 }
@@ -120,8 +121,8 @@ NoteInsertionCommand::modifySegment()
     bool suborderingExact = (actualSubordering != 
                              (lrintf(floorf(m_targetSubordering - 0.01))));
 
-    std::cerr << "actualSubordering = " << actualSubordering
-              << " suborderingExact = " << suborderingExact << std::endl;
+    RG_DEBUG << "actualSubordering =" << actualSubordering
+             << "suborderingExact =" << suborderingExact;
 
     Event *e;
 
@@ -137,6 +138,16 @@ NoteInsertionCommand::modifySegment()
 
     } else {
 
+        segment.getTimeSlice(m_insertionTime, i, j);
+        for (Segment::iterator k = i; k != j; ++k) {
+            if ((*k)->isa(Indication::EventType) &&
+                (*k)->getSubOrdering() <= actualSubordering) {
+                // Decrement subordering to put the grace note
+                // before the indication (i.e. slur), otherwise
+                // it becomes part of the indication.
+                actualSubordering = (*k)->getSubOrdering() - 1;
+            }
+        }
         e = new Event
             (Note::EventType,
              m_insertionTime,
@@ -204,12 +215,12 @@ NoteInsertionCommand::modifySegment()
         segment.getTimeSlice(m_insertionTime, j, k);
         Segment::iterator bg0 = segment.end(), bg1 = segment.end();
         while (j != k) {
-            std::cerr << "testing for truthiness: time " << (*j)->getAbsoluteTime() << ", subordering " << (*j)->getSubOrdering() << std::endl;
+            RG_DEBUG << "testing for truthiness: time " << (*j)->getAbsoluteTime() << ", subordering " << (*j)->getSubOrdering();
             if ((*j)->isa(Note::EventType) &&
                 (*j)->getSubOrdering() < 0 &&
                 (*j)->has(IS_GRACE_NOTE) &&
                 (*j)->get<Bool>(IS_GRACE_NOTE)) {
-                std::cerr << "truthiful" << std::endl;
+                RG_DEBUG << "truthiful";
                 if (bg0 == segment.end()) bg0 = j;
                 bg1 = j;
             }

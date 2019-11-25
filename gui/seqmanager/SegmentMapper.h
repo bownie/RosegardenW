@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -32,16 +32,20 @@ class SegmentMapper : public MappedEventBuffer
 {
 
 public:
-    virtual ~SegmentMapper();
+    ~SegmentMapper() override;
 
-    virtual int getSegmentRepeatCount();
+    /// Create the appropriate mapper for the segment type.  Factory function.
+    static QSharedPointer<SegmentMapper> makeMapperForSegment(RosegardenDocument *, Segment *);
 
-    virtual void initSpecial(void);
+    int getSegmentRepeatCount() override;
+    TrackId getTrackID() const override;
+
+    void initSpecial() override;
 
 protected:
     SegmentMapper(RosegardenDocument *, Segment *);
 
-    bool mutedEtc(void);
+    bool mutedEtc();
 
     //--------------- Data members ---------------------------------
     Segment *m_segment;

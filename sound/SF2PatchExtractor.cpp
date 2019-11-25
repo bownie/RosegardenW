@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -15,18 +15,17 @@
 
 #include "SF2PatchExtractor.h"
 
-#include <iostream>
 #include <fstream>
 #include <string>
 #include <map>
 #include <stdint.h>
 #include <sys/types.h>
+#include <iostream>
 
 namespace Rosegarden
 {
 
 using std::string;
-using std::cerr;
 using std::endl;
 using std::ifstream;
 using std::ios;
@@ -64,106 +63,102 @@ Chunk::isa(string s)
 bool
 SF2PatchExtractor::isSF2File(string fileName)
 {
-    ifstream *file = new ifstream(fileName.c_str(), ios::in | ios::binary);
-    if (!file)
-        throw FileNotFoundException();
+    ifstream file(fileName.c_str(), ios::in | ios::binary);
+    if (!file.good()) return false;
 
-    Chunk riffchunk(file);
+    Chunk riffchunk(&file);
     if (!riffchunk.isa("RIFF")) {
-        file->close();
+        file.close();
         return false;
     }
 
-    Chunk sfbkchunk(file, true);
+    Chunk sfbkchunk(&file, true);
     if (!sfbkchunk.isa("sfbk")) {
-        file->close();
+        file.close();
         return false;
     }
 
-    file->close();
+    file.close();
     return true;
 }
+
+#define SF2_PRESET_HEADER_SIZE 38
 
 SF2PatchExtractor::Device
 SF2PatchExtractor::read(string fileName)
 {
     Device device;
 
-    ifstream *file = new ifstream(fileName.c_str(), ios::in | ios::binary);
-    if (!file)
-        throw FileNotFoundException();
+    ifstream file(fileName.c_str(), ios::in | ios::binary);
+    if (!file.good()) throw FileNotFoundException();
 
-    Chunk riffchunk(file);
+    Chunk riffchunk(&file);
     if (!riffchunk.isa("RIFF")) {
-        file->close();
+        file.close();
         throw WrongFileFormatException();
     }
 
-    Chunk sfbkchunk(file, true);
+    Chunk sfbkchunk(&file, true);
     if (!sfbkchunk.isa("sfbk")) {
-        file->close();
+        file.close();
         throw WrongFileFormatException();
     }
 
-    while (!file->eof()) {
+    while (!file.eof()) {
 
-        Chunk chunk(file);
+        Chunk chunk(&file);
 
         if (!chunk.isa("LIST")) {
             // cerr << "Skipping " << string(chunk.id, 4) << endl;
-            file->seekg(chunk.size, ios::cur);
+            file.seekg(chunk.size, ios::cur);
             continue;
         }
 
-        Chunk listchunk(file, true);
+        Chunk listchunk(&file, true);
         if (!listchunk.isa("pdta")) {
             // cerr << "Skipping " << string(id, 4) << endl;
-            file->seekg(chunk.size - 4, ios::cur);
+            file.seekg(chunk.size - 4, ios::cur);
             continue;
         }
 
         int size = chunk.size - 4;
         while (size > 0) {
 
-            Chunk pdtachunk(file);
+            Chunk pdtachunk(&file);
             size -= 8 + pdtachunk.size;
-            if (file->eof()) {
+            if (file.eof()) {
                 break;
             }
 
             if (!pdtachunk.isa("phdr")) { // preset header
                 // cerr << "Skipping " << string(pdtachunk.id, 4) << endl;
-                file->seekg(pdtachunk.size, ios::cur);
+                file.seekg(pdtachunk.size, ios::cur);
                 continue;
             }
 
-            int presets = pdtachunk.size / 38;
+            int presets = (pdtachunk.size / SF2_PRESET_HEADER_SIZE) - 1;
             for (int i = 0; i < presets; ++i) {
 
                 char name[21];
                 uint16_t bank, program;
 
-                file->read((char *)name, 20);
+                file.read((char *)name, 20);
                 name[20] = '\0';
-                file->read((char *)&program, 2);
-                file->read((char *)&bank, 2);
+                file.read((char *)&program, 2);
+                file.read((char *)&bank, 2);
 
                 // cerr << "Read name as " << name << endl;
 
-                file->seekg(14, ios::cur);
-
-                if (i == presets - 1 &&
-                        bank == 255 &&
-                        program == 255 &&
-                        string(name) == "EOP")
-                    continue;
-
+                file.seekg(14, ios::cur);
                 device[bank][program] = name;
             }
+
+            file.seekg(SF2_PRESET_HEADER_SIZE, ios::cur);
         }
+        break;
     }
 
-    file->close();
+    file.close();
     return device;
 }
 

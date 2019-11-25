@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -16,8 +16,6 @@
 #ifndef RG_COMPOSITION_H
 #define RG_COMPOSITION_H
 
-
-#include "FastVector.h"
 
 #include "RealTime.h"
 #include "base/Segment.h"
@@ -60,7 +58,7 @@ class CompositionObserver;
  * The Composition owns the Segment objects it holds, and deletes them on
  * destruction.  See deleteSegment() and detachSegment().
  */
-class Composition : public XmlExportable
+class ROSEGARDENPRIVATE_EXPORT Composition : public XmlExportable
 {
     friend class Track; // to call notifyTrackChanged()
     friend class Segment; // to call notifySegmentRepeatChanged()
@@ -88,7 +86,7 @@ public:
     typedef recordtrackcontainer::const_iterator recordtrackconstiterator;
 
     Composition();
-    virtual ~Composition();
+    ~Composition() override;
 
 private:
     Composition(const Composition &);
@@ -145,25 +143,23 @@ public:
     const recordtrackcontainer &getRecordTracks() const { return m_recordTracks; }
     void setTrackRecording(TrackId track, bool recording);
     bool isTrackRecording(TrackId track) const;
+    bool isInstrumentRecording(InstrumentId instrumentID) const;
 
-    /// Get the selected (solo) track.
-    /// rename: getSelectedTrackId()
-    /// @see setSelectedTrack()
-    /// @see setSolo()
+    /**
+     * rename: getSelectedTrackId()
+     *
+     * @see setSelectedTrack()
+     */
     TrackId getSelectedTrack() const { return m_selectedTrackId; }
-    /// Set the selected (solo) track.
-    /// rename: setSelectedTrackId()
-    /// @see getSelectedTrack()
-    void setSelectedTrack(TrackId trackId);
 
-    /// Are we soloing the selected track?
-    /// @see setSolo()
-    /// @see getSelectedTrack()
-    bool isSolo() const { return m_solo; }
-    /// Enable or disable solo of the selected track.
-    /// @see isSolo()
-    /// @see getSelectedTrack()
-    void setSolo(bool value);
+    InstrumentId getSelectedInstrumentId() const;
+
+    /**
+     * rename: setSelectedTrackId()
+     *
+     * @see getSelectedTrack()
+     */
+    void setSelectedTrack(TrackId trackId);
 
     /// Total number of tracks in the composition.
     unsigned int getNbTracks() const { return m_tracks.size(); }
@@ -196,6 +192,8 @@ public:
      * through addTrack)
      */
     TrackId getNewTrackId() const;
+
+    bool hasTrack(InstrumentId) const;
 
     /**
      * Get the Instrument Id of a given segment.
@@ -395,7 +393,7 @@ public:
     TriggerSegmentRec *getTriggerSegmentRec(TriggerSegmentId);
 
     /**
-     * As above for a given Event, or NULL if none.
+     * As above for a given Event, or nullptr if none.
      **/
     TriggerSegmentRec *getTriggerSegmentRec(Event* e);
     /**
@@ -489,6 +487,8 @@ public:
      * 
      * Will happily return theoretical timings for bars before the
      * start or beyond the end of composition.
+     *
+     * ??? typedef std::pair<timeT, timeT> BarRange;
      */
     std::pair<timeT, timeT> getBarRangeForTime(timeT t) const;
 
@@ -781,7 +781,7 @@ public:
 
     // XML exportable method
     //
-    virtual std::string toXmlString();
+    std::string toXmlString() const override;
 
     // Who's making this racket?
     //
@@ -820,6 +820,9 @@ public:
     //
     ColourMap& getGeneralColourMap() { return m_generalColourMap; }
     void setGeneralColourMap(ColourMap &newmap);
+
+    /// NotationView spacing
+    int m_notationSpacing;
 
 
     //////
@@ -961,33 +964,38 @@ protected:
     //
     recordtrackcontainer m_recordTracks;
 
-    // Are we soloing and if so which Track?
-    //
-    bool m_solo;
-
     TrackId m_selectedTrackId;
 
     /**
      * This is a bit like a segment, but can only contain one sort of
      * event, and can only have one event at each absolute time
      */
-    class ReferenceSegment :
-        public FastVector<Event *> // not a set: want random access for bars
+    class ReferenceSegment
     {
-        typedef FastVector<Event *> Impl;
 
     public:
         ReferenceSegment(std::string eventType);
-        virtual ~ReferenceSegment();
+        ~ReferenceSegment();
     private:
         ReferenceSegment(const ReferenceSegment &);
         ReferenceSegment& operator=(const ReferenceSegment &);
     public:
-        typedef Impl::iterator iterator;
-        typedef Impl::size_type size_type;
-        typedef Impl::difference_type difference_type;
+        typedef std::vector<Event*>::size_type size_type;
+        typedef std::vector<Event*>::iterator iterator;
+        typedef std::vector<Event*>::const_iterator const_iterator;
 
+        iterator begin();
+        const_iterator begin() const;
+        iterator end();
+        const_iterator end() const;
+
+        size_type size() const;
+        bool empty() const;
+        iterator erase(iterator position);
         void clear();
+
+        Event* operator[] (size_type n);
+        const Event* operator[] (size_type n) const;
 
         timeT getDuration() const;
         
@@ -1007,6 +1015,8 @@ protected:
     private:
         iterator find(Event *e);
         std::string m_eventType;
+        // not a set: want random access for bars
+        std::vector<Event*> m_events;
     };
 
     /// Contains time signature events
@@ -1054,8 +1064,8 @@ protected:
     void notifyEndMarkerChange(bool shorten) const;
     void notifyMetronomeChanged() const;
     void notifyTimeSignatureChanged() const;
-    void notifySoloChanged() const;
     void notifyTempoChanged() const;
+    void notifySelectedTrackChanged() const;
     void notifySourceDeletion() const;
 
     void clearVoiceCaches();
@@ -1113,6 +1123,7 @@ protected:
 };
 
 
+/// Base class for those that want notification of Composition changes.
 /**
  * If you subclass from CompositionObserver, you can then attach to a
  * Composition to receive notification when something changes.
@@ -1125,125 +1136,100 @@ protected:
  * more care to make sure you really are making the correct
  * declarations in the subclass.
  */
-
 class CompositionObserver
 {
 public:
-    CompositionObserver() : m_compositionDeleted(false) {}
+    CompositionObserver() : m_compositionDeleted(false)  { }
     
-    virtual ~CompositionObserver() {}
+    virtual ~CompositionObserver()  { }
     
-    /**
-     * Called after the segment has been added to the composition
-     */
+    /// A segment has been added to the Composition.
     virtual void segmentAdded(const Composition *, Segment *) { }
 
+    /// A Segment has been removed from the Composition.
     /**
-     * Called after the segment has been removed from the segment,
-     * and just before it is deleted
+     * Called before the Segment is deleted.
      */
     virtual void segmentRemoved(const Composition *, Segment *) { }
 
-    /**
-     * Called when the segment's repeat status has changed
-     */
+    /// The Segment's repeat status has changed
     virtual void segmentRepeatChanged(const Composition *, Segment *, bool) { }
 
-    /**
-     * Called when the segment's repeat end time has changed
-     */
+    /// The Segment's repeat end time has changed.
     virtual void segmentRepeatEndChanged(const Composition *, Segment *, timeT) { }
 
-    /**
-     * Called when the segment's delay timing has changed
-     */
+    /// The Segment's delay timing has changed.
     virtual void segmentEventsTimingChanged(const Composition *, Segment *,
                                             timeT /* delay */,
                                             RealTime /* rtDelay */) { }
 
-    /**
-     * Called when the segment's transpose value has changed
-     */
+    /// The Segment's transpose value has changed
     virtual void segmentTransposeChanged(const Composition *, Segment *,
                                          int /* transpose */) { }
 
-    /**
-     * Called when the segment's start time has changed
-     */
+    /// The Segment's start time has changed.
     virtual void segmentStartChanged(const Composition *, Segment *,
 				     timeT /* newStartTime */) { }
 
-    /**
-     * Called when the segment's end marker time has changed
-     */
+    /// The Segment's end marker time has changed
     virtual void segmentEndMarkerChanged(const Composition *, Segment *,
                                          bool /* shorten */) { }
 
-    /**
-     * Called when the segment's track has changed
-     */
+    /// The Segment's track has changed.
     virtual void segmentTrackChanged(const Composition *, Segment *,
-                                     TrackId /* id */) { }
+                                     TrackId) { }
 
+    /// The Composition's end time has been changed.
     /**
-     * Called after the composition's end marker time has been
-     * changed
-     *
      * ??? rename: endTimeChanged() to differentiate from SegmentObserver.
      */
-    virtual void endMarkerTimeChanged(const Composition *, bool /* shorten */) { }
+    virtual void endMarkerTimeChanged(const Composition *,
+                                      bool /* shorten */) { }
 
+    /// A different track has been selected.
     /**
-     * Called when a different track is selected.  This can happen when
-     * the user clicks on a track label, or presses the up/down arrow keys
-     * to change which track is currently selected.
+     * This can happen when the user clicks on a track label, or presses
+     * the up/down arrow keys to change which track is currently selected.
+     *
+     * See selectedTrackChanged().
      */
     virtual void trackSelectionChanged(const Composition *, TrackId) { }
 
-    /**
-     * Called when a track is changed (instrument id, muted status...)
-     */
-    virtual void trackChanged(const Composition *, Track*) { }
+    /// A Track has changed (instrument id, muted status...)
+    virtual void trackChanged(const Composition *, Track *) { }
 
-    /**
-     * Called when tracks have been deleted
-     */
-    virtual void tracksDeleted(const Composition *, std::vector<TrackId> &/*trackIds*/) { }
+    virtual void tracksDeleted(const Composition *,
+                               std::vector<TrackId> & /*trackIds*/) { }
 
-    /**
-     * Called when tracks have been added
-     */
-    virtual void tracksAdded(const Composition *, std::vector<TrackId> &/*trackIds*/) { }
+    virtual void tracksAdded(const Composition *,
+                             std::vector<TrackId> & /*trackIds*/) { }
 
-    /**
-     * Called when some time signature has changed
-     */
+    /// Some time signature has changed.
     virtual void timeSignatureChanged(const Composition *) { }
     
-    /**
-     * Called when metronome status has changed (on/off)
-     */
+    /// Metronome status has changed (on/off)
     virtual void metronomeChanged(const Composition *) { }
 
-    /**
-     * Called when solo status changes (solo on/off, and selected track)
-     */
-    virtual void soloChanged(const Composition *, bool /* solo */,
-                             TrackId /* selectedTrack */) { }
-
-    /**
-     * Called when solo status changes (solo on/off, and selected track)
-     */
     virtual void tempoChanged(const Composition *) { }
     
+    /// Like trackChanged() but for the Track that is selected.
     /**
-     * Called from the composition dtor
+     * This avoids the need to check the TrackId with trackChanged().
+     *
+     * See trackChanged().
+     *
+     * ??? We can probably get rid of this easily and just use
+     *     trackChanged().
      */
+    virtual void selectedTrackChanged(const Composition *) { }
+
+
+    /// Called from the Composition dtor.
     virtual void compositionDeleted(const Composition *) {
         m_compositionDeleted = true;
     }
 
-    bool isCompositionDeleted() { return m_compositionDeleted; }
+    bool isCompositionDeleted()  { return m_compositionDeleted; }
 
 protected:
     bool m_compositionDeleted;

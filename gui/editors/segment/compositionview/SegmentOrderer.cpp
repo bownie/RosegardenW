@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -30,7 +30,7 @@ namespace Rosegarden
 void SegmentOrderer::segmentClicked(const Segment* s)
 {
     m_segmentZs[s] = ++m_currentMaxZ;
-    RG_DEBUG << "SegmentOrderer::segmentClicked() s = " << s << " - max Z = " << m_currentMaxZ << endl;
+    RG_DEBUG << "SegmentOrderer::segmentClicked() s = " << s << " - max Z = " << m_currentMaxZ;
 }
 
 unsigned int SegmentOrderer::getZForSegment(const Rosegarden::Segment* s)

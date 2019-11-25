@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[NoteFontMap]"
 
 #include "NoteFontMap.h"
 #include "misc/Debug.h"
@@ -30,7 +31,7 @@
 #include <QRegExp>
 #include <QString>
 #include <QStringList>
-
+#include <iostream>
 
 namespace Rosegarden
 {
@@ -39,7 +40,7 @@ NoteFontMap::NoteFontMap(QString name) :
     m_name(name),
     m_smooth(false),
     m_srcDirectory(name),
-    m_characterDestination(0),
+    m_characterDestination(nullptr),
     m_hotspotCharName(""),
     m_errorString(QObject::tr("unknown error")),
     m_ok(true)
@@ -127,7 +128,7 @@ NoteFontMap::startElement(const QString &, const QString &,
                           const QXmlAttributes &attributes)
 {
     QString lcName = qName.toLower();
-    m_characterDestination = 0;
+    m_characterDestination = nullptr;
 
     // The element names are actually unique within the whole file;
     // we don't bother checking we're in the right context.  Leave that
@@ -603,8 +604,7 @@ NoteFontMap::startElement(const QString &, const QString &,
                 }
             }
             if (!have) {
-                std::cerr << QString("Warning: Unable to load any of the fonts in \"%1\"").
-                arg(names) << std::endl;
+                RG_WARNING << "startElement(): WARNING: Unable to load any of the fonts in" << names;
                 m_ok = false;
             }
 
@@ -775,11 +775,11 @@ const
 {
     SymbolDataMap::const_iterator i = m_data.find(charName);
     if (i == m_data.end())
-        return 0;
+        return nullptr;
 
     SizeDataMap::const_iterator si = m_sizes.find(size);
     if (si == m_sizes.end())
-        return 0;
+        return nullptr;
 
     int fontId = i->second.getFontId();
 
@@ -792,7 +792,7 @@ const
 
     SystemFontNameMap::const_iterator fni = m_systemFontNames.find(fontId);
     if (fontId < 0 || fni == m_systemFontNames.end())
-        return 0;
+        return nullptr;
     QString fontName = fni->second;
 
     CharBaseMap::const_iterator bi = m_bases.find(fontId);
@@ -809,7 +809,7 @@ const
 
     SystemFont *font = SystemFont::loadSystemFont(spec);
     if (!font)
-        return 0;
+        return nullptr;
     m_systemFontCache[spec] = font;
 
     NOTATION_DEBUG << "NoteFontMap::getFont: loaded font " << fontName

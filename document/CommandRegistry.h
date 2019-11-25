@@ -35,7 +35,6 @@
 #include <map>
 #include <vector>
 
-#include <iostream>
 
 #include "base/Exception.h"
 
@@ -59,12 +58,14 @@ public:
 class AbstractCommandBuilder
 {
 public:
+    virtual ~AbstractCommandBuilder();
+
     // may throw CommandCancelled
     virtual Command *build(QString actionName,
                            EventSelection &s,
                            CommandArgumentQuerier &querier) = 0;
 
-    virtual EventSelection *getSubsequentSelection(Command *) { return 0; }
+    virtual EventSelection *getSubsequentSelection(Command *) { return nullptr; }
 };
 
 template <typename CommandType>
@@ -72,16 +73,16 @@ class SelectionCommandBuilder : public AbstractCommandBuilder
 {
 public:
     // may throw CommandCancelled
-    virtual Command *build(QString /* actionName */,
+    Command *build(QString /* actionName */,
                            EventSelection &s,
-                           CommandArgumentQuerier &/* querier */) {
+                           CommandArgumentQuerier &/* querier */) override {
         return new CommandType(s);
     }
 
-    virtual EventSelection *getSubsequentSelection(Command *c) {
+    EventSelection *getSubsequentSelection(Command *c) override {
         CommandType *command = dynamic_cast<CommandType *>(c);
         if (command) return command->getSubsequentSelection();
-        return 0;
+        return nullptr;
     }
 };
 
@@ -90,16 +91,16 @@ class ArgumentAndSelectionCommandBuilder : public AbstractCommandBuilder
 {
 public:
     // may throw CommandCancelled
-    virtual Command *build(QString actionName,
+    Command *build(QString actionName,
                            EventSelection &s,
-                           CommandArgumentQuerier &querier) {
+                           CommandArgumentQuerier &querier) override {
         return new CommandType(CommandType::getArgument(actionName, querier), s);
     }
 
-    virtual EventSelection *getSubsequentSelection(Command *c) {
+    EventSelection *getSubsequentSelection(Command *c) override {
         CommandType *command = dynamic_cast<CommandType *>(c);
         if (command) return command->getSubsequentSelection();
-        return 0;
+        return nullptr;
     }
 };
 
@@ -112,7 +113,7 @@ class CommandRegistry : public QObject
     Q_OBJECT
 
 public:
-    virtual ~CommandRegistry();
+    ~CommandRegistry() override;
 
     void registerCommand(QString actionName,
                          AbstractCommandBuilder *builder) {
@@ -144,7 +145,8 @@ public:
     virtual QString getText(QString message, bool *ok) = 0;
 
 protected:
-    CommandArgumentQuerier() { };
+    CommandArgumentQuerier() { }
+    virtual ~CommandArgumentQuerier();
 };
 
 }
