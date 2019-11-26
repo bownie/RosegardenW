@@ -1,0 +1,161 @@
+Building Rosegarden for Windows
+-------------------------------
+
+It's currently not that easy and very manual.
+
+To build Rosegarden for Windows we need to manually merge latest changes with our current version.
+
+Head to:
+
+https://sf.net/projects/rosegarden
+
+and download the latest source.
+
+1. Clone this repository.
+
+2. Copy the subdirectories of the src/ directory in the source bundle of this cloned repository
+
+3. Install latest QtCreator with latets version Qt compatibility and mingw support.
+
+4. Install Perl (Strawberry) to convert mocs and run moc conversion script
+    - run the convertMocs.pl to rename moc files in place
+	
+5. Add Qt bins to path and run
+  - in gui\studio:
+     $ uic DeviceManagerDialogUi.ui > DeviceManagerDialogUi.h
+	 
+6. If necessary create a rosegardenprivate_export.h file at the top level with the following inside:
+
+  #define ROSEGARDENPRIVATE_EXPORT
+
+7. comment out the mman.h references (RingBuffer.h)
+
+8. Create an empty rosegarden-version
+
+9. Lots more  manual fixing and commenting.
+
+10. Update the garderobe.nsi NSIS installer file with latest version information and adjust contents as necessary.
+
+11. Install NSIS installer and FontName package:
+
+	https://nsis.sourceforge.io/FontName_plug-in
+	
+	Also see fix here:
+	
+	https://stackoverflow.com/questions/21741192/error-installing-a-font-with-nsis
+
+12. Build the package directory (currently manually including):
+
+	AUTHORS.txt
+	ca.qm
+	COPYING.txt
+	cs.qm
+	cy.qm
+	de.qm
+	en.qm
+	en_GB.qm
+	en_US.qm
+	es.qm
+	et.qm
+	eu.qm
+	fi.qm
+	fonts/GNU-LilyPond-feta-design20.ttf
+	fonts/GNU-LilyPond-feta-nummer-10.ttf
+	fonts/GNU-LilyPond-parmesan-20.ttf
+	fr.qm
+	garderobe.nsi
+	id.qm
+	it.qm
+	ja.qm
+	libgcc_s_dw2-1.dll
+	libstdc++-6.dll
+	nl.qm
+	pl.qm
+	pt_BR.qm
+	Qt5Core.dll
+	Qt5Gui.dll
+	Qt5Network.dll
+	Qt5PrintSupport.dll
+	Qt5Svg.dll
+	Qt5Widgets.dll
+	Qt5Xml.dll
+	README.txt
+	README-linux.txt
+	rg-rwb-rose3-128x128.ico
+	rosegarden.exe
+	rosegarden.qm
+	ru.qm
+	sv.qm
+	zh_CN.qm
+
+13. Run the NSIS installer to make the package and share it on sourceforge or with the community.
+
+
+
+--- OLD INSTRUCTIONS
+
+Install only:
+
+- install qt-sdk-win-opensource-2010.05.exe (default path)
+- zlib (default path - developer package)
+- pthreads-w32-2-8-0-release.exe
+- (ladspa)
+
+
+
+Build steps:
+
+- create new project (leave build directory outside of the project path for sources)
+- copy in source sub directories
+- copy in project file (premodified)
+- copy .qm files to data/local directory
+- run qmake
+- build
+- fix probs below
+- ensure link path is correct according to qmake file
+- modify path for DLLs
+- convert and install fonts with fontforge
+
+
+
+Code mods:
+
+- do moc include substitutions to all .cpp files (thing.moc -> moc_thing.cpp)
+- rename all UI files i.e. DeviceManagerDialogUi.h -> ui_DeviceManagerDialogUi.h
+- RingBuffer.h - comment out mman stuff
+- LilypondExporter fix for VERSION as QString
+- TranzportClient comment out bzero etc 
+- RosegardenMainWindow.cpp comment out ll stuff
+- main.cpp - comment out some process stuff
+- Resampler.cpp - comment out
+- LADSPAPluginInstance.cpp - comment ALL out
+- LADSPAPluginFactory.cpp - lots of commenting out
+- DSSIPluginInstance.h/cpp - lots of commenting out
+- DSSIPluginFactory.h/cpp - lots of commenting out
+- AudioTimeStretcher.h/cpp - lots of commenting out
+- AudioProcess.h/cpp - AudioThread, AudioBussMixer
+- AudioFileTimeStretcher.cpp/h
+- TempDirectory.cpp - commented out some potentially breakingable stuff (!!!)
+
+- OSCMessage
+- AudioPluginOSCGUIManager
+- AudioPluginOSCGui.cpp
+
+
+
+
+
+- AlsaDriver NO?  Why?
+
+
+Other stuff:
+
+- Fontforge fontforge-mingw_2010_05_18.zip
+
+Created fonts with this:
+
+GNU-LilyPond-parmesan-20.ttf
+GNU-LilyPond-feta-design20.ttf
+GNU-LilyPond-feta-nummer-10.ttf
+
+These need to be installed!
