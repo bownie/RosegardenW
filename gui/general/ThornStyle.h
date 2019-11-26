@@ -109,6 +109,28 @@ private:
     QPixmap m_titleUndockPixmap;
 };
 
+/**
+ * The AppEventFilter class is notified when a new widget is created
+ * and can decide whether to apply the Thorn Style to it or not.
+ */
+class AppEventFilter : public QObject
+{
+    Q_OBJECT
+public:
+    AppEventFilter();
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
+    bool shouldIgnoreThornStyle(QWidget *widget) const;
+
+    void polishWidget(QWidget *widget);
+
+private:
+    ThornStyle m_style;
+    QPalette m_systemPalette;
+    QStyle *m_systemStyle;
+};
+
+
 
 }
 

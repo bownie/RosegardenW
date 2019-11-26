@@ -4,8 +4,13 @@
   - in gui\studio:
      $ uic DeviceManagerDialogUi.ui > DeviceManagerDialogUi.h
 	 
-	 
+- create a rosegardenprivate_export.h file at the top level with the following inside:
 
+  #define ROSEGARDENPRIVATE_EXPORT
+
+- comment out the mman.h references (RingBuffer.h)
+- rosegarden-version
+- lots of manual fixing and commenting
 
 
 

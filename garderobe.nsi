@@ -2,7 +2,7 @@
 ; Rosegarden NSIS Installer
 ;
 ; Richard Bown
-; June 2014
+; November 2019
 ;-------------------------------
 !include FontReg.nsh
 !include FontName.nsh
@@ -17,15 +17,15 @@ RequestExecutionLevel admin
 !include "MUI.nsh"
 
 ; The name of the installer
-Name "RG-win32-alpha-4"
-Caption "Rosegarden Windows32 Alpha Build 4"
+Name "RG-win32-alpha-1906"
+Caption "Rosegarden Windows32 Alpha Build 1906"
 
 !define icon "icon.ico"
-!define COMPANY "Xyglo"
+!define COMPANY "Rosegarden"
 !define SOFTWARE "Rosegarden"
 
 ; The file to write
-OutFile "rosegarden-win32-alpha-4.exe"
+OutFile "rosegarden-win32-alpha-1906.exe"
 
 ; The default installation directory
 ;

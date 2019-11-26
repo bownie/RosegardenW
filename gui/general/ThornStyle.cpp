@@ -62,34 +62,6 @@ static QPixmap loadPix(const QString &name)
     return pix;
 }
 
-/**
- * The AppEventFilter class is notified when a new widget is created
- * and can decide whether to apply the Thorn Style to it or not.
- */
-class AppEventFilter : public QObject
-{
-    Q_OBJECT
-public:
-    AppEventFilter()
-        : m_systemPalette(qApp->palette()),
-          m_systemStyle(qApp->style()) {
-    }
-    bool eventFilter(QObject *watched, QEvent *event) override;
-
-    bool shouldIgnoreThornStyle(QWidget *widget) const {
-        return qobject_cast<QFileDialog *>(widget)
-                || widget->inherits("KDEPlatformFileDialog")
-                || widget->inherits("KDirSelectDialog");
-    }
-
-    void polishWidget(QWidget *widget);
-
-private:
-    ThornStyle m_style;
-    QPalette m_systemPalette;
-    QStyle *m_systemStyle;
-};
-
 // Apply the style to widget and its children, recursively
 // Even though every widget goes through the event filter, this is needed
 // for the case where a whole widget hierarchy is suddenly reparented into the file dialog.
@@ -106,6 +78,22 @@ static void applyStyleRecursive(QWidget* widget, QStyle *style)
         }
     }
 }
+
+/**
+ * The AppEventFilter class is notified when a new widget is created
+ * and can decide whether to apply the Thorn Style to it or not.
+ */
+AppEventFilter::AppEventFilter()
+    : m_systemPalette(qApp->palette()),
+      m_systemStyle(qApp->style()) {
+}
+
+bool AppEventFilter::shouldIgnoreThornStyle(QWidget *widget) const {
+    return qobject_cast<QFileDialog *>(widget)
+            || widget->inherits("KDEPlatformFileDialog")
+            || widget->inherits("KDirSelectDialog");
+}
+
 
 // when we ditch Qt4, we can switch to qCDebug...
 //#define DEBUG_EVENTFILTER

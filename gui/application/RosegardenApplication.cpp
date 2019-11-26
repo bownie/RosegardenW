@@ -43,7 +43,7 @@ static void initResources()
 {
     // Initialize .qrc resources (necessary when using a static lib)
     Q_INIT_RESOURCE(data);
-    Q_INIT_RESOURCE(locale);
+    //Q_INIT_RESOURCE(locale);
 }
 
 RosegardenApplication::RosegardenApplication(int &argc, char **argv) :
