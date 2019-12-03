@@ -12,17 +12,17 @@ jobs:
       uses: jurplel/install-qt-action@v2.1.0
       with:
         # Directory to install Qt
-        dir: # optional
+        #dir: # optional
         # Version of Qt to install
-        version: # optional, default is 5.12.6
+        #version: default # optional, default is 5.12.6
         # Host platform
-        host: windows # optional
+        #host: windows # optional
         # Target platform for build
         target: desktop # optional, default is desktop
         # Architecture for Windows/Android
         arch: win32_mingw53 # optional
         # Whether or not to install Qt dependencies on Linux
-        install-deps: true # optional, default is true
+        #install-deps: true # optional, default is true
 
     - uses: actions/checkout@v1
     - name: Run a one-line script
