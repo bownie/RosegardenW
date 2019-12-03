@@ -45,7 +45,7 @@ jobs:
 
     - name: Make mingw32
       working-directory: d:/a/RosegardenW/RosegardenW
-      run: mingw32-make.exe -j8 in d:/a/RosegardenW/build-garderobe-Desktop_Qt_5_12_6_MinGW_32_bit-Release
+      run: mingw32-make.exe -j8
 
 #    - name: Run a multi-line script
 #      run: |
