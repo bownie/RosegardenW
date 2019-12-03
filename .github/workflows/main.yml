@@ -28,7 +28,8 @@ jobs:
 
     - name: Qmake
       working-directory: d:/a/RosegardenW/RosegardenW
-      run: qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler"
+      #run: qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler"
+      run: qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler" && mingw32-make.exe qmake_all
 
     - name: Make mingw32
       working-directory: d:/a/RosegardenW/RosegardenW
