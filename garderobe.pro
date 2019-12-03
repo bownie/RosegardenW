@@ -6,6 +6,10 @@ TARGET = rosegarden
 #
 QT += core gui xml network widgets printsupport
 
+# Permissive flag for github build (gui/editors/notation/StaffHeader.cpp)
+#
+QMAKE_CXXFLAGS = -fpermissive
+
 CONFIG += qt embed_manifest_exe
 
 OTHER_FILES += \
