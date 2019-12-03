@@ -5,9 +5,12 @@ on: [push]
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
 
     steps:
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v2
+
     - uses: actions/checkout@v1
     - name: Run a one-line script
       run: echo Hello, world!
@@ -15,3 +18,5 @@ jobs:
       run: |
         echo Add other actions to build,
         echo test, and deploy your project.
+
+
