@@ -27,7 +27,7 @@ jobs:
     - uses: actions/checkout@v1
 
     - name: Qmake
-      working-directory: .\RosegardenW
+      working-directory: d:/a/RosegardenW/RosegardenW
       run: qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler"
 
 #    - name: Run a multi-line script
