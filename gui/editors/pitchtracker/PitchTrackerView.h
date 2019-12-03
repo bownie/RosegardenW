@@ -22,7 +22,7 @@
 
 #include "gui/editors/notation/NotationView.h"
 #include "base/ViewSegment.h"
-#include <lo/lo_osc_types.h>
+//#include <lo/lo_osc_types.h>
 
 namespace Rosegarden {
 
@@ -55,8 +55,8 @@ public:
     // basic Rosegarden infrastructure
     PitchTrackerView(RosegardenDocument *doc,
                      std::vector<Segment *> segments,
-                     QWidget *parent = 0);
-    ~PitchTrackerView();
+                     QWidget *parent = nullptr);
+    ~PitchTrackerView() override;
 
     void setSegments(RosegardenDocument *document,
                      std::vector<Segment *> segments);

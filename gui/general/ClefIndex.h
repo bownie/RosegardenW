@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -38,7 +38,7 @@ enum { TrebleClef = 0,                  // G clef, line 2
        BaritoneClef,                    // C clef, line 5
        VarbaritoneClef,                 // F clef, line 3
        SubbassClef,                     // F clef, line 5
-       TwoBarClef                       // percussion clef  //!!! doesn't exist yet!
+       TwoBarClef                       // percussion clef
      };
 
 namespace Rosegarden 

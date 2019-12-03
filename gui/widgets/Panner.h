@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,13 +23,23 @@
 namespace Rosegarden
 {
 
+
+/// The light blue area that appears below the notation and matrix views.
+/**
+ * A Panner is the light blue navigation area below the notation and matrix
+ * views.  It is to the left of the set of three thumbwheels that can be
+ * used for panning and zooming.
+ *
+ * The viewport can be moved around by clicking and dragging in
+ * the Panner.  Using the scroll wheel within the Panner zooms in and out.
+ */
 class Panner : public QGraphicsView
 {
     Q_OBJECT
 
 public:
     Panner();
-    virtual ~Panner() { }
+    ~Panner() override { }
 
     virtual void setScene(QGraphicsScene *);
 
@@ -57,18 +67,18 @@ protected:
 
     void moveTo(QPoint);
 
-    virtual void paintEvent(QPaintEvent *);
-    virtual void mousePressEvent(QMouseEvent *e);
-    virtual void mouseMoveEvent(QMouseEvent *e);
-    virtual void mouseReleaseEvent(QMouseEvent *e);
-    virtual void mouseDoubleClickEvent(QMouseEvent *e);
-    virtual void wheelEvent(QWheelEvent *e);
+    void paintEvent(QPaintEvent *) override;
+    void mousePressEvent(QMouseEvent *e) override;
+    void mouseMoveEvent(QMouseEvent *e) override;
+    void mouseReleaseEvent(QMouseEvent *e) override;
+    void mouseDoubleClickEvent(QMouseEvent *e) override;
+    void wheelEvent(QWheelEvent *e) override;
 
-    virtual void resizeEvent(QResizeEvent *);
+    void resizeEvent(QResizeEvent *) override;
 
     virtual void updateScene(const QList<QRectF> &);
-    virtual void drawItems(QPainter *, int, QGraphicsItem *[],
-                           const QStyleOptionGraphicsItem []);
+    void drawItems(QPainter *, int, QGraphicsItem *[],
+                           const QStyleOptionGraphicsItem []) override;
 
     bool m_clicked;
     QRectF m_clickedRect;

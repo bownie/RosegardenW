@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -45,7 +45,7 @@ EventSelection::EventSelection(Segment& t, timeT beginTime, timeT endTime, bool 
     if (i != t.end()) {
 	m_beginTime = (*i)->getAbsoluteTime();
 	while (i != j) {
-	    m_endTime = (*i)->getAbsoluteTime() + (*i)->getDuration();
+	    m_endTime = (*i)->getAbsoluteTime() + (*i)->getGreaterDuration();
 	    m_segmentEvents.insert(*i);
 	    ++i;
 	}
@@ -59,7 +59,7 @@ EventSelection::EventSelection(Segment& t, timeT beginTime, timeT endTime, bool 
 
         while (i != t.begin() && i != t.end() && i != j) {
 
-            if ((*i)->getAbsoluteTime() + (*i)->getDuration() > beginTime)
+            if ((*i)->getAbsoluteTime() + (*i)->getGreaterDuration() > beginTime)
             {
                 m_segmentEvents.insert(*i); // duplicates are filtered automatically
                 m_beginTime = (*i)->getAbsoluteTime();
@@ -87,9 +87,11 @@ EventSelection::EventSelection(const EventSelection &sel) :
 
 EventSelection::~EventSelection()
 {
-  // Notify observers of deconstruction
-    for (ObserverSet::const_iterator i = m_observers.begin(); i != m_observers.end(); ++i) {
-	(*i)->eventSelectionDestroyed(this);
+    if (!m_observers.empty()) {
+        // Notify observers of deconstruction
+        for (ObserverSet::const_iterator i = m_observers.begin(); i != m_observers.end(); ++i) {
+            (*i)->eventSelectionDestroyed(this);
+        }
     }
     m_originalSegment.removeObserver(this);
 }
@@ -115,7 +117,7 @@ EventSelection::insertThisEvent(Event *e)
 	m_haveRealStartTime = true;
     }
 
-    timeT eventDuration = e->getDuration();
+    timeT eventDuration = e->getGreaterDuration();
     if (eventDuration == 0) eventDuration = 1;
 
     timeT eventEndTime = e->getAbsoluteTime() + eventDuration;
@@ -159,9 +161,9 @@ EventSelection::eraseThisEvent(Event *e)
     }
 }
 
-void
+int
 EventSelection::addRemoveEvent(Event *e, EventFuncPtr insertEraseFn,
-                               bool ties)
+                               bool ties, bool forward)
 {
     const Segment::const_iterator baseSegmentItr = m_originalSegment.find(e);
     
@@ -173,7 +175,7 @@ EventSelection::addRemoveEvent(Event *e, EventFuncPtr insertEraseFn,
         //       it.
     //}
 
-    timeT eventDuration = e->getDuration();
+    timeT eventDuration = e->getGreaterDuration();
     if (eventDuration == 0) eventDuration = 1;
 
     timeT eventStartTime = e->getAbsoluteTime();
@@ -182,7 +184,10 @@ EventSelection::addRemoveEvent(Event *e, EventFuncPtr insertEraseFn,
     // Always add/remove at least the one Event we were called with.
     (this->*insertEraseFn)(e);
 
-    if (!ties) { return; }
+    int counter = 1;
+
+    if (!ties) { return counter; }
+
     
     // Now we handle the tied notes themselves.  If the event we're adding is
     // tied, then we iterate forward and back to try to find all of its linked
@@ -221,6 +226,7 @@ EventSelection::addRemoveEvent(Event *e, EventFuncPtr insertEraseFn,
                 if ((*si)->has(BaseProperties::TIED_BACKWARD)) {
                     // add the event
                     (this->*insertEraseFn)(*si);
+                    if (forward) counter++;
 
                     // while looking ahead, we have to keep pushing our
                     // [selection]  search ahead to the end of the most
@@ -264,6 +270,7 @@ EventSelection::addRemoveEvent(Event *e, EventFuncPtr insertEraseFn,
                 if ((*si)->has(BaseProperties::TIED_FORWARD)) {
                     // add the event
                     (this->*insertEraseFn)(*si);
+                    if (!forward) counter++;
 
                     // while looking back, we have to keep pushing our
                     // [selection] search back to the end of the most
@@ -273,6 +280,8 @@ EventSelection::addRemoveEvent(Event *e, EventFuncPtr insertEraseFn,
             }
         }
     }
+
+    return counter;
 }
 
 void
@@ -286,26 +295,26 @@ EventSelection::removeObserver(EventSelectionObserver *obs) {
 }
 
 
-void
-EventSelection::addEvent(Event *e, bool ties)
+int
+EventSelection::addEvent(Event *e, bool ties, bool forward)
 {
-    addRemoveEvent(e, &EventSelection::insertThisEvent, ties);
+    return addRemoveEvent(e, &EventSelection::insertThisEvent, ties, forward);
 }
 
 void
-EventSelection::addFromSelection(EventSelection *sel, bool ties)
+EventSelection::addFromSelection(EventSelection *sel)
 {
     for (EventContainer::iterator i = sel->getSegmentEvents().begin();
 	 i != sel->getSegmentEvents().end(); ++i) {
-	// contains() checked a bit deeper now
-	addEvent(*i, ties);
+        // contains() checked a bit deeper now
+        addEvent(*i);
     }
 }
 
-void
-EventSelection::removeEvent(Event *e, bool ties) 
+int
+EventSelection::removeEvent(Event *e, bool ties, bool forward)
 {
-    addRemoveEvent(e, &EventSelection::eraseThisEvent, ties);
+    return addRemoveEvent(e, &EventSelection::eraseThisEvent, ties, forward);
 }
 
 bool
@@ -656,6 +665,10 @@ MarkerSelection::MarkerSelection(Composition &composition, timeT beginTime,
             addRaw(*i);
         }
     }
+}
+
+EventSelectionObserver::~EventSelectionObserver()
+{
 }
 
 }

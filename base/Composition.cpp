@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,11 +13,13 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[Composition]"
+
 #include "Composition.h"
+
 #include "misc/Debug.h"
 #include "base/Segment.h"
 #include "base/SegmentLinker.h"
-#include "FastVector.h"
 #include "base/BaseProperties.h"
 #include "base/Profiler.h"
 #include "BasicQuantizer.h"
@@ -80,11 +82,56 @@ Composition::ReferenceSegment::~ReferenceSegment()
     clear();
 }
 
-void
-Composition::ReferenceSegment::clear()
+Composition::ReferenceSegment::iterator Composition::ReferenceSegment::begin()
+{
+    return m_events.begin();
+}
+
+Composition::ReferenceSegment::const_iterator Composition::ReferenceSegment::begin() const
+{
+    return m_events.begin();
+}
+
+Composition::ReferenceSegment::iterator Composition::ReferenceSegment::end()
+{
+    return m_events.end();
+}
+
+Composition::ReferenceSegment::const_iterator Composition::ReferenceSegment::end() const
+{
+    return m_events.end();
+}
+
+Composition::ReferenceSegment::size_type Composition::ReferenceSegment::size() const
+{
+    return m_events.size();
+}
+
+bool Composition::ReferenceSegment::empty() const
+{
+    return m_events.empty();
+}
+
+Composition::ReferenceSegment::iterator
+Composition::ReferenceSegment::erase(Composition::ReferenceSegment::iterator position)
+{
+    return m_events.erase(position);
+}
+
+void Composition::ReferenceSegment::clear()
 {
     for (iterator it = begin(); it != end(); ++it) delete (*it);
-    Impl::erase(begin(), end());
+    m_events.clear();
+}
+
+Event* Composition::ReferenceSegment::operator[] (size_type n)
+{
+    return m_events[n];
+}
+
+const Event* Composition::ReferenceSegment::operator[] (size_type n) const
+{
+    return m_events[n];
 }
 
 timeT
@@ -122,7 +169,7 @@ Composition::ReferenceSegment::insertEvent(Event *e)
         return i;
 
     } else {
-        return Impl::insert(i, e);
+        return m_events.insert(i, e);
     }
 }
 
@@ -130,7 +177,7 @@ void
 Composition::ReferenceSegment::eraseEvent(Event *e)
 {
     iterator i = find(e);
-    if (i != end()) Impl::erase(i);
+    if (i != end()) m_events.erase(i);
 }
 
 Composition::ReferenceSegment::iterator
@@ -176,7 +223,7 @@ Composition::ReferenceSegment::findNearestRealTime(RealTime t)
 int Composition::m_defaultNbBars = 100;
 
 Composition::Composition() :
-    m_solo(false),   // default is not soloing
+    m_notationSpacing(100),
     m_selectedTrackId(0),
     m_timeSigSegment(TimeSignature::EventType),
     m_tempoSegment(TempoEventType),
@@ -253,11 +300,14 @@ Composition::deleteSegment(Composition::iterator i)
     clearVoiceCaches();
 
     Segment *p = (*i);
-    p->setComposition(0);
+    p->setComposition(nullptr);
 
     m_segments.erase(i);
     distributeVerses();
     notifySegmentRemoved(p);
+
+    // ??? If this delete occurs during playback, we may get a crash later in
+    //     MappedBufMetaIterator::fetchEvents().
     delete p;
 
     updateRefreshStatuses();
@@ -294,7 +344,7 @@ Composition::weakDetachSegment(Segment *segment)
     if (i == end()) return false;
     clearVoiceCaches();
     
-    segment->setComposition(0);
+    segment->setComposition(nullptr);
     m_segments.erase(i);
 
     return true;
@@ -486,7 +536,7 @@ TriggerSegmentRec *
 Composition::addTriggerSegment(Segment *s, TriggerSegmentId id, int pitch, int velocity)
 {
     TriggerSegmentRec *rec = getTriggerSegmentRec(id);
-    if (rec) return 0;
+    if (rec) return nullptr;
     rec = new TriggerSegmentRec(id, s, pitch, velocity);
     m_triggerSegments.insert(rec);
     s->setComposition(this);
@@ -497,10 +547,10 @@ Composition::addTriggerSegment(Segment *s, TriggerSegmentId id, int pitch, int v
 void
 Composition::deleteTriggerSegment(TriggerSegmentId id)
 {
-    TriggerSegmentRec dummyRec(id, 0);
+    TriggerSegmentRec dummyRec(id, nullptr);
     triggersegmentcontaineriterator i = m_triggerSegments.find(&dummyRec);
     if (i == m_triggerSegments.end()) return;
-    (*i)->getSegment()->setComposition(0);
+    (*i)->getSegment()->setComposition(nullptr);
     delete (*i)->getSegment();
     delete *i;
     m_triggerSegments.erase(i);
@@ -509,10 +559,10 @@ Composition::deleteTriggerSegment(TriggerSegmentId id)
 void
 Composition::detachTriggerSegment(TriggerSegmentId id)
 {
-    TriggerSegmentRec dummyRec(id, 0);
+    TriggerSegmentRec dummyRec(id, nullptr);
     triggersegmentcontaineriterator i = m_triggerSegments.find(&dummyRec);
     if (i == m_triggerSegments.end()) return;
-    (*i)->getSegment()->setComposition(0);
+    (*i)->getSegment()->setComposition(nullptr);
     delete *i;
     m_triggerSegments.erase(i);
 }
@@ -542,16 +592,16 @@ Segment *
 Composition::getTriggerSegment(TriggerSegmentId id)
 {
     TriggerSegmentRec *rec = getTriggerSegmentRec(id);
-    if (!rec) return 0;
+    if (!rec) return nullptr;
     return rec->getSegment();
 }    
 
 TriggerSegmentRec *
 Composition::getTriggerSegmentRec(TriggerSegmentId id)
 {
-    TriggerSegmentRec dummyRec(id, 0);
+    TriggerSegmentRec dummyRec(id, nullptr);
     triggersegmentcontaineriterator i = m_triggerSegments.find(&dummyRec);
-    if (i == m_triggerSegments.end()) return 0;
+    if (i == m_triggerSegments.end()) return nullptr;
     return *i;
 }
 
@@ -559,7 +609,7 @@ TriggerSegmentRec *
 Composition::getTriggerSegmentRec(Event* e)
 {
     if (!e->has(BaseProperties::TRIGGER_SEGMENT_ID))
-        { return 0; }
+        { return nullptr; }
 
     const int id = e->get<Int>(BaseProperties::TRIGGER_SEGMENT_ID);
     return getTriggerSegmentRec(id);
@@ -657,7 +707,6 @@ Composition::clear()
     m_position = 0;
     m_startMarker = 0;
     m_endMarker = getBarRange(m_defaultNbBars).first;
-    m_solo = false;
     m_selectedTrackId = 0;
     updateRefreshStatuses();
 }
@@ -1648,15 +1697,13 @@ Track* Composition::getTrackById(TrackId track) const
     if (i != m_tracks.end())
         return (*i).second;
 
-    std::cerr << "Composition::getTrackById("
-              << track << ") - WARNING - track id not found, this is probably a BUG "
-              << __FILE__ << ":" << __LINE__ << std::endl;
-    std::cerr << "Available track ids are: " << std::endl;
+    RG_WARNING << "getTrackById(" << track << "): WARNING: Track ID not found.";
+    RG_WARNING << "  Available track ids are:";
     for (trackconstiterator i = m_tracks.begin(); i != m_tracks.end(); ++i) {
-        std::cerr << (int)(*i).second->getId() << std::endl;
+        RG_WARNING << "    " << (int)(*i).second->getId();
     }
 
-    return 0;
+    return nullptr;
 }
 
 bool
@@ -1707,16 +1754,26 @@ void Composition::resetTrackIdAndPosition(TrackId oldId, TrackId newId,
 }
 #endif
 
+InstrumentId Composition::getSelectedInstrumentId() const
+{
+    if (m_selectedTrackId == NO_TRACK)
+        return NoInstrument;
+
+    Track *track = getTrackById(m_selectedTrackId);
+
+    if (!track)
+        return NoInstrument;
+
+    return track->getInstrument();
+}
+
 void Composition::setSelectedTrack(TrackId trackId)
 {
     m_selectedTrackId = trackId;
-    notifySoloChanged();
-}
 
-void Composition::setSolo(bool value)
-{
-    m_solo = value;
-    notifySoloChanged();
+    // SequenceManager needs to update ControlBlock for auto thru routing
+    // to work.
+    notifySelectedTrackChanged();
 }
 
 // Insert a Track representation into the Composition
@@ -1779,7 +1836,7 @@ bool Composition::detachTrack(Rosegarden::Track *track)
         return false;
     }
 
-    ((*it).second)->setOwningComposition(0);
+    ((*it).second)->setOwningComposition(nullptr);
 
     m_tracks.erase(it);
     updateRefreshStatuses();
@@ -1796,7 +1853,10 @@ void Composition::checkSelectedAndRecordTracks()
     if (m_tracks.find(m_selectedTrackId) == m_tracks.end()) {
 
         m_selectedTrackId = getClosestValidTrackId(m_selectedTrackId);
-        notifySoloChanged();
+
+        // SequenceManager needs to update ControlBlock for auto thru routing
+        // to work.
+        notifySelectedTrackChanged();
         
     }
 
@@ -1880,12 +1940,37 @@ Composition::isTrackRecording(TrackId track) const
     return m_recordTracks.find(track) != m_recordTracks.end();
 }
 
+bool
+Composition::isInstrumentRecording(InstrumentId instrumentID) const
+{
+    // For each Track in the Composition
+    // ??? Performance: LINEAR SEARCH
+    //     I see no easy fix.  Each Instrument would need to keep a list
+    //     of the Tracks it is on.  Or something equally complicated.
+    for (Composition::trackcontainer::const_iterator ti =
+             m_tracks.begin();
+         ti != m_tracks.end();
+         ++ti) {
+        Track *track = ti->second;
+
+        // If this Track has this Instrument
+        if (track->getInstrument() == instrumentID) {
+            if (isTrackRecording(track->getId())) {
+                // Only one Track can be armed per Instrument.  Regardless,
+                // we only need to know that a Track is in record mode.
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
 
 // Export the Composition as XML, also iterates through
 // Tracks and any further sub-objects
 //
 //
-std::string Composition::toXmlString()
+std::string Composition::toXmlString() const
 {
     std::stringstream composition;
 
@@ -1917,11 +2002,6 @@ std::string Composition::toXmlString()
     if (m_autoExpand)
         composition << "\" autoExpand=\"" << m_autoExpand;
 
-    // Add the Solo if set
-    //
-    if (m_solo)
-        composition << "\" solo=\"" << m_solo;
-
     composition << "\" selected=\"" << m_selectedTrackId;
     composition << "\" playmetronome=\"" << m_playMetronome;
     composition << "\" recordmetronome=\"" << m_recordMetronome;
@@ -1930,11 +2010,14 @@ std::string Composition::toXmlString()
     // Place the number of the current pan law in the composition tag.
     int panLaw = AudioLevel::getPanLaw();
     composition << "\" panlaw=\"" << panLaw;
+
+    composition << "\" notationspacing=\"" << m_notationSpacing;
+
     composition << "\">" << endl << endl;
 
     composition << endl;
 
-    for (trackiterator tit = getTracks().begin();
+    for (trackconstiterator tit = getTracks().begin();
          tit != getTracks().end();
          ++tit)
         {
@@ -2032,7 +2115,7 @@ Composition::getTrackByPosition(int position) const
             return (*it).second;
     }
 
-    return 0;
+    return nullptr;
 
 }
 
@@ -2064,6 +2147,27 @@ Composition::getNewTrackId() const
     }
 
     return highWater;
+}
+
+bool
+Composition::hasTrack(InstrumentId instrumentId) const
+{
+    // We don't return the TrackId since an Instrument can be on more than
+    // one Track.  That would require a std::vector<TrackId>.
+
+    // For each Track
+    for (trackcontainer::const_iterator trackIter =
+                 m_tracks.begin();
+         trackIter != m_tracks.end();
+         ++trackIter) {
+
+        // If this Track is using the Instrument
+        if (trackIter->second->getInstrument() == instrumentId)
+            return true;
+
+    }
+
+    return false;
 }
 
 // Get all the segments that the same instrument plays that plays
@@ -2329,20 +2433,20 @@ Composition::notifyTimeSignatureChanged() const
 }
 
 void
-Composition::notifySoloChanged() const
-{
-    for (ObserverSet::const_iterator i = m_observers.begin();
-         i != m_observers.end(); ++i) {
-        (*i)->soloChanged(this, isSolo(), getSelectedTrack());
-    }
-}
-
-void
 Composition::notifyTempoChanged() const
 {
     for (ObserverSet::const_iterator i = m_observers.begin();
          i != m_observers.end(); ++i) {
         (*i)->tempoChanged(this);
+    }
+}
+
+void
+Composition::notifySelectedTrackChanged() const
+{
+    for (ObserverSet::const_iterator i = m_observers.begin();
+         i != m_observers.end(); ++i) {
+        (*i)->selectedTrackChanged(this);
     }
 }
 

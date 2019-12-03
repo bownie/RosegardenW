@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -373,17 +373,17 @@ PitchBendSequenceDialog::PitchBendSequenceDialog(QWidget *parent,
 
         connect(m_sequencePreset, SIGNAL(activated(int)), this,
                 SLOT(slotSequencePresetChanged(int)));
-        connect(m_radioOnlyErase, SIGNAL(toggled(bool)),
-                this, SLOT(slotOnlyEraseClicked(bool)));
-        connect(m_radioRampLinear, SIGNAL(toggled(bool)),
-                this, SLOT(slotLinearRampClicked(bool)));
+        connect(m_radioOnlyErase, &QAbstractButton::toggled,
+                this, &PitchBendSequenceDialog::slotOnlyEraseClicked);
+        connect(m_radioRampLinear, &QAbstractButton::toggled,
+                this, &PitchBendSequenceDialog::slotLinearRampClicked);
         
         // We connect all these buttons to slotStepSizeStyleChanged,
         // which will react only to the current selected one.
-        connect(m_radioStepSizeDirect, SIGNAL(toggled(bool)),
-                this, SLOT(slotStepSizeStyleChanged(bool)));
-        connect(m_radioStepSizeByCount, SIGNAL(toggled(bool)),
-                this, SLOT(slotStepSizeStyleChanged(bool)));
+        connect(m_radioStepSizeDirect, &QAbstractButton::toggled,
+                this, &PitchBendSequenceDialog::slotStepSizeStyleChanged);
+        connect(m_radioStepSizeByCount, &QAbstractButton::toggled,
+                this, &PitchBendSequenceDialog::slotStepSizeStyleChanged);
     } else {
         vboxLayout->addWidget(new QLabel(tr("Invalid end time. Have you selected some events?")));
     }
@@ -394,11 +394,11 @@ PitchBendSequenceDialog::PitchBendSequenceDialog(QWidget *parent,
         (QDialogButtonBox::Cancel | QDialogButtonBox::Help);
         
     QDialogButtonBox *buttonBox = new QDialogButtonBox(flags);
-    vboxLayout->addWidget(buttonBox, 1, 0);
+    vboxLayout->addWidget(buttonBox, 1, nullptr);
 
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &PitchBendSequenceDialog::slotHelpRequested);
 }
 
 void
@@ -434,7 +434,7 @@ PitchBendSequenceDialog::slotOnlyEraseClicked(bool checked)
 }
 
 void
-PitchBendSequenceDialog::maybeEnableVibratoFields(void)
+PitchBendSequenceDialog::maybeEnableVibratoFields()
 {
     bool enable =
         m_radioRampLinear->isChecked() &&
@@ -513,7 +513,7 @@ PitchBendSequenceDialog::slotSequencePresetChanged(int index) {
 
 bool
 PitchBendSequenceDialog::
-useTrueValues(void) const
+useTrueValues() const
 {
     return m_control.getType() == Controller::EventType;
 }
@@ -535,7 +535,7 @@ percentToValueDelta(double percent) const
 
 double
 PitchBendSequenceDialog::
-getMaxSpinboxValue(void) const
+getMaxSpinboxValue() const
 {
     const int rangeAboveDefault = m_control.getMax() - m_control.getDefault();
     if (useTrueValues()) {
@@ -546,7 +546,7 @@ getMaxSpinboxValue(void) const
 }
 double
 PitchBendSequenceDialog::
-getMinSpinboxValue(void) const
+getMinSpinboxValue() const
 {
     /* rangeBelowDefault and return value will be negative or zero. */
     const int rangeBelowDefault = m_control.getMin() - m_control.getDefault();
@@ -559,7 +559,7 @@ getMinSpinboxValue(void) const
 
 double
 PitchBendSequenceDialog::
-getSmallestSpinboxStep(void) const
+getSmallestSpinboxStep() const
 {
     if (useTrueValues()) {
         return 1;
@@ -592,7 +592,7 @@ spinboxToControl(const QDoubleSpinBox *spinbox) const
 
 
 PitchBendSequenceDialog::ReplaceMode
-PitchBendSequenceDialog::getReplaceMode(void)
+PitchBendSequenceDialog::getReplaceMode()
 {
     return
         m_radioOnlyErase ->isChecked() ? OnlyErase :
@@ -602,7 +602,7 @@ PitchBendSequenceDialog::getReplaceMode(void)
 }
 
 PitchBendSequenceDialog::RampMode
-PitchBendSequenceDialog::getRampMode(void)
+PitchBendSequenceDialog::getRampMode()
 {
     return
         m_radioRampLinear      ->isChecked() ? Linear       :
@@ -634,7 +634,7 @@ PitchBendSequenceDialog::setRampMode(RampMode rampMode)
 }
 
 PitchBendSequenceDialog::StepSizeCalculation
-PitchBendSequenceDialog::getStepSizeCalculation(void)
+PitchBendSequenceDialog::getStepSizeCalculation()
 {
     return
         m_radioStepSizeDirect  ->isChecked() ? StepSizeDirect  : 
@@ -748,29 +748,39 @@ PitchBendSequenceDialog::accept()
     saveSettings();
 
     // TRANSLATORS: The arg value will be either a controller name or
-    // Pitchbend, so the resulting text is like "Pitchbend Sequence",
+    // PitchBend, so the resulting text is like "PitchBend Sequence",
     // "Expression Sequence", etc.
     QString controllerName(m_control.getName().data());
     QString commandName(tr("%1 Sequence").arg(controllerName));
     MacroCommand *macro = new MacroCommand(commandName);
 
+    // In Replace and OnlyErase modes, erase the events in the time range.
     if (getReplaceMode() != OnlyAdd) {
-        // Selection initially contains no event, and we add all the
-        // relevant ones.  
         EventSelection *selection = new EventSelection(*m_segment);
+        // For each event in the time range
         for (Segment::const_iterator i = m_segment->findTime(m_startTime);
              i != m_segment->findTime(m_endTime);
              ++i) {
             Event *e = *i;
+            // If this is a relevant event, add it to the selection.
             if (m_control.matches(e)) {
                 selection->addEvent(e, false);
             }
         }
 
-        // EraseCommand takes ownership of "selection".
-        macro->addCommand(new EraseCommand(*selection));
+        // Only perform the erase if there is something in the selection.
+        // For some reason, if we perform the erase with an empty selection,
+        // we end up with the segment expanded to the beginning of the
+        // composition.
+        if (selection->getAddedEvents() != 0)
+        {
+            // Erase the events.
+            // (EraseCommand takes ownership of "selection".)
+            macro->addCommand(new EraseCommand(*selection));
+        }
     }
 
+    // In Replace and OnlyAdd modes, add the requested controller events.
     if (getReplaceMode() != OnlyErase) {
         if ((getRampMode() == Linear) &&
             (getStepSizeCalculation() == StepSizeByCount)) {
@@ -779,13 +789,14 @@ PitchBendSequenceDialog::accept()
             addStepwiseEvents(macro);
         }
     }
+
     CommandHistory::getInstance()->addCommand(macro);
 
     QDialog::accept();
 }
 
 double
-PitchBendSequenceDialog::getElapsedSeconds(void)
+PitchBendSequenceDialog::getElapsedSeconds()
 {
     const Composition *composition = m_segment->getComposition();
     const RealTime realTimeDifference =
@@ -796,7 +807,7 @@ PitchBendSequenceDialog::getElapsedSeconds(void)
 }
 
 int
-PitchBendSequenceDialog::numVibratoCycles(void)
+PitchBendSequenceDialog::numVibratoCycles()
 {
     const int vibratoFrequency  = m_vibratoFrequency->value();
     const float totalCyclesExact =
@@ -908,7 +919,7 @@ PitchBendSequenceDialog::addStepwiseEvents(MacroCommand *macro)
         {
             const int rawStepSize = spinboxToControlDelta(m_stepSize);
             if (rawStepSize == 0) { return; }
-            numSteps = abs(float(valueChange) / float(rawStepSize) + 0.5);
+            numSteps = fabs(float(valueChange) / float(rawStepSize) + 0.5);
             break;
         }
     }
@@ -1063,4 +1074,3 @@ PitchBendSequenceDialog::slotHelpRequested()
 }
 }
 
-#include "PitchBendSequenceDialog.moc"

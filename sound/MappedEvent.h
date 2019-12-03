@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -387,7 +387,7 @@ public:
         if (initialise) *this = MappedEvent();
     }
 
-    bool isValid(void) const { return m_type != InvalidMappedEvent; }
+    bool isValid() const { return m_type != InvalidMappedEvent; }
     // Event time
     //
     void setEventTime(const RealTime &a) { m_eventTime = a; }
@@ -539,7 +539,11 @@ private:
     // used for output.
     unsigned int          m_recordedChannel;
     unsigned int          m_recordedDevice;
+
+    friend QDebug &operator<<(QDebug &, const MappedEvent &);
 };
+
+QDebug &operator<<(QDebug &, const MappedEvent &);
 
 
 }

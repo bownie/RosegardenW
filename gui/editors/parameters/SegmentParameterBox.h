@@ -1,10 +1,8 @@
-
 /* -*- c-basic-offset: 4 indent-tabs-mode: nil -*- vi:set ts=8 sts=4 sw=4: */
-
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,153 +17,126 @@
 #ifndef RG_SEGMENTPARAMETERBOX_H
 #define RG_SEGMENTPARAMETERBOX_H
 
-#include "base/Composition.h"
-#include "base/MidiProgram.h"
-#include "base/Selection.h"
 #include "gui/widgets/ColourTable.h"
-#include "RosegardenParameterArea.h"
+#include "base/Composition.h"
+#include "base/MidiProgram.h"  // For MidiByte
 #include "RosegardenParameterBox.h"
-#include <QString>
-#include <vector>
-#include "base/Event.h"
+#include "base/Selection.h"  // For SegmentSelection
 
-
-class QWidget;
-class QSpinBox;
-class QPushButton;
-class QLabel;
-class QCheckBox;
 class QComboBox;
+class QPushButton;
+class QString;
+class QWidget;
+
+#include <vector>
 
 
 namespace Rosegarden
 {
 
+
+class ColorCombo;
 class Command;
 class TristateCheckBox;
 class Label;
 class Segment;
 class RosegardenDocument;
-class Composition;
 
 
-class SegmentParameterBox : public RosegardenParameterBox,
-                            public CompositionObserver
+/// Top pane to the left of the segment canvas (CompositionView).
+/**
+ * In the past, this box had fields for highest and lowest note.  Those can
+ * now be set in the notation editor via Segment > Convert notation for....
+ * This box also had settings for audio fade (auto, fade in, and fade out).
+ * These were removed at some point, possibly near r8100.  I've decided to
+ * completely remove all remaining traces of these features.
+ */
+class SegmentParameterBox : public RosegardenParameterBox
 {
-Q_OBJECT
+
+    Q_OBJECT
 
 public:
-
-    typedef enum
-    {
-        None,
-        Some,
-        All,
-        NotApplicable // no applicable segments selected
-    } Tristate;
-
-    SegmentParameterBox(RosegardenDocument *doc,
-                        QWidget *parent=0);
-    ~SegmentParameterBox();
-
-    // Use Segments to update GUI parameters
-    //
-    void useSegment(Segment *segment);
-    void useSegments(const SegmentSelection &segments);
-
-    void addCommandToHistory(Command *command);
-
-    void setDocument(RosegardenDocument*);
-
-    // CompositionObserver interface
-    //
-    virtual void segmentRemoved(const Composition *,
-                                Segment *);
-
-    virtual void showAdditionalControls(bool showThem);
-
-    virtual QString getPreviousBox(RosegardenParameterArea::Arrangement) const;
+    SegmentParameterBox(QWidget *parent);
 
 public slots:
-    void slotRepeatPressed();
-    void slotQuantizeSelected(int);
+    /// Segment > Toggle Repeat
+    /**
+     * It would be nice if there were an ActionFileClient::createAction()
+     * that takes a function pointer instead of a QString/SLOT().
+     */
+    void slotToggleRepeat();
 
-    void slotTransposeSelected(int);
-    void slotTransposeTextChanged(const QString &);
+private slots:
+    void slotNewDocument(RosegardenDocument *doc);
 
-    void slotDelaySelected(int);
-    void slotDelayTimeChanged(timeT delayValue);
-    void slotDelayTextChanged(const QString &);
+    void slotDocumentModified(bool);
+
+    /// Connected to RosegardenMainViewWidget::segmentsSelected().
+    void slotSelectionChanged(const SegmentSelection &segments);
 
     void slotEditSegmentLabel();
 
-    void slotColourSelected(int);
+    void slotRepeatClicked(bool checked);
+
+    void slotTransposeSelected(int);
+
+    void slotQuantizeSelected(int qIndex);
+
+    void slotDelaySelected(int);
+    //void slotDelayTextChanged(const QString &);
+
+    void slotColourChanged(int);
     void slotDocColoursChanged();
-
-    void slotAudioFadeChanged(int);
-    void slotFadeInChanged(int);
-    void slotFadeOutChanged(int);
-
-    void slotHighestPressed();
-    void slotLowestPressed();
 
     void slotChangeLinkTranspose();
     void slotResetLinkTranspose();
 
-    virtual void update();
+private:
+    void updateWidgets();
 
-signals:
-    void documentModified();
-    void canvasModified();
+    Label *m_label;
+    void updateLabel();
 
-protected:
-    void initBox();
-    void populateBoxFromSegments();
-    void updateHighLow();
+    TristateCheckBox *m_repeat;
+    void updateRepeat();
 
-    Label                      *m_label;
-//    QLabel                     *m_rangeLabel;
-    QPushButton                *m_labelButton;
-//    QPushButton                *m_highButton;
-//    QPushButton                *m_lowButton;
-    TristateCheckBox *m_repeatValue;
-    QComboBox                  *m_quantizeValue;
-    QComboBox                  *m_transposeValue;
-    QComboBox                  *m_delayValue;
-    QComboBox                  *m_colourValue;
-    QPushButton                *m_linkTransposeButton;
-    QPushButton                *m_linkTransposeResetButton;
+    QComboBox *m_transpose;
+    void updateTranspose();
 
-    // Collapse frame for linked segment functions
-    QFrame                     *m_linkedSegmentGroup;
-
-    // Audio autofade
-    //
-//    QLabel                     *m_autoFadeLabel;
-//    QCheckBox                  *m_autoFadeBox;
-//    QLabel                     *m_fadeInLabel;
-//    QSpinBox                   *m_fadeInSpin;
-//    QLabel                     *m_fadeOutLabel;
-//    QSpinBox                   *m_fadeOutSpin;
-
-    int                        m_addColourPos;
-
-    // used to keep track of highest/lowest as there is no associated spinbox
-    // to query for its value
-    int                        m_highestPlayable;
-    int                        m_lowestPlayable;
-
-    std::vector<Segment*> m_segments;
+    QComboBox *m_quantize;
     std::vector<timeT> m_standardQuantizations;
+    /// Compute the UI (m_quantize) index for a specific quantization time.
+    int quantizeIndex(timeT t);
+    void updateQuantize();
+
+    QComboBox *m_delay;
     std::vector<timeT> m_delays;
     std::vector<int> m_realTimeDelays;
-    ColourTable::ColourList  m_colourList;
+    /// Set the delay combobox to delayValue.
+    /**
+     * See setSegmentDelay() for details of positive vs. negative delays.
+     */
+    void setDelay(long delayValue);
+    /// Update the delay combobox from the selected Segments.
+    void updateDelay();
+    /// Set the delay in the selected Segments.
+    /**
+     * Positive delay values are assumed to be of note-duration (timeT/ppq)
+     * and are set using Segment::setDelay().  Negative delay values are
+     * assumed to be positive millisecond delays and are set using
+     * Segment::setRealTimeDelay().
+     *
+     * ??? Less than ideal.  We need a better approach.  Perhaps a std::map
+     *     from combobox index to a timeT/RealTime delay record.  That would
+     *     then allow negative delays.
+     */
+    void setSegmentDelay(long delayValue);
 
-    RosegardenDocument           *m_doc;
+    ColorCombo *m_color;
+    void updateColor();
 
-    MidiByte        m_transposeRange;
 };
-
 
 
 }

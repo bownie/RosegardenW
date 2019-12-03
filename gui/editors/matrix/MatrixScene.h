@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -76,9 +76,11 @@ class MatrixScene : public QGraphicsScene,
 
 public:
     MatrixScene();
-    ~MatrixScene();
+    ~MatrixScene() override;
 
-    void setMatrixWidget(MatrixWidget *w);
+    void setMatrixWidget(MatrixWidget *w) { m_widget = w; };
+    MatrixWidget *getMatrixWidget() { return m_widget; };
+
     void setSegments(RosegardenDocument *doc, std::vector<Segment *> segments);
 
     void handleEventAdded(Event *);
@@ -86,8 +88,8 @@ public:
 
     RosegardenDocument *getDocument() { return m_document; }
 
-    virtual EventSelection *getSelection() const { return m_selection; }
-    virtual void setSelection(EventSelection* s, bool preview);
+    EventSelection *getSelection() const override { return m_selection; }
+    void setSelection(EventSelection* s, bool preview) override;
     void selectAll();
     int calculatePitchFromY(int y) const;
 
@@ -133,7 +135,24 @@ signals:
     void eventRemoved(Event *e);
 
     void currentViewSegmentChanged(ViewSegment *);
-    void selectionChanged();
+    //void selectionChanged(); // already defined in QGraphicsScene
+    /**
+     * MatrixWidget::setSegments() connects this to
+     * ControlRulerWidget::slotSelectionChanged().
+     *
+     * ??? I don't think this is ever emitted.  Need to determine if that
+     *     is the case.  Create a new test slot and connect it to this.
+     *     Then see if that test slot ever gets called.  Might want to
+     *     confirm that it isn't the other selectionChanged() signal
+     *     somehow triggering this if we do get a call.  Also connect a
+     *     test slot to the other signal to confirm that is working.
+     *     Remove this signal and the connect() that uses it if we can
+     *     determine that it is never emitted.
+     *
+     * ??? Rename: selectionChangedES() to avoid overload.  We'll need to
+     *     test thoroughly to make sure nothing is broken.  However, if
+     *     this really is never emitted, it will be hard to test.  See above.
+     */
     void selectionChanged(EventSelection *s);
     void segmentDeleted(Segment *);
     void sceneDeleted(); // all segments have been removed
@@ -145,13 +164,13 @@ protected slots:
     void slotCommandExecuted();
 
 protected:
-    void mousePressEvent(QGraphicsSceneMouseEvent *);
-    void mouseMoveEvent(QGraphicsSceneMouseEvent *);
-    void mouseReleaseEvent(QGraphicsSceneMouseEvent *);
-    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *);
+    void mousePressEvent(QGraphicsSceneMouseEvent *) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent *) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent *) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *) override;
 
-    void segmentRemoved(const Composition *, Segment *); // CompositionObserver
-    void timeSignatureChanged(const Composition *); // CompositionObserver
+    void segmentRemoved(const Composition *, Segment *) override; // CompositionObserver
+    void timeSignatureChanged(const Composition *) override; // CompositionObserver
 
 private:
     MatrixWidget *m_widget; // I do not own this

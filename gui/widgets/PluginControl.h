@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,6 +18,7 @@
 #ifndef RG_PLUGINCONTROL_H
 #define RG_PLUGINCONTROL_H
 
+#include <QSharedPointer>
 #include <QWidget>
 
 
@@ -47,8 +48,8 @@ public:
 
     PluginControl(QWidget *parent,
                   ControlType type,
-                  PluginPort *port,
-                  AudioPluginManager *pluginManager,
+                  QSharedPointer<PluginPort> port,
+                  QSharedPointer<AudioPluginManager> pluginManager,
                   int index,
                   float initialValue,
                   bool showBounds);
@@ -72,10 +73,10 @@ protected:
     //--------------- Data members ---------------------------------
 
     ControlType          m_type;
-    PluginPort          *m_port;
+    QSharedPointer<PluginPort> m_port;
 
     ::Rosegarden::Rotary              *m_dial; // we have to specify the namespace here otherwise gcc 4.1 thinks it's the enum value above
-    AudioPluginManager  *m_pluginManager;
+    QSharedPointer<AudioPluginManager> m_pluginManager;
 
     int                  m_index;
 

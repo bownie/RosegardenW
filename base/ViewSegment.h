@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -19,7 +19,6 @@
 #include "ViewElement.h"
 #include "base/Segment.h"
 
-#include <iostream>
 #include <cassert>
 
 namespace Rosegarden 
@@ -40,21 +39,13 @@ class ViewSegmentObserver;
 class ViewSegment : public SegmentObserver
 {
 public: 
-    virtual ~ViewSegment();
+    ~ViewSegment() override;
 
     /**
      * Create a new ViewElementList wrapping all Events in the
      * segment, or return the previously created one
      */
     ViewElementList *getViewElementList();
-
-    /**
-     * Create a new ViewElementList wrapping Events in the
-     * [from, to[ interval, or return the previously created one
-     * (even if passed new arguments)
-     */
-    ViewElementList *getViewElementList(Segment::iterator from,
-					Segment::iterator to);
 
     /**
      * Return the Segment wrapped by this object 
@@ -75,24 +66,24 @@ public:
      * SegmentObserver method - called after the event has been added to
      * the segment
      */
-    virtual void eventAdded(const Segment *, Event *);
+    void eventAdded(const Segment *, Event *) override;
 
     /**
      * SegmentObserver method - called after the event has been removed
      * from the segment, and just before it is deleted
      */
-    virtual void eventRemoved(const Segment *, Event *);
+    void eventRemoved(const Segment *, Event *) override;
 
     /** 
      * SegmentObserver method - called after the segment's end marker
      * time has been changed
      */
-    virtual void endMarkerTimeChanged(const Segment *, bool shorten);
+    void endMarkerTimeChanged(const Segment *, bool shorten) override;
 
     /**
      * SegmentObserver method - called from Segment dtor
      */
-    virtual void segmentDeleted(const Segment *);
+    void segmentDeleted(const Segment *) override;
 
     void addObserver   (ViewSegmentObserver *obs) { m_observers.push_back(obs); }
     void removeObserver(ViewSegmentObserver *obs) { m_observers.remove(obs); }

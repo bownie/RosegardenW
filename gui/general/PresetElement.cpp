@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2006-2009
 	D. Michael McIntyre <dmmcintyr@users.sourceforge.net>
@@ -46,7 +46,7 @@ PresetElement::PresetElement(QString name,
         m_lowPro (lowPro)
 {
 #ifdef DEBUG_CATEGORIES
-    RG_DEBUG << "PresetElement::PresetElement(" << endl
+    RG_DEBUG << "PresetElement::PresetElement("
     << "    name = " << name << endl
     << "    clef = " << clef << endl
     << "    trns.= " << transpose << endl

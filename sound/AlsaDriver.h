@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -12,19 +12,10 @@
     COPYING included with this distribution for more information.
 */
 
-// Specialisation of SoundDriver to support ALSA (http://www.alsa-project.org)
-//
-//
 #ifndef RG_ALSADRIVER_H
 #define RG_ALSADRIVER_H
 
-#include <vector>
-#include <set>
-#include <map>
-
 #ifdef HAVE_ALSA
-
-#include <alsa/asoundlib.h> // ALSA
 
 #include "SoundDriver.h"
 #include "base/Instrument.h"
@@ -37,28 +28,38 @@
 #include "JackDriver.h"
 #endif
 
+#include <alsa/asoundlib.h> // ALSA
+
 #include <QMutex>
+#include <QSharedPointer>
+
+#include <vector>
+#include <set>
+#include <map>
+#include <string>
 
 namespace Rosegarden
 {
 
+
+/// Specialisation of SoundDriver to support ALSA (http://www.alsa-project.org)
 class AlsaDriver : public SoundDriver
 {
 public:
     AlsaDriver(MappedStudio *studio);
-    virtual ~AlsaDriver();
+    ~AlsaDriver() override;
 
     // shutdown everything that's currently open
-    void shutdown();
+    void shutdown() override;
 
-    virtual bool initialise();
-    virtual void initialisePlayback(const RealTime &position);
-    virtual void stopPlayback();
-    virtual void punchOut();
-    virtual void resetPlayback(const RealTime &oldPosition, const RealTime &position);
-    virtual void allNotesOff();
+    bool initialise() override;
+    void initialisePlayback(const RealTime &position) override;
+    void stopPlayback() override;
+    void punchOut() override;
+    void resetPlayback(const RealTime &oldPosition, const RealTime &position) override;
+    void allNotesOff() override;
 
-    virtual RealTime getSequencerTime();
+    RealTime getSequencerTime() override;
 
     /// Get MIDI data from ALSA
     /**
@@ -69,35 +70,35 @@ public:
      * These events are processed by RosegardenDocument::insertRecordedMidi()
      * in the GUI thread.
      */
-    virtual bool getMappedEventList(MappedEventList &mappedEventList);
+    bool getMappedEventList(MappedEventList &mappedEventList) override;
     
-    virtual bool record(RecordStatus recordStatus,
-                        const std::vector<InstrumentId> *armedInstruments = 0,
-                        const std::vector<QString> *audioFileNames = 0);
+    bool record(RecordStatus recordStatus,
+                        const std::vector<InstrumentId> *armedInstruments = nullptr,
+                        const std::vector<QString> *audioFileNames = nullptr) override;
 
-    virtual void startClocks();
+    void startClocks() override;
     virtual void startClocksApproved(); // called by JACK driver in sync mode
-    virtual void stopClocks();
-    virtual bool areClocksRunning() const { return m_queueRunning; }
+    void stopClocks() override;
+    bool areClocksRunning() const override { return m_queueRunning; }
 
     /// Send both MIDI and audio events out, unqueued
     /**
      * This version sends MIDI data to ALSA for transmission via MIDI
      * immediately.  (I assume audio events are also sent immediately.)
      */
-    virtual void processEventsOut(const MappedEventList &mC);
+    void processEventsOut(const MappedEventList &mC) override;
     /// Send both MIDI and audio events out, queued
     /**
      * Used by RosegardenSequencer::keepPlaying() to send events out
      * during playback.
      */
-    virtual void processEventsOut(const MappedEventList &mC,
+    void processEventsOut(const MappedEventList &mC,
                                   const RealTime &sliceStart,
-                                  const RealTime &sliceEnd);
+                                  const RealTime &sliceEnd) override;
 
     // Return the sample rate
     //
-    virtual unsigned int getSampleRate() const {
+    unsigned int getSampleRate() const override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getSampleRate();
         else return 0;
@@ -108,7 +109,7 @@ public:
 
     // Define here to catch this being reset
     //
-    virtual void setMIDIClockInterval(RealTime interval);
+    void setMIDIClockInterval(RealTime interval) override;
 
     // initialise subsystems
     //
@@ -122,30 +123,32 @@ public:
 
     // Process pending
     //
-    virtual void processPending();
+    void processPending() override;
 
-    virtual RealTime getAudioPlayLatency() {
+    RealTime getAudioPlayLatency() override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getAudioPlayLatency();
 #endif
         return RealTime::zeroTime;
     }
 
-    virtual RealTime getAudioRecordLatency() {
+    RealTime getAudioRecordLatency() override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getAudioRecordLatency();
 #endif
         return RealTime::zeroTime;
     }
 
-    virtual RealTime getInstrumentPlayLatency(InstrumentId id) {
+    RealTime getInstrumentPlayLatency(InstrumentId id) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getInstrumentPlayLatency(id);
+#else
+        Q_UNUSED(id);
 #endif
         return RealTime::zeroTime;
     }
 
-    virtual RealTime getMaximumPlayLatency() {
+    RealTime getMaximumPlayLatency() override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getMaximumPlayLatency();
 #endif
@@ -155,131 +158,183 @@ public:
 
     // Plugin instance management
     //
-    virtual void setPluginInstance(InstrumentId id,
+    void setPluginInstance(InstrumentId id,
                                    QString identifier,
-                                   int position) {
+                                   int position) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) m_jackDriver->setPluginInstance(id, identifier, position);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(identifier);
+        Q_UNUSED(position);
 #endif
     }
 
-    virtual void removePluginInstance(InstrumentId id, int position) {
+    void removePluginInstance(InstrumentId id, int position) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) m_jackDriver->removePluginInstance(id, position);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(position);
 #endif
     }
 
     // Remove all plugin instances
     //
-    virtual void removePluginInstances() {
+    void removePluginInstances() override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) m_jackDriver->removePluginInstances();
 #endif
     }
 
-    virtual void setPluginInstancePortValue(InstrumentId id,
+    void setPluginInstancePortValue(InstrumentId id,
                                             int position,
                                             unsigned long portNumber,
-                                            float value) {
+                                            float value) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) m_jackDriver->setPluginInstancePortValue(id, position, portNumber, value);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(position);
+        Q_UNUSED(portNumber);
+        Q_UNUSED(value);
 #endif
     }
 
-    virtual float getPluginInstancePortValue(InstrumentId id,
+    float getPluginInstancePortValue(InstrumentId id,
                                              int position,
-                                             unsigned long portNumber) {
+                                             unsigned long portNumber) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getPluginInstancePortValue(id, position, portNumber);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(position);
+        Q_UNUSED(portNumber);
 #endif
         return 0;
     }
 
-    virtual void setPluginInstanceBypass(InstrumentId id,
+    void setPluginInstanceBypass(InstrumentId id,
                                          int position,
-                                         bool value) {
+                                         bool value) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) m_jackDriver->setPluginInstanceBypass(id, position, value);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(position);
+        Q_UNUSED(value);
 #endif
     }
 
-    virtual QStringList getPluginInstancePrograms(InstrumentId id,
-                                                  int position) {
+    QStringList getPluginInstancePrograms(InstrumentId id,
+                                                  int position) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getPluginInstancePrograms(id, position);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(position);
 #endif
         return QStringList();
     }
 
-    virtual QString getPluginInstanceProgram(InstrumentId id,
-                                             int position) {
+    QString getPluginInstanceProgram(InstrumentId id,
+                                             int position) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getPluginInstanceProgram(id, position);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(position);
 #endif
         return QString();
     }
 
-    virtual QString getPluginInstanceProgram(InstrumentId id,
+    QString getPluginInstanceProgram(InstrumentId id,
                                              int position,
                                              int bank,
-                                             int program) {
+                                             int program) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getPluginInstanceProgram(id, position, bank, program);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(position);
+        Q_UNUSED(bank);
+        Q_UNUSED(program);
 #endif
         return QString();
     }
 
-    virtual unsigned long getPluginInstanceProgram(InstrumentId id,
+    unsigned long getPluginInstanceProgram(InstrumentId id,
                                                    int position,
-                                                   QString name) {
+                                                   QString name) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->getPluginInstanceProgram(id, position, name);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(position);
+        Q_UNUSED(name);
 #endif
         return 0;
     }
     
-    virtual void setPluginInstanceProgram(InstrumentId id,
+    void setPluginInstanceProgram(InstrumentId id,
                                           int position,
-                                          QString program) {
+                                          QString program) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) m_jackDriver->setPluginInstanceProgram(id, position, program);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(position);
+        Q_UNUSED(program);
 #endif
     }
 
-    virtual QString configurePlugin(InstrumentId id,
+    QString configurePlugin(InstrumentId id,
                                     int position,
                                     QString key,
-                                    QString value) {
+                                    QString value) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) return m_jackDriver->configurePlugin(id, position, key, value);
+#else
+        Q_UNUSED(id);
+        Q_UNUSED(position);
+        Q_UNUSED(key);
+        Q_UNUSED(value);
 #endif
         return QString();
     }
 
-    virtual void setAudioBussLevels(int bussId,
+    void setAudioBussLevels(int bussId,
                                     float dB,
-                                    float pan) {
+                                    float pan) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) m_jackDriver->setAudioBussLevels(bussId, dB, pan);
+#else
+        Q_UNUSED(bussId);
+        Q_UNUSED(dB);
+        Q_UNUSED(pan);
 #endif
     }
 
-    virtual void setAudioInstrumentLevels(InstrumentId instrument,
+    void setAudioInstrumentLevels(InstrumentId instrument,
                                           float dB,
-                                          float pan) {
+                                          float pan) override {
 #ifdef HAVE_LIBJACK
         if (m_jackDriver) m_jackDriver->setAudioInstrumentLevels(instrument, dB, pan);
+#else
+        Q_UNUSED(instrument);
+        Q_UNUSED(dB);
+        Q_UNUSED(pan);
 #endif
     }
 
-    virtual void claimUnwantedPlugin(void *plugin);
-    virtual void scavengePlugins();
+    void claimUnwantedPlugin(void *plugin) override;
+    void scavengePlugins() override;
 
-    virtual bool checkForNewClients();
+    bool checkForNewClients() override;
 
-    virtual void setLoop(const RealTime &loopStart, const RealTime &loopEnd);
+    void setLoop(const RealTime &loopStart, const RealTime &loopEnd) override;
 
-    virtual void sleep(const RealTime &);
+    void sleep(const RealTime &) override;
 
     // ----------------------- End of Virtuals ----------------------
 
@@ -335,37 +390,37 @@ public:
     void setRecordDevice(DeviceId id, bool connectAction);
     void unsetRecordDevices();
 
-    virtual bool canReconnect(Device::DeviceType type);
+    bool canReconnect(Device::DeviceType type) override;
 
-    virtual bool addDevice(Device::DeviceType type,
+    bool addDevice(Device::DeviceType type,
                            DeviceId id,
                            InstrumentId baseInstrumentId,
-                           MidiDevice::DeviceDirection direction);
-    virtual void removeDevice(DeviceId id);
-    virtual void removeAllDevices();
-    virtual void renameDevice(DeviceId id, QString name);
+                           MidiDevice::DeviceDirection direction) override;
+    void removeDevice(DeviceId id) override;
+    void removeAllDevices() override;
+    void renameDevice(DeviceId id, QString name) override;
 
     // Get available connections per device
     // 
-    virtual unsigned int getConnections(Device::DeviceType type,
-                                        MidiDevice::DeviceDirection direction);
-    virtual QString getConnection(Device::DeviceType type,
+    unsigned int getConnections(Device::DeviceType type,
+                                        MidiDevice::DeviceDirection direction) override;
+    QString getConnection(Device::DeviceType type,
                                   MidiDevice::DeviceDirection direction,
-                                  unsigned int connectionNo);
-    virtual QString getConnection(DeviceId id);
-    virtual void setConnection(DeviceId deviceId, QString connection);
-    virtual void setPlausibleConnection(DeviceId deviceId,
+                                  unsigned int connectionNo) override;
+    QString getConnection(DeviceId id) override;
+    void setConnection(DeviceId deviceId, QString connection) override;
+    void setPlausibleConnection(DeviceId deviceId,
                                         QString connection,
-                                        bool recordDevice = false);
-    virtual void connectSomething();
+                                        bool recordDevice = false) override;
+    void connectSomething() override;
 
-    virtual unsigned int getTimers();
-    virtual QString getTimer(unsigned int);
-    virtual QString getCurrentTimer();
-    virtual void setCurrentTimer(QString);
+    unsigned int getTimers() override;
+    QString getTimer(unsigned int) override;
+    QString getCurrentTimer() override;
+    void setCurrentTimer(QString) override;
  
-    virtual void getAudioInstrumentNumbers(InstrumentId &audioInstrumentBase,
-                                           int &audioInstrumentCount) {
+    void getAudioInstrumentNumbers(InstrumentId &audioInstrumentBase,
+                                           int &audioInstrumentCount) override {
         audioInstrumentBase = AudioInstrumentBase;
 #ifdef HAVE_LIBJACK
         audioInstrumentCount = AudioInstrumentCount;
@@ -374,22 +429,22 @@ public:
 #endif
     }
  
-    virtual void getSoftSynthInstrumentNumbers(InstrumentId &ssInstrumentBase,
-                                               int &ssInstrumentCount) {
+    void getSoftSynthInstrumentNumbers(InstrumentId &ssInstrumentBase,
+                                               int &ssInstrumentCount) override {
         ssInstrumentBase = SoftSynthInstrumentBase;
         ssInstrumentCount = SoftSynthInstrumentCount;
     }
 
-    virtual QString getStatusLog();
+    QString getStatusLog() override;
 
     // To be called regularly from JACK driver when idle
     void checkTimerSync(size_t frames);
 
-    virtual void runTasks();
+    void runTasks() override;
 
     // Report a failure back to the GUI
     //
-    virtual void reportFailure(MappedEvent::FailureCode code);
+    void reportFailure(MappedEvent::FailureCode code) override;
 
 protected:
     void clearDevices();
@@ -413,14 +468,14 @@ protected:
      */
     NoteOnMap m_noteOnMap;
 
-    typedef std::vector<AlsaPortDescription *> AlsaPortList;
+    typedef std::vector<QSharedPointer<AlsaPortDescription> > AlsaPortVector;
 
     /**
      * Bring m_alsaPorts up-to-date; if newPorts is non-null, also
      * return the new ports (not previously in m_alsaPorts) through it
      */
-    virtual void generatePortList(AlsaPortList *newPorts = 0);
-    virtual void generateFixedInstruments();
+    virtual void generatePortList(AlsaPortVector *newPorts = nullptr);
+    void generateFixedInstruments() override;
 
     virtual void generateTimerList();
     virtual std::string getAutoTimer(bool &wantTimerChecks);
@@ -437,9 +492,9 @@ protected:
      *
      * Used by processEventsOut() to send MIDI out via ALSA.
      */
-    virtual void processMidiOut(const MappedEventList &mC,
+    void processMidiOut(const MappedEventList &mC,
                                 const RealTime &sliceStart,
-                                const RealTime &sliceEnd);
+                                const RealTime &sliceEnd) override;
 
     virtual void processSoftSynthEventOut(InstrumentId id,
                                           const snd_seq_event_t *event,
@@ -464,7 +519,7 @@ private:
                               
     int checkAlsaError(int rc, const char *message);
 
-    AlsaPortList m_alsaPorts;
+    AlsaPortVector m_alsaPorts;
 
     // ALSA MIDI/Sequencer stuff
     //
@@ -629,6 +684,34 @@ private:
      */
     MappedEventList m_returnComposition;
 
+    /// Debugging mode is enabled.
+    /**
+     * Moving debug configuration to run-time to make it a little
+     * easier for users to turn on and off.  Downside is the need
+     * for "if (m_debug)" which uses CPU as opposed to #if.
+     *
+     * To enable debugging, do a debug build and set the following
+     * in the Rosegarden.conf file:
+     *
+     *   [General_Options]
+     *   debug_AlsaDriver=true
+     */
+    bool m_debug;
+
+    /// Reduce the amount of debug output.
+    /**
+     * Debugging real-time code is rather challenging.  It's easy to
+     * end up with too much output, and the behavior will change as
+     * the debugging sucks up CPU.
+     *
+     * This function is intended to reduce the amount of debug output
+     * by only allowing output at fixed intervals, and for short
+     * bursts.
+     */
+    bool throttledDebug() const;
+
+    /// Compute SPP at or prior to time.
+    int songPositionPointer(const RealTime &time);
 };
 
 }

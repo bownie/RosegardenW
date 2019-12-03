@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -31,14 +31,14 @@ public:
     LegatoQuantizer(timeT unit = -1);
     LegatoQuantizer(std::string source, std::string target, timeT unit = -1);
     LegatoQuantizer(const LegatoQuantizer &);
-    virtual ~LegatoQuantizer();
+    ~LegatoQuantizer() override;
 
     void setUnit(timeT unit) { m_unit = unit; }
     timeT getUnit() const { return m_unit; }
 
-    virtual void quantizeRange(Segment *,
+    void quantizeRange(Segment *,
                                Segment::iterator,
-                               Segment::iterator) const;
+                               Segment::iterator) const override;
 
 protected:
     virtual void quantizeLegatoSingle(Segment *,

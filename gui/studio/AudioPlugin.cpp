@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -57,15 +57,16 @@ AudioPlugin::addPort(int number,
                      PortData upperBound,
                      PortData defaultValue)
 {
-    PluginPort *port = new PluginPort(number,
-                                      qstrtostr(name),
-                                      type,
-                                      hint,
-                                      lowerBound,
-                                      upperBound,
-                                      defaultValue);
-    m_ports.push_back(port);
+    QSharedPointer<PluginPort> port(new PluginPort(
+            number,
+            qstrtostr(name),
+            type,
+            hint,
+            lowerBound,
+            upperBound,
+            defaultValue));
 
+    m_ports.push_back(port);
 }
 
 }

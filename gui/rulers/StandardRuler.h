@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -21,11 +21,6 @@
 
 #include <QWidget>
 #include "base/Event.h"
-
-
-class QWidget;
-class QPaintEvent;
-
 
 namespace Rosegarden
 {
@@ -44,11 +39,9 @@ class StandardRuler : public QWidget
 public:
     StandardRuler(RosegardenDocument *doc,
                   RulerScale *rulerScale,
-                  double xorigin,
-                  int buttonHeight,
                   bool invert = false, // draw upside-down
                   bool isForMainWindow = false,
-                  QWidget* parent = 0);
+                  QWidget* parent = nullptr);
 
     void setSnapGrid(const SnapGrid *grid);
 
@@ -64,8 +57,6 @@ public:
     
     void setMinimumWidth(int width);
 
-    void setHScaleFactor(double dy);
-    
     /**
      * Update all components of standard ruler.
      * Useful when the scene has changed due to font change,
@@ -83,10 +74,6 @@ signals:
     /// reflected from the loop ruler
     void dragLoopToPosition(timeT);
 
-/*
-protected:
-    virtual void paintEvent(QPaintEvent *);
-*/
 private:
     //--------------- Data members ---------------------------------
     bool m_invert;

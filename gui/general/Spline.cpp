@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -30,9 +30,9 @@ Spline::calculate(const QPoint &s, const QPoint &f, const PointList &cp,
                   QPoint &topLeft, QPoint &bottomRight)
 {
     if (cp.size() < 2)
-        return 0;
+        return nullptr;
 
-    int i;
+    size_t i;
     PointList *acc = new PointList();
     QPoint p(s);
 

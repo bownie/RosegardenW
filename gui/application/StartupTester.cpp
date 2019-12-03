@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,12 +16,16 @@
 */
 
 
+#define RG_MODULE_STRING "[StartupTester]"
+
 #include "StartupTester.h"
 
 #include "misc/Strings.h"
 #include "misc/Debug.h"
 #include "gui/dialogs/LilyPondOptionsDialog.h"
 #include "gui/editors/notation/NoteFontFactory.h"
+
+#include "rosegarden-version.h"
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -35,7 +39,7 @@ namespace Rosegarden
 {
 
 StartupTester::StartupTester() :
-//    m_proc(NULL),
+//    m_proc(nullptr),
     m_ready(false),
     m_haveAudioFileImporter(false)
 //    m_versionHttpFailed(false)
@@ -47,10 +51,10 @@ StartupTester::StartupTester() :
 
     network = new QNetworkAccessManager(this);
     network->get(QNetworkRequest(url));
-    std::cerr << "StartupTester::StartupTester(): URL: " << url.toString() << std::endl;
+    RG_DEBUG << "StartupTester::StartupTester(): URL: " << url.toString();
 
-    connect(network, SIGNAL(finished(QNetworkReply*)),
-            this, SLOT(slotNetworkFinished(QNetworkReply*)));
+    connect(network, &QNetworkAccessManager::finished,
+            this, &StartupTester::slotNetworkFinished);
 }
 
 StartupTester::~StartupTester()
@@ -142,7 +146,7 @@ StartupTester::slotNetworkFinished(QNetworkReply *reply)
 
     if (reply->error() != QNetworkReply::NoError) {
 //        m_versionHttpFailed = true;
-        std::cerr << "StartupTester::slotNetworkFinished(): Connection failed: " << reply->errorString() << std::endl;
+        RG_WARNING << "StartupTester::slotNetworkFinished(): Connection failed: " << reply->errorString();
         return;
     }
 
@@ -152,9 +156,8 @@ StartupTester::slotNetworkFinished(QNetworkReply *reply)
     if (lines.empty()) return;
 
     QString latestVersion = lines[0];
-    std::cerr << "StartupTester::slotNetworkFinished(): Comparing current version \"" << VERSION
-              << "\" with latest version \"" << latestVersion << "\""
-              << std::endl;
+    RG_DEBUG << "StartupTester::slotNetworkFinished(): Comparing current version \"" << VERSION
+              << "\" with latest version \"" << latestVersion << "\"";
     if (isVersionNewerThan(latestVersion, VERSION)) {
         emit newerVersionAvailable(latestVersion);
     }
@@ -162,5 +165,4 @@ StartupTester::slotNetworkFinished(QNetworkReply *reply)
 
 }
 
-#include "StartupTester.moc"
 

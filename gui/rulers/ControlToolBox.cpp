@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -40,25 +40,25 @@ ControlToolBox::ControlToolBox(ControlRuler *parent) :
 BaseTool *
 ControlToolBox::createTool(QString toolName)
 {
-    ControlTool *tool = 0;
+    ControlTool *tool = nullptr;
 
     QString toolNamelc = toolName.toLower();
 
-    if (toolNamelc == PropertyAdjuster::ToolName)
+    if (toolNamelc == PropertyAdjuster::ToolName())
         tool = new PropertyAdjuster(m_ruler);
-    else if (toolNamelc == ControlPainter::ToolName)
+    else if (toolNamelc == ControlPainter::ToolName())
         tool = new ControlPainter(m_ruler);
-    else if (toolNamelc == ControlEraser::ToolName)
+    else if (toolNamelc == ControlEraser::ToolName())
         tool = new ControlEraser(m_ruler);
-    else if (toolNamelc == ControlSelector::ToolName)
+    else if (toolNamelc == ControlSelector::ToolName())
         tool = new ControlSelector(m_ruler);
-    else if (toolNamelc == ControlMover::ToolName)
+    else if (toolNamelc == ControlMover::ToolName())
         tool = new ControlMover(m_ruler);
     else
     {
-        QMessageBox::critical(0, tr("Rosegarden"), QString("ControlToolBox::createTool : unrecognised toolname %1 (%2)")
+        QMessageBox::critical(nullptr, tr("Rosegarden"), QString("ControlToolBox::createTool : unrecognised toolname %1 (%2)")
                            .arg(toolName).arg(toolNamelc));
-        return 0;
+        return nullptr;
     }
 
     m_tools.insert(toolName, tool);
@@ -73,4 +73,3 @@ ControlToolBox::createTool(QString toolName)
 }
 
 }
-#include "ControlToolBox.moc"

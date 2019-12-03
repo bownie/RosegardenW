@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,16 +18,18 @@
 #ifndef RG_CONTROLRULER_H
 #define RG_CONTROLRULER_H
 
-#include <QWidget>
+#include "ControlItem.h"
+
+#include "gui/general/AutoScroller.h"
 #include "base/Segment.h"
 #include "base/Selection.h"
-#include "base/ViewSegment.h"
+
 #include <QColor>
 #include <QPoint>
 #include <QString>
-#include <utility>
+#include <QWidget>
 
-#include "ControlItem.h"
+#include <utility>
 
 //class QWidget;
 class QMenu;
@@ -49,6 +51,7 @@ class RulerScale;
 class EventSelection;
 class EditViewBase;
 class NotationStaff;
+class ViewSegment;
 
 /**
  * ControlRuler : base class for Control Rulers
@@ -62,19 +65,19 @@ class ControlRuler : public QWidget //, public ViewSegmentObserver
 public:
     ControlRuler(ViewSegment*,
                  RulerScale*,
-                 QWidget* parent=0); //###  const char name is obsolete, and I'm almost sure WFlags is obsolete too
-    virtual ~ControlRuler();
+                 QWidget* parent = nullptr);
+    ~ControlRuler() override;
 
     virtual QString getName() = 0;
 
-    virtual QSize sizeHint() const { return QSize(1,100); }
+    QSize sizeHint() const override { return QSize(1,100); }
 
-    virtual void paintEvent(QPaintEvent *);
+    void paintEvent(QPaintEvent *) override;
 
-    long getMaxItemValue() { return m_maxItemValue; }
+    long getMaxItemValue() const { return m_maxItemValue; }
     void setMaxItemValue(long val) { m_maxItemValue = val; }
 
-    long getMinItemValue() { return m_minItemValue; }
+    long getMinItemValue() const { return m_minItemValue; }
     void setMinItemValue(long val) { m_minItemValue = val; }
 
     void clear();
@@ -95,7 +98,7 @@ public:
     
     virtual void notationLayoutUpdated(timeT,timeT);
 
-    virtual void setRulerScale(RulerScale *rulerscale) { m_rulerScale = rulerscale; }
+    void setRulerScale(RulerScale *rulerscale) { m_rulerScale = rulerscale; }
     RulerScale* getRulerScale() { return m_rulerScale; }
     
     void setXOffset(int offset) { m_xOffset = offset; } 
@@ -103,15 +106,15 @@ public:
     float valueToY(long val);
     long yToValue(float height);
 
-    double getXScale() {return m_xScale; }
-    double getYScale() {return m_yScale; }
+    double getXScale() const { return m_xScale; }
+    double getYScale() const { return m_yScale; }
     float getXMax();
     float getXMin();
     
     void clearSelectedItems();
     void addToSelection(ControlItem*);
     void removeFromSelection(ControlItem*);
-    EventSelection *getEventSelection(void)
+    EventSelection *getEventSelection()
     { return m_eventSelection; }
 
     virtual ControlItemMap::iterator findControlItem(float x);
@@ -127,24 +130,23 @@ public:
     // SegmentObserver interface
 //    virtual void viewSegmentDeleted(const ViewSegment *);
 
-    static const int DefaultRulerHeight;
-    static const int MinItemHeight;
-    static const int MaxItemHeight;
-    static const int ItemHeightRange;
-
     void flipForwards();
     void flipBackwards();
 
-//    void setMainHorizontalScrollBar(QScrollBar* s ) { m_mainHorizontalScrollBar = s; }
-
 signals:
-    void stateChange(const QString&, bool);
+    /// DEPRECATED.  This is being replaced by the new mouse*() signals.
     void dragScroll(timeT);
+
+    void mousePress();
+    void mouseMove(FollowMode);
+    void mouseRelease();
 
     /** Emitted whenever the ruler changes its selection, so the ruler owner can
      * update its own selection to include the events selected on the ruler
      */
     void rulerSelectionChanged(EventSelection *);
+
+    void showContextHelp(const QString &);
 
 public slots:
     /// override RosegardenCanvasView - we don't want to change the main hscrollbar
@@ -156,12 +158,12 @@ public slots:
     virtual void slotSetTool(const QString&);
 
 protected:
-    virtual void mousePressEvent(QMouseEvent*);
-    virtual void mouseReleaseEvent(QMouseEvent*);
-    virtual void mouseMoveEvent(QMouseEvent*);
-    virtual void contextMenuEvent(QContextMenuEvent*);
-    virtual void wheelEvent(QWheelEvent*);
-    virtual void resizeEvent(QResizeEvent *);
+    void mousePressEvent(QMouseEvent*) override;
+    void mouseReleaseEvent(QMouseEvent*) override;
+    void mouseMoveEvent(QMouseEvent*) override;
+    void contextMenuEvent(QContextMenuEvent*) override;
+    void wheelEvent(QWheelEvent*) override;
+    void resizeEvent(QResizeEvent *) override;
 
     virtual ControlMouseEvent createControlMouseEvent(QMouseEvent* e);
 

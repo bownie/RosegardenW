@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -39,7 +39,7 @@ Event::EventData::EventData(const std::string &type, timeT absoluteTime,
     m_absoluteTime(absoluteTime),
     m_duration(duration),
     m_subOrdering(subOrdering),
-    m_properties(0)
+    m_properties(nullptr)
 {
     // empty
 }
@@ -52,7 +52,7 @@ Event::EventData::EventData(const std::string &type, timeT absoluteTime,
     m_absoluteTime(absoluteTime),
     m_duration(duration),
     m_subOrdering(subOrdering),
-    m_properties(properties ? new PropertyMap(*properties) : 0)
+    m_properties(properties ? new PropertyMap(*properties) : nullptr)
 {
     // empty
 }
@@ -90,6 +90,15 @@ Event::EventData::getNotationDuration() const
     else return static_cast<PropertyStore<Int> *>(i->second)->getData();
 }
 
+timeT
+Event::getGreaterDuration()
+{
+    if (isa(Note::EventType)) {
+        return std::max(getDuration(), getNotationDuration());
+    }
+    return getDuration();
+}
+
 void
 Event::EventData::setTime(const PropertyName &name, timeT t, timeT deft)
 {
@@ -116,10 +125,10 @@ Event::find(const PropertyName &name, PropertyMap::iterator &i)
     if (!map || ((i = map->find(name)) == map->end())) {
 
 	map = m_nonPersistentProperties;
-	if (!map) return 0;
+	if (!map) return nullptr;
 
 	i = map->find(name);
-	if (i == map->end()) return 0;
+	if (i == map->end()) return nullptr;
     }
 
     return map;
@@ -203,13 +212,13 @@ Event::getAsString(const PropertyName &name) const
 // us anything anyway).
 
 string
-Event::toXmlString()
+Event::toXmlString() const
 {
     return toXmlString(0);
 }
 
 string
-Event::toXmlString(timeT expectedTime)
+Event::toXmlString(timeT expectedTime) const
 {
     std::stringstream out;
 
@@ -361,7 +370,7 @@ Event::dumpStats(ostream&)
 #endif
 
 bool
-Event::maskedInTrigger(void) const
+Event::maskedInTrigger() const
 {
     using namespace BaseProperties;
     

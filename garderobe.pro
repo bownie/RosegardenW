@@ -1,6 +1,6 @@
 include(update.pri)
 
-INCLUDEPATH += "C:/Qt/5.3/mingw482_32/include/QtWidgets"
+#INCLUDEPATH += "C:/Qt/5.3/mingw482_32/include/QtWidgets"
 
 TARGET = rosegarden
 
@@ -43,16 +43,8 @@ OTHER_FILES += \
     data/locale/cs.ts \
     data/locale/ca.ts
 
-#DEFINES += QT3_SUPPORT \
-#           'VERSION=\'12.04.00\'' \
-#           'CODENAME=\'Freedom\'' \
-#           BUILDKEY=0003 \
-#           LITTLE_ENDIAN \
-#           __WINDOWS_MM__ \
-#           _PORTABLE_SOUND_
-
-DEFINES += VERSION=\\\"14.02\\\" \
-           CODENAME=\\\"Kaleidoscope\\\" \
+DEFINES += VERSION=\\\"19.06\\\" \
+           CODENAME=\\\"Xerxes\\\" \
            BUILDKEY=0001 \
            LITTLE_ENDIAN \
            __WINDOWS_MM__ \
@@ -87,8 +79,8 @@ TRANSLATIONS =      data/locale/ca.ts \
                     data/locale/pt_BR.ts
 
 
-INCLUDEPATH += "C:/devel/zlib/include" \
-               "C:/devel/pthreads/Pre-built.2/include"
+INCLUDEPATH += "C:/devel/zlib/include"
+ #              "C:/tools/pthreads/include"
  #              "C:/devel/mman" \
  #              "C:/devel/fftw" \
  #              "C:/devel/jack" \
@@ -102,8 +94,8 @@ INCLUDEPATH += "C:/devel/zlib/include" \
 #INCLUDEPATH += "C:/Program Files/Microsoft Visual Studio 8/VC/PlatformSDK/Include" \
 #               "C:/Program Files/Microsoft Visual Studio 8/VC/Include"
 
-QMAKE_LIBDIR += "C:/devel/pthreads/Pre-built.2/lib" \
-                "C:/devel/zlib/lib"
+QMAKE_LIBDIR += "C:/tools/pthreads/lib"
+                "C:/tools/zlib/lib"
 #                "C:/devel/mman" \
 #                "C:/devel/fftw" \
 #                "C:/devel/jack" \
@@ -111,9 +103,10 @@ QMAKE_LIBDIR += "C:/devel/pthreads/Pre-built.2/lib" \
 #                "C:/devel/dlfcn/lib"
  #               "C:/devel/lrdf/"
 
-LIBS += -lpthread -lzlib -lwinmm
+LIBS += -lpthread -lz -lwinmm
 
 HEADERS += \
+    base/InstrumentStaticSignals.h \
     base/XmlExportable.h \
     base/ViewSegment.h \
     base/ViewElement.h \
@@ -217,6 +210,7 @@ HEADERS += \
     commands/matrix/MatrixModifyCommand.h \
     commands/matrix/MatrixInsertionCommand.h \
     commands/matrix/MatrixEraseCommand.h \
+    commands/notation/MarkParallelCommand.h \
     commands/notation/UnTupletCommand.h \
     commands/notation/UntieNotesCommand.h \
     commands/notation/UnGraceCommand.h \
@@ -309,6 +303,7 @@ HEADERS += \
     gui/application/RosegardenApplication.h \
     gui/application/LircCommander.h \
     gui/application/LircClient.h \
+    gui/configuration/CommentsConfigurationPage.h \
     gui/configuration/TabbedConfigurationPage.h \
     gui/configuration/NotationConfigurationPage.h \
     gui/configuration/MIDIConfigurationPage.h \
@@ -321,6 +316,8 @@ HEADERS += \
     gui/configuration/AudioPropertiesPage.h \
     gui/configuration/AudioConfigurationPage.h \
     gui/configuration/PitchTrackerConfigurationPage.h \
+    gui/dialogs/CheckForParallelsDialog.h \
+    gui/dialogs/CommentsPopupDialog.h \
     gui/dialogs/UseOrnamentDialog.h \
     gui/dialogs/UnusedAudioSelectionDialog.h \
     gui/dialogs/TupletDialog.h \
@@ -388,6 +385,7 @@ HEADERS += \
     gui/editors/guitar/ChordXmlHandler.h \
     gui/editors/guitar/ChordMap.h \
     gui/editors/guitar/Chord.h \
+    gui/editors/matrix/MatrixCommandRegistry.h \
     gui/editors/matrix/PianoKeyboard.h \
     gui/editors/matrix/MatrixWidget.h \
     gui/editors/matrix/MatrixViewSegment.h \
@@ -455,6 +453,7 @@ HEADERS += \
     gui/editors/parameters/InstrumentParameterPanel.h \
     gui/editors/parameters/InstrumentParameterBox.h \
     gui/editors/parameters/AudioInstrumentParameterPanel.h \
+    gui/editors/segment/compositionview/SegmentRect.h \
     gui/editors/segment/compositionview/SegmentToolBox.h \
     gui/editors/segment/compositionview/SegmentTool.h \
     gui/editors/segment/compositionview/SegmentSplitter.h \
@@ -470,9 +469,6 @@ HEADERS += \
     gui/editors/segment/compositionview/CompositionView.h \
     gui/editors/segment/compositionview/CompositionRect.h \
     gui/editors/segment/compositionview/CompositionModelImpl.h \
-    gui/editors/segment/compositionview/CompositionModel.h \
-    gui/editors/segment/compositionview/CompositionItemHelper.h \
-    gui/editors/segment/compositionview/CompositionItem.h \
     gui/editors/segment/compositionview/CompositionColourCache.h \
     gui/editors/segment/compositionview/AudioPreviewUpdater.h \
     gui/editors/segment/compositionview/AudioPreviewThread.h \
@@ -489,6 +485,8 @@ HEADERS += \
     gui/editors/segment/PlayList.h \
     gui/editors/segment/MarkerEditorViewItem.h \
     gui/editors/segment/MarkerEditor.h \
+    gui/widgets/LilyVersionAwareCheckBox.h \
+    gui/widgets/ColorCombo.h \
     gui/widgets/ZoomSlider.h \
     gui/widgets/WheelyButton.h \
     gui/widgets/WarningWidget.h \
@@ -541,6 +539,7 @@ HEADERS += \
     gui/widgets/AudioListItem.h \
     gui/widgets/AudioFaderBox.h \
     gui/widgets/CheckButton.h \
+    misc/TempDir.h \
     misc/Version.h \
     misc/Strings.h \
     misc/Debug.h \
@@ -565,7 +564,6 @@ HEADERS += \
     sound/MappedInserterBase.h \
     sound/MidiInserter.h \
     sound/SortingInserter.h \
-    sound/ImmediateNote.h \
     sound/SoundDriverFactory.h \
     sound/SoundDriver.h \
     sound/SF2PatchExtractor.h \
@@ -586,7 +584,6 @@ HEADERS += \
     sound/MidiEvent.h \
     sound/Midi.h \
     sound/MappedStudio.h \
-    sound/MappedSegment.h \
     sound/MappedInstrument.h \
     sound/MappedEventList.h \
     sound/MappedEvent.h \
@@ -621,6 +618,8 @@ HEADERS += \
     commands/segment/SegmentSplitCommand.h \
     commands/segment/SegmentSplitByRecordingSrcCommand.h \
     commands/segment/SegmentSplitByPitchCommand.h \
+    commands/segment/SegmentSplitByDrumCommand.h \
+    commands/segment/SegmentSplitTwiceCommand.h \
     commands/segment/SegmentSingleRepeatToCopyCommand.h \
     commands/segment/SegmentResizeFromStartCommand.h \
     commands/segment/SegmentRescaleCommand.h \
@@ -671,6 +670,8 @@ HEADERS += \
     commands/segment/SetTriggerSegmentDefaultTimeAdjustCommand.h \
     commands/segment/UpdateFigurationCommand.h \
     commands/segment/CutToTriggerSegmentCommand.h \
+    gui/general/AutoScroller.h \
+    gui/general/EditTempoController.h \
     gui/general/ThornStyle.h \
     gui/general/TempDirectory.h \
     gui/general/Spline.h \
@@ -751,6 +752,7 @@ HEADERS += \
     gui/seqmanager/AudioSegmentMapper.h \
     gui/seqmanager/MappedEventBuffer.h \
     gui/seqmanager/MarkerMapper.h \
+    gui/studio/AudioStrip.h \
     gui/studio/TimerCallbackAssistant.h \
     gui/studio/SynthPluginManagerDialog.h \
     gui/studio/StudioControl.h \
@@ -775,7 +777,7 @@ HEADERS += \
     gui/studio/AudioPluginManager.h \
     gui/studio/AudioPluginClipboard.h \
     gui/studio/AudioPlugin.h \
-    gui/studio/AudioMixerWindow.h \
+    gui/studio/AudioMixerWindow2.h \
     gui/editors/tempo/TempoView.h \
     gui/editors/tempo/TempoListItem.h \
     sound/rtmidi/RtMidi.h \
@@ -794,6 +796,7 @@ HEADERS += \
     document/io/MusicXmlExportHelper.h \
     gui/dialogs/MusicXMLOptionsDialog.h \
     gui/editors/notation/ClefKeyContext.h \
+    gui/editors/segment/compositionview/ChangingSegment.h \
     gui/editors/segment/compositionview/AudioPreviewReadyEvent.h \
     base/SegmentLinker.h \
     base/parameterpattern/RingingParameterPattern.h \
@@ -812,8 +815,14 @@ HEADERS += \
     commands/segment/FitToBeatsCommand.h \
     commands/segment/ExpandFigurationCommand.h \
     commands/segment/EraseTempiInRangeCommand.h \
-    base/ControllerContext.h
+    base/ControllerContext.h \
+    gui/editors/segment/compositionview/AudioPeaksGenerator.h \
+    gui/editors/segment/compositionview/AudioPeaksReadyEvent.h \
+    gui/editors/segment/compositionview/AudioPeaksThread.h \
+    document/MetadataHelper.h
+
 SOURCES += \
+    base/InstrumentStaticSignals.cpp \
     base/XmlExportable.cpp \
     base/ViewSegment.cpp \
     base/ViewElement.cpp \
@@ -906,6 +915,7 @@ SOURCES += \
     commands/matrix/MatrixModifyCommand.cpp \
     commands/matrix/MatrixInsertionCommand.cpp \
     commands/matrix/MatrixEraseCommand.cpp \
+    commands/notation/MarkParallelCommand.cpp \
     commands/notation/UnTupletCommand.cpp \
     commands/notation/UntieNotesCommand.cpp \
     commands/notation/UnGraceCommand.cpp \
@@ -989,6 +999,7 @@ SOURCES += \
     document/io/HydrogenLoader.cpp \
     document/io/CsoundExporter.cpp \
     document/io/LilyPondLanguage.cpp \
+    document/MetadataHelper.cpp \
     gui/application/TranzportClient.cpp \
     gui/application/StartupTester.cpp \
     gui/application/SetWaitCursor.cpp \
@@ -998,6 +1009,7 @@ SOURCES += \
     gui/application/main.cpp \
     gui/application/LircCommander.cpp \
     gui/application/LircClient.cpp \
+    gui/configuration/CommentsConfigurationPage.cpp \
     gui/configuration/TabbedConfigurationPage.cpp \
     gui/configuration/NotationConfigurationPage.cpp \
     gui/configuration/MIDIConfigurationPage.cpp \
@@ -1010,6 +1022,7 @@ SOURCES += \
     gui/configuration/AudioPropertiesPage.cpp \
     gui/configuration/AudioConfigurationPage.cpp \
     gui/configuration/PitchTrackerConfigurationPage.cpp \
+    gui/dialogs/CommentsPopupDialog.cpp \
     gui/dialogs/UseOrnamentDialog.cpp \
     gui/dialogs/UnusedAudioSelectionDialog.cpp \
     gui/dialogs/TupletDialog.cpp \
@@ -1077,6 +1090,7 @@ SOURCES += \
     gui/editors/guitar/ChordXmlHandler.cpp \
     gui/editors/guitar/ChordMap.cpp \
     gui/editors/guitar/Chord.cpp \
+    gui/editors/matrix/MatrixCommandRegistry.cpp \
     gui/editors/matrix/PianoKeyboard.cpp \
     gui/editors/matrix/MatrixWidget.cpp \
     gui/editors/matrix/MatrixViewSegment.cpp \
@@ -1140,6 +1154,8 @@ SOURCES += \
     gui/editors/parameters/InstrumentParameterPanel.cpp \
     gui/editors/parameters/InstrumentParameterBox.cpp \
     gui/editors/parameters/AudioInstrumentParameterPanel.cpp \
+    gui/editors/segment/compositionview/SegmentRect.cpp \
+    gui/editors/segment/compositionview/ChangingSegment.cpp \
     gui/editors/segment/compositionview/SegmentToolBox.cpp \
     gui/editors/segment/compositionview/SegmentTool.cpp \
     gui/editors/segment/compositionview/SegmentSplitter.cpp \
@@ -1155,9 +1171,6 @@ SOURCES += \
     gui/editors/segment/compositionview/CompositionView.cpp \
     gui/editors/segment/compositionview/CompositionRect.cpp \
     gui/editors/segment/compositionview/CompositionModelImpl.cpp \
-    gui/editors/segment/compositionview/CompositionModel.cpp \
-    gui/editors/segment/compositionview/CompositionItemHelper.cpp \
-    gui/editors/segment/compositionview/CompositionItem.cpp \
     gui/editors/segment/compositionview/CompositionColourCache.cpp \
     gui/editors/segment/compositionview/AudioPreviewUpdater.cpp \
     gui/editors/segment/compositionview/AudioPreviewThread.cpp \
@@ -1174,6 +1187,8 @@ SOURCES += \
     gui/editors/segment/PlayList.cpp \
     gui/editors/segment/MarkerEditorViewItem.cpp \
     gui/editors/segment/MarkerEditor.cpp \
+    gui/widgets/LilyVersionAwareCheckBox.cpp \
+    gui/widgets/ColorCombo.cpp \
     gui/widgets/ZoomSlider.cpp \
     gui/widgets/WheelyButton.cpp \
     gui/widgets/WarningWidget.cpp \
@@ -1223,6 +1238,7 @@ SOURCES += \
     gui/widgets/AudioListView.cpp \
     gui/widgets/AudioFaderBox.cpp \
     gui/widgets/CheckButton.cpp \
+    misc/TempDir.cpp \
     misc/Version.cpp \
     misc/Strings.cpp \
     misc/Debug.cpp \
@@ -1241,7 +1257,6 @@ SOURCES += \
     sound/SoundFile.cpp \
     sound/MappedBufMetaIterator.cpp \
     sound/SortingInserter.cpp \
-    sound/ImmediateNote.cpp \
     sound/MappedEventInserter.cpp \
     sound/MidiInserter.cpp \
     sound/SoundDriverFactory.cpp \
@@ -1260,7 +1275,6 @@ SOURCES += \
     sound/MidiFile.cpp \
     sound/MidiEvent.cpp \
     sound/MappedStudio.cpp \
-    sound/MappedSegment.cpp \
     sound/MappedInstrument.cpp \
     sound/MappedEventList.cpp \
     sound/MappedEvent.cpp \
@@ -1294,6 +1308,7 @@ SOURCES += \
     commands/segment/SegmentSplitCommand.cpp \
     commands/segment/SegmentSplitByRecordingSrcCommand.cpp \
     commands/segment/SegmentSplitByPitchCommand.cpp \
+    commands/segment/SegmentSplitByDrumCommand.cpp \
     commands/segment/SegmentSingleRepeatToCopyCommand.cpp \
     commands/segment/SegmentResizeFromStartCommand.cpp \
     commands/segment/SegmentRescaleCommand.cpp \
@@ -1343,6 +1358,8 @@ SOURCES += \
     commands/segment/AddLayerCommand.cpp \
     commands/segment/UpdateFigurationCommand.cpp \
     commands/segment/CutToTriggerSegmentCommand.cpp \
+    gui/general/AutoScroller.cpp \
+    gui/general/EditTempoController.cpp \
     gui/general/ThornStyle.cpp \
     gui/general/TempDirectory.cpp \
     gui/general/Spline.cpp \
@@ -1419,6 +1436,7 @@ SOURCES += \
     gui/seqmanager/MappedEventBuffer.cpp \
     gui/seqmanager/MarkerMapper.cpp \
     gui/seqmanager/InternalSegmentMapper.cpp \
+    gui/studio/AudioStrip.cpp \
     gui/studio/TimerCallbackAssistant.cpp \
     gui/studio/SynthPluginManagerDialog.cpp \
     gui/studio/StudioControl.cpp \
@@ -1443,7 +1461,7 @@ SOURCES += \
     gui/studio/AudioPluginManager.cpp \
     gui/studio/AudioPluginClipboard.cpp \
     gui/studio/AudioPlugin.cpp \
-    gui/studio/AudioMixerWindow.cpp \
+    gui/studio/AudioMixerWindow2.cpp \
     gui/editors/tempo/TempoView.cpp \
     gui/editors/tempo/TempoListItem.cpp \
     sound/rtmidi/RtMidi.cpp \
@@ -1458,8 +1476,12 @@ SOURCES += \
     document/io/LilyPondSegmentsContext.cpp \
     document/io/PercussionMap.cpp \
     document/io/MusicXmlExportHelper.cpp \
+    gui/dialogs/CheckForParallelsDialog.cpp \
     gui/dialogs/MusicXMLOptionsDialog.cpp \
     gui/editors/notation/ClefKeyContext.cpp \
+    gui/editors/segment/compositionview/AudioPeaksGenerator.cpp \
+    gui/editors/segment/compositionview/AudioPeaksReadyEvent.cpp \
+    gui/editors/segment/compositionview/AudioPeaksThread.cpp \
     gui/editors/segment/compositionview/AudioPreviewReadyEvent.cpp \
     base/SegmentLinker.cpp \
     base/parameterpattern/RingingParameterPattern.cpp \

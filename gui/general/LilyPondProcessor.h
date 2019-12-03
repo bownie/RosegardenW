@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -74,7 +74,7 @@ public:
     LilyPondProcessor(QWidget *parent,
                       int mode,
                       QString filename);
-    ~LilyPondProcessor() { };
+    ~LilyPondProcessor() override { };
 
 protected:
     int           m_mode;
@@ -88,7 +88,7 @@ protected slots:
     /**
      * Display an explanatory failure message and terminate processing
      */
-    void puke(QString error);
+    void puke(const QString &error, const QString &details = QString());
 
     /**
      * Try to run convert-ly and call runLilyPond() if successful

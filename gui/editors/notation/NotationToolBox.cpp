@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,53 +38,53 @@ namespace Rosegarden
 NotationToolBox::NotationToolBox(NotationWidget *parent) :
     BaseToolBox(parent),
     m_widget(parent),
-    m_scene(0)
+    m_scene(nullptr)
 {
 }
 
 BaseTool *
 NotationToolBox::createTool(QString toolName)
 {
-    NotationTool *tool = 0;
+    NotationTool *tool = nullptr;
 
     QString toolNamelc = toolName.toLower();
     
-    if (toolNamelc == ClefInserter::ToolName)
+    if (toolNamelc == ClefInserter::ToolName())
 
         tool = new ClefInserter(m_widget);
 
-    else if (toolNamelc == SymbolInserter::ToolName)
+    else if (toolNamelc == SymbolInserter::ToolName())
 
         tool = new SymbolInserter(m_widget);
 
-    else if (toolNamelc == TextInserter::ToolName)
+    else if (toolNamelc == TextInserter::ToolName())
 
         tool = new TextInserter(m_widget);
 
-    else if (toolNamelc == GuitarChordInserter::ToolName)
+    else if (toolNamelc == GuitarChordInserter::ToolName())
 
         tool = new GuitarChordInserter(m_widget);
 
-    else if (toolNamelc == NotationEraser::ToolName)
+    else if (toolNamelc == NotationEraser::ToolName())
 
         tool = new NotationEraser(m_widget);
 
-    else if (toolNamelc == NotationSelector::ToolName)
+    else if (toolNamelc == NotationSelector::ToolName())
 
         tool = new NotationSelector(m_widget);
 
-    else if (toolNamelc == NotationSelectorNoTies::ToolName)
+    else if (toolNamelc == NotationSelectorNoTies::ToolName())
 
         tool = new NotationSelectorNoTies(m_widget);
 
-    else if (toolNamelc == NoteRestInserter::ToolName)
+    else if (toolNamelc == NoteRestInserter::ToolName())
 
         tool = new NoteRestInserter(m_widget);
 
     else {
-        QMessageBox::critical(0, tr("Rosegarden"), QString("NotationToolBox::createTool : unrecognised toolname %1 (%2)")
+        QMessageBox::critical(nullptr, tr("Rosegarden"), QString("NotationToolBox::createTool : unrecognised toolname %1 (%2)")
                            .arg(toolName).arg(toolNamelc));
-        return 0;
+        return nullptr;
     }
 
     m_tools.insert(toolName, tool);
@@ -122,5 +122,4 @@ NotationToolBox::setScene(NotationScene *scene)
 
 }
 
-#include "NotationToolBox.moc"
 

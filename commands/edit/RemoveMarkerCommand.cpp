@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -33,7 +33,7 @@ RemoveMarkerCommand::RemoveMarkerCommand(Composition *comp,
         const std::string &description):
         NamedCommand(getGlobalName()),
         m_composition(comp),
-        m_marker(0),
+        m_marker(nullptr),
         m_id(id),
         m_time(time),
         m_name(name),

@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2014 the Rosegarden development team.
+  Copyright 2000-2018 the Rosegarden development team.
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -154,7 +154,7 @@ class MappedStudio : public MappedObject
 {
 public:
     MappedStudio();
-    ~MappedStudio();
+    ~MappedStudio() override;
 
     // Create a new slider of a certain type for a certain
     // type of device.
@@ -208,14 +208,14 @@ public:
 
     // Property list
     //
-    virtual MappedObjectPropertyList getPropertyList(
-            const MappedObjectProperty &property);
+    MappedObjectPropertyList getPropertyList(
+            const MappedObjectProperty &property) override;
 
-    virtual bool getProperty(const MappedObjectProperty &property,
-                             MappedObjectValue &value);
+    bool getProperty(const MappedObjectProperty &property,
+                             MappedObjectValue &value) override;
 
-    virtual void setProperty(const MappedObjectProperty &property,
-                             MappedObjectValue value);
+    void setProperty(const MappedObjectProperty &property,
+                             MappedObjectValue value) override;
 
     // Get an audio fader for an InstrumentId.  Convenience function.
     //
@@ -296,7 +296,7 @@ public:
                             MappedObjectType type,
                             MappedObjectId id);
 
-    ~MappedConnectableObject();
+    ~MappedConnectableObject() override;
 
     void setConnections(ConnectionDirection dir,
                         MappedObjectValueList conns);
@@ -331,16 +331,16 @@ public:
     MappedAudioFader(MappedObject *parent,
                      MappedObjectId id,
                      MappedObjectValue channels = 2); // stereo default
-    ~MappedAudioFader();
+    ~MappedAudioFader() override;
 
-    virtual MappedObjectPropertyList getPropertyList(
-                        const MappedObjectProperty &property);
+    MappedObjectPropertyList getPropertyList(
+                        const MappedObjectProperty &property) override;
 
-    virtual bool getProperty(const MappedObjectProperty &property,
-                             MappedObjectValue &value);
+    bool getProperty(const MappedObjectProperty &property,
+                             MappedObjectValue &value) override;
 
-    virtual void setProperty(const MappedObjectProperty &property,
-                             MappedObjectValue value);
+    void setProperty(const MappedObjectProperty &property,
+                             MappedObjectValue value) override;
 
     InstrumentId getInstrument() const { return m_instrumentId; }
 
@@ -380,16 +380,16 @@ public:
 
     MappedAudioBuss(MappedObject *parent,
                     MappedObjectId id);
-    ~MappedAudioBuss();
+    ~MappedAudioBuss() override;
 
-    virtual MappedObjectPropertyList getPropertyList(
-                        const MappedObjectProperty &property);
+    MappedObjectPropertyList getPropertyList(
+                        const MappedObjectProperty &property) override;
 
-    virtual bool getProperty(const MappedObjectProperty &property,
-                             MappedObjectValue &value);
+    bool getProperty(const MappedObjectProperty &property,
+                             MappedObjectValue &value) override;
 
-    virtual void setProperty(const MappedObjectProperty &property,
-                             MappedObjectValue value);
+    void setProperty(const MappedObjectProperty &property,
+                             MappedObjectValue value) override;
 
     MappedObjectValue getBussId() { return m_bussId; }
 
@@ -413,16 +413,16 @@ public:
 
     MappedAudioInput(MappedObject *parent,
                      MappedObjectId id);
-    ~MappedAudioInput();
+    ~MappedAudioInput() override;
 
-    virtual MappedObjectPropertyList getPropertyList(
-                        const MappedObjectProperty &property);
+    MappedObjectPropertyList getPropertyList(
+                        const MappedObjectProperty &property) override;
 
-    virtual bool getProperty(const MappedObjectProperty &property,
-                             MappedObjectValue &value);
+    bool getProperty(const MappedObjectProperty &property,
+                             MappedObjectValue &value) override;
 
-    virtual void setProperty(const MappedObjectProperty &property,
-                             MappedObjectValue value);
+    void setProperty(const MappedObjectProperty &property,
+                             MappedObjectValue value) override;
 
     MappedObjectValue getInputNumber() { return m_inputNumber; }
 
@@ -449,25 +449,25 @@ public:
     static const MappedObjectProperty Configuration; // list property
 
     MappedPluginSlot(MappedObject *parent, MappedObjectId id);
-    ~MappedPluginSlot();
+    ~MappedPluginSlot() override;
 
-    virtual MappedObjectPropertyList getPropertyList(
-                        const MappedObjectProperty &property);
+    MappedObjectPropertyList getPropertyList(
+                        const MappedObjectProperty &property) override;
 
-    virtual bool getProperty(const MappedObjectProperty &property,
-                             MappedObjectValue &value);
+    bool getProperty(const MappedObjectProperty &property,
+                             MappedObjectValue &value) override;
 
-    virtual bool getStringProperty(const MappedObjectProperty &property,
-                                   QString &value);
+    bool getStringProperty(const MappedObjectProperty &property,
+                                   QString &value) override;
 
-    virtual void setProperty(const MappedObjectProperty &property,
-                             MappedObjectValue value);
+    void setProperty(const MappedObjectProperty &property,
+                             MappedObjectValue value) override;
 
-    virtual void setStringProperty(const MappedObjectProperty &property,
-                                   QString value);
+    void setStringProperty(const MappedObjectProperty &property,
+                                   QString value) override;
 
-    virtual void setPropertyList(const MappedObjectProperty &,
-                                 const MappedObjectPropertyList &);
+    void setPropertyList(const MappedObjectProperty &,
+                                 const MappedObjectPropertyList &) override;
 
     void  setPort(unsigned long portNumber, float value);
     float getPort(unsigned long portNumber);
@@ -507,22 +507,22 @@ public:
     static const MappedObjectProperty Value;
 
     MappedPluginPort(MappedObject *parent, MappedObjectId id);
-    ~MappedPluginPort();
+    ~MappedPluginPort() override;
 
-    virtual MappedObjectPropertyList getPropertyList(
-                        const MappedObjectProperty &property);
+    MappedObjectPropertyList getPropertyList(
+                        const MappedObjectProperty &property) override;
 
-    virtual bool getProperty(const MappedObjectProperty &property,
-                             MappedObjectValue &value);
+    bool getProperty(const MappedObjectProperty &property,
+                             MappedObjectValue &value) override;
 
-    virtual bool getStringProperty(const MappedObjectProperty &property,
-                                   QString &value);
+    bool getStringProperty(const MappedObjectProperty &property,
+                                   QString &value) override;
 
-    virtual void setProperty(const MappedObjectProperty &property,
-                             MappedObjectValue value);
+    void setProperty(const MappedObjectProperty &property,
+                             MappedObjectValue value) override;
 
-    virtual void setStringProperty(const MappedObjectProperty &property,
-                                   QString value);
+    void setStringProperty(const MappedObjectProperty &property,
+                                   QString value) override;
 
     void setValue(MappedObjectValue value);
     MappedObjectValue getValue() const;

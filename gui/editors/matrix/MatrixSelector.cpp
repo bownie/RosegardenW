@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -50,12 +50,12 @@ namespace Rosegarden
 
 MatrixSelector::MatrixSelector(MatrixWidget *widget) :
     MatrixTool("matrixselector.rc", "MatrixSelector", widget),
-    m_selectionRect(0),
+    m_selectionRect(nullptr),
     m_updateRect(false),
-    m_clickedElement(0),
-    m_dispatchTool(0),
+    m_clickedElement(nullptr),
+    m_dispatchTool(nullptr),
     m_justSelectedBar(false),
-    m_selectionToMerge(0)
+    m_selectionToMerge(nullptr)
 {
     //connect(m_widget, SIGNAL(usedSelection()),
     //        this, SLOT(slotHideSelection()));
@@ -74,7 +74,7 @@ MatrixSelector::handleEventRemoved(Event *event)
     if (m_dispatchTool)
         m_dispatchTool->handleEventRemoved(event);
     if (m_clickedElement && m_clickedElement->event() == event) {
-        m_clickedElement = 0;
+        m_clickedElement = nullptr;
     }
 }
 
@@ -87,7 +87,7 @@ MatrixSelector::slotClickTimeout()
 void
 MatrixSelector::handleLeftButtonPress(const MatrixMouseEvent *e)
 {
-    MATRIX_DEBUG << "MatrixSelector::handleLeftButtonPress" << endl;
+    MATRIX_DEBUG << "MatrixSelector::handleLeftButtonPress";
 
     m_previousCollisions.clear();
 
@@ -102,13 +102,13 @@ MatrixSelector::handleLeftButtonPress(const MatrixMouseEvent *e)
     // Do the merge selection thing
     //
     delete m_selectionToMerge;
-    const EventSelection *selectionToMerge = 0;
+    const EventSelection *selectionToMerge = nullptr;
     if (e->modifiers & Qt::ShiftModifier) {
         selectionToMerge = m_scene->getSelection();
     }
 
     m_selectionToMerge =
-        (selectionToMerge ? new EventSelection(*selectionToMerge) : 0);
+        (selectionToMerge ? new EventSelection(*selectionToMerge) : nullptr);
 
     // Now the rest of the element stuff
     //
@@ -123,16 +123,16 @@ MatrixSelector::handleLeftButtonPress(const MatrixMouseEvent *e)
         // max size of 10
         if ((x + width) - resizeStart > 10) resizeStart = x + width - 10;
 
-        m_dispatchTool = 0;
+        m_dispatchTool = nullptr;
         
         if (e->sceneX > resizeStart) {
             m_dispatchTool =
                 dynamic_cast<MatrixTool *>
-                (m_widget->getToolBox()->getTool(MatrixResizer::ToolName));
+                (m_widget->getToolBox()->getTool(MatrixResizer::ToolName()));
         } else {
             m_dispatchTool =
                 dynamic_cast<MatrixTool *>
-                (m_widget->getToolBox()->getTool(MatrixMover::ToolName));
+                (m_widget->getToolBox()->getTool(MatrixMover::ToolName()));
         }
 
         if (!m_dispatchTool) return;
@@ -172,7 +172,7 @@ MatrixSelector::handleLeftButtonPress(const MatrixMouseEvent *e)
         // Clear existing selection if we're not merging
         //
         if (!m_selectionToMerge) {
-            m_scene->setSelection(0, false);
+            m_scene->setSelection(nullptr, false);
         }
     }
 }
@@ -180,14 +180,16 @@ MatrixSelector::handleLeftButtonPress(const MatrixMouseEvent *e)
 void
 MatrixSelector::handleMidButtonPress(const MatrixMouseEvent *e)
 {
-    m_clickedElement = 0; // should be used for left-button clicks only
+    // Middle button press draws a new event via MatrixPainter.
+
+    m_clickedElement = nullptr; // should be used for left-button clicks only
 
     // Don't allow overlapping elements on the same channel
     if (e->element) return;
 
     m_dispatchTool =
         dynamic_cast<MatrixTool *>
-        (m_widget->getToolBox()->getTool(MatrixPainter::ToolName));
+        (m_widget->getToolBox()->getTool(MatrixPainter::ToolName()));
 
     if (!m_dispatchTool) return;
 
@@ -297,7 +299,7 @@ MatrixSelector::handleMouseTripleClick(const MatrixMouseEvent *e)
     }
 }
 
-MatrixSelector::FollowMode
+FollowMode
 MatrixSelector::handleMouseMove(const MatrixMouseEvent *e)
 {
     if (m_dispatchTool) {
@@ -307,7 +309,7 @@ MatrixSelector::handleMouseMove(const MatrixMouseEvent *e)
     if (!m_updateRect) {
         setContextHelpFor
             (e, getSnapGrid()->getSnapSetting() == SnapGrid::NoSnap);
-        return NoFollow;
+        return NO_FOLLOW;
     } else {
         clearContextHelp();
     }
@@ -348,13 +350,13 @@ MatrixSelector::handleMouseMove(const MatrixMouseEvent *e)
     m_selectionRect->setX(m_selectionRect->x() - xFix);
     m_widget->canvas()->update();
 */
-    return FollowMode(FollowHorizontal | FollowVertical);
+    return (FOLLOW_HORIZONTAL | FOLLOW_VERTICAL);
 }
 
 void
 MatrixSelector::handleMouseRelease(const MatrixMouseEvent *e)
 {
-    MATRIX_DEBUG << "MatrixSelector::handleMouseRelease" << endl;
+    MATRIX_DEBUG << "MatrixSelector::handleMouseRelease";
 
     if (m_dispatchTool) {
         m_dispatchTool->handleMouseRelease(e);
@@ -363,7 +365,7 @@ MatrixSelector::handleMouseRelease(const MatrixMouseEvent *e)
         ready();
 
         // don't delete the tool as it's still part of the toolbox
-        m_dispatchTool = 0;
+        m_dispatchTool = nullptr;
 
         return;
     }
@@ -375,7 +377,7 @@ MatrixSelector::handleMouseRelease(const MatrixMouseEvent *e)
                                         m_clickedElement,
                                         false);
 //        m_widget->canvas()->update();
-        m_clickedElement = 0;
+        m_clickedElement = nullptr;
 
     } else if (m_selectionRect) {
         setViewCurrentSelection(true);
@@ -409,7 +411,7 @@ MatrixSelector::stow()
 {
     if (m_selectionRect) {
         delete m_selectionRect;
-        m_selectionRect = 0;
+        m_selectionRect = nullptr;
 //        m_widget->canvas()->update();
     }
 /*!!!
@@ -462,7 +464,7 @@ MatrixSelector::setViewCurrentSelection(bool always)
 {
     if (always) m_previousCollisions.clear();
 
-    EventSelection* selection = 0;
+    EventSelection* selection = nullptr;
     bool changed = getSelection(selection);
     if (!changed) {
         delete selection;
@@ -529,7 +531,7 @@ MatrixSelector::getSelection(EventSelection *&selection)
 
     if (selection->getAddedEvents() == 0) {
         delete selection;
-        selection = 0;
+        selection = nullptr;
     }
 
     return true;
@@ -538,15 +540,6 @@ MatrixSelector::getSelection(EventSelection *&selection)
 void
 MatrixSelector::setContextHelpFor(const MatrixMouseEvent *e, bool ctrlPressed)
 {
-    QSettings settings;
-    settings.beginGroup( GeneralOptionsConfigGroup );
-
-    if (! qStrToBool( settings.value("toolcontexthelp", "true" ) ) ) {
-        settings.endGroup();
-        return;
-    }
-    settings.endGroup();
-
     MatrixElement *element = e->element;
 
     if (!element) {
@@ -591,9 +584,8 @@ MatrixSelector::setContextHelpFor(const MatrixMouseEvent *e, bool ctrlPressed)
     }
 }
 
-const QString MatrixSelector::ToolName  = "selector";
+QString MatrixSelector::ToolName() { return "selector"; }
 
 }
 
-#include "MatrixSelector.moc"
 

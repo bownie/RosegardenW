@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,9 +23,6 @@
 #include "base/Selection.h"
 #include "base/SnapGrid.h"
 #include "base/ViewElement.h"
-//#include "commands/matrix/MatrixModifyCommand.h"
-//#include "commands/matrix/MatrixInsertionCommand.h"
-//#include "commands/notation/NormalizeRestsCommand.h"
 #include "document/CommandHistory.h"
 #include "ControlItem.h"
 #include "ControlRuler.h"
@@ -42,16 +39,18 @@ namespace Rosegarden
 ControlPainter::ControlPainter(ControlRuler *parent) :
     ControlMover(parent, "ControlPainter")
 {
-    m_overCursor = Qt::OpenHandCursor;
+    // Bug #1452 "Control ruler hand cursor is obnoxious"
+    //
+    // After attempting to puzzle through the cursor switching logic and work
+    // out better logic or a more suitable alternative than Qt::OpenHandCursor, 
+    // I concluded that using the cross in all cases feels just fine in
+    // practice.  I decided to just set them the same and leave the switching
+    // logic in place, because it doesn't seem worth the effort to rip it all
+    // out.
+    m_overCursor = Qt::CrossCursor;
     m_notOverCursor = Qt::CrossCursor;
     m_controlLineOrigin.first = -1;
     m_controlLineOrigin.second = -1;
-//    createAction("select", SLOT(slotSelectSelected()));
-//    createAction("draw", SLOT(slotDrawSelected()));
-//    createAction("erase", SLOT(slotEraseSelected()));
-//    createAction("resize", SLOT(slotResizeSelected()));
-//
-//    createMenu();
 }
 
 void
@@ -72,6 +71,16 @@ ControlPainter::handleLeftButtonPress(const ControlMouseEvent *e)
         ControllerEventsRuler* ruler = dynamic_cast <ControllerEventsRuler*>(m_ruler);
         //if (ruler) ruler->insertControllerEvent(e->x,e->y);
         if (ruler) {
+            double xscale = m_ruler->getXScale();
+            float xmin = m_ruler->getXMin() * xscale;
+            float xmax = (m_ruler->getXMax() - 1) * xscale;
+            float x = e->x;
+
+            if (x < xmin) {
+                x = xmin;
+            } else if (x > xmax) {
+                x = xmax;
+            }
 
             // If shift was pressed, draw a line of controllers between the new
             // control event and the previous one
@@ -82,15 +91,15 @@ ControlPainter::handleLeftButtonPress(const ControlMouseEvent *e)
 
                 // if no origin point was set, do not draw a line
                 if (m_controlLineOrigin.first != -1 && m_controlLineOrigin.second != -1) {
-                    ruler->addControlLine(m_controlLineOrigin.first,
+                    ruler->addControlLine(m_controlLineOrigin.first / xscale,
                                           m_controlLineOrigin.second,
-                                          e->x,
+                                          x / xscale,
                                           e->y,
                                           eraseExistingControllers);
                 }
             } else {
 
-                ControlItem *item = ruler->addControlItem(e->x,e->y);
+                ControlItem *item = ruler->addControlItem2(x,e->y);
                 ControlMouseEvent *newevent = new ControlMouseEvent(e);
                 newevent->itemList.push_back(item);
                 m_overItem = true;
@@ -98,14 +107,14 @@ ControlPainter::handleLeftButtonPress(const ControlMouseEvent *e)
             }
 
             // Save these coordinates for next time
-            m_controlLineOrigin.first = e->x;
+            m_controlLineOrigin.first = x;
             m_controlLineOrigin.second = e->y;
         }
     }
  
 }
 
-ControlTool::FollowMode
+FollowMode
 ControlPainter::handleMouseMove(const ControlMouseEvent *e)
 {
     ControllerEventsRuler* ruler = dynamic_cast <ControllerEventsRuler*>(m_ruler);
@@ -126,10 +135,9 @@ ControlPainter::handleMouseMove(const ControlMouseEvent *e)
     
     // not sure what any of this is about; had to match the return type used
     // elsewhere, and have made no investigation into what any of it means
-    return ControlTool::NoFollow;
+    return NO_FOLLOW;
 }
 
-const QString ControlPainter::ToolName = "painter";
+QString ControlPainter::ToolName() { return "painter"; }
 }
 
-#include "ControlPainter.moc"

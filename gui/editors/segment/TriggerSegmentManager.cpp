@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -116,17 +116,17 @@ TriggerSegmentManager::TriggerSegmentManager(QWidget *parent,
 
 
     // Whether accepted or rejected, we always just want to call slotClose()
-    connect(btnBox, SIGNAL(accepted()), this, SLOT(slotClose()));
-    connect(btnBox, SIGNAL(rejected()), this, SLOT(slotClose()));
+    connect(btnBox, &QDialogButtonBox::accepted, this, &TriggerSegmentManager::slotClose);
+    connect(btnBox, &QDialogButtonBox::rejected, this, &TriggerSegmentManager::slotClose);
     
-    connect(m_addButton, SIGNAL(released()),
-            SLOT(slotAdd()));
+    connect(m_addButton, &QAbstractButton::released,
+            this, &TriggerSegmentManager::slotAdd);
 
-    connect(m_deleteButton, SIGNAL(released()),
-            SLOT(slotDelete()));
+    connect(m_deleteButton, &QAbstractButton::released,
+            this, &TriggerSegmentManager::slotDelete);
 
-    connect(m_deleteAllButton, SIGNAL(released()),
-            SLOT(slotDeleteAll()));
+    connect(m_deleteAllButton, &QAbstractButton::released,
+            this, &TriggerSegmentManager::slotDeleteAll);
 
     setupActions();
 
@@ -135,11 +135,11 @@ TriggerSegmentManager::TriggerSegmentManager(QWidget *parent,
     connect(CommandHistory::getInstance(), SIGNAL(commandExecuted()),
             this, SLOT(slotUpdate()));
 
-    connect(m_listView, SIGNAL(itemDoubleClicked(QTreeWidgetItem *, int)),
-            SLOT(slotEdit(QTreeWidgetItem *)));
+    connect(m_listView, &QTreeWidget::itemDoubleClicked,
+            this, &TriggerSegmentManager::slotEdit);
 
-    connect(m_listView, SIGNAL(itemPressed(QTreeWidgetItem *, int)),
-            this, SLOT(slotItemClicked(QTreeWidgetItem *)));
+    connect(m_listView, &QTreeWidget::itemPressed,
+            this, &TriggerSegmentManager::slotItemClicked);
 
     // Highlight all columns - enable extended selection mode
     //
@@ -159,7 +159,7 @@ TriggerSegmentManager::TriggerSegmentManager(QWidget *parent,
 
 TriggerSegmentManager::~TriggerSegmentManager()
 {
-    RG_DEBUG << "TriggerSegmentManager::~TriggerSegmentManager" << endl;
+    RG_DEBUG << "TriggerSegmentManager::~TriggerSegmentManager";
 
 //     m_listView->saveLayout(TriggerManagerConfigGroup);    //&&&
 
@@ -170,14 +170,14 @@ TriggerSegmentManager::~TriggerSegmentManager()
 void
 TriggerSegmentManager::initDialog()
 {
-    RG_DEBUG << "TriggerSegmentManager::initDialog" << endl;
+    RG_DEBUG << "TriggerSegmentManager::initDialog";
     slotUpdate();
 }
 
 void
 TriggerSegmentManager::slotUpdate()
 {
-    RG_DEBUG << "TriggerSegmentManager::slotUpdate" << endl;
+    RG_DEBUG << "TriggerSegmentManager::slotUpdate";
 
     TriggerManagerItem *item;
 
@@ -279,7 +279,7 @@ TriggerSegmentManager::slotDeleteAll()
     if (QMessageBox::warning(this, tr("Rosegarden"), tr("This will remove all triggered segments from the whole composition.  Are you sure?"), QMessageBox::Yes|QMessageBox::Cancel, QMessageBox::Cancel ) != QMessageBox::Yes )
         return ;
 
-    RG_DEBUG << "TriggerSegmentManager::slotDeleteAll" << endl;
+    RG_DEBUG << "TriggerSegmentManager::slotDeleteAll";
     MacroCommand *command = new MacroCommand(tr("Remove all triggered segments"));
 
 //     QTreeWidgetItem *it = m_listView->firstChild();
@@ -319,7 +319,7 @@ TriggerSegmentManager::slotAdd()
 void
 TriggerSegmentManager::slotDelete()
 {
-    RG_DEBUG << "TriggerSegmentManager::slotDelete" << endl;
+    RG_DEBUG << "TriggerSegmentManager::slotDelete";
 
     TriggerManagerItem *item =
         dynamic_cast<TriggerManagerItem*>( m_listView->currentItem() );
@@ -343,7 +343,7 @@ TriggerSegmentManager::slotDelete()
 void
 TriggerSegmentManager::slotPasteAsNew()
 {
-    Clipboard *clipboard = m_doc->getClipboard();
+    Clipboard *clipboard = Clipboard::mainClipboard();
 
     if (clipboard->isEmpty()) {
         QMessageBox::information(this, tr("Rosegarden"), tr("Clipboard is empty"));
@@ -360,11 +360,11 @@ TriggerSegmentManager::slotPasteAsNew()
 void
 TriggerSegmentManager::slotClose()
 {
-    RG_DEBUG << "TriggerSegmentManager::slotClose" << endl;
+    RG_DEBUG << "TriggerSegmentManager::slotClose";
 
 //     if (m_doc)
 //         CommandHistory::getInstance()->detachView(actionCollection());    //&&&
-    m_doc = 0;
+    m_doc = nullptr;
 
     close();
 }
@@ -381,17 +381,21 @@ TriggerSegmentManager::setupActions()
     
     QAction *a;
     a = createAction("time_musical", SLOT(slotMusicalTime()));
-    if (timeMode == 0) { a->setCheckable(true); a->setChecked(true); }
+    a->setCheckable(true);
+    if (timeMode == 0)  a->setChecked(true);
 
     a = createAction("time_real", SLOT(slotRealTime()));
-    if (timeMode == 1) { a->setCheckable(true); a->setChecked(true); }
+    a->setCheckable(true);
+    if (timeMode == 1)  a->setChecked(true);
 
     a = createAction("time_raw", SLOT(slotRawTime()));
-    if (timeMode == 2) { a->setCheckable(true); a->setChecked(true); }
+    a->setCheckable(true);
+    if (timeMode == 2)  a->setChecked(true);
+
     createAction("trigger_help", SLOT(slotHelpRequested()));
     createAction("help_about_app", SLOT(slotHelpAbout()));
 
-    createGUI("triggermanager.rc"); //@@@ JAS orig. 0
+    createMenusAndToolbars("triggermanager.rc"); //@@@ JAS orig. 0
 
     settings.endGroup();
 }
@@ -406,7 +410,7 @@ TriggerSegmentManager::addCommandToHistory(Command *command)
 void
 TriggerSegmentManager::setModified(bool modified)
 {
-    RG_DEBUG << "TriggerSegmentManager::setModified(" << modified << ")" << endl;
+    RG_DEBUG << "TriggerSegmentManager::setModified(" << modified << ")";
 
     m_modified = modified;
 }
@@ -422,7 +426,7 @@ TriggerSegmentManager::checkModified()
 void
 TriggerSegmentManager::slotEdit(QTreeWidgetItem *i)
 {
-    RG_DEBUG << "TriggerSegmentManager::slotEdit" << endl;
+    RG_DEBUG << "TriggerSegmentManager::slotEdit";
 
     TriggerManagerItem *item =
         dynamic_cast<TriggerManagerItem*>(i);
@@ -432,7 +436,7 @@ TriggerSegmentManager::slotEdit(QTreeWidgetItem *i)
 
     TriggerSegmentId id = item->getId();
 
-    RG_DEBUG << "id is " << id << endl;
+    RG_DEBUG << "id is " << id;
 
     emit editTriggerSegment(id);
 }
@@ -458,7 +462,7 @@ TriggerSegmentManager::setDocument(RosegardenDocument *doc)
 void
 TriggerSegmentManager::slotItemClicked(QTreeWidgetItem */* item */)
 {
-    RG_DEBUG << "TriggerSegmentManager::slotItemClicked" << endl;
+    RG_DEBUG << "TriggerSegmentManager::slotItemClicked";
 }
 
 QString
@@ -507,6 +511,9 @@ TriggerSegmentManager::slotMusicalTime()
     settings.beginGroup( TriggerManagerConfigGroup );
 
     settings.setValue("timemode", 0);
+    findAction("time_musical")->setChecked(true);
+    findAction("time_real")->setChecked(false);
+    findAction("time_raw")->setChecked(false);
     slotUpdate();
 
     settings.endGroup();
@@ -519,6 +526,9 @@ TriggerSegmentManager::slotRealTime()
     settings.beginGroup( TriggerManagerConfigGroup );
 
     settings.setValue("timemode", 1);
+    findAction("time_musical")->setChecked(false);
+    findAction("time_real")->setChecked(true);
+    findAction("time_raw")->setChecked(false);
     slotUpdate();
 
     settings.endGroup();
@@ -531,6 +541,9 @@ TriggerSegmentManager::slotRawTime()
     settings.beginGroup( TriggerManagerConfigGroup );
 
     settings.setValue("timemode", 2);
+    findAction("time_musical")->setChecked(false);
+    findAction("time_real")->setChecked(false);
+    findAction("time_raw")->setChecked(true);
     slotUpdate();
 
     settings.endGroup();
@@ -555,4 +568,3 @@ TriggerSegmentManager::slotHelpAbout()
     new AboutDialog(this);
 }
 }
-#include "TriggerSegmentManager.moc"

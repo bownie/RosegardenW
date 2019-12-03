@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -43,7 +43,7 @@ WarningDialog::WarningDialog(QWidget *parent) :
 
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok);
     layout->addWidget(buttonBox);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
 
     setWindowTitle(tr("Performance Problems Detected"));
     setWindowIcon(IconLoader().load("warning"));
@@ -104,4 +104,3 @@ WarningDialog::addWarning(Message message)
 
 }
 
-#include "WarningDialog.moc"

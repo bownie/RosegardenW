@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -47,16 +47,16 @@ public:
         {
             Q_ASSERT(duration > 0);
         }
-    virtual ~SegmentGroupInsertRangeCommand();
+    ~SegmentGroupInsertRangeCommand() override;
 
 protected:
-    virtual void execute();
-    virtual void unexecute();
-    void     calculateNewSegments(void);
+    void execute() override;
+    void unexecute() override;
+    void     calculateNewSegments();
     Segment * splitRejoin(Segment *segment);
 
 private:
-    timeT getRangeDuration(void)
+    timeT getRangeDuration()
     { return m_duration; }
 
     timeT m_splitTime;
@@ -132,7 +132,7 @@ splitRejoin(Segment *segment)
 }
 
 void
-SegmentGroupInsertRangeCommand::calculateNewSegments(void)
+SegmentGroupInsertRangeCommand::calculateNewSegments()
 {
     Q_ASSERT(!m_originalSegments.empty());
 
@@ -235,7 +235,7 @@ addInsertionCommands(MacroCommand *macroCommand,
             macroCommand->
                 addCommand(new AudioSegmentSplitCommand(*i, startTime));
         } else {
-                if ((*i)->getLinker() == 0) {
+                if ((*i)->getLinker() == nullptr) {
                     // If not linked, immediately add a command to
                     // handle it.  It can't be stored in linkedGroups
                     // because all unlinked Segments would wrongly

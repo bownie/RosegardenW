@@ -18,18 +18,19 @@
 #include "DocumentGet.h"
 #include "gui/application/RosegardenMainWindow.h"
 #include "document/RosegardenDocument.h"
+#include <iostream>
 
 namespace Rosegarden
 {
 namespace DocumentGet
 {
 
-RosegardenDocument* getDocument(void)
+RosegardenDocument* getDocument()
 {
   return RosegardenMainWindow::self()->getDocument();
 }
     
-Composition* getComposition(void)
+Composition* getComposition()
 {
   return &getDocument()->getComposition();
 }

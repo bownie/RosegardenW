@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2007-2009
         Yves Guillemot      <yc.guillemot@wanadoo.fr> 
@@ -54,7 +54,7 @@ public:
      */
     HeadersGroup(RosegardenDocument *document);
     
-    ~HeadersGroup();
+    ~HeadersGroup() override;
 
     void removeAllHeaders();
 
@@ -107,8 +107,8 @@ public:
     NotationScene *getScene();
 
 
-    QSize sizeHint() const;
-    QSize minimumSizeHint() const;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
     // Only return valid values after slotUpdateAllHeaders() has been called
     timeT getStartOfViewTime() { return m_startOfView; }

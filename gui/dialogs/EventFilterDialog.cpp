@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2003-2006
         D. Michael McIntyre <dmmcintyr@users.sourceforge.net>
@@ -165,8 +165,8 @@ EventFilterDialog::initDialog()
                                                         QSizePolicy::PushButton));
     m_pitchFromChooserButton->setToolTip(tr("choose a pitch using a staff"));
     noteFrameLayout->addWidget(m_pitchFromChooserButton, 1, 3);
-    connect(m_pitchFromChooserButton, SIGNAL(clicked()),
-            SLOT(slotPitchFromChooser()));
+    connect(m_pitchFromChooserButton, &QAbstractButton::clicked,
+            this, &EventFilterDialog::slotPitchFromChooser);
 
     // Pitch To
     m_pitchToSpinBox = new QSpinBox(noteFrame);
@@ -180,8 +180,8 @@ EventFilterDialog::initDialog()
     m_pitchToChooserButton = new QPushButton(tr("edit"), noteFrame);
     m_pitchToChooserButton->setToolTip(tr("choose a pitch using a staff"));
     noteFrameLayout->addWidget(m_pitchToChooserButton, 1, 5);
-    connect(m_pitchToChooserButton, SIGNAL(clicked()),
-            SLOT(slotPitchToChooser()));
+    connect(m_pitchToChooserButton, &QAbstractButton::clicked,
+            this, &EventFilterDialog::slotPitchToChooser);
 
     // Velocity From/To
     m_velocityFromSpinBox = new QSpinBox(noteFrame);
@@ -236,8 +236,8 @@ EventFilterDialog::initDialog()
     m_buttonNone->setToolTip(tr("Exclude entire range of values"));
     buttonLayout->addWidget( m_buttonNone, 0, 1 );
 
-    connect(m_buttonAll, SIGNAL(clicked()), this, SLOT(slotToggleAll()));
-    connect(m_buttonNone, SIGNAL(clicked()), this, SLOT(slotToggleNone()));
+    connect(m_buttonAll, &QAbstractButton::clicked, this, &EventFilterDialog::slotToggleAll);
+    connect(m_buttonNone, &QAbstractButton::clicked, this, &EventFilterDialog::slotToggleNone);
 
     settings.endGroup();
 
@@ -250,7 +250,7 @@ EventFilterDialog::initDialog()
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 void
@@ -281,7 +281,7 @@ EventFilterDialog::populateDurationCombos()
 void
 EventFilterDialog::slotToggleAll()
 {
-    RG_DEBUG << "EventFilterDialog::slotToggleAll()" << endl;
+    RG_DEBUG << "EventFilterDialog::slotToggleAll()";
     m_pitchFromSpinBox ->setValue(0);
     m_pitchToSpinBox ->setValue(127);
     m_velocityFromSpinBox ->setValue(0);
@@ -293,7 +293,7 @@ EventFilterDialog::slotToggleAll()
 void
 EventFilterDialog::slotToggleNone()
 {
-    RG_DEBUG << "EventFilterDialog::slotToggleNone()" << endl;
+    RG_DEBUG << "EventFilterDialog::slotToggleNone()";
     m_pitchFromSpinBox ->setValue(0);
     m_pitchToSpinBox ->setValue(0);
     m_velocityFromSpinBox ->setValue(0);
@@ -529,4 +529,3 @@ EventFilterDialog::keepEvent(Event* const &e)
 
 }
 
-#include "EventFilterDialog.moc"

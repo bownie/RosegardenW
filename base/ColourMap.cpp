@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file is Copyright 2003
@@ -209,15 +209,6 @@ ColourMap::end()
 {
     RCMap::const_iterator ret = m_map.end();
     return ret;
-}
-
-ColourMap&
-ColourMap::operator=(const ColourMap& input)
-{
-    if (this != &input)
-        m_map = input.m_map;
-
-    return *this;
 }
 
 unsigned int

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -25,7 +25,7 @@ namespace Rosegarden
 int Marker::m_sequence = 0;
 
 std::string 
-Marker::toXmlString()
+Marker::toXmlString() const
 {
     std::stringstream marker;
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,7 +35,7 @@ SustainInsertionCommand::SustainInsertionCommand(Segment &segment, timeT time,
         BasicCommand(getGlobalName(down), segment, time, time),
         m_down(down),
         m_controllerNumber(controllerNumber),
-        m_lastInsertedEvent(0)
+        m_lastInsertedEvent(nullptr)
 {
     // nothing
 }

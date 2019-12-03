@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2006-2009
 	D. Michael McIntyre <dmmcintyr@users.sourceforge.net>
@@ -63,7 +63,7 @@ public:
     PresetGroup();
 
     /** Destroy the PresetGroup object */
-    ~PresetGroup();
+    ~PresetGroup() override;
 
     /** Return a \c CategoriesContainer that comprises a list of the categories
      * discovered in the XML file */
@@ -72,14 +72,14 @@ public:
 
     // Xml handler methods:
     /** Handle XML starting elements */
-    virtual bool startElement (const QString& namespaceURI, const QString& localName,
-                               const QString& qName, const QXmlAttributes& atts);
+    bool startElement (const QString& namespaceURI, const QString& localName,
+                               const QString& qName, const QXmlAttributes& atts) override;
 
     /** Handle non-fatal parsing errors */
-    bool error(const QXmlParseException& exception);
+    bool error(const QXmlParseException& exception) override;
 
     /** Handle fatal parsing errors */
-    bool fatalError(const QXmlParseException& exception);
+    bool fatalError(const QXmlParseException& exception) override;
 
     // I don't think I have anything to do with this, but it must return true?
 //    bool characters(const QString &) { return true; }

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,23 +15,27 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[ActionFileClient]"
+
 #include "ActionFileClient.h"
 #include "ActionFileParser.h"
 #include "DecoyAction.h"
 
 #include "misc/Strings.h"
+#include "misc/Debug.h"
 
 #include <QObject>
 #include <QAction>
 #include <QActionGroup>
 #include <QMenu>
 #include <QToolBar>
+#include <QToolButton>
 
 namespace Rosegarden 
 {
 
 ActionFileClient::ActionFileClient() :
-    m_actionFileParser(0)
+    m_actionFileParser(nullptr)
 {
 }
 
@@ -43,11 +47,11 @@ ActionFileClient::~ActionFileClient()
 QAction *
 ActionFileClient::createAction(QString actionName, QString connection)
 {
-    //std::cerr << "ActionFileClient::createAction(" << actionName << ", " << connection << ")" << std::endl;
+    //RG_DEBUG << "ActionFileClient::createAction(" << actionName << ", " << connection << ")";
     QObject *obj = dynamic_cast<QObject *>(this);
     if (!obj) {
-        std::cerr << "ERROR: ActionFileClient::createAction: ActionFileClient subclass is not a QObject" << std::endl;
-        return 0;
+        RG_WARNING << "ERROR: ActionFileClient::createAction: ActionFileClient subclass is not a QObject";
+        return nullptr;
     }
     QAction *action = new QAction(obj);
     action->setObjectName(actionName);
@@ -63,8 +67,8 @@ ActionFileClient::createAction(QString actionName, QObject *target, QString conn
 {
     QObject *obj = dynamic_cast<QObject *>(this);
     if (!obj) {
-        std::cerr << "ERROR: ActionFileClient::createAction: ActionFileClient subclass is not a QObject" << std::endl;
-        return 0;
+        RG_WARNING << "ERROR: ActionFileClient::createAction: ActionFileClient subclass is not a QObject";
+        return nullptr;
     }
     QAction *action = new QAction(obj);
     action->setObjectName(actionName);
@@ -80,13 +84,12 @@ ActionFileClient::findAction(QString actionName)
 {
     QObject *obj = dynamic_cast<QObject *>(this);
     if (!obj) {
-        std::cerr << "ERROR: ActionFileClient::findAction: ActionFileClient subclass is not a QObject" << std::endl;
+        RG_WARNING << "ERROR: findAction(): ActionFileClient subclass is not a QObject";
         return DecoyAction::getInstance();
     }
     QAction *a = obj->findChild<QAction *>(actionName);
     if (!a) {
-        std::cerr << "WARNING: ActionFileClient(\"" << obj->objectName()
-                  << "\")::findAction: No such action as \"" << actionName << "\"" << std::endl;
+        RG_WARNING << "WARNING: ActionFileClient(" << obj->objectName() << ")::findAction(): No such action as " << actionName;
         return DecoyAction::getInstance();
     }
     return a;
@@ -117,16 +120,16 @@ ActionFileClient::findGroup(QString groupName)
 {
     QObject *obj = dynamic_cast<QObject *>(this);
     if (!obj) {
-        std::cerr << "ERROR: ActionFileClient::findGroup: ActionFileClient subclass is not a QObject" << std::endl;
-        return 0;
+        RG_WARNING << "ERROR: ActionFileClient::findGroup: ActionFileClient subclass is not a QObject";
+        return nullptr;
     }
     QWidget *widget = dynamic_cast<QWidget *>(this);
-    QActionGroup *g = 0;
+    QActionGroup *g = nullptr;
     if (widget) {
         g = obj->findChild<QActionGroup *>(groupName);
         if (!g) {
-            std::cerr << "WARNING: ActionFileClient(\"" << obj->objectName()
-                      << "\")::findGroup: No such action-group as \"" << groupName << "\"" << std::endl;
+            RG_WARNING << "WARNING: ActionFileClient(\"" << obj->objectName()
+                      << "\")::findGroup: No such action-group as \"" << groupName << "\"";
         }
     }
     return g;
@@ -137,23 +140,23 @@ ActionFileClient::findMenu(QString menuName)
 {
     QObject *obj = dynamic_cast<QObject *>(this);
     if (!obj) {
-        std::cerr << "ERROR: ActionFileClient::findMenu: ActionFileClient subclass is not a QObject" << std::endl;
-        return 0;
+        RG_WARNING << "ERROR: ActionFileClient::findMenu: ActionFileClient subclass is not a QObject";
+        return nullptr;
     }
     QWidget *widget = dynamic_cast<QWidget *>(this);
-    QMenu *m = 0;
+    QMenu *m = nullptr;
     if (widget) {
         m = obj->findChild<QMenu *>(menuName);
         if (!m) {
-            std::cerr << "WARNING: ActionFileClient(\"" << obj->objectName()
-                      << "\")::findMenu: No such menu as \"" << menuName << "\"" << std::endl;
+            RG_WARNING << "WARNING: ActionFileClient(\"" << obj->objectName()
+                      << "\")::findMenu: No such menu as \"" << menuName << "\"";
         }
     } else {
         ActionFileMenuWrapper *w = obj->findChild<ActionFileMenuWrapper *>(menuName);
         if (w) m = w->getMenu();
         else {
-            std::cerr << "WARNING: ActionFileClient(\"" << obj->objectName()
-                      << "\")::findMenu: No such menu (wrapper) as \"" << menuName << "\"" << std::endl;
+            RG_WARNING << "WARNING: ActionFileClient(\"" << obj->objectName()
+                      << "\")::findMenu: No such menu (wrapper) as \"" << menuName << "\"";
         }
     }            
     return m;
@@ -164,13 +167,13 @@ ActionFileClient::findToolbar(QString toolbarName)
 {
     QWidget *w = dynamic_cast<QWidget *>(this);
     if (!w) {
-        std::cerr << "ERROR: ActionFileClient::findToolbar: ActionFileClient subclass is not a QWidget" << std::endl;
-        return 0;
+        RG_WARNING << "ERROR: ActionFileClient::findToolbar: ActionFileClient subclass is not a QWidget";
+        return nullptr;
     }
     QToolBar *t = w->findChild<QToolBar *>(toolbarName);
     if (!t) {
-        std::cerr << "WARNING: ActionFileClient(\"" << w->objectName()
-                  << "\")::findToolbar: No such toolbar as \"" << toolbarName << "\", creating one" << std::endl;
+        RG_WARNING << "WARNING: ActionFileClient(\"" << w->objectName()
+                  << "\")::findToolbar: No such toolbar as \"" << toolbarName << "\", creating one";
         t = new QToolBar(toolbarName, w);
         t->setObjectName(toolbarName);
         return t;
@@ -179,20 +182,51 @@ ActionFileClient::findToolbar(QString toolbarName)
 }
 
 bool
-ActionFileClient::createGUI(QString rcFileName)
+ActionFileClient::createMenusAndToolbars(QString rcFileName)
 {
     QObject *obj = dynamic_cast<QObject *>(this);
     if (!obj) {
-        std::cerr << "ERROR: ActionFileClient::createGUI: ActionFileClient subclass is not a QObject" << std::endl;
+        RG_WARNING << "createMenusAndToolbars(): ERROR: ActionFileClient subclass is not a QObject";
         return 0;
     }
     if (!m_actionFileParser) m_actionFileParser = new ActionFileParser(obj);
     if (!m_actionFileParser->load(rcFileName)) {
-        std::cerr << "ActionFileClient::createGUI: ERROR: Failed to load action file" << std::endl;
+        RG_WARNING << "createMenusAndToolbars(): ERROR: Failed to load action file" << rcFileName;
         return false;
     }
     return true;
 }
+
+void
+ActionFileClient::enableAutoRepeat(
+        const QString &toolBarName,
+        const QString &actionName)
+{
+    QToolBar *transportToolbar = findToolbar(toolBarName);
+
+    if (!transportToolbar) {
+        RG_WARNING << "enableAutoRepeat(): ToolBar " << toolBarName << " not found";
+        return;
+    }
+
+    QAction *action = findAction(actionName);
+
+    if (!action) {
+        RG_WARNING << "enableAutoRepeat(): Action " << actionName << " not found.";
+        return;
+    }
+
+    QToolButton *button = dynamic_cast<QToolButton *>(
+            transportToolbar->widgetForAction(action));
+
+    if (!button) {
+        RG_WARNING << "enableAutoRepeat(): Button not found for action " << actionName;
+        return;
+    }
+
+    button->setAutoRepeat(true);
+}
+
 
 }
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -31,9 +31,6 @@ namespace Rosegarden
 // CreateMessageByte(MSG, CHANNEL)  = (MSG) | (CHANNEL)
 //
 //
-
-const std::string MIDI_FILE_HEADER              = "MThd";
-const std::string MIDI_TRACK_HEADER             = "MTrk";
 
 const MidiByte MIDI_STATUS_BYTE_MASK       = 0x80;
 const MidiByte MIDI_MESSAGE_TYPE_MASK      = 0xF0;
@@ -162,7 +159,7 @@ const MidiByte MIDI_CONTROLLER_RPN_1         = 0x64;
 const MidiByte MIDI_CONTROLLER_RPN_2         = 0x65;
 
 const MidiByte MIDI_CONTROLLER_SOUNDS_OFF    = 0x78;
-const MidiByte MIDI_CONTROLLER_RESET         = 0x79; // reset all controllers
+const MidiByte MIDI_CONTROLLER_RESET         = 0x79; // 121 reset all controllers
 const MidiByte MIDI_CONTROLLER_LOCAL         = 0x7A; // 0 = off, 127 = on
 const MidiByte MIDI_CONTROLLER_ALL_NOTES_OFF = 0x7B;
 

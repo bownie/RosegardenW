@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -61,10 +61,10 @@ class LinearTimeScale
 
     // Whether the performance duration is different than the
     // segment's intrinsic duration.
-    bool isSquished(void) const
+    bool isSquished() const
     { return m_ratio != 1.0; }
     
-    bool isPerformable(void) const
+    bool isPerformable() const
     { return m_ratio != 0.0; }
     static const LinearTimeScale m_identity;
     static const LinearTimeScale m_unperformable;
@@ -127,7 +127,7 @@ private:
         { m_retune = (m_pitchDiff != 0); }
 public:
     
-    bool isPerformable(void) const {
+    bool isPerformable() const {
         return
             !m_intervals.empty() &&
             m_timeScale.isPerformable();
@@ -156,7 +156,7 @@ private:
     int                       m_pitchDiff;
     bool                      m_retune;
     int                       m_velocityDiff;
-    // May be NULL
+    // May be nullptr
     ControllerContextParams  *m_controllerContextParams;
     TimeIntervalVector        m_intervals;   
 };
@@ -298,7 +298,7 @@ getVelocityDiff(const Event *trigger) const
 // @return
 // A segment linked to the trigger segment, adjusted in pitch and time
 // to match the ornament as performed by trigger.  Caller owns this.
-// This can be NULL if no meaningful segment could be made.
+// This can be nullptr if no meaningful segment could be made.
 // @param trigger
 // The triggering event.
 // @param containing
@@ -313,9 +313,9 @@ TriggerSegmentRec::makeLinkedSegment
                    LinearTimeScale::m_identity);
 
     // If we squash or stretch, we can't make a proper linked segment
-    // so return NULL;
+    // so return nullptr;
     if (timeScale.isSquished())
-        { return 0; }
+        { return nullptr; }
     
     Segment *link =
         SegmentLinker::createLinkedSegment(getSegment());
@@ -348,7 +348,7 @@ TriggerSegmentRec::makeLinkedSegment
 //
 // @return
 // A fresh segment containing the ornament fully expanded.  Caller
-// owns this.  This can be NULL if no meaningful segment could be
+// owns this.  This can be nullptr if no meaningful segment could be
 // made.
 // @param trigger
 // The triggering event.
@@ -367,11 +367,11 @@ TriggerSegmentRec::makeExpansion(Event *trigger,
                                  Instrument */*instrument*/) const
 {
     Segment *s = new Segment();
-    ExpandInto(s, containing->findSingle(trigger), containing, 0);
+    ExpandInto(s, containing->findSingle(trigger), containing, nullptr);
 
     if (s->empty()) {
         delete s;
-        return 0;
+        return nullptr;
     }
 
     timeT dummy;
@@ -403,8 +403,10 @@ ExpandInto(Segment *target,
            Segment *containing,
            ControllerContextParams *controllerContextParams) const
 {
-    if (!this || !getSegment() || getSegment()->empty())
-        { return false; }
+    if (!getSegment() || getSegment()->empty()) {
+        return false;
+    }
+
     const int maxDepth = 10;
 
     bool insertedSomething = false;
@@ -537,7 +539,7 @@ getSoundingIntervals(Segment::iterator iTrigger,
     bool wasMasked = true;
     // The time that the next forthcoming interval starts at.  Not
     // valid when wasMasked is true.
-    timeT startInterval;
+    timeT startInterval = 0;
     // Container for the intervals we collect.
     TimeIntervalVector  intervals;
 

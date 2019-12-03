@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,6 +28,7 @@
 
 
 class QMouseEvent;
+class QKeyEvent;
 
 
 namespace Rosegarden
@@ -46,14 +47,14 @@ class SegmentTool : public BaseTool, public ActionFileClient
     Q_OBJECT
 
 public:
-    virtual ~SegmentTool();
+    ~SegmentTool() override;
 
     /**
      * Is called by the parent View (e.g. CompositionView) when
      * the tool is set as current.
      * Add any setup here
      */
-    virtual void ready();
+    void ready() override;
 
     /**
      * Derivers need to call this to make sure the right-click
@@ -61,8 +62,10 @@ public:
      */
     virtual void mousePressEvent(QMouseEvent *);
     virtual int mouseMoveEvent(QMouseEvent *)
-            { return RosegardenScrollView::NoFollow; }
+            { return NO_FOLLOW; }
     virtual void mouseReleaseEvent(QMouseEvent *)  { }
+    virtual void keyPressEvent(QKeyEvent *)  { }
+    virtual void keyReleaseEvent(QKeyEvent *)  { }
 
 protected:
     /// Protected since a SegmentTool isn't very useful on its own.
@@ -84,8 +87,8 @@ protected:
 
 private:
     /// Right-click context menu.
-    virtual void createMenu();
-    virtual bool hasMenu() { return true; }
+    void createMenu() override;
+    bool hasMenu() override { return true; }
 
     ChangingSegmentPtr m_changingSegment;
 

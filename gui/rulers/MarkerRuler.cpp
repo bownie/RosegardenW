@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -26,7 +26,6 @@
 #include "base/RulerScale.h"
 #include "document/RosegardenDocument.h"
 #include "gui/general/GUIPalette.h"
-#include "gui/general/HZoomable.h"
 #include "gui/dialogs/MarkerModifyDialog.h"
 #include "commands/edit/ModifyMarkerCommand.h"
 #include "document/CommandHistory.h"
@@ -54,18 +53,13 @@ namespace Rosegarden
 
 MarkerRuler::MarkerRuler(RosegardenDocument *doc,
                          RulerScale *rulerScale,
-                         int barHeight,
-                         double xorigin,
                          QWidget* parent,
                          const char* name)
-                         //WFlags f)
-        : QWidget(parent), //, f),
-        m_barHeight(barHeight),
-        m_xorigin(xorigin),
+        : QWidget(parent),
         m_currentXOffset(0),
         m_width(-1),
         m_clickX(0),
-        m_menu(0),
+        m_menu(nullptr),
         m_doc(doc),
         m_rulerScale(rulerScale),
         m_parentMainWindow( dynamic_cast<QMainWindow*>(doc->parent()) )
@@ -81,10 +75,9 @@ MarkerRuler::MarkerRuler(RosegardenDocument *doc,
     while (probe && !dynamic_cast<QMainWindow *>(probe)) probe = probe->parent();
     if (probe) m_parentMainWindow = dynamic_cast<QMainWindow *>(probe);
 
-    //    m_barFont = new QFont("helvetica", 12);
-    //    m_barFont->setPixelSize(12);
-    m_barFont = new QFont();
-    m_barFont->setPointSize(10);
+    QFont font;
+    font.setPointSize((font.pointSize() * 9) / 10);
+    setFont(font);
 
     createAction("insert_marker_here", SLOT(slotInsertMarkerHere()));
     createAction("insert_marker_at_pointer", SLOT(slotInsertMarkerAtPointer()));
@@ -96,22 +89,12 @@ MarkerRuler::MarkerRuler(RosegardenDocument *doc,
 
 MarkerRuler::~MarkerRuler()
 {
-    delete m_barFont;
-
-/*!!! comment retained for reference, in case of problems later.  I think this should no longer be necessary, but I am only a simple carbon-based life form
-
-    // we have to do this so that the menu is re-created properly
-    // when the main window is itself recreated (on a File->New for instance)
-    KXMLGUIFactory* factory = m_parentMainWindow->factory();
-    if (factory)
-        factory->removeClient(this);
-*/
 }
 
 void
 MarkerRuler::createMenu()
 {             
-    createGUI("markerruler.rc");
+    createMenusAndToolbars("markerruler.rc");
     
     m_menu = findChild<QMenu *>("marker_ruler_menu");
 
@@ -129,7 +112,7 @@ MarkerRuler::createMenu()
 void 
 MarkerRuler::scrollHoriz(int x)
 {
-    m_currentXOffset = static_cast<int>( -x / getHScaleFactor());
+    m_currentXOffset = -x;
     update();
 }
 
@@ -140,17 +123,17 @@ MarkerRuler::sizeHint() const
         m_rulerScale->getLastVisibleBar();
     double width =
         m_rulerScale->getBarPosition(lastBar) +
-        m_rulerScale->getBarWidth(lastBar) + m_xorigin;
+        m_rulerScale->getBarWidth(lastBar);
 
-    return QSize(std::max(int(width), m_width), m_barHeight);
+    return QSize(std::max(int(width), m_width), fontMetrics().height());
 }
 
 QSize 
 MarkerRuler::minimumSizeHint() const
 {
-    double firstBarWidth = m_rulerScale->getBarWidth(0) + m_xorigin;
+    double firstBarWidth = m_rulerScale->getBarWidth(0);
 
-    return QSize(static_cast<int>(firstBarWidth), m_barHeight);
+    return QSize(static_cast<int>(firstBarWidth), fontMetrics().height());
 }
 
 void
@@ -210,7 +193,7 @@ timeT
 MarkerRuler::getClickPosition()
 {
     timeT t = m_rulerScale->getTimeForX
-              (m_clickX - m_xorigin - m_currentXOffset);
+              (m_clickX - m_currentXOffset);
 
     return t;
 }
@@ -232,8 +215,7 @@ MarkerRuler::getMarkerAtClickPosition()
     QRect clipRect = visibleRegion().boundingRect();
 
     int firstBar = m_rulerScale->getBarForX(clipRect.x() -
-                                            m_currentXOffset -
-                                            m_xorigin);
+                                            m_currentXOffset);
     int lastBar = m_rulerScale->getLastVisibleBar();
     if (firstBar < m_rulerScale->getFirstVisibleBar()) {
         firstBar = m_rulerScale->getFirstVisibleBar();
@@ -246,7 +228,7 @@ MarkerRuler::getMarkerAtClickPosition()
     timeT end = comp.getBarEnd(lastBar);
 
     // need these to calculate the visible extents of a marker tag
-    QFontMetrics metrics(*m_barFont);
+    QFontMetrics metrics = fontMetrics();
 
     for (Composition::markerconstiterator i = markers.begin();
             i != markers.end(); ++i) {
@@ -256,7 +238,7 @@ MarkerRuler::getMarkerAtClickPosition()
             QString name(strtoqstr((*i)->getName()));
 
             int x = m_rulerScale->getXForTime((*i)->getTime())
-                    + m_xorigin + m_currentXOffset;
+                    + m_currentXOffset;
 
             int width = metrics.width(name) + 5;
 
@@ -265,7 +247,7 @@ MarkerRuler::getMarkerAtClickPosition()
             ++j;
             if (j != markers.end()) {
                 nextX = m_rulerScale->getXForTime((*j)->getTime())
-                        + m_xorigin + m_currentXOffset;
+                        + m_currentXOffset;
             }
 
             if (m_clickX >= x && m_clickX <= x + width) {
@@ -278,17 +260,13 @@ MarkerRuler::getMarkerAtClickPosition()
         }
     }
 
-    return 0L;
+    return nullptr;
 }
     
 void
 MarkerRuler::paintEvent(QPaintEvent*)
 {
     QPainter painter(this);
-    painter.setFont(*m_barFont);
-
-    if (getHScaleFactor() != 1.0)
-        painter.scale(getHScaleFactor(), 1.0);
 
     // See note elsewhere...
     QRect clipRect = visibleRegion().boundingRect();
@@ -303,19 +281,20 @@ MarkerRuler::paintEvent(QPaintEvent*)
     painter.setPen(GUIPalette::getColour(GUIPalette::RulerForeground));
 
     int firstBar = m_rulerScale->getBarForX(clipRect.x() -
-                                            m_currentXOffset -
-                                            m_xorigin);
+                                            m_currentXOffset);
     int lastBar = m_rulerScale->getLastVisibleBar();
     if (firstBar < m_rulerScale->getFirstVisibleBar()) {
         firstBar = m_rulerScale->getFirstVisibleBar();
     }
 
-    painter.drawLine(m_currentXOffset, 0, static_cast<int>(clipRect.width() / getHScaleFactor()), 0);
+    painter.drawLine(m_currentXOffset, 0, clipRect.width(), 0);
 
     float minimumWidth = 25.0;
     float testSize = ((float)(m_rulerScale->getBarPosition(firstBar + 1) -
                               m_rulerScale->getBarPosition(firstBar)))
                      / minimumWidth;
+
+    const int barHeight = height();
 
     int every = 0;
     int count = 0;
@@ -329,9 +308,9 @@ MarkerRuler::paintEvent(QPaintEvent*)
 
     for (int i = firstBar; i <= lastBar; ++i) {
 
-        double x = m_rulerScale->getBarPosition(i) + m_xorigin + m_currentXOffset;
+        double x = m_rulerScale->getBarPosition(i) + m_currentXOffset;
 
-        if ((x * getHScaleFactor()) > clipRect.x() + clipRect.width())
+        if (x > clipRect.x() + clipRect.width())
             break;
 
         // always the first bar number
@@ -350,25 +329,18 @@ MarkerRuler::paintEvent(QPaintEvent*)
             count++;
 
         if (i != lastBar) {
-            painter.drawLine(static_cast<int>(x), 0, static_cast<int>(x), m_barHeight);
+            painter.drawLine(static_cast<int>(x), 0, static_cast<int>(x), barHeight);
 
-            // disable worldXForm for text
-            //QPoint textDrawPoint = painter.xForm(QPoint(static_cast<int>(x + 4), 12));
-            QPoint textDrawPoint = QPoint(static_cast<int>(x + 4), 12) * painter.combinedTransform();
-
-            bool enableXForm = painter.worldMatrixEnabled();
-            painter.setWorldMatrixEnabled(false);
-
-            if (i >= 0)
+            if (i >= 0) {
+                const int yText = painter.fontMetrics().ascent();
+                const QPoint textDrawPoint(static_cast<int>(x + 4), yText);
                 painter.drawText(textDrawPoint, QString("%1").arg(i + 1));
-
-            painter.setWorldMatrixEnabled(enableXForm);
+            }
         } else {
             const QPen normalPen = painter.pen();
-            ;
             QPen endPen(Qt::black, 2);
             painter.setPen(endPen);
-            painter.drawLine(static_cast<int>(x), 0, static_cast<int>(x), m_barHeight);
+            painter.drawLine(static_cast<int>(x), 0, static_cast<int>(x), barHeight);
             painter.setPen(normalPen);
         }
     }
@@ -388,34 +360,18 @@ MarkerRuler::paintEvent(QPaintEvent*)
                 QString name(strtoqstr((*it)->getName()));
 
                 double x = m_rulerScale->getXForTime((*it)->getTime())
-                           + m_xorigin + m_currentXOffset;
+                           + m_currentXOffset;
 
                 painter.fillRect(static_cast<int>(x), 1,
                                  static_cast<int>(metrics.width(name) + 5),
-                                 m_barHeight - 2,
+                                 barHeight - 2,
                                  QBrush(GUIPalette::getColour(GUIPalette::MarkerBackground)));
 
-                painter.drawLine(int(x), 1, int(x), m_barHeight - 2);
-                painter.drawLine(int(x) + 1, 1, int(x) + 1, m_barHeight - 2);
+                painter.drawLine(int(x), 1, int(x), barHeight - 2);
+                painter.drawLine(int(x) + 1, 1, int(x) + 1, barHeight - 2);
 
-                // NO_QT3 NOTE:  This next bit is a complete shot in the dark,
-                // and is likely to be wrong.
-
-                // was:
-                //
-                //QPoint textDrawPoint = painter.xForm
-                //                       (QPoint(static_cast<int>(x + 3), m_barHeight - 4));
-                //
-
-                QPoint textDrawPoint = QPoint(static_cast<int>(x + 3), m_barHeight - 4) * painter.combinedTransform();
-
-                // disable worldXForm for text
-                bool enableXForm = painter.worldMatrixEnabled();
-                painter.setWorldMatrixEnabled(false);
-                
+                const QPoint textDrawPoint(static_cast<int>(x + 3), barHeight - 4);
                 painter.drawText(textDrawPoint, name);
-
-                painter.setWorldMatrixEnabled(enableXForm);
             }
         }
     }
@@ -424,7 +380,7 @@ MarkerRuler::paintEvent(QPaintEvent*)
 void
 MarkerRuler::mousePressEvent(QMouseEvent *e)
 {
-    RG_DEBUG << "MarkerRuler::mousePressEvent: x = " << e->x() << endl;
+    RG_DEBUG << "MarkerRuler::mousePressEvent: x = " << e->x();
 
     if (!m_doc || !e)
         return;
@@ -440,8 +396,8 @@ MarkerRuler::mousePressEvent(QMouseEvent *e)
         if (m_menu) {
 //             actionCollection()->action("delete_marker")->setEnabled(clickedMarker != 0);
 //             actionCollection()->action("edit_marker")->setEnabled(clickedMarker != 0);
-            findAction("delete_marker")->setEnabled(clickedMarker != 0);
-            findAction("edit_marker")->setEnabled(clickedMarker != 0);
+            findAction("delete_marker")->setEnabled(clickedMarker != nullptr);
+            findAction("edit_marker")->setEnabled(clickedMarker != nullptr);
             
             m_menu->exec(QCursor::pos());
         }
@@ -456,7 +412,7 @@ MarkerRuler::mousePressEvent(QMouseEvent *e)
     if (shiftPressed) { // set loop
 
         timeT t = m_rulerScale->getTimeForX
-                  (e->x() - m_xorigin - m_currentXOffset);
+                  (e->x() - m_currentXOffset);
 
         timeT prev = 0;
 
@@ -486,10 +442,9 @@ MarkerRuler::mousePressEvent(QMouseEvent *e)
 void
 MarkerRuler::mouseDoubleClickEvent(QMouseEvent *)
 {
-    RG_DEBUG << "MarkerRuler::mouseDoubleClickEvent" << endl;
+    RG_DEBUG << "MarkerRuler::mouseDoubleClickEvent";
 
     emit editMarkers();
 }
 
 }
-#include "MarkerRuler.moc"

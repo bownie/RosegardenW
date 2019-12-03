@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -39,8 +39,8 @@ namespace Rosegarden
 
 PluginControl::PluginControl(QWidget *parent,
                              ControlType type,
-                             PluginPort *port,
-                             AudioPluginManager *aPM,
+                             QSharedPointer<PluginPort> port,
+                             QSharedPointer<AudioPluginManager> aPM,
                              int index,
                              float initialValue,
                              bool showBounds):
@@ -147,8 +147,8 @@ PluginControl::PluginControl(QWidget *parent,
 
         m_dial->setKnobColour(GUIPalette::getColour(GUIPalette::RotaryPlugin));
 
-        connect(m_dial, SIGNAL(valueChanged(float)),
-                this, SLOT(slotValueChanged(float)));
+        connect(m_dial, &Rotary::valueChanged,
+                this, &PluginControl::slotValueChanged);
 
         QLabel *upp;
         if (port->getDisplayHint() &
@@ -202,9 +202,9 @@ float
 PluginControl::getValue() const
 {
     if (m_port->getDisplayHint() & PluginPort::Logarithmic) {
-        return m_dial == 0 ? 0 : powf(10, m_dial->getPosition());
+        return m_dial == nullptr ? 0 : powf(10, m_dial->getPosition());
     } else {
-        return m_dial == 0 ? 0 : m_dial->getPosition();
+        return m_dial == nullptr ? 0 : m_dial->getPosition();
     }
 }
 
@@ -219,4 +219,3 @@ PluginControl::slotValueChanged(float value)
 }
 
 }
-#include "PluginControl.moc"

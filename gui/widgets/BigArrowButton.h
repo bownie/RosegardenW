@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -48,7 +48,7 @@ public:
                 break;
             case Qt::NoArrow :
             default :
-                fileName = 0;
+                fileName = nullptr;
         }
 
         if (fileName) {
@@ -60,9 +60,9 @@ public:
         }
     }
 
-    virtual ~BigArrowButton() { } 
+    ~BigArrowButton() override { } 
 
-    virtual QSize sizeHint() const {
+    QSize sizeHint() const override {
         return QSize(20, 20);
     }
 };

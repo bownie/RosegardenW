@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -51,13 +51,13 @@ public:
     LinkedSegmentsCommand(const QString &name,
                           SegmentVec originalSegments,
 			  Composition *composition);
-    virtual ~LinkedSegmentsCommand();
+    ~LinkedSegmentsCommand() override;
 
 protected:
-    virtual void execute()=0;
-    virtual void unexecute()=0;
-    void executeAttachDetach(void);
-    void unexecuteAttachDetach(void);
+    void execute()override = 0;
+    void unexecute()override = 0;
+    void executeAttachDetach();
+    void unexecuteAttachDetach();
     // Copy auxilliary properties of source segment to target: track,
     // repeatingness, delay.  Does not include any segment-time properties.
     void copyAuxProperties(Segment *source, Segment *target);

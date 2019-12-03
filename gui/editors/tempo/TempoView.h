@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -42,7 +42,7 @@ namespace Rosegarden
 class Segment;
 class RosegardenDocument;
 class Composition;
-
+class EditTempoController;
 
 /**
  * Tempo and time signature list-style editor.  This has some code
@@ -63,19 +63,19 @@ class TempoView : public ListEditView, public CompositionObserver
     };
 
 public:
-    TempoView(RosegardenDocument *doc, QWidget *parent, timeT);
-    virtual ~TempoView();
+    TempoView(RosegardenDocument *doc, QWidget *parent, EditTempoController *editTempoController, timeT openTime);
+    ~TempoView() override;
 
     virtual bool applyLayout(int staffNo = -1);
 
-    virtual void refreshSegment(Segment *segment,
+    void refreshSegment(Segment *segment,
                                 timeT startTime = 0,
-                                timeT endTime = 0);
+                                timeT endTime = 0) override;
 
-    virtual void updateView();
+    void updateView() override;
 
     virtual void setupActions();
-    virtual void initStatusBar();
+    void initStatusBar() override;
     virtual QSize getViewSize(); 
     virtual void setViewSize(QSize);
 
@@ -89,23 +89,17 @@ public:
 
     // Composition Observer callbacks
     //
-    virtual void timeSignatureChanged(const Composition *);
-    virtual void tempoChanged(const Composition *);
+    void timeSignatureChanged(const Composition *) override;
+    void tempoChanged(const Composition *) override;
 
 signals:
-    // forwarded from tempo dialog:
-    void changeTempo(timeT,  // tempo change time
-                     tempoT,  // tempo value
-                     tempoT,  // tempo target
-                     TempoDialog::TempoDialogAction); // tempo action
-
     void closing();
 
 public slots:
     // standard slots
-    virtual void slotEditCut();
-    virtual void slotEditCopy();
-    virtual void slotEditPaste();
+    void slotEditCut() override;
+    void slotEditCopy() override;
+    void slotEditPaste() override;
 
     // other edit slots
     void slotEditDelete();
@@ -132,19 +126,20 @@ public slots:
 
 protected slots:
 
-    virtual void slotSaveOptions();
+    void slotSaveOptions() override;
 
 protected:
+    void closeEvent(QCloseEvent *) override;
 
-    virtual void readOptions();
+private:
+    void readOptions() override;
     void makeInitialSelection(timeT);
     QString makeTimeString(timeT time, int timeMode);
-    virtual Segment *getCurrentSegment();
-    virtual void updateViewCaption();
-
-    virtual void closeEvent(QCloseEvent *);
+    Segment *getCurrentSegment() override;
+    void updateViewCaption() override;
 
     //--------------- Data members ---------------------------------
+    EditTempoController *m_editTempoController;
     QTreeWidget   *m_list;
     int          m_filter;
 

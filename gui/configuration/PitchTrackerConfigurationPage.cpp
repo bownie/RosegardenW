@@ -20,6 +20,7 @@
 #include "sound/Tuning.h"
 #include "sound/PitchDetector.h"
 #include "misc/ConfigGroups.h"
+#include "misc/Debug.h"
 // Might need default analysis sizes
 #include "gui/configuration/PitchTrackerConfigurationPage.h"
 #include "sound/PitchDetector.h"
@@ -156,8 +157,8 @@ PitchTrackerConfigurationPage::PitchTrackerConfigurationPage(QWidget *parent) :
 
     layout->addWidget(new QLabel(tr("Ignore Octave Errors"), frame), row, 0);
     m_ignore8ve = new QCheckBox(frame);
-    connect(m_ignore8ve, SIGNAL(stateChanged(int)),
-            this, SLOT(slotModified()));
+    connect(m_ignore8ve, &QCheckBox::stateChanged,
+            this, &PitchTrackerConfigurationPage::slotModified);
     bool defaultIgnore8ve =
            settings.value("ignoreoctave",
                           PitchTrackerConfigurationPage::defaultIgnore8ve
@@ -227,9 +228,9 @@ PitchTrackerConfigurationPage::slotPopulateTuningCombo(bool rescan)
             m_tuningMode->addItem(QString((*t)->getName().c_str()));
         }
     } else { // the tunings file couldn't be found, so display a message
-        std::cout << "Pitch Tracker: Error: No tunings!!\n"
+        RG_WARNING << "Pitch Tracker: Error: No tunings!!\n"
                      "Probably a missing tuning.xml file.\n"
-                     "The user will have been warned." << std::endl;
+                     "The user will have been warned.";
 
         m_noTuningsAlert.showMessage(tr(
             "The tunings file could not be found! "
@@ -264,4 +265,3 @@ PitchTrackerConfigurationPage::apply()
 }
 
 }
-#include "PitchTrackerConfigurationPage.moc"

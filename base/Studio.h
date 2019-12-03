@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -57,7 +57,7 @@ class Studio : public XmlExportable
 
 public:
     Studio();
-    ~Studio();
+    ~Studio() override;
 
 private:
     Studio(const Studio &);
@@ -66,19 +66,19 @@ private:
 public:
     void addDevice(const std::string &name,
                    DeviceId id,
-		   InstrumentId baseInstrumentId,
+                   InstrumentId baseInstrumentId,
                    Device::DeviceType type);
 
     void removeDevice(DeviceId id);
 
-    void resyncDeviceConnections(void);
+    void resyncDeviceConnections();
 
     DeviceId getSpareDeviceId(InstrumentId &baseInstrumentId);
 
     // Return the combined instrument list from all devices
     //
     InstrumentList getAllInstruments();
-    InstrumentList getPresentationInstruments();
+    InstrumentList getPresentationInstruments() const;
 
     // Return an Instrument
     Instrument* getInstrumentById(InstrumentId id);
@@ -92,7 +92,8 @@ public:
     BussList getBusses();
     Buss *getBussById(BussId id);
     void addBuss(Buss *buss);
-    void removeBuss(BussId id);
+    //void removeBuss(BussId id);
+    void setBussCount(unsigned newBussCount);
 
     // Return an Instrument or a Buss
     PluginContainer *getContainerById(InstrumentId id);
@@ -100,6 +101,7 @@ public:
     RecordInList getRecordIns() { return m_recordIns; }
     RecordIn *getRecordIn(int number);
     void addRecordIn(RecordIn *ri) { m_recordIns.push_back(ri); }
+    void setRecordInCount(unsigned newRecordInCount);
 
     // A clever method to best guess MIDI file program mappings
     // to available MIDI channels across all MidiDevices.
@@ -155,7 +157,7 @@ public:
 
     // Get a device by ID
     //
-    Device *getDevice(DeviceId id);
+    Device *getDevice(DeviceId id) const;
 
     // Get device of audio type (there is only one)
     //
@@ -169,12 +171,12 @@ public:
 
     // Export as XML string
     //
-    virtual std::string toXmlString();
+    std::string toXmlString() const override;
 
     // Export a subset of devices as XML string.  If devices is empty,
     // exports all devices just as the above method does.
     //
-    virtual std::string toXmlString(const std::vector<DeviceId> &devices);
+    virtual std::string toXmlString(const std::vector<DeviceId> &devices) const;
 
     // Get an audio preview Instrument
     //
@@ -188,8 +190,11 @@ public:
     void setMIDIRecordFilter(MidiFilter filter) { m_midiRecordFilter = filter; }
     MidiFilter getMIDIRecordFilter() const { return m_midiRecordFilter; }
 
-    void setMixerDisplayOptions(unsigned int options) { m_mixerDisplayOptions = options; }
-    unsigned int getMixerDisplayOptions() const { return m_mixerDisplayOptions; }
+    /// For the AudioMixerWindow2.
+    bool amwShowAudioFaders;
+    bool amwShowSynthFaders;
+    bool amwShowAudioSubmasters;
+    bool amwShowUnassignedFaders;
 
     DeviceId getMetronomeDevice() const { return m_metronomeDevice; }
     void setMetronomeDevice(DeviceId device) { m_metronomeDevice = device; }
@@ -205,8 +210,6 @@ private:
 
     MidiFilter        m_midiThruFilter;
     MidiFilter        m_midiRecordFilter;
-
-    unsigned int      m_mixerDisplayOptions;
 
     DeviceId          m_metronomeDevice;
 };

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,6 +16,8 @@
 */
 
 #define RG_MODULE_STRING "[MupExporter]"
+// Turn off RG_DEBUG output.
+//#define RG_NO_DEBUG_PRINT
 
 #include "MupExporter.h"
 
@@ -30,7 +32,6 @@
 #include "base/SegmentNotationHelper.h"
 #include "base/Sets.h"
 #include "base/Track.h"
-#include "gui/general/ProgressReporter.h"
 #include <QObject>
 
 using std::string;
@@ -39,10 +40,9 @@ namespace Rosegarden
 {
 using namespace BaseProperties;
 
-MupExporter::MupExporter(QObject *parent,
+MupExporter::MupExporter(QObject * /*parent*/,
                          Composition *composition,
                          string fileName) :
-        ProgressReporter(parent),
         m_composition(composition),
         m_fileName(fileName)
 {
@@ -61,8 +61,7 @@ MupExporter::write()
 
     std::ofstream str(m_fileName.c_str(), std::ios::out);
     if (!str) {
-        std::cerr << "MupExporter::write() - can't write file " << m_fileName
-        << std::endl;
+        RG_WARNING << "MupExporter::write() - can't write file " << m_fileName;
         return false;
     }
 
@@ -77,8 +76,10 @@ MupExporter::write()
     << tspair.second.getNumerator() << "/"
     << tspair.second.getDenominator() << "\n";
 
+    // For each bar
     for (int barNo = -1; barNo < c->getNbBars(); ++barNo) {
 
+        // For each Track
         for (TrackId trackNo = c->getMinTrackId();
                 trackNo <= c->getMaxTrackId(); ++trackNo) {
 
@@ -93,11 +94,15 @@ MupExporter::write()
 
             str << "\t" << trackNo + 1 << ":";
 
-            Segment *s = 0;
+            Segment *s = nullptr;
             timeT barStart = c->getBarStart(barNo);
             timeT barEnd = c->getBarEnd(barNo);
 
+            // For each Segment
             for (Composition::iterator ci = c->begin(); ci != c->end(); ++ci) {
+                qApp->processEvents();
+
+                // If this segment is on the current Track
                 if ((*ci)->getTrack() == trackNo &&
                         (*ci)->getStartTime() < barEnd &&
                         (*ci)->getEndMarkerTime() > barStart) {
@@ -136,9 +141,8 @@ MupExporter::write()
                                    timeSig.getBarDuration() - writtenDuration);
 
             } else if (writtenDuration > timeSig.getBarDuration()) {
-                std::cerr << "WARNING: overfull bar in Mup export: duration " << writtenDuration
-                << " into bar of duration " << timeSig.getBarDuration()
-                << std::endl;
+                RG_WARNING << "WARNING: overfull bar in Mup export: duration " << writtenDuration
+                << " into bar of duration " << timeSig.getBarDuration();
                 //!!! warn user
             }
 
@@ -190,8 +194,8 @@ MupExporter::writeBar(std::ofstream &str,
                 int dots = e->get
                            <Int>(NOTE_DOTS);
                 duration = Note(type, dots).getDuration();
-            } catch (Exception e) { // no properties
-                std::cerr << "WARNING: MupExporter::writeBar: incomplete note properties: " << e.getMessage() << std::endl;
+            } catch (const Exception &e) { // no properties
+                RG_WARNING << "WARNING: MupExporter::writeBar: incomplete note properties: " << e.getMessage();
             }
 
             timeT toNext = duration;

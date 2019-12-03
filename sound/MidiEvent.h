@@ -2,7 +2,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2014 the Rosegarden development team.
+  Copyright 2000-2018 the Rosegarden development team.
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -12,123 +12,96 @@
 */
 
 
-#ifndef RG_MIDI_EVENT_H
-#define RG_MIDI_EVENT_H
+#ifndef RG_MIDIEVENT_H
+#define RG_MIDIEVENT_H
 
 #include "Midi.h"
 #include "base/Event.h"
 
-// MidiEvent holds MIDI and Event data during MIDI file I/O.
-// We don't use this class at all for playback or recording of MIDI -
-// for that look at MappedEvent and MappedEventList.
-//
-// Rosegarden doesn't have any internal concept of MIDI events, only
-// Events which are a superset of MIDI functionality.
-//
-// Check out Event in base/ for more information.
-//
-//
-//
-
 namespace Rosegarden
 {
+
+
+/// For standard MIDI file I/O.
+/**
+ * MidiEvent is a representation of MIDI which we use
+ * for the import/export of MIDI files.  It uses std::string for
+ * meta event messages which makes them nice and easy to handle.
+ *
+ * We don't use this class at all for playback or recording of MIDI -
+ * for that look at MappedEvent and MappedEventList.
+ *
+ * Rosegarden doesn't have any internal concept of MIDI events, only
+ * the Event class which offers a superset of MIDI functionality.
+ */
 class MidiEvent
 {
 
 public:
     MidiEvent();
 
-    // No data event
-    //
-    MidiEvent(timeT deltaTime,
-              MidiByte eventCode);
-
-    // single data byte case
-    //
-    MidiEvent(timeT deltaTime,
+    /// An event with one data byte.  E.g. Program Change.
+    MidiEvent(timeT time,
               MidiByte eventCode,
               MidiByte data1);
 
-    // double data byte
-    //
-    MidiEvent(timeT deltaTime,
+    /// An event with two data bytes.  E.g. Note-On.
+    MidiEvent(timeT time,
               MidiByte eventCode,
               MidiByte data1,
               MidiByte data2);
 
-    // Meta event
-    //
-    MidiEvent(timeT deltaTime,
+    /// Meta event
+    MidiEvent(timeT time,
               MidiByte eventCode,
               MidiByte metaEventCode,
               const std::string &metaMessage);
 
-    // Sysex style constructor
-    //
-    MidiEvent(timeT deltaTime,
+    /// Sysex event
+    MidiEvent(timeT time,
               MidiByte eventCode,
               const std::string &sysEx);
 
+    void setTime(const timeT &time)  { m_time = time; }
+    timeT getTime() const  { return m_time; }
 
-    ~MidiEvent();
-
-    // View our event as text
-    //
-    void print();
-
-
-    void setTime(const timeT &time) { m_deltaTime = time; }
-    void setDuration(const timeT& duration) {m_duration = duration;}
-    timeT addTime(const timeT &time);
-
-    MidiByte getMessageType() const
-        { return ( m_eventCode & MIDI_MESSAGE_TYPE_MASK ); }
-
-    MidiByte getChannelNumber() const
-        { return ( m_eventCode & MIDI_CHANNEL_NUM_MASK ); }
-
-    timeT getTime() const { return m_deltaTime; }
+    void setDuration(const timeT& duration) { m_duration = duration; }
     timeT getDuration() const { return m_duration; }
 
-    MidiByte getPitch() const { return m_data1; }
-    MidiByte getVelocity() const { return m_data2; }
-    MidiByte getData1() const { return m_data1; }
-    MidiByte getData2() const { return m_data2; }
     MidiByte getEventCode() const { return m_eventCode; }
+    MidiByte getMessageType() const
+        { return m_eventCode & MIDI_MESSAGE_TYPE_MASK; }
+    MidiByte getChannelNumber() const
+        { return m_eventCode & MIDI_CHANNEL_NUM_MASK; }
 
-    bool isMeta() const { return(m_eventCode == MIDI_FILE_META_EVENT); }
+    MidiByte getData1() const { return m_data1; }
+    MidiByte getPitch() const { return m_data1; }
 
+    MidiByte getData2() const { return m_data2; }
+    MidiByte getVelocity() const { return m_data2; }
+
+    bool isMeta() const { return (m_eventCode == MIDI_FILE_META_EVENT); }
     MidiByte getMetaEventCode() const { return m_metaEventCode; }
-    std::string getMetaMessage() const { return m_metaMessage; }
     void setMetaMessage(const std::string &meta) { m_metaMessage = meta; }
+    std::string getMetaMessage() const { return m_metaMessage; }
 
-    friend bool operator<(const MidiEvent &a, const MidiEvent &b);
+    friend QDebug &operator<<(QDebug &, const MidiEvent &);
 
 private:
-
-    MidiEvent& operator=(const MidiEvent);
-
-    timeT m_deltaTime;
+    /// Delta or absolute time, depending.
+    timeT m_time;
     timeT m_duration;
-    MidiByte          m_eventCode;
-    MidiByte          m_data1;         // or Note
-    MidiByte          m_data2;         // or Velocity
+    MidiByte m_eventCode;
+    MidiByte m_data1;
+    MidiByte m_data2;
 
-    MidiByte          m_metaEventCode;
-    std::string       m_metaMessage;
-
+    MidiByte m_metaEventCode;
+    std::string m_metaMessage;
 };
 
-// Comparator for sorting
-//
-struct MidiEventCmp
-{
-    bool operator()(const MidiEvent &mE1, const MidiEvent &mE2) const
-                    { return mE1.getTime() < mE2.getTime(); }
-    bool operator()(const MidiEvent *mE1, const MidiEvent *mE2) const
-                    { return mE1->getTime() < mE2->getTime(); }
-};
+QDebug &operator<<(QDebug &, const MidiEvent &);
+
 
 }
 
-#endif // RG_MIDI_EVENT_H
+#endif // RG_MIDIEVENT_H

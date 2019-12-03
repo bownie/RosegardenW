@@ -48,8 +48,8 @@ public:
           { initialise(); }
 
 protected:
-    virtual bool     test(const Iterator &i);
-    virtual bool     sample(const Iterator &i, bool goingForwards);
+    bool     test(const Iterator &i) override;
+    bool     sample(const Iterator &i, bool goingForwards) override;
     // The longest duration we expect a preceding note to have.
     timeT    m_preDuration;
 };
@@ -60,7 +60,7 @@ public:
   FigChord(Segment& s, Segment::iterator i) :
     ChordFromCounterpoint(s, i, getQuantizer(), m_preDuration)
     {}
-  static const Quantizer * getQuantizer(void);
+  static const Quantizer * getQuantizer();
 private:
   static const timeT m_preDuration;
   static NotationQuantizer * m_nq;
@@ -76,8 +76,8 @@ class FindFigChords
         {}
     
     FigChord * getChordNow(timeT timeLimit);
-    FindFigChords &operator++(void);
-    timeT timeNow(void) { return m_timePreviousChord; }
+    FindFigChords &operator++();
+    timeT timeNow() { return m_timePreviousChord; }
     
  private:
     Segment *m_chordSource;

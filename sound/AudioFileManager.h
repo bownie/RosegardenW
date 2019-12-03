@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -21,49 +21,48 @@
 #include <string>
 #include <vector>
 #include <set>
-#include <map>
 
-#include <QStringList>
 #include <QPixmap>
 #include <QObject>
 #include <QUrl>
+#include <QPointer>
+#include <QProgressDialog>
 
 #include "AudioFile.h"
 #include "PeakFileManager.h"
-#include "PeakFile.h"
 
 #include "base/XmlExportable.h"
 #include "base/Exception.h"
-#include "misc/Strings.h"
-
-// AudioFileManager loads and maps audio files to their
-// internal references (ids).  A point of contact for
-// AudioFile information - loading a Composition should
-// use this class to pick up the AudioFile references,
-// editing the AudioFiles in a Composition will be
-// made through this manager.
-
-// This is in the sound library because it's so closely
-// connected to other sound classes like the AudioFile
-// ones.  However, the audio file manager itself within
-// Rosegarden is stored in the GUI process.  This class
-// is not (and should not be) used elsewhere within the
-// sound or sequencer libraries.
 
 class QProcess;
 
 namespace Rosegarden
 {
 
-typedef std::vector<AudioFile*>::const_iterator AudioFileManagerIterator;
+typedef std::vector<AudioFile *>::const_iterator AudioFileManagerIterator;
 
+/**
+ * AudioFileManager loads and maps audio files to their
+ * internal references (ids).  A point of contact for
+ * AudioFile information - loading a Composition should
+ * use this class to pick up the AudioFile references,
+ * editing the AudioFiles in a Composition will be
+ * made through this manager.
+ *
+ * This is in the sound library because it's so closely
+ * connected to other sound classes like the AudioFile
+ * ones.  However, the audio file manager itself within
+ * Rosegarden is stored in the GUI process.  This class
+ * is not (and should not be) used elsewhere within the
+ * sound or sequencer libraries.
+ */
 class AudioFileManager : public QObject, public XmlExportable
 {
     Q_OBJECT
 public:
     AudioFileManager();
-    virtual ~AudioFileManager();
-    
+    ~AudioFileManager() override;
+
     class BadAudioPathException : public Exception
     {
     public:
@@ -74,7 +73,7 @@ public:
         BadAudioPathException(const SoundFile::BadSoundFileException &e) :
             Exception(QObject::tr("Bad audio file path (malformed file?) ") + e.getPath()), m_path(e.getPath()) { }
 
-        ~BadAudioPathException() throw() { }
+        ~BadAudioPathException() throw() override { }
 
         QString getPath() const { return m_path; }
 
@@ -84,229 +83,246 @@ public:
 
 private:
     AudioFileManager(const AudioFileManager &aFM);
-    AudioFileManager& operator=(const AudioFileManager &);
+    AudioFileManager &operator=(const AudioFileManager &);
 
 public:
 
-    // Create an audio file from an absolute path - we use this
-    // interface to add an actual file.  This only works with files
-    // that are already in a format RG understands natively.  If you
-    // are not sure about that, use importFile or importURL instead.
-    //
+    /// Create an AudioFile object from an absolute path
+    /**
+     * We use this interface to add an actual file.  This only works
+     * with files that are already in a format RG understands natively.
+     * If you are not sure about that, use importFile() or importURL()
+     * instead.
+     *
+     * throws BadAudioPathException
+     */
     AudioFileId addFile(const QString &filePath);
-    // throw BadAudioPathException
 
-    // Create an audio file by importing (i.e. converting and/or
-    // resampling) an existing file using the conversion library.  If
-    // you are not sure whether to use addFile or importFile, go for
-    // importFile.
-    //
-    AudioFileId importFile(const QString &filePath,
-			   int targetSampleRate = 0);
-    // throw BadAudioPathException, BadSoundFileException
-
-    // Create an audio file by importing from a URL
-    //
+    /// Create an audio file by importing from a URL
+    /**
+     * throws BadAudioPathException, BadSoundFileException
+     */
     AudioFileId importURL(const QUrl &filePath,
-			  int targetSampleRate = 0);
-    // throw BadAudioPathException, BadSoundFileException
+                          int targetSampleRate);
 
-    // Insert an audio file into the AudioFileManager and get the
-    // first allocated id for it.  Used from the RG file as we already
-    // have both name and filename/path.
-    //
-    AudioFileId insertFile(const std::string &name,
-                           const QString &fileName);
-    // throw BadAudioPathException
-
-    // Convert an audio file from arbitrary external format to an
-    // internal format suitable for use by addFile, using packages in
-    // Rosegarden.  This replaces the Perl script previously used. It
-    // returns 0 for OK.  This is used by importFile and importURL
-    // which normally provide the more suitable interface for import.
-    // 
-    int convertAudioFile(const QString inFile, const QString outFile);
-
+    /// Used by RoseXmlHandler to add an audio file.
+    /**
+     * throws BadAudioPathException
+     */
     bool insertFile(const std::string &name, const QString &fileName,
                     AudioFileId id);
-    // throw BadAudioPathException
 
-    // Remove a file from the AudioManager by id
-    //
-    bool removeFile(AudioFileId id);
-
-    // Does a specific file id exist?
-    //
+    /// Does a specific file id exist?
     bool fileExists(AudioFileId id);
 
-    // Does a specific file path exist?  Return ID or -1.
-    //
+    /// Does a specific file path exist?  Return ID or -1.
     int fileExists(const QString &path);
 
-    // get audio file by id
-    //
     AudioFile* getAudioFile(AudioFileId id);
 
-    // Get the list of files
-    //
-    std::vector<AudioFile*>::const_iterator begin() const
+    /// Get an iterator into the list of AudioFile objects.
+    AudioFileManagerIterator begin() const
         { return m_audioFiles.begin(); }
 
-    std::vector<AudioFile*>::const_iterator end() const
+    AudioFileManagerIterator end() const
         { return m_audioFiles.end(); }
 
-    // Clear down all audio file references
-    //
+    /// Remove one audio file.
+    bool removeFile(AudioFileId id);
+    /// Remove all audio files.
     void clear();
 
-    // Get and set the record path
-    //
-    QString getAudioPath() const { return m_audioPath; }
+    /// Get the audio record path
+    QString getAudioPath() const  { return m_audioPath; }
+    /// Set the audio record path
     void setAudioPath(const QString &path);
 
-    // Throw if the current audio path does not exist or is not writable
-    //
-    void testAudioPath() throw(BadAudioPathException);
+    /// Throw if the current audio path does not exist or is not writable
+    /**
+     * throws BadAudioPathException
+     */
+    void testAudioPath();
 
-    // Get a new audio filename at the audio record path, inserting the
-    // projectFilename and instrumentAlias into the filename for easier
-    // recognition away from the file's original context
-    //
-    AudioFile *createRecordingAudioFile(QString projectName, QString instrumentAlias);
-    // throw BadAudioPathException
+    /**
+     * Get a new audio filename at the audio record path, inserting the
+     * projectFilename and instrumentAlias into the filename for easier
+     * recognition away from the file's original context.
+     *
+     * throws BadAudioPathException
+     */
+    AudioFile *createRecordingAudioFile(
+            QString projectName, QString instrumentAlias);
 
-    // Return whether a file was created by recording within this "session"
-    //
+    /// Return whether a file was created by recording within this "session"
     bool wasAudioFileRecentlyRecorded(AudioFileId id);
 
-    // Return whether a file was created by derivation within this "session"
-    //
+    /// Return whether a file was created by derivation within this "session"
     bool wasAudioFileRecentlyDerived(AudioFileId id);
 
-    // Indicate that a new "session" has started from the point of
-    // view of recorded and derived audio files (e.g. that the
-    // document has been saved)
-    //
+    /**
+     * Indicate that a new "session" has started from the point of
+     * view of recorded and derived audio files (e.g. that the
+     * document has been saved)
+     */
     void resetRecentlyCreatedFiles();
-    
-    // Create an empty file "derived from" the source (used by e.g. stretcher)
-    // 
+
+    /// Create an empty file "derived from" the source (used by e.g. stretcher)
     AudioFile *createDerivedAudioFile(AudioFileId source,
-				      const char *prefix);
+                                      const char *prefix);
 
-    // return the last file in the vector - the last created
-    //
-    AudioFile* getLastAudioFile();
+    /// Export audio files and assorted bits and bobs
+    /**
+     * The files are stored in a format that's user independent so
+     * that people can pack up and swap their songs (including audio
+     * files) and shift them about easily.
+     */
+    std::string toXmlString() const override;
 
-    // Export to XML
-    //
-    virtual std::string toXmlString();
-
-    // Convenience function generate all previews on the audio file.
-    //
+    /// Generate previews for all audio files.
+    /**
+     * Generates preview peak files or peak chunks according to file type.
+     *
+     * throw BadSoundFileException, BadPeakFileException
+     */
     void generatePreviews();
-    // throw BadSoundFileException, BadPeakFileException
 
-    // Generate for a single audio file
-    //
+    /// Generate preview for a single audio file.
+    /**
+     * Generate a preview for a specific audio file - say if
+     * one has just been added to the AudioFileManager.
+     * Also used for generating previews if the file has been
+     * modified.
+     *
+     * throws BadSoundFileException, BadPeakFileException
+     */
     bool generatePreview(AudioFileId id);
-    // throw BadSoundFileException, BadPeakFileException
 
-    // Get a preview for an AudioFile adjusted to Segment start and
-    // end parameters (assuming they fall within boundaries).
-    // 
-    // We can get back a set of values (floats) or a Pixmap if we 
-    // supply the details.
-    //
+    /**
+     * Get a preview for an AudioFile adjusted to Segment start and
+     * end parameters (assuming they fall within boundaries).
+     *
+     * We can get back a set of values (floats) or a Pixmap if we
+     * supply the details.
+     *
+     * throws BadPeakFileException, BadAudioPathException
+     */
     std::vector<float> getPreview(AudioFileId id,
                                   const RealTime &startTime, 
                                   const RealTime &endTime,
                                   int width,
                                   bool withMinima);
-    // throw BadPeakFileException, BadAudioPathException
 
-    // Draw a fixed size (fixed by QPixmap) preview of an audio file
-    //
+    /// Draw a fixed size (fixed by QPixmap) preview of an audio file
+    /**
+     * throws BadPeakFileException, BadAudioPathException
+     */
     void drawPreview(AudioFileId id,
                      const RealTime &startTime, 
                      const RealTime &endTime,
                      QPixmap *pixmap);
-    // throw BadPeakFileException, BadAudioPathException
 
-    // Usually used to show how an audio Segment makes up part of
-    // an audio file.
-    //
+    /**
+     * Usually used to show how an audio Segment makes up part of
+     * an audio file.
+     *
+     * throws BadPeakFileException, BadAudioPathException
+     */
     void drawHighlightedPreview(AudioFileId it,
                                 const RealTime &startTime,
                                 const RealTime &endTime,
                                 const RealTime &highlightStart,
                                 const RealTime &highlightEnd,
                                 QPixmap *pixmap);
-    // throw BadPeakFileException, BadAudioPathException
 
-    // Get a short file name from a long one (with '/'s)
-    //
-    QString getShortFilename(const QString &fileName);
+    /// Convert the user's home directory to a "~".
+    QString homeToTilde(const QString &path) const;
+    /// Expand "~" to the user's home directory.
+    QString tildeToHome(const QString &path) const;
 
-    // Get a directory from a full file path
-    //
-    QString getDirectory(const QString &path);
-
-    // Attempt to subsititute a tilde '~' for a home directory
-    // to make paths a little more generic when saving.  Also
-    // provide the inverse function as convenience here.
-    //
-    QString substituteHomeForTilde(const QString &path);
-    QString substituteTildeForHome(const QString &path);
-
-    // Show entries for debug purposes
-    //
-    void print(); 
-
-    // Get a split point vector from a peak file
-    //
+    /// Get a split point vector from a peak file
+    /**
+     * throws BadPeakFileException, BadAudioPathException
+     */
     std::vector<SplitPointPair> 
         getSplitPoints(AudioFileId id,
                        const RealTime &startTime,
                        const RealTime &endTime,
                        int threshold,
                        const RealTime &minTime = RealTime(0, 100000000));
-    // throw BadPeakFileException, BadAudioPathException
 
-    // Get the peak file manager
-    //
-    const PeakFileManager& getPeakFileManager() const { return m_peakManager; }
-
-    // Get the peak file manager
-    //
-    PeakFileManager& getPeakFileManager() { return m_peakManager; }
-
-    int getExpectedSampleRate() const { return m_expectedSampleRate; }
-    void setExpectedSampleRate(int rate) { m_expectedSampleRate = rate; }
+    int getExpectedSampleRate() const  { return m_expectedSampleRate; }
+    void setExpectedSampleRate(int rate)  { m_expectedSampleRate = rate; }
 
     std::set<int> getActualSampleRates() const;
 
-signals:
-    void setValue(int);
-    void setOperationName(QString);
+    /// Provide a progress dialog to be used to show progress.
+    void setProgressDialog(QPointer<QProgressDialog> progressDialog)
+            { m_progressDialog = progressDialog; }
 
-public slots:
-    // Cancel a running preview
-    //
-    void slotStopPreview();
+    /// Show entries for debug purposes
+    void print();
 
-    void slotStopImport();
+    /**
+     * Insert an audio file into the AudioFileManager and get the
+     * first allocated id for it.  Used from the RG file as we already
+     * have both name and filename/path.
+     *
+     * throws BadAudioPathException
+     */
+    //AudioFileId insertFile(const std::string &name,
+    //                       const QString &fileName);
+
+    //const PeakFileManager &getPeakFileManager() const  { return m_peakManager; }
+    //PeakFileManager &getPeakFileManager()  { return m_peakManager; }
+
+    /// Get the last file in the vector - the last created.
+    //AudioFile *getLastAudioFile();
 
 private:
+    /// The audio files we are managing.
+    std::vector<AudioFile *> m_audioFiles;
+
+    /**
+     * Create an audio file by importing (i.e. converting and/or
+     * resampling) an existing file using the conversion library.  If
+     * you are not sure whether to use addFile() or importFile(), go for
+     * importFile().
+     *
+     * throws BadAudioPathException, BadSoundFileException
+     */
+    AudioFileId importFile(const QString &filePath,
+                           int targetSampleRate);
+
+    /**
+     * Convert an audio file from arbitrary external format to an
+     * internal format suitable for use by addFile, using packages in
+     * Rosegarden.  This replaces the Perl script previously used. It
+     * returns 0 for OK.  This is used by importFile and importURL
+     * which normally provide the more suitable interface for import.
+     */
+    int convertAudioFile(const QString &inFile, const QString &outFile);
+
+    /// Get a short file name from a long one (with '/'s)
+    QString getShortFilename(const QString &fileName) const;
+
+    /// Get a directory from a full file path
+    QString getDirectory(const QString &path) const;
+
+    /// See if we can find a given file in our search path
+    /**
+     * Returns the first occurrence of a match or the empty
+     * std::string if no match.
+     */
     QString getFileInPath(const QString &file);
 
     /// Reset ID counter based on actual Audio Files in Composition
     void updateAudioFileID(AudioFileId id);
 
-    /// Fetch a unique ID for Audio Files
+    /// Fetch a new unique Audio File ID.
     AudioFileId getUniqueAudioFileID();
+    /// Last Audio File ID that was handed out by getUniqueAudioFileID().
+    unsigned int m_lastAudioFileID;
 
-    std::vector<AudioFile*> m_audioFiles;
     QString m_audioPath;
 
     PeakFileManager m_peakManager;
@@ -320,11 +336,11 @@ private:
     std::set<AudioFile *> m_derivedAudioFiles;
 
     int m_expectedSampleRate;
-    
-    //Audio ID tracking
-    unsigned int m_lastAudioFileID;
 
+    /// Progress Dialog passed in by clients.
+    QPointer<QProgressDialog> m_progressDialog;
 };
+
 
 }
 

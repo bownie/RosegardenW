@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,12 +13,12 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _RINGBUFFER_H_
-#define _RINGBUFFER_H_
+#ifndef RG_RINGBUFFER_H
+#define RG_RINGBUFFER_H
 
 #include <sys/types.h>
 //#include <sys/mman.h>
-
+#include <string.h>
 
 #include "Scavenger.h"
 
@@ -30,8 +30,7 @@
 #endif
 
 #ifdef DEBUG_RINGBUFFER_CREATE_DESTROY
-#include <iostream>
-static int __extant_ringbuffers = 0;
+static int extant_ringbuffers = 0;
 #endif
 
 #ifdef sun
@@ -206,7 +205,7 @@ RingBuffer<T, N>::RingBuffer(size_t n) :
     m_mlocked(false)
 {
 #ifdef DEBUG_RINGBUFFER_CREATE_DESTROY
-    std::cerr << "RingBuffer<T," << N << ">[" << this << "]::RingBuffer(" << n << ") [now have " << (++__extant_ringbuffers) << "]" << std::endl;
+    std::cerr << "RingBuffer<T," << N << ">[" << this << "]::RingBuffer(" << n << ") [now have " << (++extant_ringbuffers) << "]" << std::endl;
 #endif
 
     for (int i = 0; i < N; ++i) m_readers[i] = 0;
@@ -218,19 +217,18 @@ template <typename T, int N>
 RingBuffer<T, N>::~RingBuffer()
 {
 #ifdef DEBUG_RINGBUFFER_CREATE_DESTROY
-    std::cerr << "RingBuffer<T," << N << ">[" << this << "]::~RingBuffer [now have " << (--__extant_ringbuffers) << "]" << std::endl;
+    std::cerr << "RingBuffer<T," << N << ">[" << this << "]::~RingBuffer [now have " << (--extant_ringbuffers) << "]" << std::endl;
 #endif
-
-    /*
+/*
     if (m_mlocked) {
 #ifdef MLOCK_TAKES_CHAR_PTR
         ::munlock((char *)m_buffer, m_size * sizeof(T));
 #else
         ::munlock((void *)m_buffer, m_size * sizeof(T));
 #endif
-    }*/
+    }
     delete[] m_buffer;
-
+*/
     m_scavenger.scavenge();
 }
 
@@ -254,32 +252,34 @@ RingBuffer<T, N>::resize(size_t newSize)
 #endif
 
     m_scavenger.scavenge();
-
-    /*
+        /*
     if (m_mlocked) {
+
 #ifdef MLOCK_TAKES_CHAR_PTR
         ::munlock((char *)m_buffer, m_size * sizeof(T));
 #else
         ::munlock((void *)m_buffer, m_size * sizeof(T));
 #endif
-    }*/
-
+    }
+*/
     m_scavenger.claim(new ScavengerArrayWrapper<T>(m_buffer));
 
     reset();
     m_buffer = new T[newSize + 1];
     m_size = newSize + 1;
-
-    /*
+/*
     if (m_mlocked) {
+
 #ifdef MLOCK_TAKES_CHAR_PTR
         if (::mlock((char *)m_buffer, m_size * sizeof(T))) {
 #else
         if (::mlock((void *)m_buffer, m_size * sizeof(T))) {
 #endif
+
             m_mlocked = false;
         }
-    }*/
+    }
+            */
 }
 
 template <typename T, int N>
@@ -294,7 +294,7 @@ RingBuffer<T, N>::resized(int newSize, int R) const
     while (r != w) {
         T value = m_buffer[r];
         newBuffer->write(&value, 1);
-        if (++r == m_size) r = 0;
+        if (++r == (int)m_size) r = 0;
     }
 
     return newBuffer;
@@ -309,7 +309,8 @@ RingBuffer<T, N>::mlock()
     if (::mlock((char *)m_buffer, m_size * sizeof(T))) return false;
 #else
     if (::mlock((void *)m_buffer, m_size * sizeof(T))) return false;
-#endif*/
+#endif
+*/
     m_mlocked = true;
     return true;
 }
@@ -323,7 +324,8 @@ RingBuffer<T, N>::munlock()
     if (::munlock((char *)m_buffer, m_size * sizeof(T))) return false;
 #else
     if (::munlock((void *)m_buffer, m_size * sizeof(T))) return false;
-#endif*/
+#endif
+*/
     m_mlocked = false;
     return true;
 }
@@ -397,7 +399,7 @@ RingBuffer<T, N>::read(T *destination, size_t n, int R)
         std::cerr << "WARNING: Only " << available << " samples available"
                   << std::endl;
 #endif
-        //memset(destination + available, 0, (n - available) * sizeof(T));
+        memset(destination + available, 0, (n - available) * sizeof(T));
         n = available;
     }
     if (n == 0) return n;
@@ -489,20 +491,20 @@ RingBuffer<T, N>::peek(T *destination, size_t n, int R) const
     size_t available = getReadSpace(R);
     if (n > available) {
 #ifdef DEBUG_RINGBUFFER
-    std::cerr << "WARNING: Only " << available << " samples available"
-          << std::endl;
+	std::cerr << "WARNING: Only " << available << " samples available"
+		  << std::endl;
 #endif
-    memset(destination + available, 0, (n - available) * sizeof(T));
-    n = available;
+	memset(destination + available, 0, (n - available) * sizeof(T));
+	n = available;
     }
     if (n == 0) return n;
 
     size_t here = m_size - m_readers[R];
     if (here >= n) {
-    memcpy(destination, m_buffer + m_readers[R], n * sizeof(T));
+	memcpy(destination, m_buffer + m_readers[R], n * sizeof(T));
     } else {
-    memcpy(destination, m_buffer + m_readers[R], here * sizeof(T));
-    memcpy(destination + here, m_buffer, (n - here) * sizeof(T));
+	memcpy(destination, m_buffer + m_readers[R], here * sizeof(T));
+	memcpy(destination + here, m_buffer, (n - here) * sizeof(T));
     }
 
 #ifdef DEBUG_RINGBUFFER
@@ -621,4 +623,4 @@ RingBuffer<T, N>::zero(size_t n)
 
 }
 
-#endif // _RINGBUFFER_H_
+#endif // RG_RINGBUFFER_H

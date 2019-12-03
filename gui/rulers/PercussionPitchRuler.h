@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,6 +20,8 @@
 #define RG_PERCUSSIONPITCHRULER_H
 
 #include "PitchRuler.h"
+
+#include <QSharedPointer>
 #include <QSize>
 
 
@@ -42,30 +44,29 @@ class PercussionPitchRuler : public PitchRuler
     Q_OBJECT
 public:
     PercussionPitchRuler(QWidget *parent,
-                         const MidiKeyMapping *mapping,
+                         QSharedPointer<const MidiKeyMapping> mapping,
                          int lineSpacing);
 
-    virtual QSize sizeHint() const;
-    virtual QSize minimumSizeHint() const;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
-    void drawHoverNote(int evPitch);
-    void hideHoverNote();
-
-signals:
-    void keyPressed(unsigned int y, bool repeating);
-    void keySelected(unsigned int y, bool repeating);
-    void keyReleased(unsigned int y, bool repeating);
-    void hoveredOverKeyChanged(unsigned int y);
+    /// Draw a highlight to indicate the pitch that the mouse is hovering over.
+    /**
+     * For the PercussionPitchRuler, this is a reverse video highlight on
+     * the text.
+     */
+    void showHighlight(int evPitch) override;
+    void hideHighlight() override;
 
 protected:
-    virtual void paintEvent(QPaintEvent*);
-    virtual void mouseMoveEvent(QMouseEvent*);
-    virtual void mousePressEvent(QMouseEvent*);
-    virtual void mouseReleaseEvent(QMouseEvent*);
-    virtual void enterEvent(QEvent *);
-    virtual void leaveEvent(QEvent *);
+    void paintEvent(QPaintEvent*) override;
+    void mouseMoveEvent(QMouseEvent*) override;
+    void mousePressEvent(QMouseEvent*) override;
+    void mouseReleaseEvent(QMouseEvent*) override;
+    void enterEvent(QEvent *) override;
+    void leaveEvent(QEvent *) override;
 
-    const MidiKeyMapping *m_mapping;
+    QSharedPointer<const MidiKeyMapping> m_mapping;
 
     int                       m_width;
     int                       m_lineSpacing;
@@ -73,8 +74,8 @@ protected:
     bool                      m_mouseDown;
     bool                      m_selecting;
 
-    int                       m_hoverNotePitch;
-    int                       m_lastHoverHighlight;
+    int                       m_highlightPitch;
+    int                       m_lastHighlightPitch;
 
     QFont                    *m_font;
     QFontMetrics             *m_fontMetrics;

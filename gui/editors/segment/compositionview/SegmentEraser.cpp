@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,7 +38,7 @@ namespace Rosegarden
 {
 
 
-const QString SegmentEraser::ToolName = "segmenteraser";
+QString SegmentEraser::ToolName() { return "segmenteraser"; }
 
 SegmentEraser::SegmentEraser(CompositionView *c, RosegardenDocument *d)
         : SegmentTool(c, d)
@@ -49,7 +49,7 @@ SegmentEraser::SegmentEraser(CompositionView *c, RosegardenDocument *d)
 void SegmentEraser::ready()
 {
     m_canvas->viewport()->setCursor(Qt::PointingHandCursor);
-    setBasicContextHelp();
+    setContextHelp(tr("Click on a segment to delete it"));
 }
 
 void SegmentEraser::mousePressEvent(QMouseEvent *e)
@@ -95,16 +95,8 @@ int SegmentEraser::mouseMoveEvent(QMouseEvent *e)
     // No need to propagate.
     e->accept();
 
-    setBasicContextHelp();
-
-    return RosegardenScrollView::NoFollow;
+    return NO_FOLLOW;
 }
-
-void SegmentEraser::setBasicContextHelp()
-{
-    setContextHelp(tr("Click on a segment to delete it"));
-}    
 
 
 }
-#include "SegmentEraser.moc"

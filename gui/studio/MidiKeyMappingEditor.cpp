@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -46,24 +46,25 @@
 namespace Rosegarden
 {
 
-MidiKeyMappingEditor::MidiKeyMappingEditor(BankEditorDialog* bankEditor,
-        QWidget* parent,
-        const char* name)
-        : NameSetEditor(bankEditor,
-                        tr("Key Mapping details"),
-                        parent, name, tr("Pitches"), false),
-        m_device(0)
+MidiKeyMappingEditor::MidiKeyMappingEditor(
+        BankEditorDialog *bankEditor,
+        QWidget *parent) :
+    NameSetEditor(bankEditor,
+                  tr("Key Mapping details"),  // title
+                  parent,
+                  false),  // showKeyMapButtons
+    m_device(nullptr)
 {
-    QWidget *additionalWidget = makeAdditionalWidget(m_mainFrame);
+    QWidget *additionalWidget = makeAdditionalWidget(m_topFrame);
     if (additionalWidget) {
-        m_mainLayout->addWidget(additionalWidget, 0, 0, 2- 0+1, 2- 0+1);
+        m_topLayout->addWidget(additionalWidget, 0, 0, 2- 0+1, 2- 0+1);
     }
 }
 
 QWidget *
 MidiKeyMappingEditor::makeAdditionalWidget(QWidget */* parent */)
 {
-    return 0;
+    return nullptr;
 }
 
 void
@@ -119,7 +120,7 @@ MidiKeyMappingEditor::reset()
     const MidiKeyMapping *m = m_device->getKeyMappingByName(m_mappingName);
 
     if (!m) {
-        RG_DEBUG << "WARNING: MidiKeyMappingEditor::reset: No such mapping as " << m_mappingName << endl;
+        RG_DEBUG << "WARNING: MidiKeyMappingEditor::reset: No such mapping as " << m_mappingName;
         return;
     }
 
@@ -156,23 +157,19 @@ MidiKeyMappingEditor::reset()
 }
 
 void
-MidiKeyMappingEditor::slotNameChanged(const QString& name)
+MidiKeyMappingEditor::slotNameChanged(const QString &name)
 {
-    const LineEdit* lineEdit = dynamic_cast<const LineEdit*>(sender());
+    const LineEdit *lineEdit = dynamic_cast<const LineEdit *>(sender());
     if (!lineEdit) {
-        RG_DEBUG << "MidiKeyMappingEditor::slotNameChanged() : %%% ERROR - signal sender is not a Rosegarden::LineEdit\n";
-        return ;
+        RG_WARNING << "slotNameChanged(): WARNING: Sender is not a LineEdit.";
+        return;
     }
 
-    QString senderName = sender()->objectName();
+    const unsigned pitch = lineEdit->property("index").toUInt();
 
-    // Adjust value back to zero rated
-    //
-    unsigned int pitch = senderName.toUInt() - 1;
+    //RG_DEBUG << "slotNameChanged(" << name << ") : pitch = " << pitch;
 
-    RG_DEBUG << "MidiKeyMappingEditor::slotNameChanged("
-    << name << ") : pitch = " << pitch << endl;
-
+    // If the name has changed
     if (qstrtostr(name) != m_mapping.getMap()[pitch]) {
         m_mapping.getMap()[pitch] = qstrtostr(name);
         m_bankEditor->slotApply();
@@ -194,4 +191,3 @@ void MidiKeyMappingEditor::blockAllSignals(bool block)
 }
 
 }
-#include "MidiKeyMappingEditor.moc"

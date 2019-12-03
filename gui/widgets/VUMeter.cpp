@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -55,15 +55,15 @@ VUMeter::VUMeter(QWidget *parent,
     m_levelLeft(0),
     m_recordLevelLeft(0),
     m_peakLevelLeft(0),
-    m_decayTimerLeft(0),
-    m_timeDecayLeft(0),
-    m_peakTimerLeft(0),
+    m_decayTimerLeft(nullptr),
+    m_timeDecayLeft(nullptr),
+    m_peakTimerLeft(nullptr),
     m_levelRight(0),
     m_recordLevelRight(0),
     m_peakLevelRight(0),
-    m_decayTimerRight(0),
-    m_timeDecayRight(0),
-    m_peakTimerRight(0),
+    m_decayTimerRight(nullptr),
+    m_timeDecayRight(nullptr),
+    m_peakTimerRight(nullptr),
     m_showPeakLevel(true),
     m_stereo(stereo),
     m_hasRecord(hasRecord)
@@ -92,14 +92,14 @@ VUMeter::VUMeter(QWidget *parent,
     //
     m_decayTimerLeft = new QTimer();
 
-    connect(m_decayTimerLeft, SIGNAL(timeout()),
-            this, SLOT(slotDecayLeft()));
+    connect(m_decayTimerLeft, &QTimer::timeout,
+            this, &VUMeter::slotDecayLeft);
 
     if (m_showPeakLevel) {
         m_peakTimerLeft = new QTimer();
 
-        connect(m_peakTimerLeft, SIGNAL(timeout()),
-                this, SLOT(slotStopShowingPeakLeft()));
+        connect(m_peakTimerLeft, &QTimer::timeout,
+                this, &VUMeter::slotStopShowingPeakLeft);
     }
 
     m_timeDecayLeft = new QTime();
@@ -107,13 +107,13 @@ VUMeter::VUMeter(QWidget *parent,
     if (stereo) {
         m_decayTimerRight = new QTimer();
 
-        connect(m_decayTimerRight, SIGNAL(timeout()),
-                this, SLOT(slotDecayRight()));
+        connect(m_decayTimerRight, &QTimer::timeout,
+                this, &VUMeter::slotDecayRight);
 
         if (m_showPeakLevel) {
             m_peakTimerRight = new QTimer();
-            connect(m_peakTimerRight, SIGNAL(timeout()),
-                    this, SLOT(slotStopShowingPeakRight()));
+            connect(m_peakTimerRight, &QTimer::timeout,
+                    this, &VUMeter::slotStopShowingPeakRight);
         }
 
         m_timeDecayRight = new QTime();
@@ -217,7 +217,7 @@ VUMeter::setLevel(double leftLevel, double rightLevel, bool record)
     if (!isVisible())
         return ;
 
-    //    RG_DEBUG << "setLevel(" << (void *)this << "): record=" << record << ", leftLevel=" << leftLevel << ", hasRecord=" << m_hasRecord << endl;
+    //    RG_DEBUG << "setLevel(" << (void *)this << "): record=" << record << ", leftLevel=" << leftLevel << ", hasRecord=" << m_hasRecord;
 
     if (record && !m_hasRecord)
         return ;
@@ -352,7 +352,7 @@ VUMeter::setLevel(double leftLevel, double rightLevel, bool record)
 void
 VUMeter::paintEvent(QPaintEvent *e)
 {
-//    RG_DEBUG << "VUMeter::paintEvent - height = " << height() << endl;
+//    RG_DEBUG << "VUMeter::paintEvent - height = " << height();
     QPainter paint(this);
 
     paint.setRenderHint(QPainter::Antialiasing, false);
@@ -454,7 +454,7 @@ VUMeter::drawColouredBar(QPainter *paint, int channel,
             mixedColour = m_velocityColour->getColour(m_levelRight);
         }
 
-        //        RG_DEBUG << "VUMeter::drawColouredBar - level = " << m_levelLeft << endl;
+        //        RG_DEBUG << "VUMeter::drawColouredBar - level = " << m_levelLeft;
 
         paint->fillRect(x, y, w, h, mixedColour);
     }
@@ -678,4 +678,3 @@ VUMeter::slotStopShowingPeakLeft()
 }
 
 }
-#include "VUMeter.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2007-2009
         Yves Guillemot      <yc.guillemot@wanadoo.fr> 
@@ -46,18 +46,18 @@ namespace Rosegarden
 
 HeadersGroup::
 HeadersGroup(RosegardenDocument *document) :
-        QWidget(0),
+        QWidget(nullptr),
         m_composition(document->getComposition()),
-        m_scene(0),
-        m_widget(0),
+        m_scene(nullptr),
+        m_widget(nullptr),
         m_usedHeight(0),
-        m_filler(0),
+        m_filler(nullptr),
         m_lastX(INT_MIN),
         m_lastWidth(-1),
-        m_layout(0),
+        m_layout(nullptr),
         m_startOfView(0),
         m_endOfView(0),
-        m_currentSegment(0),
+        m_currentSegment(nullptr),
         m_currentSegStartTime(0),
         m_currentSegEndTime(0),
         m_currentTrackId(0)
@@ -87,7 +87,7 @@ HeadersGroup::removeAllHeaders()
 
     if (m_filler) {
         delete m_filler;
-        m_filler = 0;
+        m_filler = nullptr;
     }
     m_usedHeight = 0;
     m_lastWidth = -1;
@@ -104,8 +104,8 @@ HeadersGroup::addHeader(int trackId, int height, int ypos, double /* xcur */)
     connect(sh, SIGNAL(showToolTip(QString)),
             m_widget, SLOT(slotShowHeaderToolTip(QString)));
 
-    connect(sh, SIGNAL(staffModified()),
-            m_widget, SLOT(slotRegenerateHeaders()), Qt::QueuedConnection);
+    connect(sh, &StaffHeader::staffModified,
+            m_widget, &NotationWidget::slotRegenerateHeaders, Qt::QueuedConnection);
             // Without Qt::QueuedConnection, headers may be deleted
             // from themselves leading to crash
 }
@@ -113,14 +113,14 @@ HeadersGroup::addHeader(int trackId, int height, int ypos, double /* xcur */)
 void
 HeadersGroup::setTracks(NotationWidget *widget, NotationScene *scene)
 {
-    if (m_scene) disconnect(m_scene, SIGNAL(currentStaffChanged()),
-                            this, SLOT(slotSetCurrentSegment()));
+    if (m_scene) disconnect(m_scene, &NotationScene::currentStaffChanged,
+                            this, &HeadersGroup::slotSetCurrentSegment);
 
     m_scene = scene;
     m_widget = widget;
 
-    connect(m_scene, SIGNAL(currentStaffChanged()),
-            this, SLOT(slotSetCurrentSegment()));
+    connect(m_scene, &NotationScene::currentStaffChanged,
+            this, &HeadersGroup::slotSetCurrentSegment);
     slotSetCurrentSegment();
 
 
@@ -261,5 +261,4 @@ HeadersGroup::minimumSizeHint() const
 }
 
 }
-#include "HeadersGroup.moc"
 

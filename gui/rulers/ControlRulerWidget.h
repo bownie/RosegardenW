@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,11 +18,13 @@
 #ifndef RG_CONTROLRULERWIDGET_H
 #define RG_CONTROLRULERWIDGET_H
 
-#include <QWidget>
+#include "gui/general/AutoScroller.h"
 #include "base/Event.h"
 #include "base/ViewElement.h"
 #include "base/MidiDevice.h"
 #include "base/parameterpattern/SelectionSituation.h"
+
+#include <QWidget>
 
 class QStackedWidget;
 class QTabBar;
@@ -40,14 +42,15 @@ class PropertyName;
 class ViewSegment;
 class EventSelection;
 class ControllerEventsRuler;
+class PropertyControlRuler;
  
-class ControlRulerWidget : public QWidget //, Observer
+class ControlRulerWidget : public QWidget
 {
 Q_OBJECT
 
 public:
     ControlRulerWidget();
-    virtual ~ControlRulerWidget();
+    ~ControlRulerWidget() override;
 
     void setSegments(RosegardenDocument *document,
                      std::vector<Segment *> segments);
@@ -65,10 +68,15 @@ public:
      * widget as appropriate for the sort of notation layout in effect.
      */
     bool isAnyRulerVisible();
-    EventSelection *getSelection(void);
-    bool hasSelection(void);
-    SelectionSituation *getSituation(void);
-    ControlParameter   *getControlParameter(void);
+    EventSelection *getSelection();
+    bool hasSelection();
+    SelectionSituation *getSituation();
+    ControlParameter   *getControlParameter();
+
+    /**
+     * Returns Velocity ruler if currently shown else return 0
+     */
+    PropertyControlRuler *getActivePropertyRuler();
 
 public slots:
     void slotTogglePropertyRuler(const PropertyName &);
@@ -87,11 +95,18 @@ public slots:
     void slotDragScroll(timeT);
 
 signals:
+    /// DEPRECATED.  This is being replaced by the new mouse*() signals.
     void dragScroll(timeT);
+
+    void mousePress();
+    void mouseMove(FollowMode);
+    void mouseRelease();
+
     void childRulerSelectionChanged(EventSelection *);
-    
+    void showContextHelp(const QString &);
+
 protected:
-    ControllerEventsRuler *getActiveRuler(void);
+    ControllerEventsRuler *getActiveRuler();
     
     QStackedWidget *m_stackedWidget;
     ControlRulerTabBar *m_tabBar;

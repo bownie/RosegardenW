@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,6 +18,8 @@
 #ifndef RG_COMPOSITIONMAPPER_H
 #define RG_COMPOSITIONMAPPER_H
 
+#include <QSharedPointer>
+
 #include <map>
 
 namespace Rosegarden
@@ -28,7 +30,7 @@ class MappedEventBuffer;
 class Segment;
 class RosegardenDocument;
 
-/// Maintains a collection of SegmentMappers.
+/// Maintains a collection of SegmentMapper objects.
 /**
  * Keeps a set of SegmentMapper objects in sync with the Segments in the
  * Composition.
@@ -44,13 +46,13 @@ public:
     ~CompositionMapper();
 
     /// Get the SegmentMapper for a Segment
-    MappedEventBuffer *getMappedEventBuffer(Segment *);
+    QSharedPointer<MappedEventBuffer> getMappedEventBuffer(Segment *);
 
     bool segmentModified(Segment *);
     void segmentAdded(Segment *);
     void segmentDeleted(Segment *);
 
-    typedef std::map<Segment *, SegmentMapper *> SegmentMappers;
+    typedef std::map<Segment *, QSharedPointer<SegmentMapper> > SegmentMappers;
 
     /// The Container of SegmentMapper Pointers.
     /**

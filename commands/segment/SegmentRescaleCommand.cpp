@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,7 +35,7 @@ SegmentRescaleCommand::SegmentRescaleCommand(Segment *s,
                                              int divisor) :
     NamedCommand(getGlobalName()),
     m_segment(s),
-    m_newSegment(0),
+    m_newSegment(nullptr),
     m_startTimeGiven(false),
     m_startTime(s->getStartTime()),
     m_multiplier(multiplier),
@@ -51,7 +51,7 @@ SegmentRescaleCommand::SegmentRescaleCommand(Segment *s,
                                              timeT st) :
     NamedCommand(getGlobalName()),
     m_segment(s),
-    m_newSegment(0),
+    m_newSegment(nullptr),
     m_startTimeGiven(true),
     m_startTime(st),
     m_multiplier(multiplier),

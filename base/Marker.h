@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -59,7 +59,7 @@ public:
     void setDescription(const std::string &des) { m_description = des; }
 
     // export as XML
-    virtual std::string toXmlString();
+    std::string toXmlString() const override;
 
 protected:
 

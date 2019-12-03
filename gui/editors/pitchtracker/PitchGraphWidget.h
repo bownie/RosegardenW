@@ -48,13 +48,13 @@ class PitchGraphWidget : public QWidget
     Q_OBJECT
 
 public:
-    PitchGraphWidget(PitchHistory &history, QWidget *parent = 0);
-    ~PitchGraphWidget();
+    PitchGraphWidget(PitchHistory &history, QWidget *parent = nullptr);
+    ~PitchGraphWidget() override;
 
     void setTuning(Accidentals::Tuning* tuning);
 
 protected:
-    void paintEvent(QPaintEvent *event);
+    void paintEvent(QPaintEvent *event) override;
 
     unsigned int    m_graphHeight;  // Height of graph (in cents)
     unsigned int    m_graphWidth;   // Width of graph (in milliseconds)

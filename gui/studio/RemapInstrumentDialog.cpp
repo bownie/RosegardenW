@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -48,7 +48,7 @@ RemapInstrumentDialog::RemapInstrumentDialog(QWidget *parent,
         m_doc(doc)
 {
     setModal(true);
-    setWindowTitle(tr("Remap Instrument assigments..."));
+    setWindowTitle(tr("Remap Instrument assignments..."));
 
     QGridLayout *metagrid = new QGridLayout;
     setLayout(metagrid);
@@ -69,10 +69,10 @@ RemapInstrumentDialog::RemapInstrumentDialog(QWidget *parent,
     buttonGroupLayout->addWidget(m_instrumentButton);
     buttonGroup->setLayout(buttonGroupLayout);
 
-    connect(m_deviceButton, SIGNAL(released()),
-            this, SLOT(slotRemapReleased()));
-    connect(m_instrumentButton, SIGNAL(released()),
-            this, SLOT(slotRemapReleased()));
+    connect(m_deviceButton, &QAbstractButton::released,
+            this, &RemapInstrumentDialog::slotRemapReleased);
+    connect(m_instrumentButton, &QAbstractButton::released,
+            this, &RemapInstrumentDialog::slotRemapReleased);
 
     QGroupBox *groupBox = new QGroupBox(tr("Choose Source and Destination"));
     QGridLayout *groupBoxLayout = new QGridLayout;
@@ -99,7 +99,7 @@ RemapInstrumentDialog::RemapInstrumentDialog(QWidget *parent,
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 void
@@ -188,4 +188,3 @@ RemapInstrumentDialog::slotApply()
 }
 
 }
-#include "RemapInstrumentDialog.moc"

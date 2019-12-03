@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -42,14 +42,29 @@ namespace Rosegarden
 
 EditViewBase::EditViewBase(RosegardenDocument *doc,
                            std::vector<Segment *> segments,
-                           QWidget *parent) :
-    QMainWindow(parent),
+                           QWidget * /* parent */) :
+    // QMainWindow(parent),   // See following comments
+    QMainWindow(nullptr),
     m_doc(doc),
     m_segments(segments),
     m_configDialogPageIndex(0),
-    m_shortcuts(0)
+    m_shortcuts(nullptr)
 {
     setAttribute(Qt::WA_DeleteOnClose);
+    // Address #1508:  Show the edit windows without activating them, so either
+    // they or the main window can continue to have focus in Qt5.
+    //
+    // On my system (yg) and with parent passed to QMainWindow:
+    //   - With Qt5 Qt::WA_ShowWithoutActivating has no effect: the main
+    //     windows may always have focus but is always under the editors.
+    //   - With Qt4 and WA_ShowWithoutActivating the editors are always
+    //     opened under the main window.
+    //
+    // It seems that a Qt5 window is always under its child.
+    // So when passing 0 as parent to QMainWindow the editors are no more child
+    // of the main window and the problem is fixed.
+    //
+    // setAttribute(Qt::WA_ShowWithoutActivating);
 
     m_doc->attachEditView(this);
 
@@ -65,10 +80,15 @@ EditViewBase::~EditViewBase()
     slotSaveOptions();
 }
 
+Clipboard *EditViewBase::getClipboard()
+{
+    return Clipboard::mainClipboard();
+}
+
 void
 EditViewBase::slotSegmentDeleted(Segment *s)
 {
-    RG_DEBUG << "EditViewBase::slotSegmentDeleted" << endl;
+    RG_DEBUG << "EditViewBase::slotSegmentDeleted";
     for (std::vector<Segment *>::iterator i = m_segments.begin();
          i != m_segments.end(); ++i) {
         if (*i == s) {
@@ -107,8 +127,6 @@ void EditViewBase::setupBaseActions(bool haveClipboard)
 //    createAction("options_show_toolbar", SLOT(slotToggleToolBar()));
     createAction("options_show_statusbar", SLOT(slotToggleStatusBar()));
     createAction("options_configure", SLOT(slotConfigure()));
-//    createAction("options_configure_keybindings", SLOT(slotEditKeys()));
-//    createAction("options_configure_toolbars", SLOT(slotEditToolbars()));
 
     createAction("file_save", SIGNAL(saveFile()));
     createAction("file_close", SLOT(slotCloseWindow()));
@@ -134,28 +152,6 @@ void EditViewBase::slotConfigure()
         new ConfigureDialog(getDocument(), this);
 
     configDlg->show();
-}
-
-void EditViewBase::slotEditKeys()
-{
-//&&&    KKeyDialog::configure(actionCollection());
-}
-
-void EditViewBase::slotEditToolbars()
-{
-//&&&
-//    KEditToolbar dlg(actionCollection(), getRCFileName());
-
-//    connect(&dlg, SIGNAL(newToolbarConfig()),
-//            SLOT(slotUpdateToolbars()));
-
-//    dlg.exec();
-}
-
-void EditViewBase::slotUpdateToolbars()
-{
-//!!!    createGUI(getRCFileName());
-    //m_viewToolBar->setChecked(!toolBar()->isHidden());
 }
 
 void
@@ -245,43 +241,35 @@ void EditViewBase::slotStatusHelpMsg(const QString &text)
 void
 EditViewBase::slotTestClipboard()
 {
-    if (getDocument()->getClipboard()->isEmpty()) {
-        RG_DEBUG << "EditViewBase::slotTestClipboard(): empty" << endl;
+    if (getClipboard()->isEmpty()) {
+        RG_DEBUG << "EditViewBase::slotTestClipboard(): empty";
         leaveActionState("have_clipboard");
-	leaveActionState("have_clipboard_single_segment");
+        leaveActionState("have_clipboard_single_segment");
     } else {
-        RG_DEBUG << "EditViewBase::slotTestClipboard(): not empty" << endl;
+        RG_DEBUG << "EditViewBase::slotTestClipboard(): not empty";
         enterActionState("have_clipboard");
-        if (getDocument()->getClipboard()->isSingleSegment()) {
+        if (getClipboard()->isSingleSegment()) {
             enterActionState("have_clipboard_single_segment");
         } else {
             leaveActionState("have_clipboard_single_segment");
-        }           
+        }
     }
 }
 
 void
 EditViewBase::slotToggleSolo()
 {
-    QAction *toggleSoloAction = findAction("toggle_solo");
-    if (!toggleSoloAction) return;
+    // Select the track for this segment.
+    getDocument()->getComposition().setSelectedTrack(
+            getCurrentSegment()->getTrack());
+    getDocument()->getComposition().notifyTrackSelectionChanged(
+            getCurrentSegment()->getTrack());
+    // Old notification mechanism.
+    emit selectTrack(getCurrentSegment()->getTrack());
 
-    bool newSoloState = toggleSoloAction->isChecked();
-
-    //RG_DEBUG << "EditViewBase::slotToggleSolo() : solo action is " << (toggleSoloAction->isCheckable() ? "" : "NOT") << " checkable.";
-    //RG_DEBUG << "EditViewBase::slotToggleSolo() : solo  = " << newSoloState;
-
-    emit toggleSolo(newSoloState);
-
-    if (newSoloState) {
-        getDocument()->getComposition().setSelectedTrack(
-                getCurrentSegment()->getTrack());
-        getDocument()->getComposition().notifyTrackSelectionChanged(
-                getCurrentSegment()->getTrack());
-
-        // Old notification mechanism.
-        emit selectTrack(getCurrentSegment()->getTrack());
-    }
+    // Toggle solo on the selected track.
+    // The "false" is ignored.  It was used for the checked state.
+    emit toggleSolo(false);
 }
 
 void
@@ -341,17 +329,7 @@ EditViewBase::slotSetSegmentDuration()
 void
 EditViewBase::slotCompositionStateUpdate()
 {
-    // update state of 'solo' toggle
-    //
-    QAction *toggleSolo = findAction("toggle_solo");
-    if (!toggleSolo) return;
-
-    toggleSolo->setChecked(getDocument()->getComposition().isSolo());
-    RG_DEBUG << "EditViewBase::slotCompositionStateUpdate(): set solo to "
-             << (toggleSolo->isChecked() ? "true" : "false") << endl;
-
     // update the window caption
-    //
     updateViewCaption();
 }
 
@@ -369,4 +347,3 @@ EditViewBase::handleEventRemoved(Event */* event */)
 }
 
 }
-#include "EditViewBase.moc"

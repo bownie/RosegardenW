@@ -35,10 +35,10 @@ class SegmentLinkToCopyCommand : public NamedCommand
 
 public:
     SegmentLinkToCopyCommand(Segment *segment);
-    virtual ~SegmentLinkToCopyCommand();
+    ~SegmentLinkToCopyCommand() override;
 
-    virtual void execute();
-    virtual void unexecute();
+    void execute() override;
+    void unexecute() override;
 
     static QString getGlobalName() { return tr("Turn Links into Copies"); }
 

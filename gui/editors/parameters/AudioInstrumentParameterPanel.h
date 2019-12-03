@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,8 +19,10 @@
 #ifndef RG_AUDIOINSTRUMENTPARAMETERPANEL_H
 #define RG_AUDIOINSTRUMENTPARAMETERPANEL_H
 
+#include "base/Instrument.h"
 #include "base/MidiProgram.h"
 #include "InstrumentParameterPanel.h"
+
 
 #include <QPixmap>
 #include <QString>
@@ -45,13 +47,17 @@ class AudioInstrumentParameterPanel : public InstrumentParameterPanel
 {
     Q_OBJECT
 public:
-    AudioInstrumentParameterPanel(RosegardenDocument* doc, QWidget* parent);
+    AudioInstrumentParameterPanel(QWidget* parent);
 
     virtual void setupForInstrument(Instrument*);
 
-    // Set the audio meter to a given level for a maximum of
-    // two channels.
-    //
+    /// Set the audio meter to a given level for a maximum of two channels.
+    /**
+     * ??? Recommend moving RMVW::updateMeters() and updateMonitorMeters()
+     *     into here.  AIPP should be responsible for sampling the levels in
+     *     SequencerDataBlock and displaying them.  This way AIPP is
+     *     autonomous and RMVW and IPB need not care.
+     */
     void setAudioMeter(float dBleft, float dBright,
                        float recDBleft, float recDBright);
 
@@ -71,28 +77,29 @@ public slots:
     // From the parameter box clicks
     void slotSetPan(float pan);
 
-    // From Plugin dialog
-    //
+    // From RosegardenMainWindow.
     void slotPluginSelected(InstrumentId id, int index, int plugin);
     void slotPluginBypassed(InstrumentId id, int pluginIndex, bool bp);
 
     void slotSynthButtonClicked();
+    /// Editor button.
     void slotSynthGUIButtonClicked();
-
-signals:
-    void selectPlugin(QWidget *, InstrumentId, int index);
-    void showPluginGUI(InstrumentId, int index);
 
 protected:
     //--------------- Data members ---------------------------------
 
-    AudioFaderBox   *m_audioFader;
+    AudioFaderBox *m_audioFader;
 
 private slots:
+    void slotAliasChanged();
 
-    /// Handle InstrumentStaticSignals::changed()
-    void slotInstrumentChanged(Instrument *);
+    /// Called when a new document is loaded.
+    void slotNewDocument(RosegardenDocument *);
+    /// Called when the document is modified in some way.
+    void slotDocumentModified(bool);
 
+    /// Connected to InstrumentStaticSignals::controlChange().
+    void slotControlChange(Instrument *instrument, int cc);
 private:
 
     // This is the tiny button in the upper left that allows the user
@@ -101,8 +108,6 @@ private:
 
     QPixmap                                      m_monoPixmap;
     QPixmap                                      m_stereoPixmap;
-
-    QSharedPointer<InstrumentStaticSignals> m_instrumentStaticSignals;
 };
 
 

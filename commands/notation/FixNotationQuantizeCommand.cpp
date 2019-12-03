@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -54,15 +54,18 @@ FixNotationQuantizeCommand::modifySegment()
     for (i = m_selection->getSegmentEvents().begin();
             i != m_selection->getSegmentEvents().end(); ++i) {
 
-        timeT ut = (*i)->getAbsoluteTime();
         timeT ud = (*i)->getDuration();
         timeT qt = (*i)->getNotationAbsoluteTime();
         timeT qd = (*i)->getNotationDuration();
+        timeT maxDur = segment.getBarEndForTime(qt) - qt;
+        timeT dur = (ud == qd ? Note::getNearestNote(qd).getDuration() : qd);
 
-        if ((ut != qt) || (ud != qd)) {
-            toErase.push_back(*i);
-            toInsert.push_back(new Event(**i, qt, qd));
+        if (dur > maxDur) {
+            dur = maxDur;
         }
+
+        toErase.push_back(*i);
+        toInsert.push_back(new Event(**i, qt, dur));
     }
 
     for (size_t j = 0; j < toErase.size(); ++j) {
@@ -74,6 +77,8 @@ FixNotationQuantizeCommand::modifySegment()
     for (size_t j = 0; j < toInsert.size(); ++j) {
         segment.insert(toInsert[j]);
     }
+
+    segment.normalizeRests(segment.getStartTime(), segment.getEndTime());
 
     /*!!!
         Segment *segment(&m_selection->getSegment());

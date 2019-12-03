@@ -3,10 +3,10 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is based on KLed from the KDE libraries
-    Copyright (C) 1998 Jörg Habenicht (j.habenicht@europemail.com)
+    Copyright (C) 1998 JÃ¶rg Habenicht (j.habenicht@europemail.com)
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,55 +22,54 @@
 #define RG_LED_H
 
 #include <QWidget>
+#include <QColor>
 
-class QColor;
+class QPixmap;
 
 namespace Rosegarden
 {
 
+/// An LED class based on KLed from KDE.
 class Led : public QWidget
 {
     Q_OBJECT
-    Q_ENUMS( State )
-    Q_PROPERTY( State state READ state WRITE setState )
-    Q_PROPERTY( QColor color READ color WRITE setColor )
-    Q_PROPERTY( int darkFactor READ darkFactor WRITE setDarkFactor )
 
 public:
 
+  Led(const QColor &color, QWidget *parent = nullptr);
+  ~Led() override;
+
   enum State { Off, On };
+  void setState(State state);
+  State state() const  { return m_state; }
 
-  Led(const QColor &col, QWidget *parent=0);
-  ~Led();
+  void setColor(const QColor &color);
+  QColor color() const  { return m_color; }
 
-  State state() const;
-  QColor color() const;
-  int darkFactor() const;
-  void setState( State state );
-  void setColor(const QColor& color);
-  void setDarkFactor(int darkfactor);
-
-  virtual QSize sizeHint() const;
-  virtual QSize minimumSizeHint() const;
+  // QWidget overrides
+  QSize sizeHint() const  override { return QSize(16, 16); }
+  QSize minimumSizeHint() const  override { return QSize(16, 16); }
 
 public slots:
-  void toggle();
-  void on();
-  void off();
+  void toggle()  { setState((m_state == On) ? Off : On); }
+  void on()  { setState(On); }
+  void off()  { setState(Off); }
 
 protected:
-  void paintEvent(QPaintEvent *);
-  bool paintCachedPixmap();
-  bool m_Thorn;
+  // QWidget override
+  void paintEvent(QPaintEvent *) override;
 
 private:
-  State led_state;
-  QColor led_color;
+  State m_state;
 
-private:
-  class LedPrivate;
-  LedPrivate *d;
+  QColor m_backgroundColor;
+  QColor m_color;
+  const int m_darkFactor;
+  QColor m_offColor;
+
+  void draw(QPainter &painter);
 };
+
 
 }
 

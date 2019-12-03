@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -22,6 +22,7 @@
 #include <QByteArray>
 #include <QString>
 
+#include <rosegardenprivate_export.h>
 
 class QSessionManager;
 class QProcess;
@@ -30,36 +31,17 @@ class QProcess;
 namespace Rosegarden
 {
 
-
-
 /**
  * RosegardenApplication
  *
  * Handles RosegardenMainWindow's perceived uniqueness for us.
  *
  */
-class RosegardenApplication : public QApplication
+class ROSEGARDENPRIVATE_EXPORT RosegardenApplication : public QApplication
 {
     Q_OBJECT
 public:
-    RosegardenApplication(int &argc, char **argv) :
-        QApplication(argc, argv), m_noSequencerMode(false) {}
-
-    /**
-     * Handle the attempt at creation of a new instance - 
-     * only accept new file names which we attempt to load
-     * into the existing instance (if it exists)
-     */
-//&&&    virtual int newInstance();
-
-    void refreshGUI(int maxTime);
-
-    static RosegardenApplication* ApplicationObject();
-
-    static QByteArray Empty;
-
-    void setNoSequencerMode(bool m=true) { m_noSequencerMode = m; }
-    bool noSequencerMode() { return m_noSequencerMode; }
+    RosegardenApplication(int &argc, char **argv);
 
     virtual void saveState(QSessionManager&);
     
@@ -70,21 +52,10 @@ signals:
     // connect this to RosegardenMainWindow
     void aboutToSaveState();
     
-public slots:
-    void sfxLoadExited(QProcess *proc);
-    void slotSetStatusMessage(QString txt);
-
 protected:
 
-    virtual bool notify(QObject * receiver, QEvent * event);
-    
-    //--------------- Data members ---------------------------------
-    
-    bool m_noSequencerMode;
+    bool notify(QObject * receiver, QEvent * event) override;
 };
-
-#define rosegardenApplication RosegardenApplication::ApplicationObject()
-
 
 }
 

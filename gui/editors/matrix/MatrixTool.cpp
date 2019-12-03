@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,7 +35,7 @@ MatrixTool::MatrixTool(QString rcFileName, QString menuName,
                            MatrixWidget *widget) :
     BaseTool(menuName, widget),
     m_widget(widget),
-    m_scene(0),
+    m_scene(nullptr),
     m_rcFileName(rcFileName)
 {
 }
@@ -44,7 +44,7 @@ MatrixTool::~MatrixTool()
 {
     // We don't need (or want) to delete the menu; it's owned by the
     // ActionFileMenuWrapper parented to our QObject base class
-    MATRIX_DEBUG << "MatrixTool::~MatrixTool()" << endl;
+    MATRIX_DEBUG << "MatrixTool::~MatrixTool()";
 }
 
 void
@@ -65,10 +65,10 @@ MatrixTool::handleMouseRelease(const MatrixMouseEvent *) { }
 void
 MatrixTool::handleMouseDoubleClick(const MatrixMouseEvent *) { }
 
-MatrixTool::FollowMode
+FollowMode
 MatrixTool::handleMouseMove(const MatrixMouseEvent *)
 {
-    return NoFollow;
+    return NO_FOLLOW;
 }
 
 void
@@ -114,7 +114,7 @@ MatrixTool::slotVelocityChangeSelected()
 const SnapGrid *
 MatrixTool::getSnapGrid() const
 {
-    if (!m_scene) return 0;
+    if (!m_scene) return nullptr;
     return m_scene->getSnapGrid();
 }
 
@@ -123,8 +123,8 @@ MatrixTool::invokeInParentView(QString actionName)
 {
     QAction *a = findActionInParentView(actionName);
     if (!a) {
-        std::cerr << "MatrixTool::invokeInParentView: No action \"" << actionName
-                  << "\" found in parent view" << std::endl;
+        RG_WARNING << "MatrixTool::invokeInParentView: No action \"" << actionName
+                  << "\" found in parent view";
     } else {
         a->trigger();
     }
@@ -133,15 +133,15 @@ MatrixTool::invokeInParentView(QString actionName)
 QAction *
 MatrixTool::findActionInParentView(QString actionName)
 {
-    if (!m_widget) return 0;
+    if (!m_widget) return nullptr;
     QWidget *w = m_widget;
-    ActionFileClient *c = 0;
-    while (w->parentWidget() && !(c = dynamic_cast<ActionFileClient *>(w))) {
+    ActionFileClient *c = nullptr;
+    while (w && !(c = dynamic_cast<ActionFileClient *>(w))) {
         w = w->parentWidget();
     }
     if (!c) {
-        std::cerr << "MatrixTool::findActionInParentView: Can't find ActionFileClient in parent widget hierarchy" << std::endl;
-        return 0;
+        RG_WARNING << "MatrixTool::findActionInParentView: Can't find ActionFileClient in parent widget hierarchy";
+        return nullptr;
     }
     QAction *a = c->findAction(actionName);
     return a;
@@ -150,19 +150,19 @@ MatrixTool::findActionInParentView(QString actionName)
 void
 MatrixTool::createMenu()
 {
-    MATRIX_DEBUG << "MatrixTool::createMenu() " << m_rcFileName << " - " << m_menuName << endl;
+    MATRIX_DEBUG << "MatrixTool::createMenu() " << m_rcFileName << " - " << m_menuName;
 
-    if (!createGUI(m_rcFileName)) {
-        std::cerr << "MatrixTool::createMenu(" << m_rcFileName << "): menu creation failed" << std::endl;
-        m_menu = 0;
+    if (!createMenusAndToolbars(m_rcFileName)) {
+        RG_WARNING << "MatrixTool::createMenu(" << m_rcFileName << "): menu creation failed";
+        m_menu = nullptr;
         return;
     }
 
     QMenu *menu = findMenu(m_menuName);
     if (!menu) {
-        std::cerr << "MatrixTool::createMenu(" << m_rcFileName
+        RG_WARNING << "MatrixTool::createMenu(" << m_rcFileName
                   << "): menu name "
-                  << m_menuName << " not created by RC file\n";
+                  << m_menuName << " not created by RC file";
         return;
     }
 
@@ -170,4 +170,3 @@ MatrixTool::createMenu()
 }    
 
 }
-#include "MatrixTool.moc"

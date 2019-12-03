@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -13,14 +13,14 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[WAVAudioFile]"
+
 #include "WAVAudioFile.h"
 #include "base/RealTime.h"
 
 #include <sstream>
 
-using std::cout;
-using std::cerr;
-using std::endl;
+#include "misc/Debug.h"
 
 //#define DEBUG_DECODE 1
 
@@ -69,8 +69,8 @@ WAVAudioFile::open()
 
     try {
         parseHeader();
-    } catch (BadSoundFileException e) {
-        std::cerr << "ERROR: WAVAudioFile::open(): parseHeader: " << e.getMessage() << endl;
+    } catch (const BadSoundFileException &e) {
+        RG_WARNING << "ERROR: WAVAudioFile::open(): parseHeader: " << e.getMessage();
         return false;
     }
 
@@ -107,7 +107,7 @@ WAVAudioFile::write()
 void
 WAVAudioFile::close()
 {
-    if (m_outFile == 0)
+    if (m_outFile == nullptr)
         return ;
 
     m_outFile->seekp(0, std::ios::end);
@@ -128,7 +128,7 @@ WAVAudioFile::close()
     m_outFile->close();
 
     delete m_outFile;
-    m_outFile = 0;
+    m_outFile = nullptr;
 }
 
 // Set the AudioFile meta data according to WAV file format specification.
@@ -167,13 +167,12 @@ WAVAudioFile::decode(const unsigned char *ubuf,
             bitsPerSample != 16 &&
             bitsPerSample != 24 &&
             bitsPerSample != 32) { // 32-bit is IEEE-float (enforced in RIFFAudioFile)
-        std::cerr << "WAVAudioFile::decode: unsupported " <<
-        bitsPerSample << "-bit sample size" << std::endl;
+        RG_WARNING << "WAVAudioFile::decode: unsupported " << bitsPerSample << "-bit sample size";
         return false;
     }
 
 #ifdef DEBUG_DECODE
-    std::cerr << "WAVAudioFile::decode: " << sourceBytes << " bytes -> " << nframes << " frames, SSR " << getSampleRate() << ", TSR " << targetSampleRate << ", sch " << getChannels() << ", tch " << targetChannels << std::endl;
+    RG_DEBUG << "WAVAudioFile::decode: " << sourceBytes << " bytes -> " << nframes << " frames, SSR " << getSampleRate() << ", TSR " << targetSampleRate << ", sch " << getChannels() << ", tch " << targetChannels;
 #endif
 
     // If we're reading a stereo file onto a mono target, we mix the

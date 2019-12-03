@@ -1,10 +1,9 @@
-
 /* -*- c-basic-offset: 4 indent-tabs-mode: nil -*- vi:set ts=8 sts=4 sw=4: */
 
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,11 +18,7 @@
 #ifndef RG_INSTRUMENTPARAMETERBOX_H
 #define RG_INSTRUMENTPARAMETERBOX_H
 
-#include "base/MidiProgram.h"
 #include "RosegardenParameterBox.h"
-
-#include <QString>
-#include <vector>
 
 class QStackedWidget;
 class QWidget;
@@ -33,10 +28,10 @@ class QFrame;
 namespace Rosegarden
 {
 
-class RosegardenDocument;
-class MIDIInstrumentParameterPanel;
-class Instrument;
 class AudioInstrumentParameterPanel;
+class Instrument;
+class MIDIInstrumentParameterPanel;
+class RosegardenDocument;
 
 
 /// Display and allow modification of Instrument parameters for a Track
@@ -48,77 +43,50 @@ class AudioInstrumentParameterPanel;
  * QFrame for no parameters (a track without an instrument).
  *
  * Future Direction
+ * Get rid if useInstrument().
  * The current design has each part of the UI connected to every other part
  * of the UI.  This results in a combinatorial explosion of connections.
- * A simpler design would move all notification mechanisms (Observer) out
- * of the UI and into the data objects.  This way the various parts of the
- * UI need only know about the data.  See CompositionObserver.
+ * A simpler design would use RosegardenDocument::documentModified().  This
+ * way the various parts of the UI need only know about RosegardenDocument,
+ * not each other.
  */
 class InstrumentParameterBox : public RosegardenParameterBox
 {
+
 Q_OBJECT
 
 public:
-    InstrumentParameterBox(RosegardenDocument *doc,
-                           QWidget *parent = 0);
-    ~InstrumentParameterBox();
+    InstrumentParameterBox(QWidget *parent);
+    ~InstrumentParameterBox() override;
 
-    void useInstrument(Instrument *instrument);
-
-    Instrument *getSelectedInstrument();
-
+    /// Set the audio meter levels on the AIPP.
+    /**
+     * This is called by RMVW::updateMeters() and updateMonitorMeters()
+     * which get the levels from SequencerDataBlock and display them
+     * with this routine.
+     *
+     * Delegates to AIPP::setAudioMeter().
+     *
+     * ??? This should go away.  See comments on AIPP::setAudioMeter().
+     */
     void setAudioMeter(float dBleft, float dBright,
                        float recDBleft, float recDBright);
 
-    void setDocument(RosegardenDocument *doc);
+private slots:
 
-    MIDIInstrumentParameterPanel *getMIDIInstrumentParameterPanel();
-
-    virtual void showAdditionalControls(bool)  { }
-
-    virtual QString getPreviousBox(RosegardenParameterArea::Arrangement) const;
-
-    /// Update the MatrixWidget's PitchRuler.
-    void emitInstrumentPercussionSetChanged();
-
-public slots:
-
-    // From Plugin dialog
-    //
-    void slotPluginSelected(InstrumentId id, int index, int plugin);
-    void slotPluginBypassed(InstrumentId id, int pluginIndex, bool bp);
-
-signals:
-
-    void selectPlugin(QWidget *, InstrumentId id, int index);
-    void showPluginGUI(InstrumentId id, int index);
-
-    /// Update the MatrixWidget's PitchRuler.
-    void instrumentPercussionSetChanged(Instrument *);
+    /// Called when a new document is loaded.
+    void slotNewDocument(RosegardenDocument *);
+    /// Called when the document is modified in some way.
+    void slotDocumentModified(bool);
 
 private:
 
-    //--------------- Data members ---------------------------------
-    QStackedWidget                  *m_widgetStack;
-    QFrame                          *m_noInstrumentParameters;
-    MIDIInstrumentParameterPanel    *m_midiInstrumentParameters;
-    AudioInstrumentParameterPanel   *m_audioInstrumentParameters;
+    QStackedWidget *m_stackedWidget;
 
-    // -1 if no instrument, InstrumentId otherwise
-    int                              m_selectedInstrument;
+    QFrame *m_emptyFrame;
+    MIDIInstrumentParameterPanel *m_mipp;
+    AudioInstrumentParameterPanel *m_aipp;
 
-    // So we can setModified()
-    //
-    RosegardenDocument              *m_doc;
-
-    // Global references
-    //
-    // Since there is only one instance of InstrumentParameterBox
-    // ever created, this is probably unnecessary.  Consider getting
-    // rid of it altogether.
-    // Used by: nobody
-    typedef std::vector<InstrumentParameterBox *> IPBVector;
-    static IPBVector m_instrumentParamBoxes;
 };
 
 

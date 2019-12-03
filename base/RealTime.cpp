@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -37,15 +37,18 @@ namespace Rosegarden {
 RealTime::RealTime(int s, int n) :
     sec(s), nsec(n)
 {
-    if (sec == 0) {
-	while (nsec <= -ONE_BILLION) { nsec += ONE_BILLION; --sec; }
-	while (nsec >=  ONE_BILLION) { nsec -= ONE_BILLION; ++sec; }
-    } else if (sec < 0) {
-	while (nsec <= -ONE_BILLION) { nsec += ONE_BILLION; --sec; }
-	while (nsec > 0)             { nsec -= ONE_BILLION; ++sec; }
-    } else { 
-	while (nsec >=  ONE_BILLION) { nsec -= ONE_BILLION; ++sec; }
-	while (nsec < 0)             { nsec += ONE_BILLION; --sec; }
+    // Normalize so that -ONE_BILLION < nsec < ONE_BILLION.
+    sec += nsec / ONE_BILLION;
+    nsec %= ONE_BILLION;
+
+    // Check signs and make sure they match.
+    if (sec < 0  &&  nsec > 0) {
+        ++sec;
+        nsec -= ONE_BILLION;
+    }
+    if (sec > 0  &&  nsec < 0) {
+        --sec;
+        nsec += ONE_BILLION;
     }
 }
 
@@ -70,9 +73,9 @@ RealTime::fromTimeval(const struct timeval &tv)
 std::ostream &operator<<(std::ostream &out, const RealTime &rt)
 {
     if (rt < RealTime::zeroTime) {
-	out << "-";
+        out << "-";
     } else {
-	out << " ";
+        out << " ";
     }
 
     int s = (rt.sec < 0 ? -rt.sec : rt.sec);
@@ -83,8 +86,8 @@ std::ostream &operator<<(std::ostream &out, const RealTime &rt)
     int nn(n);
     if (nn == 0) out << "00000000";
     else while (nn < (ONE_BILLION / 10)) {
-	out << "0";
-	nn *= 10;
+        out << "0";
+        nn *= 10;
     }
     
     out << n << "R";
@@ -116,15 +119,15 @@ RealTime::toText(bool fixedDp) const
     std::stringstream out;
 
     if (sec >= 3600) {
-	out << (sec / 3600) << ":";
+        out << (sec / 3600) << ":";
     }
 
     if (sec >= 60) {
-	out << (sec % 3600) / 60 << ":";
+        out << (sec % 3600) / 60 << ":";
     }
 
     if (sec >= 10) {
-	out << ((sec % 60) / 10);
+        out << ((sec % 60) / 10);
     }
 
     out << (sec % 10);
@@ -132,24 +135,24 @@ RealTime::toText(bool fixedDp) const
     int ms = msec();
 
     if (ms != 0) {
-	out << ".";
-	out << (ms / 100);
-	ms = ms % 100;
-	if (ms != 0) {
-	    out << (ms / 10);
-	    ms = ms % 10;
-	} else if (fixedDp) {
-	    out << "0";
-	}
-	if (ms != 0) {
-	    out << ms;
-	} else if (fixedDp) {
-	    out << "0";
-	}
+        out << ".";
+        out << (ms / 100);
+        ms = ms % 100;
+        if (ms != 0) {
+            out << (ms / 10);
+            ms = ms % 10;
+        } else if (fixedDp) {
+            out << "0";
+        }
+        if (ms != 0) {
+            out << ms;
+        } else if (fixedDp) {
+            out << "0";
+        }
     } else if (fixedDp) {
-	out << ".000";
+        out << ".000";
     }
-	
+
     std::string s = out.str();
 
     return s;
@@ -208,7 +211,7 @@ RealTime::frame2RealTime(long frame, unsigned int sampleRate)
 // @returns corresponding beats per minute.
 // @author Tom Breton
 double
-RealTime::toPerMinute(void)
+RealTime::toPerMinute()
 {
     const double nsecsPerSec = ONE_BILLION;
     const double secondsPerBeat = double(sec) + double(nsec) / nsecsPerSec;

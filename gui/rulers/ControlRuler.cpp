@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -25,8 +25,6 @@
 #include "document/Command.h"
 #include "commands/notation/NormalizeRestsCommand.h"
 #include "gui/editors/notation/NotationStaff.h"
-//#include "base/Segment.h"
-//#include "base/Selection.h"
 #include "ControlMouseEvent.h"
 #include "ControlItem.h"
 #include "ControlSelector.h"
@@ -34,11 +32,9 @@
 #include "ControlToolBox.h"
 #include "ControlChangeCommand.h"
 #include "DefaultVelocityColour.h"
-//#include "ElementAdapter.h"
-//#include "gui/general/EditViewBase.h"
-//#include "gui/general/RosegardenScrollView.h"
 #include "document/CommandHistory.h"
-//#include "gui/widgets/TextFloat.h"
+#include "base/ViewSegment.h"
+
 #include <algorithm>
 #include <cfloat>
 
@@ -48,8 +44,6 @@
 #include <QPolygonF>
 #include <QPolygon>
 #include <QMenu>
-//#include <QScrollBar>
-//#include <QScrollArea>
 #include <QString>
 #include <QWidget>
 #include <QMouseEvent>
@@ -61,29 +55,22 @@
 namespace Rosegarden
 {
 
-const int ControlRuler::DefaultRulerHeight = 75;
-const int ControlRuler::MinItemHeight = 5;
-const int ControlRuler::MaxItemHeight = 64 + 5;
-const int ControlRuler::ItemHeightRange = 64;
-
-    ControlRuler::ControlRuler(ViewSegment */*viewsegment*/,
+ControlRuler::ControlRuler(ViewSegment * /*viewsegment*/,
                            RulerScale* rulerScale,
-                           QWidget* parent
-						  ) :
+                           QWidget* parent) :
         QWidget(parent),
         m_rulerScale(rulerScale),
-        m_eventSelection(0),
-        m_viewSegment(0),
-        m_notationStaff(0),
-        m_segment(0),
-//        m_assignedEventSelection(0),
+        m_eventSelection(nullptr),
+        m_viewSegment(nullptr),
+        m_notationStaff(nullptr),
+        m_segment(nullptr),
         m_firstVisibleItem(m_controlItemMap.end()),
         m_lastVisibleItem(m_controlItemMap.end()),
         m_nextItemLeft(m_controlItemMap.end()),
-        m_currentIndex(0),
-        m_currentTool(0),
-        m_xScale(0),
-        m_yScale(0),
+        m_currentIndex(nullptr),
+        m_currentTool(nullptr),
+        m_xScale(1.0),
+        m_yScale(1.0),
         m_maxItemValue(127),
         m_minItemValue(0),
         m_viewSegmentOffset(0),
@@ -91,29 +78,20 @@ const int ControlRuler::ItemHeightRange = 64;
         m_currentX(0.0),
         m_itemMoved(false),
         m_selecting(false),
-        m_selectionRect(0),
-        m_menu(0)
+        m_selectionRect(nullptr),
+        m_menu(nullptr)
 {
-//    setViewSegment(viewsegment);
 
     setFixedHeight(sizeHint().height());
     setMouseTracking(true);
 
-///TODO    connect(this, SIGNAL(stateChange(const QString&, bool)),
-      //      m_parentEditView, SLOT(slotStateChanged(const QString&, bool)));
     m_toolBox = new ControlToolBox(this);
-
-    emit stateChange("have_controller_item_selected", false);
+    connect(m_toolBox, &BaseToolBox::showContextHelp,
+            this, &ControlRuler::showContextHelp);
 }
 
 ControlRuler::~ControlRuler()
 {
-//    if(m_assignedEventSelection)
-//	    m_assignedEventSelection->removeObserver(this);
-//
-//    if (m_viewSegment) {
-//        m_viewSegment->removeObserver(this);
-//    }
 }
 
 void ControlRuler::setSegment(Segment *segment)
@@ -151,8 +129,6 @@ ControlItemMap::iterator ControlRuler::findControlItem(const Event *event)
     ControlItemMap::iterator it;
     std::pair <ControlItemMap::iterator,ControlItemMap::iterator> ret;
 
-//    ret = m_controlItemMap.equal_range(xstart);
-//    for (it = ret.first; it != ret.second; it++) {
     for (it = m_controlItemMap.begin(); it != m_controlItemMap.end(); ++it) {
         if (it->second->getEvent() == event) break;
     }
@@ -178,15 +154,14 @@ ControlItemMap::iterator ControlRuler::findControlItem(const ControlItem* item)
 void ControlRuler::addControlItem(ControlItem* item)
 {
     // Add a ControlItem to the ruler
-    RG_DEBUG << "ControlItem added: " << hex << (long)item;
+
+    RG_DEBUG << "addControlItem(): ControlItem added: " << hex << (long)item;
     
     // ControlItem may not have an assigned event but must have x position
     ControlItemMap::iterator it = m_controlItemMap.insert(ControlItemMap::value_type(item->xStart(),item));
     addCheckVisibleLimits(it);    
     if (it->second->isSelected()) m_selectedItems.push_back(it->second);
 
-//    m_controlItemEnd.insert(std::pair<double,ControlItemList::iterator>
-//        (item->xEnd(),--m_controlItemList.end()));
 }
 
 void ControlRuler::addCheckVisibleLimits(ControlItemMap::iterator it)
@@ -227,11 +202,9 @@ void ControlRuler::addCheckVisibleLimits(ControlItemMap::iterator it)
 
 void ControlRuler::removeControlItem(ControlItem* item)
 {
-//    // Remove control item by item pointer
-//    // No search by Value provided for std::multimap so find items with the requested item's
-//    //  xstart position and sweep these for the correct entry
-//    double xstart = item->xStart();
-//
+    // Remove control item by item pointer
+    // No search by Value provided for std::multimap so find items with the requested item's
+    //  xstart position and sweep these for the correct entry
     ControlItemMap::iterator it = findControlItem(item);
 
     if (it != m_controlItemMap.end()) removeControlItem(it);
@@ -243,15 +216,15 @@ void ControlRuler::removeControlItem(const Event *event)
     ControlItemMap::iterator it = findControlItem(event);
 
     if (it != m_controlItemMap.end()) {
-        RG_DEBUG << "removeControlItem at x = " << it->first;
+        RG_DEBUG << "removeControlItem(): at x = " << it->first;
         removeControlItem(it);
     }
 }
 
 void ControlRuler::removeControlItem(const ControlItemMap::iterator &it)
 {
-    RG_DEBUG << "removeControlItem: iterator->item: " << hex << (long) it->second;
-    RG_DEBUG << "m_selectedItems.front(): " << hex << (long) m_selectedItems.front();
+    RG_DEBUG << "removeControlItem(): iterator->item: " << hex << (long) it->second;
+    RG_DEBUG << "  m_selectedItems.front(): " << hex << (long) m_selectedItems.front();
     
     if (it->second->isSelected()) m_selectedItems.remove(it->second);
     removeCheckVisibleLimits(it);
@@ -346,13 +319,11 @@ int ControlRuler::visiblePosition(ControlItem* item)
 float ControlRuler::getXMax()
 {
     return (m_rulerScale->getXForTime(m_segment->getEndTime()));
-//    return (std::min(m_rulerScale->getXForTime(m_segment->getEndTime()), m_pannedRect.right()));
 }
 
 float ControlRuler::getXMin()
 {
     return (m_rulerScale->getXForTime(m_segment->getStartTime()));
-//    return (std::max(m_rulerScale->getXForTime(m_segment->getStartTime()), m_pannedRect.left()));
 }
 
 void ControlRuler::updateSegment()
@@ -367,7 +338,6 @@ void ControlRuler::updateSegment()
     // Either run through the ruler's EventSelection, updating from each item
     //  or, if there isn't one, go through m_selectedItems
     timeT start,end;
-    // bool segmentModified = false;
 
     QString commandLabel = "Adjust control/property";
 
@@ -404,7 +374,6 @@ void ControlRuler::updateSegment()
         commandLabel = "Add control";
         macro->setName(commandLabel);
 
-        // segmentModified = true;
     } else {
         // Check for movement in time here and delete events if necessary
         if (start != m_eventSelection->getStartTime() || end != m_eventSelection->getEndTime()) {
@@ -415,7 +384,6 @@ void ControlRuler::updateSegment()
             start = std::min(start,m_eventSelection->getStartTime());
             end = std::max(end,m_eventSelection->getEndTime());
 
-            // segmentModified = true;
         }
     }
 
@@ -434,7 +402,7 @@ void ControlRuler::updateSegment()
 
 void ControlRuler::slotUpdate()
 {
-    RG_DEBUG << "ControlRuler::slotUpdate()\n";
+    //RG_DEBUG << "slotUpdate()";
 
 ///TODO Set some update flag?
 }
@@ -467,15 +435,16 @@ void ControlRuler::notationLayoutUpdated(timeT startTime, timeT /*endTime*/)
     
     for (std::vector<ControlItem*>::iterator vit = itemsToUpdate.begin(); vit != itemsToUpdate.end(); ++vit) {
         (*vit)->update();
-        RG_DEBUG << "Updated item: " << hex << (long)(*vit);
+        RG_DEBUG << "notationLayoutUpdated(): Updated item: " << hex << (long)(*vit);
     }
     
     update();
 }
 
-void ControlRuler::paintEvent(QPaintEvent */*event*/)
+void ControlRuler::paintEvent(QPaintEvent * /*event*/)
 {
-    RG_DEBUG << "ControlRuler::paintEvent: width()=" << width() << " height()=" << height();
+    //RG_DEBUG << "paintEvent(): width()=" << width() << " height()=" << height();
+
     QPainter painter(this);
 
     QPen pen;
@@ -493,10 +462,10 @@ void ControlRuler::paintEvent(QPaintEvent */*event*/)
     double xstart = m_rulerScale->getXForTime(m_segment->getStartTime());
     double xend = m_rulerScale->getXForTime(m_segment->getEndTime());
 
-    xstart = mapXToWidget(xstart);
+    xstart = mapXToWidget(xstart*m_xScale);
     xend = mapXToWidget(xend*m_xScale);
 
-    RG_DEBUG << "ControlRuler::paintEvent: xstart=" << xstart;
+    //RG_DEBUG << "paintEvent(): xstart=" << xstart;
 
     painter.setPen(QColor(127, 127, 127));
     painter.drawLine(xstart, mapYToWidget(0.0f), xend, mapYToWidget(0.0f));
@@ -534,8 +503,6 @@ QRect ControlRuler::mapItemToWidget(QRectF *rect)
 
 QPolygon ControlRuler::mapItemToWidget(QPolygonF *poly)
 {
-//    double xscale = width() / m_pannedRect.width();
-//    double yscale = height();
 
     QPolygon newpoly;
     QPoint newpoint;
@@ -550,8 +517,6 @@ QPolygon ControlRuler::mapItemToWidget(QPolygonF *poly)
 
 QPointF ControlRuler::mapWidgetToItem(QPoint *point)
 {
-//    double xscale = (double) m_pannedRect.width() / (double) width();
-//    double yscale = 1.0f / (double) height();
 
     QPointF newpoint;
     newpoint.setX(m_xScale*(point->x()) + m_pannedRect.left() - m_xOffset);
@@ -561,39 +526,39 @@ QPointF ControlRuler::mapWidgetToItem(QPoint *point)
 
 void ControlRuler::slotSetPannedRect(QRectF pr)
 {
-	m_pannedRect = pr;
-	m_xScale = (double) m_pannedRect.width() / (double) width();
-	m_yScale = 1.0f / (double) height();
+    m_pannedRect = pr;
+    m_xScale = (double) m_pannedRect.width() / (double) width();
+    m_yScale = 1.0f / (double) height();
 
-	// Create the visible items list
-	///TODO Improve efficiency using xstart and xstop ordered lists of control items
-	m_visibleItems.clear();
-	bool anyVisibleYet = false;
+    // Create the visible items list
+    ///TODO Improve efficiency using xstart and xstop ordered lists of control items
+    m_visibleItems.clear();
+    bool anyVisibleYet = false;
 
-	m_nextItemLeft = m_controlItemMap.end();
+    m_nextItemLeft = m_controlItemMap.end();
     m_firstVisibleItem = m_controlItemMap.end();
     m_lastVisibleItem = m_controlItemMap.end();
 
     ControlItemMap::iterator it;
-	for (it = m_controlItemMap.begin();it != m_controlItemMap.end(); ++it) {
-	    int visPos = visiblePosition(it->second);
-	    
-	    if (visPos == -1) m_nextItemLeft = it;
-	    
-	    if (visPos == 0) {
-	        if (!anyVisibleYet) {
-	            m_firstVisibleItem = it;
-	            anyVisibleYet = true;
-	        }
-	            
-	        m_visibleItems.push_back(it->second);
-	        m_lastVisibleItem = it;
-	    }
-	    
-	    if (visPos == 1) break;
-	}
-	
-    RG_DEBUG << "ControlRuler::slotSetPannedRect - visible items: " << m_visibleItems.size();
+    for (it = m_controlItemMap.begin();it != m_controlItemMap.end(); ++it) {
+        int visPos = visiblePosition(it->second);
+        
+        if (visPos == -1) m_nextItemLeft = it;
+        
+        if (visPos == 0) {
+            if (!anyVisibleYet) {
+                m_firstVisibleItem = it;
+                anyVisibleYet = true;
+            }
+                
+            m_visibleItems.push_back(it->second);
+            m_lastVisibleItem = it;
+        }
+        
+        if (visPos == 1) break;
+    }
+    
+    //RG_DEBUG << "slotSetPannedRect() - visible items: " << m_visibleItems.size();
 }
 
 void ControlRuler::resizeEvent(QResizeEvent *)
@@ -634,8 +599,12 @@ void ControlRuler::mousePressEvent(QMouseEvent* e)
     if (!m_currentTool)
         return;
 
-    ControlMouseEvent controlMouseEvent = createControlMouseEvent(e);
-    m_currentTool->handleLeftButtonPress(&controlMouseEvent);
+    if (e->button() == Qt::LeftButton) {
+        ControlMouseEvent controlMouseEvent = createControlMouseEvent(e);
+        m_currentTool->handleLeftButtonPress(&controlMouseEvent);
+    }
+
+    emit mousePress();
 }
 
 void ControlRuler::mouseReleaseEvent(QMouseEvent* e)
@@ -643,8 +612,12 @@ void ControlRuler::mouseReleaseEvent(QMouseEvent* e)
     if (!m_currentTool)
         return;
 
-    ControlMouseEvent controlMouseEvent = createControlMouseEvent(e);
-    m_currentTool->handleMouseRelease(&controlMouseEvent);
+    if (e->button() == Qt::LeftButton) {
+        ControlMouseEvent controlMouseEvent = createControlMouseEvent(e);
+        m_currentTool->handleMouseRelease(&controlMouseEvent);
+    }
+
+    emit mouseRelease();
 }
 
 void ControlRuler::mouseMoveEvent(QMouseEvent* e)
@@ -653,15 +626,17 @@ void ControlRuler::mouseMoveEvent(QMouseEvent* e)
         return;
 
     ControlMouseEvent controlMouseEvent = createControlMouseEvent(e);
-    ControlTool::FollowMode mode = m_currentTool->handleMouseMove(&controlMouseEvent);
+    FollowMode mode = m_currentTool->handleMouseMove(&controlMouseEvent);
 
-    if (mode != ControlTool::NoFollow) {
+    if (mode != NO_FOLLOW) {
         emit dragScroll(m_rulerScale->getTimeForX(controlMouseEvent.x/m_xScale));
     }
+
+    emit mouseMove(mode);
 }
 
 void
-ControlRuler::wheelEvent(QWheelEvent */*e*/)
+ControlRuler::wheelEvent(QWheelEvent * /*e*/)
 {
     // not sure what to do yet
 
@@ -673,29 +648,28 @@ void ControlRuler::contextMenuEvent(QContextMenuEvent* e)
         createMenu();
 
     if (m_menu) {
-//        RG_DEBUG << "ControlRuler::showMenu() - show menu with" << m_menu->count() << " items\n";
+//        RG_DEBUG << "ControlRuler::showMenu() - show menu with" << m_menu->count() << " items";
         m_lastEventPos = e->pos(); ///CJ OK ??? - inverseMapPoint(e->pos());
         m_menu->exec(QCursor::pos());
-    } else
-        RG_DEBUG << "ControlRuler::showMenu() : no menu to show\n";
-
+    } else {
+        RG_WARNING << "contextMenuEvent(): no menu to show";
+    }
 }
 
 void ControlRuler::createMenu()
 {
-    RG_DEBUG << "ControlRuler::createMenu()\n";
+    RG_DEBUG << "createMenu()";
 
     QMainWindow* parentMainWindow = dynamic_cast<QMainWindow*>(topLevelWidget());
 
-    if (parentMainWindow ) { 	// parentMainWindow->factory()) {
-// 		m_menu = static_cast<QMenu*>(parentMainWindow->factory()->container(m_menuName, parentMainWindow));
-		m_menu = parentMainWindow->findChild<QMenu*>(m_menuName);
+    if (parentMainWindow ) {     // parentMainWindow->factory()) {
+        m_menu = parentMainWindow->findChild<QMenu*>(m_menuName);
 
         if (!m_menu) {
-            RG_DEBUG << "ControlRuler::createMenu() failed\n";
+            RG_WARNING << "createMenu() failed";
         }
     } else {
-        RG_DEBUG << "ControlRuler::createMenu() failed: no parent factory\n";
+        RG_WARNING << "createMenu() failed: no parent factory";
     }
 }
 
@@ -721,7 +695,8 @@ void ControlRuler::updateSelection()
         m_eventSelection->addEvent((*it)->getEvent());
     }
 
-    std::cout << "control ruler updating selection" << std::endl;
+    RG_DEBUG << "updateSelection(): emitting rulerSelectionChanged()";
+
     emit rulerSelectionChanged(m_eventSelection);
 }
 
@@ -737,7 +712,8 @@ void ControlRuler::addToSelection(ControlItem *item)
     item->setSelected(true);
     m_eventSelection->addEvent(item->getEvent());
     emit rulerSelectionChanged(m_eventSelection);
-    std::cout << "control ruler add to selection" << std::endl;
+
+    RG_DEBUG << "addToSelection() done";
 }
 
 void ControlRuler::removeFromSelection(ControlItem*item)
@@ -750,10 +726,11 @@ void ControlRuler::removeFromSelection(ControlItem*item)
 
 void ControlRuler::clear()
 {
-    RG_DEBUG << "ControlRuler::clear - m_controlItemMap.size(): " << m_controlItemMap.size();
+    RG_DEBUG << "clear() - m_controlItemMap.size(): " << m_controlItemMap.size();
+
     for (ControlItemMap::iterator it = m_controlItemMap.begin(); it != m_controlItemMap.end(); ++it) {
         if (ControlItem *item = dynamic_cast<ControlItem*>(it->second)) {
-            RG_DEBUG << "Deleting controlItem";
+            RG_DEBUG << "  Deleting controlItem";
             delete item;
         }
     }
@@ -775,6 +752,8 @@ float ControlRuler::valueToY(long val)
 
 long ControlRuler::yToValue(float y)
 {
+    // NOTE: while debugging #1451 I had debug output here and it confirmed that
+    // value is returning very reasonable numbers, which get mangled elsewhere
     long value = (long)(y*(getMaxItemValue()-getMinItemValue()))+getMinItemValue();
     return value;
 }
@@ -817,4 +796,3 @@ std::pair<int, int> ControlRuler::getZMinMax()
 }
 
 }
-#include "ControlRuler.moc"

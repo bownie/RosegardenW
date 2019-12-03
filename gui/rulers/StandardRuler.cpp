@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -40,8 +40,6 @@ namespace Rosegarden
 
 StandardRuler::StandardRuler(RosegardenDocument *doc,
                              RulerScale *rulerScale,
-                             double xorigin,
-                             int barHeight,
                              bool invert,
                              bool isForMainWindow,
                              QWidget* parent) :
@@ -52,7 +50,7 @@ StandardRuler::StandardRuler(RosegardenDocument *doc,
         m_currentXOffset(0),
         m_doc(doc),
         m_rulerScale(rulerScale),
-        m_markerRuler(0)
+        m_markerRuler(nullptr)
 {
 //    QString localStyle("QWidget { background-color: #EEEEEE; color: #000000; }");
 
@@ -63,29 +61,41 @@ StandardRuler::StandardRuler(RosegardenDocument *doc,
 	
     if (!m_invert) {
         m_markerRuler = new MarkerRuler
-                       (m_doc, m_rulerScale, barHeight - m_loopRulerHeight, xorigin, this);
+                       (m_doc, m_rulerScale, this);
         layout->addWidget(m_markerRuler);
     }
 
     m_loopRuler = new LoopRuler
-                  (m_doc, m_rulerScale, m_loopRulerHeight, xorigin, m_invert, m_isForMainWindow, this);
+                  (m_doc, m_rulerScale, m_loopRulerHeight, m_invert, m_isForMainWindow, this);
     layout->addWidget(m_loopRuler);
 
     if (m_invert) {
         m_markerRuler = new MarkerRuler
-                       (m_doc, m_rulerScale, barHeight - m_loopRulerHeight, xorigin, this);
+                       (m_doc, m_rulerScale, this);
         layout->addWidget(m_markerRuler);
     }
-
-//    m_markerRuler->setStyleSheet(localStyle);
-//    m_loopRuler->setStyleSheet(localStyle);
-//    m_markerRuler->setToolTip(QString("I am m_markerRuler. My style is: %1").arg(localStyle));
-
 
     QObject::connect
         (CommandHistory::getInstance(), SIGNAL(commandExecuted()),
          this, SLOT(update()));
 
+    if (RosegardenMainWindow::self()) {
+        QObject::connect
+                (m_markerRuler, &MarkerRuler::editMarkers,
+                 RosegardenMainWindow::self(), &RosegardenMainWindow::slotEditMarkers);
+
+        QObject::connect
+                (m_markerRuler, &MarkerRuler::addMarker,
+                 RosegardenMainWindow::self(), &RosegardenMainWindow::slotAddMarker);
+
+        QObject::connect
+                (m_markerRuler, &MarkerRuler::deleteMarker,
+                 RosegardenMainWindow::self(), &RosegardenMainWindow::slotDeleteMarker);
+
+        QObject::connect
+                (m_loopRuler, &LoopRuler::setPlayPosition,
+                 RosegardenMainWindow::self(), &RosegardenMainWindow::slotSetPlayPosition);
+    }
 }
 
 void StandardRuler::setSnapGrid(const SnapGrid *grid)
@@ -95,57 +105,43 @@ void StandardRuler::setSnapGrid(const SnapGrid *grid)
 
 void StandardRuler::connectRulerToDocPointer(RosegardenDocument *doc)
 {
+    RG_DEBUG << "StandardRuler::connectRulerToDocPointer";
 
-    RG_DEBUG << "StandardRuler::connectRulerToDocPointer" << endl;
+    Q_ASSERT(m_loopRuler);
+    Q_ASSERT(m_markerRuler);
 
     // use the document as a hub for pointer and loop set related signals
     // pointer and loop drag signals are specific to the current view,
     // so they are re-emitted from the loop ruler by this widget
     //
     QObject::connect
-    (m_loopRuler, SIGNAL(setPointerPosition(timeT)),
-     doc, SLOT(slotSetPointerPosition(timeT)));
+    (m_loopRuler, &LoopRuler::setPointerPosition,
+     doc, &RosegardenDocument::slotSetPointerPosition);
 
     QObject::connect
-    (m_markerRuler, SIGNAL(setPointerPosition(timeT)),
-     doc, SLOT(slotSetPointerPosition(timeT)));
+    (m_markerRuler, &MarkerRuler::setPointerPosition,
+     doc, &RosegardenDocument::slotSetPointerPosition);
 
     QObject::connect
-    (m_markerRuler, SIGNAL(editMarkers()),
-     RosegardenMainWindow::self(), SLOT(slotEditMarkers()));
+    (m_loopRuler, &LoopRuler::dragPointerToPosition,
+     this, &StandardRuler::dragPointerToPosition);
 
     QObject::connect
-    (m_markerRuler, SIGNAL(addMarker(timeT)),
-     RosegardenMainWindow::self(), SLOT(slotAddMarker(timeT)));
+    (m_loopRuler, &LoopRuler::dragLoopToPosition,
+     this, &StandardRuler::dragLoopToPosition);
 
     QObject::connect
-    (m_markerRuler, SIGNAL(deleteMarker(int, timeT, QString, QString)),
-     RosegardenMainWindow::self(), SLOT(slotDeleteMarker(int, timeT, QString, QString)));
+    (m_markerRuler, &MarkerRuler::setLoop,
+     doc, &RosegardenDocument::slotSetLoop);
 
     QObject::connect
-    (m_loopRuler, SIGNAL(dragPointerToPosition(timeT)),
-     this, SIGNAL(dragPointerToPosition(timeT)));
+    (m_loopRuler, &LoopRuler::setLoop,
+     doc, &RosegardenDocument::slotSetLoop);
 
     QObject::connect
-    (m_loopRuler, SIGNAL(dragLoopToPosition(timeT)),
-     this, SIGNAL(dragLoopToPosition(timeT)));
-
-    QObject::connect
-    (m_loopRuler, SIGNAL(setPlayPosition(timeT)),
-     RosegardenMainWindow::self(), SLOT(slotSetPlayPosition(timeT)));
-
-    QObject::connect
-    (m_markerRuler, SIGNAL(setLoop(timeT, timeT)),
-     doc, SLOT(slotSetLoop(timeT, timeT)));
-
-    QObject::connect
-    (m_loopRuler, SIGNAL(setLoop(timeT, timeT)),
-     doc, SLOT(slotSetLoop(timeT, timeT)));
-
-    QObject::connect
-    (doc, SIGNAL(loopChanged(timeT, timeT)),
+    (doc, &RosegardenDocument::loopChanged,
      m_loopRuler,
-     SLOT(slotSetLoopMarker(timeT, timeT)));
+     &LoopRuler::slotSetLoopMarker);
 
 //    m_loopRuler->setBackgroundColor(GUIPalette::getColour(GUIPalette::PointerRuler));
 }
@@ -162,25 +158,10 @@ void StandardRuler::setMinimumWidth(int width)
     m_loopRuler->setMinimumWidth(width);
 }
 
-void StandardRuler::setHScaleFactor(double dy)
-{
-    m_markerRuler->setHScaleFactor(dy);
-    m_loopRuler->setHScaleFactor(dy);
-}
-
 void StandardRuler::updateStandardRuler()
 {
     m_markerRuler->update();
     m_loopRuler->update();
 }
 
-/*
-void StandardRuler::paintEvent(QPaintEvent *e)
-{
-    m_markerRuler->update();
-    m_loopRuler->update();
-    QWidget::paintEvent(e);
 }
-*/
-}
-#include "StandardRuler.moc"

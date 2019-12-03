@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -26,6 +26,7 @@
 #include "base/NotationTypes.h"
 #include "base/MidiTypes.h"
 #include "Quantizer.h"
+#include "misc/Debug.h"
 
 namespace Rosegarden
 {
@@ -109,7 +110,7 @@ protected:
     void initialise();
 
     // Finish initialization specifically for a derived class
-    virtual void initialiseFinish(void) = 0;
+    virtual void initialiseFinish() = 0;
 
     /// Return true if this element is not definitely beyond bounds of set
     virtual bool test(const Iterator &i) = 0;
@@ -169,15 +170,15 @@ public:
                  const Quantizer *quantizer,
                  PropertyName stemUpProperty = PropertyName::EmptyPropertyName);
 
-    virtual ~GenericChord();
+    ~GenericChord() override;
 
     virtual int getMarkCountForChord() const;
     virtual std::vector<Mark> getMarksForChord() const;
     virtual std::vector<int> getPitches() const;
-    virtual bool contains(const Iterator &) const;
+    bool contains(const Iterator &) const override;
 
-    virtual void initialiseFinish(void);
-    
+    void initialiseFinish() override;
+
     /**
      * Return an iterator pointing to the previous note before this
      * chord, or container's end() if there is no previous note.
@@ -205,8 +206,8 @@ public:
     virtual int getSubOrdering() { return m_subordering; }
 
 protected:
-    virtual bool test(const Iterator&);
-    virtual bool sample(const Iterator&, bool goingForwards);
+    bool test(const Iterator&) override;
+    bool sample(const Iterator&, bool goingForwards) override;
 
     class PitchGreater {
     public:
@@ -431,7 +432,7 @@ GenericChord<Element, Container, singleStaff>::~GenericChord()
 template <class Element, class Container, bool singleStaff>
 void
 GenericChord<Element, Container, singleStaff>::
-initialiseFinish(void)
+initialiseFinish()
 {
     if (std::vector<typename Container::iterator>::size() > 1) {
         std::stable_sort(std::vector<typename Container::iterator>::begin(),
@@ -708,8 +709,8 @@ GenericChord<Element, Container, singleStaff>::PitchGreater::operator()(const It
         long ap = get__Int(GenericChord::getAsEvent(a), BaseProperties::PITCH);
         long bp = get__Int(GenericChord::getAsEvent(b), BaseProperties::PITCH);
         return (ap < bp);
-    } catch (Event::NoData) {
-        std::cerr << "Bad karma: PitchGreater failed to find one or both pitches" << std::endl;
+    } catch (const Event::NoData &) {
+        RG_WARNING << "Bad karma: PitchGreater failed to find one or both pitches";
         return false;
     }
 }

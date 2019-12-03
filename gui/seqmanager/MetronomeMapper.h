@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,66 +18,70 @@
 #ifndef RG_METRONOMEMAPPER_H
 #define RG_METRONOMEMAPPER_H
 
-#include "base/Event.h"
-#include "base/MidiProgram.h"
+#include "base/MidiProgram.h"  // For InstrumentId
 #include "base/RealTime.h"
+#include "base/TimeT.h"
 #include "gui/seqmanager/ChannelManager.h"
 #include "gui/seqmanager/MappedEventBuffer.h"
+#include "gui/configuration/GeneralConfigurationPage.h"
+
 #include <QString>
+
 #include <utility>
 #include <vector>
 
 namespace Rosegarden
 {
 
+
 class RosegardenDocument;
 class MidiMetronome;
 
+
 class MetronomeMapper : public MappedEventBuffer
 {
-    friend class SegmentMapperFactory;
-
- public:
-    virtual ~MetronomeMapper();
-
-    InstrumentId getMetronomeInstrument();
-
-    // overrides from SegmentMapper
-    virtual int getSegmentRepeatCount();
-
-    // Do channel-setup
-    virtual void doInsert(MappedInserterBase &inserter, MappedEvent &evt,
-                         RealTime start, bool firstOutput);
-
-    virtual void makeReady(MappedInserterBase &inserter, RealTime time);
-
-    
-    // Return whether the event should be played.
-    virtual bool shouldPlay(MappedEvent *evt, RealTime startTime);
- protected:
+public:
     MetronomeMapper(RosegardenDocument *doc);
+    ~MetronomeMapper() override;
 
-    virtual int calculateSize();
+    InstrumentId getMetronomeInstrument() const;
 
-    void sortTicks();
 
-    // override from SegmentMapper
-    virtual void fillBuffer();
+    // *** MappedEventBuffer overrides.
 
-    // Whether the metronome is muted regarding this event.
-    bool mutedEtc(MappedEvent *evt);
-    
-    //--------------- Data members ---------------------------------
-    typedef std::pair<timeT, int> Tick;
+    int getSegmentRepeatCount() override;
+    // Do channel-setup
+    void doInsert(MappedInserterBase &inserter, MappedEvent &evt,
+                          RealTime start, bool firstOutput) override;
+    void makeReady(MappedInserterBase &inserter, RealTime time) override;
+    /// Should the event be played?
+    bool shouldPlay(MappedEvent *evt, RealTime startTime) override;
+    int calculateSize() override;
+    /// Convert m_ticks to events in m_buffer.
+    void fillBuffer() override;
+
+private:
+    Instrument *m_instrument;
+
+    enum TickType {
+        BarTick = 0,
+        BeatTick = 1,
+        SubBeatTick = 2,
+        MidiTimingClockTick = 3  // MIDI Spec, Section 2, Page 30.
+    };
+    typedef std::pair<timeT, TickType> Tick;
     typedef std::vector<Tick> TickContainer;
-    friend bool operator<(Tick, Tick);
-
+    /// The ticks of the metronome.
     TickContainer m_ticks;
-    bool m_deleteMetronome;
-    const MidiMetronome* m_metronome;
-    RealTime m_tickDuration;
-    EternalChannelManager m_channelManager;
+
+    const MidiMetronome *m_metronome;
+
+    ChannelManager m_channelManager;
+
+    GeneralConfigurationPage::MetronomeDuring m_metronomeDuring;
+
 };
+
 
 }
 

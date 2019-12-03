@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -94,8 +94,7 @@ void AudioPreviewPainter::paintPreviewImage()
 
     unsigned int channels = m_apData->channels;
     if (channels == 0) {
-        RG_DEBUG << "AudioPreviewPainter::paintPreviewImage : problem with audio file for segment "
-                 << m_segment->getLabel().c_str() << endl;
+        RG_WARNING << "paintPreviewImage(): WARNING: problem with audio file for segment " << m_segment->getLabel().c_str();
         return;
     }
 
@@ -108,9 +107,8 @@ void AudioPreviewPainter::paintPreviewImage()
 
     int centre = m_image.height() / 2;
 
-    RG_DEBUG << "AudioPreviewPainter::paintPreviewImage width = " << m_rect.baseWidth << ", height = " << m_rect.rect.height() << ", halfRectHeight = " << m_halfRectHeight << endl;
-
-    RG_DEBUG << "AudioPreviewPainter::paintPreviewImage: channels = " << channels << ", gain left = " << gain[0] << ", right = " << gain[1] << endl;
+    //RG_DEBUG << "paintPreviewImage(): width = " << m_rect.baseWidth << ", height = " << m_rect.rect.height() << ", halfRectHeight = " << m_halfRectHeight;
+    //RG_DEBUG << "paintPreviewImage(): channels = " << channels << ", gain left = " << gain[0] << ", right = " << gain[1];
 
     // double audioDuration = double(m_segment->getAudioEndTime().sec) +
     //     double(m_segment->getAudioEndTime().nsec) / 1000000000.0;
@@ -305,7 +303,7 @@ void AudioPreviewPainter::initializeNewSlice()
 
 void AudioPreviewPainter::finalizeCurrentSlice()
 {
-//     RG_DEBUG << "AudioPreviewPainter::finalizeCurrentSlice : copying pixmap to image at " << m_sliceNb * tileWidth() << endl;
+//     RG_DEBUG << "AudioPreviewPainter::finalizeCurrentSlice : copying pixmap to image at " << m_sliceNb * tileWidth();
 
     m_previewPixmaps.push_back(m_image.copy());
     ++m_sliceNb;

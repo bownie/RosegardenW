@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -42,18 +42,18 @@ class AddIndicationCommand : public BasicCommand
 public:
     AddIndicationCommand(std::string indicationType,
                          EventSelection &selection);
-    virtual ~AddIndicationCommand();
+    ~AddIndicationCommand() override;
 
     // tests whether the indication can be added without overlapping
     // another one of the same type
     bool canExecute();
 
-    EventSelection *getSubsequentSelection();
+    EventSelection *getSubsequentSelection() override;
 
     Event *getLastInsertedEvent() {
         return m_lastInsertedEvent;
     }
-    virtual timeT getRelayoutEndTime() {
+    timeT getRelayoutEndTime() override {
         return getStartTime() + m_indicationDuration;
     }
 
@@ -63,7 +63,7 @@ public:
     static void registerCommand(CommandRegistry *r);
 
 protected:
-    virtual void modifySegment();
+    void modifySegment() override;
 
     std::string m_indicationType;
     timeT m_indicationStart;

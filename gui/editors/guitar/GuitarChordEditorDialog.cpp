@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -74,7 +74,7 @@ GuitarChordEditorDialog::GuitarChordEditorDialog(Guitar::Chord& chord, const Gui
     m_fingeringBox->setFingering(m_chord.getFingering());
     topLayout->addWidget(m_fingeringBox, 0, 0, 7- 0+1, 0- 0+1);
 
-    NOTATION_DEBUG << "GuitarChordEditorDialog : chord = " << m_chord << endl;
+    NOTATION_DEBUG << "GuitarChordEditorDialog : chord = " << m_chord;
 
 
     QStringList rootList = m_chordMap.getRootList();
@@ -94,7 +94,7 @@ GuitarChordEditorDialog::GuitarChordEditorDialog(Guitar::Chord& chord, const Gui
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 void
@@ -117,5 +117,4 @@ GuitarChordEditorDialog::accept()
 
 }
 
-#include "GuitarChordEditorDialog.moc"
 

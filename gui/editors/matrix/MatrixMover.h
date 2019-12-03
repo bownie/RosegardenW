@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,20 +38,20 @@ class MatrixMover : public MatrixTool
     friend class MatrixToolBox;
 
 public:
-    virtual void handleLeftButtonPress(const MatrixMouseEvent *);
-    virtual FollowMode handleMouseMove(const MatrixMouseEvent *);
-    virtual void handleMouseRelease(const MatrixMouseEvent *);
+    void handleLeftButtonPress(const MatrixMouseEvent *) override;
+    FollowMode handleMouseMove(const MatrixMouseEvent *) override;
+    void handleMouseRelease(const MatrixMouseEvent *) override;
 
     /**
      * Respond to an event being deleted -- it may be the one the tool
      * is remembering as the current event.
      */
-    virtual void handleEventRemoved(Event *event);
+    void handleEventRemoved(Event *event) override;
 
-    virtual void ready();
-    virtual void stow();
+    void ready() override;
+    void stow() override;
 
-    static const QString ToolName;
+    static QString ToolName();
 
 signals:
     void hoveredOverNoteChanged(int evPitch, bool haveEvent, timeT evTime);
@@ -66,7 +66,7 @@ protected:
 
     MatrixElement *m_currentElement;
     MatrixViewSegment *m_currentViewSegment;
-    timeT m_clickSnappedLeftTime;
+    timeT m_clickSnappedLeftDeltaTime;
 
     std::vector<MatrixElement *> m_duplicateElements;
     bool m_quickCopy;

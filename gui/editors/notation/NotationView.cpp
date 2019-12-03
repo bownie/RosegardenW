@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -37,6 +37,7 @@
 #include "document/CommandHistory.h"
 
 #include "misc/ConfigGroups.h"
+#include "misc/Debug.h"
 
 #include "base/AnalysisTypes.h"
 #include "base/BaseProperties.h"
@@ -132,10 +133,12 @@
 
 #include "gui/dialogs/CheckForParallelsDialog.h"
 
+#include "gui/general/EditTempoController.h"
 #include "gui/general/IconLoader.h"
 #include "gui/general/LilyPondProcessor.h"
 #include "gui/general/PresetHandlerDialog.h"
 #include "gui/general/ClefIndex.h"
+#include "gui/general/ThornStyle.h"
 #include "gui/rulers/ControlRulerWidget.h"
 #include "gui/widgets/TmpStatusMsg.h"
 
@@ -153,6 +156,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QSettings>
+#include <QSharedPointer>
 #include <QTemporaryFile>
 #include <QToolBar>
 #include <QInputDialog>
@@ -172,23 +176,23 @@ namespace Rosegarden
 using namespace Accidentals;
 
 NotationView::NotationView(RosegardenDocument *doc,
-                                 std::vector<Segment *> segments,
-                                 QWidget *parent) :
+                           std::vector<Segment *> segments,
+                           QWidget *parent) :
     EditViewBase(doc, segments, parent),
     m_document(doc),
     m_durationMode(InsertingRests),
-    m_durationPressed(0),
-    m_accidentalPressed(0),
-    m_selectionCounter(0),
-    m_insertModeLabel(0),
-    m_annotationsLabel(0),
-    m_lilyPondDirectivesLabel(0),
-    m_currentNotePixmap(0),
-    m_hoveredOverNoteName(0),
-    m_hoveredOverAbsoluteTime(0),
-    m_fontCombo(0),
-    m_fontSizeCombo(0),
-    m_spacingCombo(0),
+    m_durationPressed(nullptr),
+    m_accidentalPressed(nullptr),
+    m_selectionCounter(nullptr),
+    m_insertModeLabel(nullptr),
+    m_annotationsLabel(nullptr),
+    m_lilyPondDirectivesLabel(nullptr),
+    m_currentNotePixmap(nullptr),
+    m_hoveredOverNoteName(nullptr),
+    m_hoveredOverAbsoluteTime(nullptr),
+    m_fontCombo(nullptr),
+    m_fontSizeCombo(nullptr),
+    m_spacingCombo(nullptr),
     m_segments(segments)
 {
     m_notationWidget = new NotationWidget();
@@ -200,14 +204,14 @@ NotationView::NotationView(RosegardenDocument *doc,
 
     // connect the editElement signal from NotationSelector, relayed through
     // NotationWidget to be acted upon here in NotationView
-    connect(m_notationWidget, SIGNAL(editElement(NotationStaff *, NotationElement *, bool)),
-            this, SLOT(slotEditElement(NotationStaff *, NotationElement *, bool)));
+    connect(m_notationWidget, &NotationWidget::editElement,
+            this, &NotationView::slotEditElement);
 
     // Many actions are created here
     m_commandRegistry = new NotationCommandRegistry(this);
 
     setupActions();
-    createGUI("notation.rc");
+    createMenusAndToolbars("notation.rc");
     slotUpdateMenuStates();
     slotTestClipboard();
 
@@ -226,27 +230,25 @@ NotationView::NotationView(RosegardenDocument *doc,
     // Toggle the desired tool off and then trigger it on again, to
     // make sure its signal is called at least once (as would not
     // happen if the tool was on by default otherwise)
-    QAction *toolAction = 0;
+    QAction *toolAction = nullptr;
     if (!m_notationWidget->segmentsContainNotes()) {
         toolAction = findAction("draw");
     } else {
         toolAction = findAction("select");
     }
     if (toolAction) {
-        NOTATION_DEBUG << "initial state for action '" << toolAction->objectName() << "' is " << toolAction->isChecked() << endl;
+        NOTATION_DEBUG << "initial state for action '" << toolAction->objectName() << "' is " << toolAction->isChecked();
         if (toolAction->isChecked()) toolAction->toggle();
-        NOTATION_DEBUG << "newer state for action '" << toolAction->objectName() << "' is " << toolAction->isChecked() << endl;
+        NOTATION_DEBUG << "newer state for action '" << toolAction->objectName() << "' is " << toolAction->isChecked();
         toolAction->trigger();
-        NOTATION_DEBUG << "newest state for action '" << toolAction->objectName() << "' is " << toolAction->isChecked() << endl;
+        NOTATION_DEBUG << "newest state for action '" << toolAction->objectName() << "' is " << toolAction->isChecked();
     }
 
     // Set display configuration
     bool visible;
     QSettings settings;
 
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    m_Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
+    m_Thorn = ThornStyle::isEnabled();
 
     settings.beginGroup(NotationViewConfigGroup);
 
@@ -255,10 +257,10 @@ NotationView::NotationView(RosegardenDocument *doc,
     m_fontSize = NoteFontFactory::getDefaultSize(m_fontName);
     if (m_notationWidget->getScene()->getVisibleStaffCount() > 1) {
         m_fontSize = settings.value("multistaffnotesize", 6).toInt();
-        //std::cout << "setting multi staff size to " << size << std::endl;
+        //RG_DEBUG << "setting multi staff size to " << size;
     } else {
         m_fontSize = settings.value("singlestaffnotesize", 8).toInt();
-        //std::cout << "setting single staff size to " << size << std::endl;
+        //RG_DEBUG << "setting single staff size to " << size;
     }
     m_notationWidget->slotSetFontSize(m_fontSize);
 
@@ -328,8 +330,11 @@ NotationView::NotationView(RosegardenDocument *doc,
     initStatusBar();
 
     slotUpdateWindowTitle();
-    connect(m_document, SIGNAL(documentModified(bool)),
-            this, SLOT(slotUpdateWindowTitle(bool)));
+    connect(m_document, &RosegardenDocument::documentModified,
+            this, &NotationView::slotUpdateWindowTitle);
+
+    connect(m_notationWidget, &NotationWidget::showContextHelp,
+            this, &NotationView::slotShowContextHelp);
 
     // Restore window geometry and toolbar/dock state
     settings.beginGroup(WindowGeometryConfigGroup);
@@ -337,18 +342,21 @@ NotationView::NotationView(RosegardenDocument *doc,
     this->restoreState(settings.value("Notation_View_State").toByteArray());
     settings.endGroup();
 
-    connect(m_notationWidget, SIGNAL(sceneNeedsRebuilding()),
-            this, SLOT(slotRegenerateScene()));
+    connect(m_notationWidget, &NotationWidget::sceneNeedsRebuilding,
+            this, &NotationView::slotRegenerateScene);
 
-    // do the auto repeat thingie on the <<< << >> >>> buttons
-    setRewFFwdToAutoRepeat();
+    // Set the rewind and fast-forward buttons for auto-repeat.
+    enableAutoRepeat("Transport Toolbar", "playback_pointer_back_bar");
+    enableAutoRepeat("Transport Toolbar", "playback_pointer_forward_bar");
+    enableAutoRepeat("Transport Toolbar", "cursor_back");
+    enableAutoRepeat("Transport Toolbar", "cursor_forward");
 
     m_notationWidget->resumeLayoutUpdates();
 
     // Connection to update the "Show staff headers" check box in the menu
     // (Must be done before setting the initial visibility of the headers)
-    connect(m_notationWidget, SIGNAL(headersVisibilityChanged(bool)),
-            this,  SLOT(slotCheckShowHeadersMenu(bool)));
+    connect(m_notationWidget, &NotationWidget::headersVisibilityChanged,
+            this,  &NotationView::slotCheckShowHeadersMenu);
 
     // Set initial visibility of staff headers.
     // (Could not be done earlier because both view size and headers size are
@@ -367,21 +375,22 @@ NotationView::NotationView(RosegardenDocument *doc,
           m_notationWidget->setHeadersVisible(true);
           break;
       default :
-          std::cerr << "NotationView: settings.value(\"shownotationheader\") "
-                    << "returned an unexpected value. This is a bug."
-                    << std::endl;
+          RG_WARNING << "NotationView: settings.value(\"shownotationheader\") "
+                    << "returned an unexpected value. This is a bug.";
     }
     settings.endGroup();
 
     // Show the pointer as soon as notation editor opens
-    m_notationWidget->slotUpdatePointerPosition(false);
+    m_notationWidget->updatePointerPosition(false);
     
     readOptions();
+
+    m_notationWidget->scrollToTopLeft();
 }
 
 NotationView::~NotationView()
 {
-    NOTATION_DEBUG << "Deleting notation view" << endl;
+    NOTATION_DEBUG << "Deleting notation view";
     m_notationWidget->clearAll();
     
     // I own the m_adoptedSegments segments.
@@ -408,7 +417,7 @@ NotationView::closeEvent(QCloseEvent *event)
     // Save window geometry and toolbar/dock state
     QSettings settings;
     settings.beginGroup(WindowGeometryConfigGroup);
-    std::cerr << "storing window geometry for notation view" << std::endl;
+    RG_DEBUG << "storing window geometry for notation view";
     settings.setValue("Notation_View_Geometry", this->saveGeometry());
     settings.setValue("Notation_View_State", this->saveState());
     settings.endGroup();
@@ -458,7 +467,7 @@ findAdopted(Segment *s)
 
 // Set NotationWidget's segments.
 void
-NotationView::setWidgetSegments(void)
+NotationView::setWidgetSegments()
 {
     SegmentVector allSegments = m_segments;
     allSegments.insert(allSegments.end(),
@@ -533,6 +542,7 @@ NotationView::setupActions()
 
     // "layout" submenu 
     createAction("add_layer", SLOT(slotAddLayer()));
+    createAction("magic_layer", SLOT(slotMagicLayer()));
     createAction("linear_mode", SLOT(slotLinearMode()));
     createAction("continuous_page_mode", SLOT(slotContinuousPageMode()));
     createAction("multi_page_mode", SLOT(slotMultiPageMode()));
@@ -830,11 +840,11 @@ NotationView::setupActions()
     // so the pitch tracker (our derrived class) can see them
     // Because they're protected, we'll connect them here.
     createAction("cursor_back", SIGNAL(stepBackward()));
-    connect(this, SIGNAL(stepBackward()),
-            this, SLOT(slotStepBackward()));
+    connect(this, &NotationView::stepBackward,
+            this, &NotationView::slotStepBackward);
     createAction("cursor_forward", SIGNAL(stepForward()));
-    connect(this, SIGNAL(stepForward()),
-            this, SLOT(slotStepForward()));
+    connect(this, &NotationView::stepForward,
+            this, &NotationView::slotStepForward);
     createAction("playback_pointer_back_bar", SIGNAL(rewindPlayback()));
     createAction("playback_pointer_forward_bar", SIGNAL(fastForwardPlayback()));
     createAction("playback_pointer_start", SIGNAL(rewindPlaybackToBeginning()));
@@ -913,11 +923,11 @@ NotationView::setupActions()
         }
     }
 
-    connect(addControlRulerMenu, SIGNAL(triggered(QAction*)),
-            SLOT(slotAddControlRuler(QAction*)));
+    connect(addControlRulerMenu, &QMenu::triggered,
+            this, &NotationView::slotAddControlRuler);
 
-    connect(m_notationWidget, SIGNAL(hoveredOverNoteChanged(const QString&)),
-            SLOT (slotHoveredOverNoteChanged(const QString&)));
+    connect(m_notationWidget, &NotationWidget::hoveredOverNoteChanged,
+            this, &NotationView::slotHoveredOverNoteChanged);
 
     findAction("add_control_ruler")->setMenu(addControlRulerMenu);
 
@@ -1076,8 +1086,8 @@ NotationView::setupActions()
     QMenu *spacingActionMenu = new QMenu(tr("S&pacing"), this);
     spacingActionMenu->setObjectName("stretch_actionmenu");
 
-    m_spacing = settings.value("spacing", m_notationWidget->getScene()->getHSpacing()).toInt();
-    m_notationWidget->getScene()->setHSpacing(m_spacing);
+    m_notationWidget->getScene()->setHSpacing(
+            m_doc->getComposition().m_notationSpacing);
     m_availableSpacings = NotationHLayout::getAvailableSpacings();
 
     ag = new QActionGroup(this);
@@ -1091,7 +1101,7 @@ NotationView::setupActions()
         ag->addAction(a);
         a->setText(QString("%1%").arg(*i));
         a->setCheckable(true);
-        a->setChecked(*i == m_spacing);
+        a->setChecked(*i == m_doc->getComposition().m_notationSpacing);
 
         spacingActionMenu->addAction(a);
     }
@@ -1101,16 +1111,16 @@ NotationView::setupActions()
     settings.endGroup();
 
     // connect up the segment changer signals
-    connect(m_notationWidget, SIGNAL(currentSegmentNext()),
-            SLOT(slotCurrentSegmentNext()));
-    connect(m_notationWidget, SIGNAL(currentSegmentPrior()),
-            SLOT(slotCurrentSegmentPrior()));
+    connect(m_notationWidget, &NotationWidget::currentSegmentNext,
+            this, &NotationView::slotCurrentSegmentNext);
+    connect(m_notationWidget, &NotationWidget::currentSegmentPrior,
+            this, &NotationView::slotCurrentSegmentPrior);
 }
 
 void 
 NotationView::slotUpdateMenuStates()
 {
-    NOTATION_DEBUG << "NotationView::slotUpdateMenuStates" << endl;
+    //NOTATION_DEBUG << "NotationView::slotUpdateMenuStates";
 
     // 1. set selection-related states
 
@@ -1130,7 +1140,7 @@ NotationView::slotUpdateMenuStates()
 
     if (selection) {
 
-        NOTATION_DEBUG << "NotationView::slotUpdateMenuStates: Have selection; it's " << selection << " covering range from " << selection->getStartTime() << " to " << selection->getEndTime() << " (" << selection->getSegmentEvents().size() << " events)" << endl;
+        //NOTATION_DEBUG << "NotationView::slotUpdateMenuStates: Have selection; it's " << selection << " covering range from " << selection->getStartTime() << " to " << selection->getEndTime() << " (" << selection->getSegmentEvents().size() << " events)";
 
         enterActionState("have_selection");
         if (selection->contains(Note::EventType)) {
@@ -1147,18 +1157,17 @@ NotationView::slotUpdateMenuStates()
         }
 
     } else {
-
-        NOTATION_DEBUG << "Do not have a selection" << endl;
+        //NOTATION_DEBUG << "Do not have a selection";
     }
 
     // 2. set inserter-related states
     NoteRestInserter *currentTool = dynamic_cast<NoteRestInserter *>(m_notationWidget->getCurrentTool());
     if (currentTool) {
-        NOTATION_DEBUG << "Have NoteRestInserter " << endl;
+        //NOTATION_DEBUG << "Have NoteRestInserter ";
         enterActionState("note_rest_tool_current");
         
     } else {
-        NOTATION_DEBUG << "Do not have NoteRestInserter " << endl;
+        //NOTATION_DEBUG << "Do not have NoteRestInserter ";
         leaveActionState("note_rest_tool_current");
     }
 
@@ -1182,11 +1191,13 @@ NotationView::slotUpdateMenuStates()
 
 void
 NotationView::
-conformRulerSelectionState(void)
+conformRulerSelectionState()
 {
     ControlRulerWidget * cr = m_notationWidget->getControlsWidget();
     if (cr->isAnyRulerVisible())
         {
+            cr->slotSelectionChanged(getSelection());
+
             enterActionState("have_control_ruler");
             if (cr->hasSelection())
                 { enterActionState("have_controller_selection"); }
@@ -1206,32 +1217,19 @@ NotationView::initLayoutToolbar()
     QToolBar *layoutToolbar = findToolbar("Layout Toolbar");
 
     if (!layoutToolbar) {
-        std::cerr << "NotationView::initLayoutToolbar() : layout toolbar not found"
-                  << std::endl;
+        RG_WARNING << "NotationView::initLayoutToolbar() : layout toolbar not found";
         return;
     }
 
-    // something missed in the stylesheet and at this point I feel like just
-    // whacking the mole in the head with a hammer and moving on
-    QString labelStyle("color: black");
-
     QLabel *label = new QLabel(tr("  Font:  "), layoutToolbar);
-    if (m_Thorn) label->setStyleSheet("color: black");
     layoutToolbar->addWidget(label);
 
-
-    // There's some way to do this kind of thing with states or properties or
-    // something, but I couldn't ever get it to work.  So, again, I'll just use
-    // another hacky hard coded internal stylesheet.
-    //
-    QString comboStyle("QComboBox::enabled,QComboBox{ border: 1px solid #AAAAAA; border-radius: 3px; padding: 0 5px 0 5px; min-width: 2em; color: #000000; } QComboBox::enabled:hover, QComboBox:hover, QComboBox::drop-down:hover { background-color: #CCDFFF; } QComboBox::!editable, QComboBox::drop-down:!editable { background-color: qlineargradient(spread:pad, x1:0, y1:1, x2:0, y2:0, stop:0 #EEEEEE, stop:1 #DDDDDD); } QComboBox::!editable:on, QComboBox::drop-down:editable:on, { background-color: qlineargradient(spread:pad, x1:0, y1:1, x2:0, y2:0, stop:0 #E0E0E0, stop:1 #EEEEEE); } QComboBox::on { padding-top: 3px; padding-left: 4px; } QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: top right; width: 15px; } QComboBox::down-arrow { image: url(:pixmaps/style/arrow-down-small.png); } QComboBox::down-arrow:on { top: 1px; left: 1px; } QComboBox QAbstractItemView { border-image: url(:pixmaps/style/combo-dropdown.png) 1; selection-background-color: #80AFFF; selection-color: #FFFFFF; color: #000000; }");
 
     //
     // font combo
     //
     m_fontCombo = new QComboBox(layoutToolbar);
     m_fontCombo->setEditable(false);
-    if (m_Thorn) m_fontCombo->setStyleSheet(comboStyle);
     layoutToolbar->addWidget(m_fontCombo);
 
     bool foundFont = false;
@@ -1259,7 +1257,6 @@ NotationView::initLayoutToolbar()
             this, SLOT(slotFontComboChanged(int)));
 
     label = new QLabel(tr("  Size:  "), layoutToolbar);
-    if (m_Thorn) label->setStyleSheet("color: black");
     layoutToolbar->addWidget(label);
 
     QString value;
@@ -1268,7 +1265,6 @@ NotationView::initLayoutToolbar()
     // font size combo
     //
     m_fontSizeCombo = new QComboBox(layoutToolbar);
-    if (m_Thorn) m_fontSizeCombo->setStyleSheet(comboStyle);
     layoutToolbar->addWidget(m_fontSizeCombo);
 
     for (std::vector<int>::iterator i = m_availableFontSizes.begin(); i != m_availableFontSizes.end(); ++i) {
@@ -1283,7 +1279,6 @@ NotationView::initLayoutToolbar()
             this, SLOT(slotSizeComboChanged(int)));
 
     label = new QLabel(tr("  Spacing:  "), layoutToolbar);
-    if (m_Thorn) label->setStyleSheet("color: black");
 
     layoutToolbar->addWidget(label);
     
@@ -1294,7 +1289,6 @@ NotationView::initLayoutToolbar()
     m_availableSpacings = NotationHLayout::getAvailableSpacings();
 
     m_spacingCombo = new QComboBox(layoutToolbar);
-    if (m_Thorn) m_spacingCombo->setStyleSheet(comboStyle);
     for (std::vector<int>::iterator i = m_availableSpacings.begin(); i != m_availableSpacings.end(); ++i) {
 
         value.setNum(*i);
@@ -1316,7 +1310,7 @@ NotationView::initRulersToolbar()
 {
     QToolBar *rulersToolbar = findToolbar("Rulers Toolbar");
     if (!rulersToolbar) {
-        std::cerr << "NotationView::initRulersToolbar() - rulers toolbar not found!" << std::endl;
+        RG_WARNING << "NotationView::initRulersToolbar() - rulers toolbar not found!";
         return;
     }
 
@@ -1357,6 +1351,12 @@ NotationView::initStatusBar()
     sb->addWidget(m_selectionCounter);
 
     sb->setContentsMargins(0, 0, 0, 0);
+}
+
+void
+NotationView::slotShowContextHelp(const QString &help)
+{
+    statusBar()->showMessage(help, 10000);
 }
 
 void
@@ -1420,7 +1420,9 @@ NotationView::exportLilyPondFile(QString file, bool forPreview)
         return false;
     }
 
-    LilyPondExporter e(this, m_doc, std::string(QFile::encodeName(file)));
+    RosegardenMainViewWidget * view = RosegardenMainWindow::self()->getView();
+
+    LilyPondExporter e(m_doc, view->getSelection(), std::string(QFile::encodeName(file)), this);
 
     if (!e.write()) {
         QMessageBox::warning(this, tr("Rosegarden"), e.getMessage());
@@ -1470,7 +1472,7 @@ QString
 NotationView::getLilyPondTmpFilename()
 {
     QString mask = QString("%1/rosegarden_tmp_XXXXXX.ly").arg(QDir::tempPath());
-    std::cerr << "NotationView::getLilyPondTmpName() - using tmp file: " << qstrtostr(mask) << std::endl;
+    RG_DEBUG << "NotationView::getLilyPondTmpName() - using tmp file: " << qstrtostr(mask);
 
     QTemporaryFile *file = new QTemporaryFile(mask);
     file->setAutoRemove(true);
@@ -1590,14 +1592,14 @@ Segment *
 NotationView::getCurrentSegment()
 {
     if (m_notationWidget) return m_notationWidget->getCurrentSegment();
-    else return 0;
+    else return nullptr;
 }
 
 EventSelection *
 NotationView::getSelection() const
 {
     if (m_notationWidget) return m_notationWidget->getSelection();
-    else return 0;
+    else return nullptr;
 }
 
 void
@@ -1619,7 +1621,7 @@ NotationView::slotEditCut()
     EventSelection *selection = getSelection();
     if (!selection) return;
     CommandHistory::getInstance()->addCommand
-        (new CutCommand(*selection, m_document->getClipboard()));
+        (new CutCommand(*selection, getClipboard()));
 }
 
 void
@@ -1636,7 +1638,7 @@ NotationView::slotEditCopy()
     EventSelection *selection = getSelection();
     if (!selection) return;
     CommandHistory::getInstance()->addCommand
-        (new CopyCommand(*selection, m_document->getClipboard()));
+        (new CopyCommand(*selection, getClipboard()));
 }
 
 void
@@ -1645,13 +1647,13 @@ NotationView::slotEditCutAndClose()
     EventSelection *selection = getSelection();
     if (!selection) return;
     CommandHistory::getInstance()->addCommand
-        (new CutAndCloseCommand(*selection, m_document->getClipboard()));
+        (new CutAndCloseCommand(*selection, getClipboard()));
 }
 
 void
 NotationView::slotEditPaste()
 {
-    Clipboard *clipboard = m_document->getClipboard();
+    Clipboard *clipboard = getClipboard();
 
     if (clipboard->isEmpty()) return;
     if (!clipboard->isSingleSegment()) {
@@ -1689,7 +1691,9 @@ NotationView::slotEditPaste()
         msgBox.setWindowTitle(tr("Rosegarden"));
         msgBox.setIcon(QMessageBox::Warning);
         msgBox.setText(tr("Couldn't paste at this point."));
-        msgBox.setInformativeText(tr("<qt><p>The Restricted paste type requires enough empty space (containing only rests) at the paste position to hold all of the events to be pasted.</p><p>Not enough space was found.</p><p>If you want to paste anyway, consider using one of the other paste types from the <b>Paste...</b> option on the Edit menu.  You can also change the default paste type to something other than Restricted if you wish.</p></qt>"));                      
+        if (defaultType == PasteEventsCommand::Restricted) {
+            msgBox.setInformativeText(tr("<qt><p>The Restricted paste type requires enough empty space (containing only rests) at the paste position to hold all of the events to be pasted.</p><p>Not enough space was found.</p><p>If you want to paste anyway, consider using one of the other paste types from the <b>Paste...</b> option on the Edit menu.  You can also change the default paste type to something other than Restricted if you wish.</p></qt>"));
+        }
         msgBox.setStandardButtons(QMessageBox::Ok);
         msgBox.setDefaultButton(QMessageBox::Ok);
         msgBox.exec();
@@ -1705,7 +1709,7 @@ NotationView::slotEditPaste()
 void
 NotationView::slotEditGeneralPaste()
 {
-    Clipboard *clipboard = getDocument()->getClipboard();
+    Clipboard *clipboard = getClipboard();
 
     if (clipboard->isEmpty()) {
         slotStatusHelpMsg(tr("Clipboard is empty"));
@@ -1745,7 +1749,9 @@ NotationView::slotEditGeneralPaste()
             msgBox.setWindowTitle(tr("Rosegarden"));
             msgBox.setIcon(QMessageBox::Warning);
             msgBox.setText(tr("Couldn't paste at this point."));
-            msgBox.setInformativeText(tr("<qt><p>The Restricted paste type requires enough empty space (containing only rests) at the paste position to hold all of the events to be pasted.</p><p>Not enough space was found.</p><p>If you want to paste anyway, consider using one of the other paste types from the <b>Paste...</b> option on the Edit menu.  You can also change the default paste type to something other than Restricted if you wish.</p></qt>"));                      
+            if (type == PasteEventsCommand::Restricted) {
+                msgBox.setInformativeText(tr("<qt><p>The Restricted paste type requires enough empty space (containing only rests) at the paste position to hold all of the events to be pasted.</p><p>Not enough space was found.</p><p>If you want to paste anyway, consider using one of the other paste types from the <b>Paste...</b> option on the Edit menu.  You can also change the default paste type to something other than Restricted if you wish.</p></qt>"));
+            }
             msgBox.setStandardButtons(QMessageBox::Ok);
             msgBox.setDefaultButton(QMessageBox::Ok);
             msgBox.exec();
@@ -1782,7 +1788,7 @@ NotationView::slotClearSelection()
     if (!selector) {
         slotSetSelectTool();
     } else {
-        setSelection(0, false);
+        setSelection(nullptr, false);
     }
 }
 
@@ -1821,18 +1827,18 @@ NotationView::slotEditSelectWholeStaff()
 void
 NotationView::slotSearchSelect()
 {
-    NOTATION_DEBUG << "NotationView::slotSearchSelect" << endl;
+    NOTATION_DEBUG << "NotationView::slotSearchSelect";
 
     SelectDialog dialog(this);
     if (dialog.exec() == QDialog::Accepted) {
-        NOTATION_DEBUG << "slotSearchSelect- accepted" << endl;
+        NOTATION_DEBUG << "slotSearchSelect- accepted";
     }
 }
 
 void
 NotationView::slotFilterSelection()
 {
-    NOTATION_DEBUG << "NotationView::slotFilterSelection" << endl;
+    NOTATION_DEBUG << "NotationView::slotFilterSelection";
 
     Segment *segment = getCurrentSegment();
     EventSelection *existingSelection = getSelection();
@@ -1841,7 +1847,7 @@ NotationView::slotFilterSelection()
 
     EventFilterDialog dialog(this);
     if (dialog.exec() == QDialog::Accepted) {
-        NOTATION_DEBUG << "slotFilterSelection- accepted" << endl;
+        NOTATION_DEBUG << "slotFilterSelection- accepted";
 
         bool haveEvent = false;
 
@@ -1859,7 +1865,7 @@ NotationView::slotFilterSelection()
         if (haveEvent) {
             setSelection(newSelection, false);
         } else {
-            setSelection(0, false);
+            setSelection(nullptr, false);
         }
     }
 }
@@ -1916,7 +1922,7 @@ NotationView::slotEditCopyControllers()
     EventSelection *selection = cr->getSelection();
     if (!selection) return;
     CommandHistory::getInstance()->addCommand
-        (new CopyCommand(*selection, m_document->getClipboard()));
+        (new CopyCommand(*selection, getClipboard()));
 }
 
 void
@@ -1926,7 +1932,7 @@ NotationView::slotEditCutControllers()
     EventSelection *selection = cr->getSelection();
     if (!selection) return;
     CommandHistory::getInstance()->addCommand
-        (new CutCommand(*selection, m_document->getClipboard()));
+        (new CutCommand(*selection, getClipboard()));
 }
 
 void
@@ -2012,8 +2018,7 @@ NotationView::slotCurrentSegmentNext()
 }
 
 void
-NotationView::
-setCurrentStaff(NotationStaff *staff)
+NotationView::setCurrentStaff(NotationStaff *staff)
 {
     if (!staff) return;
     NotationScene *scene = m_notationWidget->getScene();
@@ -2025,10 +2030,6 @@ setCurrentStaff(NotationStaff *staff)
         { leaveActionState("focus_adopted_segment"); }
 
     scene->setCurrentStaff(staff);
-    m_notationWidget->slotUpdatePointerPosition(true);
-    // m_notationWidget->
-    //     slotPointerPositionChanged(m_document->getComposition().getPosition(),
-    //                                true);
 }
 
 void
@@ -2117,7 +2118,7 @@ NotationView::toggleNamedToolBar(const QString& toolBarName, bool* force)
 
     if (!namedToolBar) {
         NOTATION_DEBUG << "NotationView::toggleNamedToolBar() : toolBar "
-                       << toolBarName << " not found" << endl;
+                       << toolBarName << " not found";
         return ;
     }
 
@@ -2163,7 +2164,7 @@ NotationView::slotSetEraseTool()
 void
 NotationView::slotSetNoteRestInserter()
 {
-    NOTATION_DEBUG << "NotationView::slotSetNoteRestInserter : entered. " << endl;
+    NOTATION_DEBUG << "NotationView::slotSetNoteRestInserter : entered. ";
 
     if (m_notationWidget) m_notationWidget->slotSetNoteRestInserter();
 
@@ -2175,10 +2176,10 @@ NotationView::slotSetNoteRestInserter()
 void
 NotationView::slotSwitchToNotes()
 {
-    NOTATION_DEBUG << "NotationView::slotSwitchToNotes : entered. " << endl;
+    NOTATION_DEBUG << "NotationView::slotSwitchToNotes : entered. ";
 
     QString actionName = "";
-    NoteRestInserter *currentInserter = NULL;
+    NoteRestInserter *currentInserter = nullptr;
     if (m_notationWidget) {
         currentInserter = dynamic_cast<NoteRestInserter *>
             (m_notationWidget->getCurrentTool());
@@ -2187,15 +2188,14 @@ NotationView::slotSwitchToNotes()
             // Switch to NoteRestInserter
             slotSetNoteRestInserter();
             NOTATION_DEBUG << "NotationView::slotSwitchToNotes() : " 
-                    << "NoteRestInserter not current. Attempted to  switch. " << endl;
-            
+                    << "NoteRestInserter not current. Attempted to  switch. ";
             //Try again to see if tool is set.
             currentInserter = dynamic_cast<NoteRestInserter *>
                     (m_notationWidget->getCurrentTool());
             if (!currentInserter) {
                 NOTATION_DEBUG << "NotationView::slotSwitchToNotes() : expected"
                         << " NoteRestInserter as current tool & "
-                        << "could not switch to it.  Silent exit." << endl;
+                        << "could not switch to it.  Silent exit.";
                 return;
             }
         }
@@ -2233,10 +2233,10 @@ NotationView::slotSwitchToNotes()
 void
 NotationView::slotSwitchToRests()
 {
-    NOTATION_DEBUG << "NotationView::slotSwitchToRests : entered. " << endl;
+    NOTATION_DEBUG << "NotationView::slotSwitchToRests : entered. ";
 
     QString actionName = "";
-    NoteRestInserter *currentInserter = NULL;
+    NoteRestInserter *currentInserter = nullptr;
     if (m_notationWidget) {
         currentInserter = dynamic_cast<NoteRestInserter *>
             (m_notationWidget->getCurrentTool());
@@ -2245,7 +2245,7 @@ NotationView::slotSwitchToRests()
             // Switch to NoteRestInserter
             slotSetNoteRestInserter();
             NOTATION_DEBUG << "NotationView::slotSwitchToRests() : " 
-                    << "NoteRestInserter not current. Attempted to  switch. " << endl;
+                    << "NoteRestInserter not current. Attempted to  switch. ";
             
             //Try again to see if tool is set.
             currentInserter = dynamic_cast<NoteRestInserter *>
@@ -2253,7 +2253,7 @@ NotationView::slotSwitchToRests()
             if (!currentInserter) {
                 NOTATION_DEBUG << "NotationView::slotSwitchToRests() : expected"
                         << " NoteRestInserter as current tool & "
-                        << "could not switch to it.  Silent exit." << endl;
+                        << "could not switch to it.  Silent exit.";
                 return;
             }
         }
@@ -2297,9 +2297,9 @@ NotationView::slotSwitchToRests()
 void
 NotationView::morphDurationMonobar()
 {
-    NOTATION_DEBUG << "NotationView::morphDurationMonobar : entered. " << endl;
+    NOTATION_DEBUG << "NotationView::morphDurationMonobar : entered. ";
 
-    NoteRestInserter *currentInserter = 0; 
+    NoteRestInserter *currentInserter = nullptr; 
     if (m_notationWidget) {
         currentInserter = dynamic_cast<NoteRestInserter *>
         (m_notationWidget->getCurrentTool());
@@ -2310,7 +2310,7 @@ NotationView::morphDurationMonobar()
         // Morph called when NoteRestInserter not set as current tool
         NOTATION_DEBUG << "NotationView::morphNotationToolbar() : expected"
                << " NoteRestInserter.  Silent Exit." 
-               << endl;
+              ;
         return;
 
     }
@@ -2338,12 +2338,12 @@ NotationView::morphDurationMonobar()
 
     }
     NOTATION_DEBUG << "NotationView::morphDurationMonobar: morphing to "
-        << modeStr << endl;
+        << modeStr;
 
     if (newMode == m_durationMode && note != Note::Shortest && dots) {
         NOTATION_DEBUG << "NotationView::morphDurationMonobar: new "
             << "mode and last mode are the same.  exit wothout morphing."
-            << endl;
+           ;
         return;
     }
     
@@ -2369,7 +2369,7 @@ NotationView::morphDurationMonobar()
     default:
         NOTATION_DEBUG << "NotationView::morphDurationMonobar:  None of "
             << "The standard four modes were selected for m_durationMode. "
-            << "How did that happen?" << endl;
+            << "How did that happen?";
     }
 
     // transfer new mode to member for next recall.
@@ -2396,7 +2396,7 @@ NotationView::morphDurationMonobar()
     default:
         NOTATION_DEBUG << "NotationView::morphDurationMonobar:  None of "
             << "The standard four modes were selected for newMode. "
-            << "How did that happen?" << endl;
+            << "How did that happen?";
     }
 
     // This code to manage shortest dotted note selection.
@@ -2495,8 +2495,8 @@ NotationView::getPitchFromNoteInsertAction(QString name,
         int scalePitch = name.toInt();
 
         if (scalePitch < 0 || scalePitch > 7) {
-            std::cerr << "NotationView::getPitchFromNoteInsertAction: pitch "
-                      << scalePitch << " out of range, using 0" << std::endl;
+            RG_WARNING << "NotationView::getPitchFromNoteInsertAction: pitch "
+                      << scalePitch << " out of range, using 0";
             scalePitch = 0;
         }
 
@@ -2509,9 +2509,9 @@ NotationView::getPitchFromNoteInsertAction(QString name,
                        << " key = " << key.getName() 
                        << ", clef = " << clef.getClefType() 
                        << ", octaveoffset = " << clef.getOctaveOffset()
-                       << endl;
+                      ;
         NOTATION_DEBUG << "NotationView::getPitchFromNoteInsertAction: octave = "
-                       << pitchOctave << endl;
+                       << pitchOctave;
         
         // Rewrite to fix bug #2997303 :
         //
@@ -2540,7 +2540,7 @@ NotationView::getPitchFromNoteInsertAction(QString name,
         for (; lnh > -3; lnh -= 7) pitchOctave--;
 
         NOTATION_DEBUG << "NotationView::getPitchFromNoteInsertAction: octave = "
-                       << pitchOctave << " (adjusted)" << endl;
+                       << pitchOctave << " (adjusted)";
         
         Pitch pitch(scalePitch, pitchOctave, key, accidental);
         return pitch.getPerformancePitch();
@@ -2568,9 +2568,11 @@ void
 NotationView::slotControllerSequence()
 {
     ControlRulerWidget *cr = m_notationWidget->getControlsWidget();
+    // ??? We should pop up a message: No ruler is visible/selected.
     if (!cr) { return; }
     
     const ControlParameter *cp = cr->getControlParameter();
+    // ??? We should pop up a message: Selected ruler is not a controller ruler.
     if (!cp) { return; }
 
     insertControllerSequence(*cp);
@@ -2604,7 +2606,7 @@ NotationView::slotInsertNoteFromAction()
     Segment *segment = getCurrentSegment();
     if (!segment) return;
 
-    NoteRestInserter *currentInserter = 0;
+    NoteRestInserter *currentInserter = nullptr;
     if(m_notationWidget) {
         currentInserter = dynamic_cast<NoteRestInserter *>
             (m_notationWidget->getCurrentTool());
@@ -2630,10 +2632,10 @@ NotationView::slotInsertNoteFromAction()
 
             try {
 
-                std::cerr << "NotationView::slotInsertNoteFromAction: time = "
+                RG_DEBUG << "NotationView::slotInsertNoteFromAction: time = "
                     << insertionTime << ", key = " << key.getName()
                     << ", clef = " << clef.getClefType() << ", octaveoffset = "
-                    << clef.getOctaveOffset() << std::endl;
+                    << clef.getOctaveOffset();
 
                 pitch = getPitchFromNoteInsertAction(name, accidental, clef, key);
 
@@ -2646,7 +2648,7 @@ NotationView::slotInsertNoteFromAction()
 
             TmpStatusMsg msg(tr("Inserting note"), this);
 
-            NOTATION_DEBUG << "Inserting note at pitch " << pitch << endl;
+            NOTATION_DEBUG << "Inserting note at pitch " << pitch;
             currentInserter->insertNote(*segment, insertionTime,
                 pitch, accidental, 100); // Velocity hard coded for now.
         }
@@ -2659,7 +2661,7 @@ NotationView::slotInsertRestFromAction()
     Segment *segment = getCurrentSegment();
     if (!segment) return;
     
-    NoteRestInserter *currentInserter = 0;
+    NoteRestInserter *currentInserter = nullptr;
     if(m_notationWidget) {
         currentInserter = dynamic_cast<NoteRestInserter *>
             (m_notationWidget->getCurrentTool());
@@ -2687,8 +2689,8 @@ NotationView::slotInsertRestFromAction()
 void
 NotationView::slotToggleDot()
 {
-    NOTATION_DEBUG << "NotationView::slotToggleDot : entered. " << endl;
-    NoteRestInserter *currentInserter = NULL;
+    NOTATION_DEBUG << "NotationView::slotToggleDot : entered. ";
+    NoteRestInserter *currentInserter = nullptr;
     if (m_notationWidget) {
         currentInserter = dynamic_cast<NoteRestInserter *>
             (m_notationWidget->getCurrentTool());
@@ -2696,7 +2698,7 @@ NotationView::slotToggleDot()
             // Switch to NoteRestInserter
             slotSetNoteRestInserter();
             NOTATION_DEBUG << "NotationView::slotToggleDot() : " 
-                    << "NoteRestInserter not current. Attempted to  switch. " << endl;
+                    << "NoteRestInserter not current. Attempted to  switch. ";
             
             //Try again to see if tool is set.
             currentInserter = dynamic_cast<NoteRestInserter *>
@@ -2705,7 +2707,7 @@ NotationView::slotToggleDot()
 
                 NOTATION_DEBUG << "NotationView::slotToggleDot() : expected"
                         << " NoteRestInserter as current tool & "
-                        << "could not switch to it.  Silent exit." << endl;
+                        << "could not switch to it.  Silent exit.";
                 return;
             }
         }
@@ -2743,7 +2745,7 @@ NotationView::slotToggleDot()
 void
 NotationView::slotNoteAction()
 {
-    NOTATION_DEBUG << "NotationView::slotNoteAction : entered. " << endl;
+    NOTATION_DEBUG << "NotationView::slotNoteAction : entered. ";
 
     QObject *s = sender();
     QAction *a = dynamic_cast<QAction *>(s);
@@ -2767,20 +2769,20 @@ NotationView::slotNoteAction()
         if (name.startsWith("duration_")) {
             name = name.replace("duration_", "");
             NOTATION_DEBUG << "NotationView::slotNoteAction : "
-                << "Duration shortcut called." << endl;
+                << "Duration shortcut called.";
             //duration shortcut called from keyboard or menu.
             //Must switch to insert Notes mode.
 
         } else if (currentTool->isaRestInserter()) {
             NOTATION_DEBUG << "NotationView::slotNoteAction : "
-                << "Have rest inserter." << endl;
+                << "Have rest inserter.";
             if (name.startsWith("rest_")) {
                 name = name.replace("rest_", "");
             }
             rest = true;
         } else {
             NOTATION_DEBUG << "NotationView::slotNoteAction : "
-                << "Have note inserter." << endl;
+                << "Have note inserter.";
         }
     }
 
@@ -2812,7 +2814,7 @@ void
 NotationView::manageAccidentalAction(QString actionName)
 {
      NOTATION_DEBUG << "NotationView::manageAccidentalAction: enter. "
-         << "actionName = " << actionName << "." << endl;
+         << "actionName = " << actionName << ".";
 
     // Manage exclusive group setting since group->isExclusive() == false.
     QAction *currentAction = findAction(actionName);
@@ -3006,7 +3008,7 @@ NotationView::slotMakeOrnament()
     int basePitch = -1;
     int baseVelocity = -1;
 
-    NoteStyle *style = NoteStyleFactory::getStyle(NoteStyleFactory::DefaultStyle);
+    QSharedPointer<NoteStyle> style = NoteStyleFactory::getStyle(NoteStyleFactory::DefaultStyle);
 
     for (EventSelection::eventcontainer::iterator i =
              ec.begin(); i != ec.end(); ++i) {
@@ -3108,7 +3110,7 @@ NotationView::EditOrnamentInline(Event *trigger, Segment *containing)
     if (!rec) { return; }
     Segment *link = rec->makeLinkedSegment(trigger, containing);
 
-    // makeLinkedSegment can return NULL, eg if ornament was squashed.
+    // makeLinkedSegment can return nullptr, eg if ornament was squashed.
     if (!link) { return; }
 
     link->setParticipation(Segment::editableClone);
@@ -3157,7 +3159,7 @@ ForAllSelection(opOnEvent op)
     EventSelection *selection = getSelection();
     if (!selection) { return; }
 
-    EventSelection::eventcontainer &ec =
+    EventSelection::eventcontainer ec =
         selection->getSegmentEvents();
 
     for (EventSelection::eventcontainer::iterator i = ec.begin();
@@ -3365,6 +3367,7 @@ NotationView::slotEditAddSustain(bool down)
                        instrument->getDevice()->getType() == Device::SoftSynth) {
                 CommandHistory::getInstance()->addCommand(
                         new SustainInsertionCommand(*segment, insertionTime, down, 64));
+                return;
             }
         }
     }
@@ -3403,9 +3406,6 @@ NotationView::slotEditTranspose()
                 intervalDialog.getChangeKey(), steps, semitones, 
                 intervalDialog.getTransposeSegmentBack()));
     }
-
-    // Fix #1885520 (Update track parameter widget when transpose changed from notation)
-    RosegardenMainWindow::self()->getView()->getTrackParameterBox()->slotUpdateControls(-1);
 }
 
 void
@@ -3440,6 +3440,9 @@ NotationView::slotEditSwitchPreset()
                             dialog.getLowRange(), 
                             dialog.getHighRange(),
                             clefIndexToClef(dialog.getClef())));
+
+        comp.notifyTrackChanged(track);
+
     } else {
         CommandHistory::getInstance()->addCommand(new SegmentSyncCommand(
                             m_segments, 
@@ -3450,9 +3453,6 @@ NotationView::slotEditSwitchPreset()
     }
 
     m_doc->slotDocumentModified();
-
-    // Fix #1885520 (Update track parameter widget when preset changed from notation)
-    RosegardenMainWindow::self()->getView()->getTrackParameterBox()->slotUpdateControls(-1);
 }
 
 void
@@ -3481,29 +3481,11 @@ NotationView::slotToggleTempoRuler()
     settings.endGroup();
 }
 
-// start of code formerly located in EditView.cpp
-// --
-
 void
 NotationView::slotAddTempo()
 {
-    timeT insertionTime = getInsertionTime();
-
-    TempoDialog tempoDlg(this, getDocument());
-
-    connect(&tempoDlg,
-             SIGNAL(changeTempo(timeT,
-                    tempoT,
-                    tempoT,
-                    TempoDialog::TempoDialogAction)),
-                    this,
-                    SIGNAL(changeTempo(timeT,
-                           tempoT,
-                           tempoT,
-                           TempoDialog::TempoDialogAction)));
-
-    tempoDlg.setTempoPosition(insertionTime);
-    tempoDlg.exec();
+    const timeT insertionTime = getInsertionTime();
+    EditTempoController::self()->editTempo(this, insertionTime);
 }
 
 void
@@ -3515,7 +3497,7 @@ NotationView::slotAddTimeSignature()
     Composition *composition = segment->getComposition();
     timeT insertionTime = getInsertionTime();
 
-    TimeSignatureDialog *dialog = 0;
+    TimeSignatureDialog *dialog = nullptr;
     int timeSigNo = composition->getTimeSignatureNumberAt(insertionTime);
 
     if (timeSigNo >= 0) {
@@ -3575,7 +3557,7 @@ NotationView::slotCheckForParallels()
 
     Composition *composition = segment->getComposition();
 
-    CheckForParallelsDialog *dialog = 0;
+    CheckForParallelsDialog *dialog = nullptr;
 
     dialog = new CheckForParallelsDialog(this, m_document, m_notationWidget->getScene(), composition);
 
@@ -3606,7 +3588,7 @@ NotationView::slotRegenerateScene()
 {
     NOTATION_DEBUG << "NotationView::slotRegenerateScene: "
                    << m_notationWidget->getScene()->getSegmentsDeleted()->size()
-                   << " segments deleted" << endl;
+                   << " segments deleted";
 
     // The scene is going to be deleted then restored.  To continue
     // processing at best is useless and at the worst may cause a
@@ -3626,7 +3608,7 @@ NotationView::slotRegenerateScene()
         if (m_notationWidget->getScene()->isSceneEmpty()) {
             // All segments have been removed : don't regenerate anything
             // but close the editor.
-            NOTATION_DEBUG << "NotationView::slotSceneDeleted" << endl;
+            NOTATION_DEBUG << "NotationView::slotSceneDeleted";
 
             close();
             return;
@@ -3642,7 +3624,7 @@ NotationView::slotRegenerateScene()
                     NOTATION_DEBUG << "NotationView::slotRegenerateScene:"
                                     " Erased segment from vector, have "
                                 << m_segments.size() << " segment(s) remaining"
-                                << endl;
+                               ;
                     break;
                 }
             }
@@ -3670,7 +3652,8 @@ NotationView::slotRegenerateScene()
     // restore size and spacing of notation police
     m_notationWidget->slotSetFontName(m_fontName);
     m_notationWidget->slotSetFontSize(m_fontSize);
-    m_notationWidget->getScene()->setHSpacing(m_spacing);
+    m_notationWidget->getScene()->setHSpacing(
+            m_doc->getComposition().m_notationSpacing);
 
     // restore zoom factors
     m_notationWidget->setVerticalZoomFactor(vZoomFactor);
@@ -3705,7 +3688,7 @@ NotationView::slotUpdateWindowTitle(bool m)
         int trackPosition = -1;
         if (track)
             trackPosition = track->getPosition();
-        //    std::cout << std::endl << std::endl << std::endl << "DEBUG TITLE BAR: " << getDocument()->getTitle() << std::endl << std::endl << std::endl;
+        //    RG_DEBUG << std::endl << std::endl << "DEBUG TITLE BAR: " << getDocument()->getTitle() << std::endl << std::endl << std::endl;
         setWindowTitle(tr("%1%2 - Segment Track #%3 - Notation")
                       .arg(indicator)
                       .arg(getDocument()->getTitle())
@@ -3745,7 +3728,7 @@ NotationView::slotGroupTuplet(bool simple)
     timeT unit = 0;
     int tupled = 2;
     int untupled = 3;
-    Segment *segment = 0;
+    Segment *segment = nullptr;
     bool hasTimingAlready = false;
     EventSelection *selection = getSelection();
 
@@ -3992,9 +3975,10 @@ void
 NotationView::slotTranspose()
 {
     EventSelection *selection = getSelection();
-    if (!selection) std::cout << "Hint: selection is NULL in slotTranpose() " <<
- std::endl;
-    if (!selection) return;
+    if (!selection) {
+        RG_WARNING << "Hint: selection is nullptr in slotTranpose()";
+        return;
+    }
 
     QSettings settings;
     settings.beginGroup(NotationViewConfigGroup);
@@ -4035,12 +4019,12 @@ NotationView::slotDiatonicTranspose()
 
     if (intervalDialog.getChangeKey())
     {
-        std::cout << "Transposing changing keys is not currently supported on selections" << std::endl;
+        RG_WARNING << "Transposing changing keys is not currently supported on selections";
     }
     else
     {
         // Transpose within key
-                //std::cout << "Transposing semitones, steps: " << semitones << ", " << steps << std::endl;
+                //RG_DEBUG << "Transposing semitones, steps: " << semitones << ", " << steps;
         CommandHistory::getInstance()->addCommand(new TransposeCommand
                                                   (semitones, steps,
                                                   *getSelection()));
@@ -4086,7 +4070,7 @@ NotationView::slotJogLeft()
     EventSelection *selection = getSelection();
     if (!selection) return ;
 
-    RG_DEBUG << "NotationView::slotJogLeft" << endl;
+    RG_DEBUG << "NotationView::slotJogLeft";
 
     bool useNotationTimings = true;
 
@@ -4167,14 +4151,14 @@ NotationView::slotStepForward()
 void
 NotationView::slotInsertableNoteOnReceived(int pitch, int velocity)
 {
-    NOTATION_DEBUG << "NotationView::slotInsertableNoteOnReceived: " << pitch << endl;
+    NOTATION_DEBUG << "NotationView::slotInsertableNoteOnReceived: " << pitch;
     slotInsertableNoteEventReceived(pitch, velocity, true);
 }
 
 void
 NotationView::slotInsertableNoteOffReceived(int pitch, int velocity)
 {
-    NOTATION_DEBUG << "NotationView::slotInsertableNoteOffReceived: " << pitch << endl;
+    NOTATION_DEBUG << "NotationView::slotInsertableNoteOffReceived: " << pitch;
     slotInsertableNoteEventReceived(pitch, velocity, false);
 }
 
@@ -4184,48 +4168,40 @@ void
 //NotationView::slotInsertableNoteEventReceived(int pitch, int velocity, bool noteOn)
 NotationView::slotInsertableNoteEventReceived(int pitch, int velocity, bool noteOn)
 {
-    // NOTE: these next comments are from before 1.0, and that should be
-    // understood when considering them in relation to Thorn
-    //
-    //!!! Problematic.  Ideally we wouldn't insert events into windows
-    //that weren't actually visible, otherwise all hell could break
-    //loose (metaphorically speaking, I should probably add).  I did
-    //think of checking isActiveWindow() and returning if the current
-    //window wasn't active, but that will prevent anyone from
-    //step-recording from e.g. vkeybd, which cannot be used without
-    //losing focus (and thus active-ness) from the Rosegarden window.
 
-    //!!! I know -- we'll keep track of which edit view (or main view,
-    //or mixer, etc) is active, and we'll only allow insertion into
-    //the most recently activated.  How about that?
-
-    /* was toggle */
-//      QAction *action = dynamic_cast<QAction*>
-//         (actionCollection()->action("toggle_step_by_step"));
-        QAction *action = findAction("toggle_step_by_step");
+    // find step recording action in menu (it ought to exist!)
+    QAction *action = findAction("toggle_step_by_step");
     if (!action) {
-        NOTATION_DEBUG << "WARNING: No toggle_step_by_step action" << endl;
+        NOTATION_DEBUG << "WARNING: No toggle_step_by_step action";
         return ;
     }
-    if (!action->isChecked())
-        return ;
+
+    // return if we're not in step recording (step by step) mode
+    if (!action->isChecked()) return ;
+
+    // return if this window is not active, to avoid a window that is out of
+    // sight and out of mind filling rapidly with unexpected gibberish which has
+    // to be undone one event at a time
+    //
+    // NOTE: This prevents using step recording mode with an external app like
+    // VMPK.  I can't think of any other way to avoid the far greater problem of
+    // having to undo 15,000 unexpected events you didn't intend to record in an
+    // out of focus view that got left in step record mode.
+    if (!isActiveWindow()) return;
 
     Segment *segment = getCurrentSegment();
 
     NoteRestInserter *noteInserter = dynamic_cast<NoteRestInserter *>
                                      (m_notationWidget->getCurrentTool());
     if (!noteInserter) {
-        static bool showingError = false;
-        if (showingError)
-            return ;
-        showingError = true;
-        QMessageBox::warning(this, tr("Rosegarden"), tr("Can't insert note: No note duration selected"));
-        showingError = false;
-        return ;
+        // The old behavior was totally evil, so let's try failing silently and
+        // see how obnoxious it is for the user to discover the hard way that
+        // nothing is happening, because the wrong tool is selected.
+        return;
     }
 
 //    if (m_inPaintEvent) {
-//        NOTATION_DEBUG << "NotationView::slotInsertableNoteEventReceived: in paint event already" << endl;
+//        NOTATION_DEBUG << "NotationView::slotInsertableNoteEventReceived: in paint event already";
 //        if (noteOn) {
 //            m_pendingInsertableNotes.push_back(std::pair<int, int>(pitch, velocity));
 //        }
@@ -4259,7 +4235,7 @@ NotationView::slotInsertableNoteEventReceived(int pitch, int velocity, bool note
     if (isInChordMode()) {
         if (!noteOn)
             return ;
-        NOTATION_DEBUG << "Inserting note in chord at pitch " << pitch << endl;
+        NOTATION_DEBUG << "Inserting note in chord at pitch " << pitch;
         noteInserter->insertNote(*segment, getInsertionTime(), pitch,
                                  Accidentals::NoAccidental, velocity,
                                  true);
@@ -4315,30 +4291,15 @@ void
 NotationView::slotEditLyrics()
 {
     Segment *segment = getCurrentSegment();
-    int oldVerseCount = 1;
-    
-    // The loop below is identical with the one in LyricEditDialog::countVerses() 
-    // Maybe countVerses() should be moved to a Segment manipulating class ? (hjj)
-    for (Segment::iterator i = segment->begin();
-         segment->isBeforeEndMarker(i); ++i) {
+    int oldVerseCount = segment->getVerseCount();
 
-        if ((*i)->isa(Text::EventType)) {
-
-            std::string textType;
-            if ((*i)->get<String>(Text::TextTypePropertyName, textType) &&
-                textType == Text::Lyric) {
-
-                long verse = 0;
-                (*i)->get<Int>(Text::LyricVersePropertyName, verse);
-
-                if (verse >= oldVerseCount) oldVerseCount = verse + 1;
-            }
-        }
-    }
-
-    LyricEditDialog dialog(this, segment);
+    LyricEditDialog dialog(this, m_segments, segment);
 
     if (dialog.exec() == QDialog::Accepted) {
+
+        // User may have change segment from inside the dialog
+        // (see ticket #1547)
+        segment = dialog.getSegment();
 
         MacroCommand *macro = new MacroCommand
             (SetLyricsCommand::getGlobalName());
@@ -4420,7 +4381,10 @@ NotationView::slotSpacingComboChanged(int index)
 {
     int spacing = m_availableSpacings[index];
     if (m_notationWidget) m_notationWidget->getScene()->setHSpacing(spacing);
-    m_spacing = spacing;
+
+    m_doc->getComposition().m_notationSpacing = spacing;
+    m_doc->slotDocumentModified();
+
     QString action = QString("spacing_%1").arg(spacing);
     findAction(action)->setChecked(true);
 }
@@ -4442,6 +4406,7 @@ NotationView::slotTogglePitchbendRuler()
 void
 NotationView::slotAddControlRuler(QAction *action)
 {
+    NOTATION_DEBUG << "NotationView::slotAddControlRuler(" << action << ")" << endl;
     m_notationWidget->slotAddControlRuler(action);
     conformRulerSelectionState();
 }
@@ -4450,7 +4415,7 @@ Device *
 NotationView::getCurrentDevice()
 {
     if (m_notationWidget) return m_notationWidget->getCurrentDevice();
-    else return 0;
+    else return nullptr;
 }
 
 void
@@ -4504,13 +4469,13 @@ NotationView::slotToggleStepByStep()
     QAction *action = findAction("toggle_step_by_step");
 
     if (!action) {
-        MATRIX_DEBUG << "WARNING: No toggle_step_by_step action" << endl;
+        NOTATION_DEBUG << "WARNING: No toggle_step_by_step action";
         return ;
     }
     if (action->isChecked()) {
         emit stepByStepTargetRequested(this);
     } else {
-        emit stepByStepTargetRequested(0);
+        emit stepByStepTargetRequested(nullptr);
     }
 }
 
@@ -4520,26 +4485,26 @@ NotationView::slotStepByStepTargetRequested(QObject *obj)
     QAction *action = findAction("toggle_step_by_step");
 
     if (!action) {
-        MATRIX_DEBUG << "WARNING: No toggle_step_by_step action" << endl;
+        MATRIX_DEBUG << "WARNING: No toggle_step_by_step action";
         return ;
     }
     action->setChecked(obj == this);
 }
 
 void
-NotationView::slotMoveEventsUpStaffInteractive(void)
+NotationView::slotMoveEventsUpStaffInteractive()
 { generalMoveEventsToStaff(true, true); }
 
 void
-NotationView::slotMoveEventsDownStaffInteractive(void)
+NotationView::slotMoveEventsDownStaffInteractive()
 { generalMoveEventsToStaff(false, true); }
 
 void
-NotationView::slotMoveEventsUpStaff(void)
+NotationView::slotMoveEventsUpStaff()
 { generalMoveEventsToStaff(true, false); }
 
 void
-NotationView::slotMoveEventsDownStaff(void)
+NotationView::slotMoveEventsDownStaff()
 { generalMoveEventsToStaff(false, false); }
 
 // Move the selected events to another staff
@@ -4606,7 +4571,7 @@ NotationView::slotEditElement(NotationStaff *staff,
                               NotationElement *element,
                               bool advanced)
 {
-    NOTATION_DEBUG << "NotationView::slotEditElement()" << endl;
+    NOTATION_DEBUG << "NotationView::slotEditElement()";
 
     NotationScene *scene = m_notationWidget->getScene();
     if (!scene) return;
@@ -4644,8 +4609,8 @@ NotationView::slotEditElement(NotationStaff *staff,
                      (staff->getSegment(), element->event()->getAbsoluteTime(),
                       dialog.getClef(), shouldChangeOctave, shouldTranspose));
             }
-        } catch (Exception e) {
-            std::cerr << e.getMessage() << std::endl;
+        } catch (const Exception &e) {
+            RG_WARNING << e.getMessage();
         }
 
         return ;
@@ -4684,8 +4649,8 @@ NotationView::slotEditElement(NotationStaff *staff,
                 }
             }
                 
-        } catch (Exception e) {
-            std::cerr << e.getMessage() << std::endl;
+        } catch (const Exception &e) {
+            RG_WARNING << e.getMessage();
         }
 
         return ;
@@ -4715,8 +4680,8 @@ NotationView::slotEditElement(NotationStaff *staff,
               dialog.shouldIgnorePercussion()));
             }
 
-        } catch (Exception e) {
-            std::cerr << e.getMessage() << std::endl;
+        } catch (const Exception &e) {
+            RG_WARNING << e.getMessage();
         }
 
         return ;
@@ -4740,8 +4705,8 @@ NotationView::slotEditElement(NotationStaff *staff,
                 macroCommand->addCommand(command);
                 CommandHistory::getInstance()->addCommand(macroCommand);
             }
-        } catch (Exception e) {
-            std::cerr << e.getMessage() << std::endl;
+        } catch (const Exception &e) {
+            RG_WARNING << e.getMessage();
         }
 
         return ;
@@ -4800,6 +4765,35 @@ NotationView::slotTransformsCollapseNotes()
             addCommand(new CollapseNotesCommand(*selection));
 }
 
+void NotationView::extendSelectionHelper(bool forward, EventSelection *es, const std::vector<Event *> &eventVec, bool select)
+{
+    int moveCount = 0;
+    int prevEventTime = 0;
+    int prevSubOrdering = 0;
+    for (unsigned int j = 0; j < eventVec.size(); ++j) {
+        Event *event = eventVec[j];
+        int count;
+        if (select) { // select
+            count = es->addEvent(event, true, forward);
+        } else { // unselect
+            count = es->removeEvent(event, true, forward);
+        }
+        if (prevEventTime != event->getAbsoluteTime() || prevSubOrdering != event->getSubOrdering()) {
+            moveCount = qMax(moveCount, count);
+        }
+        prevEventTime = event->getAbsoluteTime();
+        prevSubOrdering = event->getSubOrdering();
+    }
+
+    // #1519: increment cursor for every event selected/unselected
+    for (int c = 1; c < moveCount; ++c) {
+        if (forward)
+            slotStepForward();
+        else
+            slotStepBackward();
+    }
+}
+
 void
 NotationView::slotExtendSelectionBackward()
 {
@@ -4815,9 +4809,7 @@ NotationView::slotExtendSelectionBackwardBar()
 void
 NotationView::slotExtendSelectionBackward(bool bar)
 {
-    // If there is no current selection, or the selection is entirely
-    // to the right of the cursor, move the cursor left and add to the
-    // selection
+    // Move the cursor left and toggle selection between oldTime and newTime
 
     timeT oldTime = getInsertionTime();
 
@@ -4832,59 +4824,48 @@ NotationView::slotExtendSelectionBackward(bool bar)
     NotationStaff *currentStaff = m_notationWidget->getScene()->getCurrentStaff();
     if (!currentStaff) return;
 
-    // ho ho, there is no NotationViewSegment whatever because a NotationStaff
-    // is a subclass of ViewSegment
-    ViewSegment *vs = dynamic_cast<ViewSegment*>(currentStaff);
-
-    ViewElementList *vel = vs->getViewElementList(); 
+    ViewElementList *vel = currentStaff->getViewElementList();
     EventSelection *s = getSelection();
-    EventSelection *es = new EventSelection(*segment);
+    EventSelection *es;
+    if (s && &s->getSegment() == segment)
+        es = new EventSelection(*s);
+    else
+        es = new EventSelection(*segment);
 
-    if (s && &s->getSegment() == segment) es->addFromSelection(s);
+    ViewElementList::iterator extendFrom = vel->findTime(oldTime);
+    if (extendFrom == vel->begin()) // shouldn't happen
+        return;
+    ViewElementList::iterator firstNote = extendFrom;
+    --firstNote;
+    const bool wasSelected = es->contains((*firstNote)->event());
 
-    if (!s || &s->getSegment() != segment
-           || s->getSegmentEvents().size() == 0
-           || s->getStartTime() >= oldTime) {
+    // store events in a separate data structure, to avoid
+    // breaking iteration while removing events from the segment.
+    std::vector<Event *> eventVec;
 
-        ViewElementList::iterator extendFrom = vel->findTime(oldTime);
+    while (extendFrom != vel->begin() &&
+           (*--extendFrom)->getViewAbsoluteTime() >= newTime) {
 
-        while (extendFrom != vel->begin() &&
-                (*--extendFrom)->getViewAbsoluteTime() >= newTime) {
-
-            //!!! This should actually grab every sort of event, and not just
-            // notes, but making that change makes the selection die every time
-            // the endpoint of an indication is encountered, and I'm just not
-            // seeing why, so I'm giving up on that and leaving it in the same
-            // stupid state I found it in (and it's probably in this state
-            // because the last guy had the same problem with indications.)
-            //
-            // I don't like this, because it makes it very easy to go along and
-            // orphan indications, text events, controllers, and all sorts of
-            // whatnot.  However, I have to call it quits for today, and have no
-            // idea if I'll ever remember to come back to this, so I'm leaving a
-            // reminder to someone that all of this is stupid.
-
-            if ((*extendFrom)->event()->isa(Note::EventType)) {
-                es->addEvent((*extendFrom)->event());
-            }
-        }
-
-    } else { // remove an event
-
-        EventSelection::eventcontainer::iterator i =
-            es->getSegmentEvents().end();
-
-        std::vector<Event *> toErase;
-
-        while (i != es->getSegmentEvents().begin() &&
-                (*--i)->getAbsoluteTime() >= newTime) {
-            toErase.push_back(*i);
-        }
-
-        for (unsigned int j = 0; j < toErase.size(); ++j) {
-            es->removeEvent(toErase[j]);
+        //!!! This should actually grab every sort of event, and not just
+        // notes, but making that change makes the selection die every time
+        // the endpoint of an indication is encountered, and I'm just not
+        // seeing why, so I'm giving up on that and leaving it in the same
+        // stupid state I found it in (and it's probably in this state
+        // because the last guy had the same problem with indications.)
+        //
+        // I don't like this, because it makes it very easy to go along and
+        // orphan indications, text events, controllers, and all sorts of
+        // whatnot.  However, I have to call it quits for today, and have no
+        // idea if I'll ever remember to come back to this, so I'm leaving a
+        // reminder to someone that all of this is stupid.
+        Event *event = (*extendFrom)->event();
+        if (event->isa(Note::EventType)) {
+            eventVec.push_back(event);
         }
     }
+
+    const bool forward = false;
+    extendSelectionHelper(forward, es, eventVec, !wasSelected);
 
     setSelection(es, true);
 }
@@ -4904,9 +4885,7 @@ NotationView::slotExtendSelectionForwardBar()
 void
 NotationView::slotExtendSelectionForward(bool bar)
 {
-    // If there is no current selection, or the selection is entirely
-    // to the right of the cursor, move the cursor left and add to the
-    // selection
+    // Move the cursor right and toggle selection between oldTime and newTime
 
     timeT oldTime = getInsertionTime();
 
@@ -4921,49 +4900,35 @@ NotationView::slotExtendSelectionForward(bool bar)
     NotationStaff *currentStaff = m_notationWidget->getScene()->getCurrentStaff();
     if (!currentStaff) return;
 
-    // ho ho, there is no NotationViewSegment whatever because a NotationStaff
-    // is a subclass of ViewSegment
-    ViewSegment *vs = dynamic_cast<ViewSegment*>(currentStaff);
-
-    ViewElementList *vel = vs->getViewElementList(); 
+    ViewElementList *vel = currentStaff->getViewElementList();
     EventSelection *s = getSelection();
-    EventSelection *es = new EventSelection(*segment);
+    EventSelection *es;
+    if (s && &s->getSegment() == segment)
+        es = new EventSelection(*s);
+    else
+        es = new EventSelection(*segment);
 
-    if (s && &s->getSegment() == segment) es->addFromSelection(s);
+    ViewElementList::iterator extendFrom = vel->findTime(oldTime);
+    if (extendFrom == vel->end()) // shouldn't happen
+        return;
+    const bool wasSelected = es->contains((*extendFrom)->event());
 
-    if (!s || &s->getSegment() != segment
-           || s->getSegmentEvents().size() == 0
-           || s->getEndTime() <= oldTime) {
+    std::vector<Event *> eventVec;
 
-        ViewElementList::iterator extendFrom = vel->findTime(oldTime);
-
-        while (extendFrom != vel->end() &&
-                (*extendFrom)->getViewAbsoluteTime() < newTime) {
-            if ((*extendFrom)->event()->isa(Note::EventType)) {
-                es->addEvent((*extendFrom)->event());
-            }
-            ++extendFrom;
+    while (extendFrom != vel->end() &&
+           (*extendFrom)->getViewAbsoluteTime() < newTime) {
+        Event *event = (*extendFrom)->event();
+        // Only grab notes for now, see slotExtendSelectionBackward()
+        if (event->isa(Note::EventType)) {
+            eventVec.push_back(event);
         }
-
-    } else { // remove an event
-
-        EventSelection::eventcontainer::iterator i =
-            es->getSegmentEvents().begin();
-
-        std::vector<Event *> toErase;
-
-        while (i != es->getSegmentEvents().end() &&
-                (*i)->getAbsoluteTime() < newTime) {
-            toErase.push_back(*i);
-            ++i;
-        }
-
-        for (unsigned int j = 0; j < toErase.size(); ++j) {
-            es->removeEvent(toErase[j]);
-        }
+        ++extendFrom;
     }
 
-    setSelection(es, true); 
+    const bool forward = true;
+    extendSelectionHelper(forward, es, eventVec, !wasSelected);
+
+    setSelection(es, true);
 }
 
 
@@ -5063,7 +5028,7 @@ NotationView::slotAddLayer()
     // get the pointer to the segment we just created and add it to m_segments
     m_segments.push_back(command->getSegment());
 
-    // re-invoke setSegments with the ammended m_segments
+    // re-invoke setSegments with the amended m_segments
     setWidgetSegments();
 
     // try to make the new segment active immediately
@@ -5084,62 +5049,73 @@ NotationView::slotAddLayer()
 }
 
 void
-NotationView::setRewFFwdToAutoRepeat()
+NotationView::slotMagicLayer()
 {
-    // This one didn't work in Classic either.  Looking at it as a fresh
-    // problem, it was tricky.  The QAction has an objectName() of "rewind"
-    // but the QToolButton associated with that action has no object name at
-    // all.  We kind of have to go around our ass to get to our elbow on
-    // this one.
-    
-    // get pointers to the actual actions    
-    QAction *rewAction = findAction("playback_pointer_back_bar");    // rewind
-    QAction *ffwAction = findAction("playback_pointer_forward_bar"); // fast forward
-    QAction *cbkAction = findAction("cursor_back");                  // <<<
-    QAction *cfwAction = findAction("cursor_forward");               // >>>
+    // grab selection; else abort cleanly
+    EventSelection *selection = getSelection();
+    if (!selection) return;
 
-    QWidget* transportToolbar = this->findToolbar("Transport Toolbar");
+    // switch to the pencil, as in slotAddLayer
+    slotSetNoteRestInserter();
 
-    if (transportToolbar) {
+    MacroCommand *macro = new MacroCommand(tr("New Layer from Selection"));
 
-        // get a list of all the toolbar's children (presumably they're
-        // QToolButtons, but use this kind of thing with caution on customized
-        // QToolBars!)
-        QList<QToolButton *> widgets = transportToolbar->findChildren<QToolButton *>();
+    // make a new "layer" segment
+    AddLayerCommand *command = new AddLayerCommand(getCurrentSegment(), getDocument()->getComposition());
+    command->execute();
 
-        // iterate through the entire list of children
-        for (QList<QToolButton *>::iterator i = widgets.begin(); i != widgets.end(); ++i) {
+    // Not sure how to handle this:  We have to execute() here to get the
+    // segment created for pasting, but if we do that, the command executes a
+    // second time later on, and you end up with two new segments, one of which
+    // is empty...  The only way I see to avoid that is to execute here, and
+    // skip adding this to the MacroCommand, which means if you undo this
+    // operation, it won't be clean.  The only alternative I can think of is to
+    // add a series of commands to the stack, so one operation requires multiple
+    // undos to reverse.  I don't like that either.  Meh.  
+//    macro->addCommand(command);
 
-            // get a pointer to the button's default action
-            QAction *act = (*i)->defaultAction();
-
-            // compare pointers, if they match, we've found the button
-            // associated with that action
-            //
-            // we then have to not only setAutoRepeat() on it, but also connect
-            // it up differently from what it got in createAction(), as
-            // determined empirically (bleargh!!)
-            if (act == rewAction) {
-                connect((*i), SIGNAL(clicked()), this, SIGNAL(rewindPlayback()));
-
-            } else if (act == ffwAction) {
-                connect((*i), SIGNAL(clicked()), this, SIGNAL(fastForwardPlayback()));
-
-            } else if (act == cbkAction) {
-                connect((*i), SIGNAL(clicked()), this, SIGNAL(stepBackward()));
-
-            } else if (act == cfwAction) {
-                connect((*i), SIGNAL(clicked()), this, SIGNAL(stepForward()));
-
-            } else  {
-                continue;
-            }
-
-            //  Must have found an button to update
-            (*i)->removeAction(act);
-            (*i)->setAutoRepeat(true);
-        }
+    // get the new segment we just created; abort if there is no new segment or
+    // if it is exactly the same as the current segment, which means new segment
+    // creation failed
+    Segment *newLayer = command->getSegment();
+    if (!newLayer || newLayer == getCurrentSegment()) {
+        RG_DEBUG << "NotationView::slotMagicLayer(): newLayer: " 
+                 << newLayer
+                 << " currentSegment: "
+                 << getCurrentSegment()
+                 << " aborting!" << endl;
+        delete macro;
+        return;
     }
+
+    // cut the selected events from the parent segment
+    timeT insertionTime = selection->getStartTime();
+
+    Clipboard *c = new Clipboard;
+    CopyCommand *cc = new CopyCommand(*selection, c);
+    cc->execute();
+
+    macro->addCommand(new EraseCommand(*selection));
+
+    // use overlay paste to avoid checking for space; paste to new "layer" 
+    PasteEventsCommand::PasteType type = PasteEventsCommand::NoteOverlay;
+    macro->addCommand(new PasteEventsCommand(*newLayer, c, insertionTime, type));
+    
+    delete c;
+
+    CommandHistory::getInstance()->addCommand(macro);
+
+    // normalize rests to clean up the weird double whole rest problem
+    newLayer->normalizeRests(newLayer->getStartTime(), newLayer->getEndTime());
+
+    // get the pointer to the segment we just created and add it to m_segments
+    m_segments.push_back(newLayer);
+
+    // re-invoke setSegments with the amended m_segments
+    setWidgetSegments();
+
+    // try to make the new segment active immediately
+    slotCurrentSegmentNext();
 }
 
 void
@@ -5186,7 +5162,7 @@ NotationView::slotInterpretActivate()
     // treat it like there was no selection at all by just zeroing it out and
     // feeding it along to be replaced with a select all.
     if (selection) {
-        if (selection->getTotalDuration() == 0) selection = 0;
+        if (selection->getTotalDuration() == 0) selection = nullptr;
     }
 
     // Selections aren't undoable anywhere else, so there's no point writing a
@@ -5213,8 +5189,7 @@ NotationView::slotInterpretActivate()
              << (flags & InterpretCommand::ApplyTextDynamics ? "[TEXT]" : "[    ]")
              << (flags & InterpretCommand::ApplyHairpins ? "[HAIR]" : "[    ]")
              << (flags & InterpretCommand::Articulate ? "[SLUR]" : "[    ]")
-             << (flags & InterpretCommand::StressBeats ? "[BEAT]" : "[    ]")
-             << endl;
+             << (flags & InterpretCommand::StressBeats ? "[BEAT]" : "[    ]");
 
     // go straight to the command with the flags pulled from the toolbar as
     // though it were the dialog
@@ -5227,4 +5202,3 @@ NotationView::slotInterpretActivate()
 
 } // end namespace Rosegarden
 
-#include "NotationView.moc"

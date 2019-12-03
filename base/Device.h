@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -48,24 +48,25 @@ public:
     // special device ids
     static const DeviceId NO_DEVICE;
     static const DeviceId ALL_DEVICES;
+    // The "external controller" ALSA port that we create.
     static const DeviceId CONTROL_DEVICE;
 
     Device(DeviceId id, const std::string &name, DeviceType type):
         m_name(name), m_type(type), m_id(id) { }
 
-    virtual ~Device();
+    ~Device() override;
 
     /**
      * Return a Controllable if we are a subtype that also inherits
-     * from Controllable, otherwise return NULL
+     * from Controllable, otherwise return nullptr
      **/
-    Controllable *getControllable(void);
+    Controllable *getControllable();
 
     /**
      * Return our AllocateChannels if we are a subtype that tracks
-     * free channels, otherwise return NULL
+     * free channels, otherwise return nullptr
      **/
-    virtual AllocateChannels *getAllocator(void);
+    virtual AllocateChannels *getAllocator();
 
     void setType(DeviceType type) { m_type = type; }
     DeviceType getType() const { return m_type; }
@@ -75,6 +76,9 @@ public:
 
     void setId(DeviceId id) { m_id = id; }
     DeviceId getId() const { return m_id; }
+
+    virtual bool isInput() const = 0;
+    virtual bool isOutput() const = 0;
 
     // Accessing instrument lists - Devices should only
     // show the world what they want it to see
@@ -86,21 +90,14 @@ public:
     virtual InstrumentList getAllInstruments() const = 0;
     virtual InstrumentList getPresentationInstruments() const = 0;
 
-    // Historically Device didn't always know what it was connected to.
-    // Now it gets updated when the connection changes in the
-    // sequencer.
-    void setConnection(std::string connection) {
-        // compare returns 0 if strings match.
-        if (connection.compare(m_connection)) {
-            m_connection = connection;
-            refreshForConnection();
-        }
-    }
+    /// Send channel setups to each instrument in the device.
+    /**
+     * This is mainly a MidiDevice thing.  Not sure if we should push it down.
+     */
+    void sendChannelSetups();
 
-    // Refresh this device for a possibly new connection.  
-    // Non-trivial only in MidiDevice.
-    virtual void refreshForConnection(void) = 0;
-    
+    void setConnection(std::string connection)  { m_connection = connection; }
+
 protected:
     virtual void addInstrument(Instrument *) = 0;
     virtual void renameInstruments() = 0;

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -46,14 +46,14 @@ public:
 
     DeCounterpointCommand(Segment &segment) :
         BasicSelectionCommand(getGlobalName(), segment, true),
-        m_selection(0) { }
+        m_selection(nullptr) { }
 
     static QString getGlobalName() { return tr("Split-and-Tie Overlapping &Chords"); }
 
     static void registerCommand(CommandRegistry *r);
 
 protected:
-    virtual void modifySegment();
+    void modifySegment() override;
 
 private:
     EventSelection *m_selection;// only used on 1st execute (cf bruteForceRedo)

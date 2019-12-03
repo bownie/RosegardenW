@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef RG_MULTIVIEWCOMMANDHISTORY_H
-#define RG_MULTIVIEWCOMMANDHISTORY_H
+#ifndef RG_COMMANDHISTORY_H
+#define RG_COMMANDHISTORY_H
 
 #include <QObject>
 #include <QString>
@@ -47,24 +47,23 @@ class ActionFileClient;
  * keeps them all up-to-date at once.  This makes it effective in
  * systems where multiple views may be editing the same data.
  */
-
 class CommandHistory : public QObject
 {
     Q_OBJECT
 
 public:
-    virtual ~CommandHistory();
+    ~CommandHistory() override;
 
     static CommandHistory *getInstance();
 
     void clear();
-    
-    void registerMenu(QMenu *menu);
-    void registerToolbar(QToolBar *toolbar);
 
+    // These are done by the .rc file these days.
+    //void registerMenu(QMenu *menu);
+    //void registerToolbar(QToolBar *toolbar);
+
+    /// Add a command to the command history.
     /**
-     * Add a command to the command history.
-     * 
      * The command will normally be executed before being added; but
      * if a compound operation is in use (see startCompoundOperation
      * below), the execute status of the compound operation will
@@ -72,9 +71,8 @@ public:
      */
     void addCommand(Command *command);
     
+    /// Add a command to the command history.
     /**
-     * Add a command to the command history.
-     *
      * If execute is true, the command will be executed before being
      * added.  Otherwise it will be assumed to have been already
      * executed -- a command should not be added to the history unless
@@ -125,6 +123,9 @@ public:
 
     /// Finish recording commands and store the compound command.
     void endCompoundOperation();
+
+    /// Enable/Disable undo (during playback).
+    void enableUndo(bool enable);
 
 public slots:
     /**
@@ -193,41 +194,53 @@ protected:
     CommandHistory();
     static CommandHistory *m_instance;
 
+    // Actions and Menus
+
+    /// Edit > Undo on all menus.
     QAction *m_undoAction;
+    /// Edit > Redo on all menus.
     QAction *m_redoAction;
+    /// RosegardenMainWindow toolbar undo.
     QAction *m_undoMenuAction;
+    /// RosegardenMainWindow toolbar redo.
     QAction *m_redoMenuAction;
+
     QMenu *m_undoMenu;
     QMenu *m_redoMenu;
 
     std::map<QAction *, int> m_actionCounts;
 
+    void updateActions();
+
+    // Command Stacks
     typedef std::stack<Command *> CommandStack;
     CommandStack m_undoStack;
     CommandStack m_redoStack;
+    void clipStack(CommandStack &stack, int limit);
+    void clearStack(CommandStack &stack);
+    void clipCommands();
 
     int m_undoLimit;
     int m_redoLimit;
     int m_menuLimit;
     int m_savedAt;
 
+    // Compound
     MacroCommand *m_currentCompound;
     bool m_executeCompound;
     void addToCompound(Command *command, bool execute);
 
+    // Bundle
     MacroCommand *m_currentBundle;
     QString m_currentBundleName;
     QTimer *m_bundleTimer;
     int m_bundleTimeout;
     void addToBundle(Command *command, bool execute);
     void closeBundle();
+
+    /// Enable/Disable undo (during playback).
+    bool m_enableUndo;
     
-    void updateActions();
-
-    void clipCommands();
-
-    void clipStack(CommandStack &stack, int limit);
-    void clearStack(CommandStack &stack);
 };
 
 }

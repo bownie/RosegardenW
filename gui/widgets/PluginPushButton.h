@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -45,11 +45,14 @@ public:
     enum State {Normal, Bypassed, Active};
 
 
-    PluginPushButton(QWidget *parent = 0) : QPushButton(parent)
+    PluginPushButton(QWidget *parent = nullptr) :
+        QPushButton(parent),
+        m_currentState(Active)  // Anything but Normal to trigger first change.
     {
+        setState(Normal);
     };
 
-    virtual ~PluginPushButton();
+    ~PluginPushButton() override;
 
     /** Set the state of the PluginPushButton to one of:
      *
@@ -60,6 +63,8 @@ public:
     void setState(State state);
 
 private:
+    /// Cache to detect actual changes.
+    State m_currentState;
 };
 
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file originally from Sonic Visualiser, copyright 2007 Queen
     Mary, University of London.
@@ -23,10 +23,11 @@
 #include <QString>
 
 #include <map>
+#include <rosegardenprivate_export.h>
 
 namespace Rosegarden {
 
-class IconLoader
+class ROSEGARDENPRIVATE_EXPORT IconLoader
 {
 public:
     IconLoader() { }

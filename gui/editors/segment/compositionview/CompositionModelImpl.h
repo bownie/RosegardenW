@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,6 +28,7 @@
 #include <QPoint>
 #include <QRect>
 #include <QSharedPointer>
+#include <QTimer>
 
 #include <vector>
 #include <map>
@@ -41,12 +42,14 @@ namespace Rosegarden
 class Studio;
 class Segment;
 class RulerScale;
+class RosegardenDocument;
 class InstrumentStaticSignals;
 class Instrument;
 class Event;
 class Composition;
-class AudioPreviewUpdater;
-class AudioPreviewThread;
+class AudioPeaksGenerator;
+class AudioPeaksThread;
+
 
 /// Model layer between CompositionView and Composition.
 /**
@@ -115,7 +118,7 @@ public:
                          RulerScale *,
                          int trackCellHeight);
 
-    virtual ~CompositionModelImpl();
+    ~CompositionModelImpl() override;
 
     Composition &getComposition()  { return m_composition; }
     Studio &getStudio()  { return m_studio; }
@@ -151,6 +154,9 @@ public:
     /// A vector of NotationPreviewRange objects, one per segment.
     typedef std::vector<NotationPreviewRange> NotationPreviewRanges;
 
+    /// Delete all cached audio previews.
+    void deleteCachedAudioPreviews();
+
     /// Delete all cached notation and audio previews.
     void deleteCachedPreviews();
 
@@ -160,13 +166,14 @@ public:
     typedef std::vector<QImage> QImageVector;
 
     struct AudioPreview {
-        AudioPreview(QImageVector i, QRect r) :
-            image(i),
+        AudioPreview(const QImageVector &i, QRect r) :
+            image(i),  // ??? COPY
             rect(r),
             resizeOffset(0)
         { }
 
         // Vector of QImage tiles containing the preview graphics.
+        // ??? COPY.  This would be faster as a pointer.
         QImageVector image;
 
         // Segment rect in contents coords.
@@ -182,9 +189,9 @@ public:
 
     /**
      * Used by CompositionView's ctor to connect
-     * RosegardenDocument::m_audioPreviewThread.
+     * RosegardenDocument::m_audioPeaksThread.
      */
-    void setAudioPreviewThread(AudioPreviewThread *thread);
+    void setAudioPeaksThread(AudioPeaksThread *thread);
 
     struct AudioPeaks {
         AudioPeaks() :
@@ -193,7 +200,7 @@ public:
 
         unsigned int channels;
 
-        // See AudioPreviewThread::getPreview()
+        // See AudioPeaksThread::getPeaks()
         typedef std::vector<float> Values;
         Values values;
     };
@@ -215,8 +222,8 @@ public:
     /// Get the segment at the given position on the view.
     ChangingSegmentPtr getSegmentAt(const QPoint &pos);
 
-    void getSegmentQRect(const Segment &segment, QRect &rect);
-    void getSegmentRect(const Segment &segment, SegmentRect &segmentRect);
+    void getSegmentQRect(const Segment &segment, QRect &rect) const;
+    void getSegmentRect(const Segment &segment, SegmentRect &segmentRect) const;
 
     // --- Selection --------------------------------------
 
@@ -241,7 +248,7 @@ public:
     bool haveMultipleSelection() const  { return m_selectedSegments.size() > 1; }
     SegmentSelection getSelectedSegments()  { return m_selectedSegments; }
     /// Bounding rect of the currently selected segments.
-    QRect getSelectedSegmentsRect();
+    QRect getSelectedSegmentsRect() const;
 
     // --- Recording --------------------------------------
 
@@ -256,7 +263,9 @@ public:
 
     // ??? This category might make more sense combined with Segments.
 
-    enum ChangeType { ChangeMove, ChangeResizeFromStart, ChangeResizeFromEnd };
+    enum ChangeType {
+        ChangeMove, ChangeResizeFromStart, ChangeResizeFromEnd, ChangeCopy
+    };
 
     /// Begin move/resize for a single segment.
     void startChange(ChangingSegmentPtr, ChangeType change);
@@ -337,12 +346,17 @@ public slots:
      */
     void slotAudioFileFinalized(Segment *);
 
-    /// Connected to InstrumentStaticSignals::changed()
-    void slotInstrumentChanged(Instrument *);
-
 private slots:
-    /// Connected to AudioPreviewUpdater::audioPreviewComplete()
-    void slotAudioPeaksComplete(AudioPreviewUpdater *);
+    /// Called when a new document is loaded.
+    void slotNewDocument(RosegardenDocument *);
+    /// Called when the document is modified in some way.
+    void slotDocumentModified(bool);
+
+    /// Connected to AudioPeaksGenerator::audioPeaksComplete()
+    void slotAudioPeaksComplete(AudioPeaksGenerator *);
+
+    /// Handler for m_updateTimer.
+    void slotUpdateTimer();
 
 private:
     // --- Misc -------------------------------------------
@@ -354,27 +368,25 @@ private:
     // CompositionObserver Interface
     // ??? It's hard to pin these down to a category as they contribute
     //     to multiple categories.
-    virtual void segmentAdded(const Composition *, Segment *);
-    virtual void segmentRemoved(const Composition *, Segment *);
-    virtual void segmentRepeatChanged(const Composition *, Segment *, bool);
-    virtual void segmentStartChanged(const Composition *, Segment *, timeT);
-    virtual void segmentEndMarkerChanged(const Composition *, Segment *, bool);
-    virtual void segmentTrackChanged(const Composition *, Segment *, TrackId);
-    virtual void endMarkerTimeChanged(const Composition *, bool shorten);
-
-    QSharedPointer<InstrumentStaticSignals> m_instrumentStaticSignals;
+    void segmentAdded(const Composition *, Segment *) override;
+    void segmentRemoved(const Composition *, Segment *) override;
+    void segmentRepeatChanged(const Composition *, Segment *, bool) override;
+    void segmentStartChanged(const Composition *, Segment *, timeT) override;
+    void segmentEndMarkerChanged(const Composition *, Segment *, bool) override;
+    void segmentTrackChanged(const Composition *, Segment *, TrackId) override;
+    void endMarkerTimeChanged(const Composition *, bool shorten) override;
 
     // --- Notation Previews ------------------------------
 
     // SegmentObserver Interface
     // ??? These primarily affect the notation previews, however,
     //     endMarkerTimeChanged() feels more like a Segment thing.
-    virtual void eventAdded(const Segment *, Event *);
-    virtual void eventRemoved(const Segment *, Event *);
-    virtual void allEventsChanged(const Segment *);
-    virtual void appearanceChanged(const Segment *);
-    virtual void endMarkerTimeChanged(const Segment *, bool shorten);
-    virtual void segmentDeleted(const Segment *)
+    void eventAdded(const Segment *, Event *) override;
+    void eventRemoved(const Segment *, Event *) override;
+    void allEventsChanged(const Segment *) override;
+    void appearanceChanged(const Segment *) override;
+    void endMarkerTimeChanged(const Segment *, bool shorten) override;
+    void segmentDeleted(const Segment *) override
             { /* nothing to do - handled by CompositionObserver::segmentRemoved() */ }
 
     /// Make a NotationPreviewRange for a Segment.
@@ -404,59 +416,44 @@ private:
 
     const NotationPreview *getNotationPreview(const Segment *);
 
-    void makeNotationPreview(const Segment *, NotationPreview *);
+    NotationPreview *makeNotationPreview(const Segment *) const;
 
     typedef std::map<const Segment *, NotationPreview *> NotationPreviewCache;
+    // We might make these caches mutable to allow more functions
+    // to be const.  However, the public deleteCachedPreviews() leads
+    // one to believe that the state of the cache is indeed important to
+    // the outside world.  Renaming it to something like "refreshNeeded()"
+    // might get around this.
     NotationPreviewCache m_notationPreviewCache;
 
     // --- Audio Previews ---------------------------------
 
     // AudioPreview generation happens in three steps.
     //   1. The AudioPeaks are generated asynchronously for a segment.
-    //      See AudioPreviewUpdater.
+    //      See AudioPeaksGenerator.
     //   2. The audio preview image is created from the AudioPeaks.
     //      See AudioPreviewPainter.
     //   3. An AudioPreview object is created using the audio preview image.
     //      See makeAudioPreview().
 
     /// Make an AudioPreview for a Segment and add it to audioPreviews.
-    void makeAudioPreview(
-            AudioPreviews *audioPreviews, const Segment *,
-            const SegmentRect &segmentRect);
-
-    /**
-     * If it's cached, it's returned immediately.  Otherwise, the process
-     * of generating the preview asynchronously is started by a call to
-     * getAudioPeaks().
-     */
-    QImageVector getAudioPreviewImage(const Segment *);
-
-    /// Also generates the preview image asynchronously.
-    AudioPeaks *getAudioPeaks(const Segment *);
-
-    /// Also generates the preview image asynchronously.
-    AudioPeaks *updateCachedAudioPeaks(const Segment *);
+    void makeAudioPreview(const Segment *, const SegmentRect &,
+                          AudioPreviews *audioPreviews);
 
     /// Create audio peaks for a segment asynchronously.
     /**
-     * Uses an AudioPreviewUpdater.  When the AudioPreviewUpdater is done,
-     * slotAudioPeaksComplete() is called, which in turn calls
-     * updateCachedPreviewImage().
+     * Uses an AudioPeaksGenerator.  When the AudioPeaksGenerator is done,
+     * slotAudioPeaksComplete() is called.
      *
      * Also generates the preview image asynchronously.
      */
-    void makeAudioPeaksAsync(const Segment *);
+    void updateAudioPeaksCache(const Segment *);
 
-    /// Convert AudioPeaks into a QImageVector and add to m_audioPreviewImageCache.
-    QRect updateCachedPreviewImage(AudioPeaks *, const Segment *);
+    AudioPeaksThread *m_audioPeaksThread;
 
-    /// More of an AudioPeaksThread.
-    AudioPreviewThread *m_audioPreviewThread;
-
-    /// More of an AudioPeaksGeneratorMap.
-    typedef std::map<const Segment *, AudioPreviewUpdater *>
-            AudioPreviewUpdaterMap;
-    AudioPreviewUpdaterMap m_audioPreviewUpdaterMap;
+    typedef std::map<const Segment *, AudioPeaksGenerator *>
+            AudioPeaksGeneratorMap;
+    AudioPeaksGeneratorMap m_audioPeaksGeneratorMap;
 
     typedef std::map<const Segment *, AudioPeaks *> AudioPeaksCache;
     AudioPeaksCache m_audioPeaksCache;
@@ -464,10 +461,6 @@ private:
     std::map<const Segment *, QImageVector> m_audioPreviewImageCache;
 
     // --- Notation and Audio Previews --------------------
-
-    /// Make and cache notation or audio preview for segment.
-    // ??? rename: updateCachedPreview()?
-    //void makePreviewCache(const Segment *);
 
     void deleteCachedPreview(const Segment *);
 
@@ -507,6 +500,19 @@ private:
 
     /// The end time of a recording Segment.
     timeT m_pointerTime;
+
+    /**
+     * Since there is currently no way to separate low-frequency
+     * changes from high-frequency changes, we have to assume that
+     * when we are recording, high-frequency changes will be coming
+     * in and they can be ignored.  We'll update the display on
+     * a timer (m_updateTimer) instead of in response to incoming
+     * changes.  This results in a 13-28% performance improvement.
+     */
+    bool m_recording;
+
+    /// See m_recording.
+    QTimer m_updateTimer;
 
     // --- Changing (moving and resizing) -----------------
 

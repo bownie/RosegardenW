@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -26,20 +26,21 @@
 #include "base/InstrumentStaticSignals.h"
 #include "base/MidiProgram.h"
 #include "document/RosegardenDocument.h"
+#include "gui/application/RosegardenMainWindow.h"
 #include "gui/studio/AudioPluginManager.h"
 #include "gui/studio/AudioPlugin.h"
 #include "gui/studio/StudioControl.h"
-#include "gui/widgets/AudioFaderBox.h"
 #include "gui/widgets/AudioVUMeter.h"
 #include "gui/widgets/Fader.h"
 #include "gui/widgets/Rotary.h"
-#include "gui/widgets/AudioRouteMenu.h"
 #include "gui/widgets/SqueezedLabel.h"
 #include "InstrumentParameterPanel.h"
 #include "sound/MappedCommon.h"
 #include "sound/MappedStudio.h"
+#include "sound/Midi.h"
 #include "gui/widgets/PluginPushButton.h"
 #include "gui/widgets/InstrumentAliasButton.h"
+#include "gui/widgets/AudioFaderBox.h"
 
 #include <QColor>
 #include <QFrame>
@@ -59,106 +60,116 @@
 namespace Rosegarden
 {
 
-AudioInstrumentParameterPanel::AudioInstrumentParameterPanel(RosegardenDocument* doc, QWidget* parent)
-        : InstrumentParameterPanel(doc, parent),
-        m_audioFader(new AudioFaderBox(this)),
-        m_aliasButton(NULL)
+AudioInstrumentParameterPanel::AudioInstrumentParameterPanel(QWidget *parent) :
+    InstrumentParameterPanel(parent)
 {
     setObjectName("Audio Instrument Parameter Panel");
 
-    QFont f;
-    f.setPointSize(f.pointSize() * 90 / 100);
-    f.setBold(false);
+    QFont font;
+    font.setPointSize(font.pointSize() * 90 / 100);
+    font.setBold(false);
 
-    m_audioFader->setFont(f);
+    // Widgets
 
-    setContentsMargins(5, 5, 5, 5);
-    QGridLayout *gridLayout = new QGridLayout(this);
-    gridLayout->setSpacing(5);
-    gridLayout->setMargin(0);
-    setLayout(gridLayout);
-
-    // we should have a change alias button here too (remember, it changes the
-    // alias by itself, so we just have to update to reflect the change)
-    m_aliasButton = new InstrumentAliasButton(this, 0);
+    // Alias button
+    // ??? Remove this alias button.  Instead, make the label clickable.
+    //     Use AudioMixerWindow2 as a guide.  It allows changing of the
+    //     Instrument alias by clicking on the Label.  SqueezedLabel will
+    //     need to be upgraded to offer a clicked() signal like Label does.
+    //     Once this is removed, remove InstrumentAliasButton from
+    //     the sourcebase since this is the last user.
+    m_aliasButton = new InstrumentAliasButton(this);
     m_aliasButton->setFixedSize(10, 6); // golden rectangle
     m_aliasButton->setToolTip(tr("Click to rename this instrument"));
-    // cheat on the layout, both this and the label at 0, 0; this all the way
-    // left, the label centered.
-    gridLayout->addWidget(m_aliasButton, 0, 0, 1, 2, Qt::AlignLeft);
+    connect(m_aliasButton, &InstrumentAliasButton::changed,
+            this, &AudioInstrumentParameterPanel::slotAliasChanged);
 
-    // Instrument label : first row, all cols
-    QFontMetrics metrics(f);
+    // Instrument label
+    QFontMetrics metrics(font);
     int width25 = metrics.width("1234567890123456789012345");
-    m_instrumentLabel->setFont(f);
+    m_instrumentLabel->setFont(font);
     m_instrumentLabel->setFixedWidth(width25);
     m_instrumentLabel->setAlignment(Qt::AlignCenter);
     m_instrumentLabel->setToolTip(tr("Click the button above to rename this instrument"));
     m_instrumentLabel->setText("REFRESH BUG!"); // no tr(); temporary internal string
-    gridLayout->addWidget(m_instrumentLabel, 0, 0, 1, 2, Qt::AlignCenter);
 
-    // fader and connect it
-    gridLayout->addWidget(m_audioFader, 1, 0, 1, 2);
-
-    gridLayout->setRowStretch(2, 1);
-
-    connect(m_audioFader, SIGNAL(audioChannelsChanged(int)),
-            this, SLOT(slotAudioChannels(int)));
-
+    // Audio Fader Box
+    m_audioFader = new AudioFaderBox(this);
+    m_audioFader->setFont(font);
+    connect(m_audioFader, &AudioFaderBox::audioChannelsChanged,
+            this, &AudioInstrumentParameterPanel::slotAudioChannels);
     connect(m_audioFader->m_signalMapper, SIGNAL(mapped(int)),
             this, SLOT(slotSelectPlugin(int)));
+    connect(m_audioFader->m_fader, &Fader::faderChanged,
+            this, &AudioInstrumentParameterPanel::slotSelectAudioLevel);
+    connect(m_audioFader->m_recordFader, &Fader::faderChanged,
+            this, &AudioInstrumentParameterPanel::slotSelectAudioRecordLevel);
+    connect(m_audioFader->m_pan, &Rotary::valueChanged,
+            this, &AudioInstrumentParameterPanel::slotSetPan);
+    connect(m_audioFader->m_synthButton, &QAbstractButton::clicked,
+            this, &AudioInstrumentParameterPanel::slotSynthButtonClicked);
+    connect(m_audioFader->m_synthGUIButton, &QAbstractButton::clicked,
+            this, &AudioInstrumentParameterPanel::slotSynthGUIButtonClicked);
 
-    connect(m_audioFader->m_fader, SIGNAL(faderChanged(float)),
-            this, SLOT(slotSelectAudioLevel(float)));
+    // Layout
 
-    connect(m_audioFader->m_recordFader, SIGNAL(faderChanged(float)),
-            this, SLOT(slotSelectAudioRecordLevel(float)));
+    QGridLayout *gridLayout = new QGridLayout(this);
+    gridLayout->setSpacing(5);
+    gridLayout->setMargin(0);
+    // The alias button and the label are in 0,0.  The only difference is the
+    // alignment.
+    gridLayout->addWidget(m_aliasButton, 0, 0, 1, 2, Qt::AlignLeft);
+    gridLayout->addWidget(m_instrumentLabel, 0, 0, 1, 2, Qt::AlignCenter);
 
-    connect(m_audioFader->m_pan, SIGNAL(valueChanged(float)),
-            this, SLOT(slotSetPan(float)));
+    gridLayout->addWidget(m_audioFader, 1, 0, 1, 2);
 
-    connect(m_audioFader->m_synthButton, SIGNAL(clicked()),
-            this, SLOT(slotSynthButtonClicked()));
+    // Make row 2 fill up the rest of the space.
+    gridLayout->setRowStretch(2, 1);
 
-    connect(m_audioFader->m_synthGUIButton, SIGNAL(clicked()),
-            this, SLOT(slotSynthGUIButtonClicked()));
+    // Panel
 
-    // Hold on to this to make sure it stays around as long as we do.
-    m_instrumentStaticSignals = Instrument::getStaticSignals();
+    setLayout(gridLayout);
+    setContentsMargins(5, 7, 5, 2);
 
-    connect(m_instrumentStaticSignals.data(),
-            SIGNAL(changed(Instrument *)),
-            this,
-            SLOT(slotInstrumentChanged(Instrument *)));
+    // Connections
+
+    connect(RosegardenMainWindow::self(),
+                &RosegardenMainWindow::documentChanged,
+            this, &AudioInstrumentParameterPanel::slotNewDocument);
+
+    // Connect for high-frequency control change notifications.
+    connect(Instrument::getStaticSignals().data(),
+                &InstrumentStaticSignals::controlChange,
+            this, &AudioInstrumentParameterPanel::slotControlChange);
+
+    connect(RosegardenMainWindow::self(),
+                &RosegardenMainWindow::pluginSelected,
+            this, &AudioInstrumentParameterPanel::slotPluginSelected);
+
+    connect(RosegardenMainWindow::self(),
+                &RosegardenMainWindow::pluginBypassed,
+            this, &AudioInstrumentParameterPanel::slotPluginBypassed);
 }
 
 void
 AudioInstrumentParameterPanel::slotSelectAudioLevel(float dB)
 {
-    if (getSelectedInstrument() == 0)
+    if (getSelectedInstrument() == nullptr)
         return ;
 
     if (getSelectedInstrument()->getType() == Instrument::Audio ||
             getSelectedInstrument()->getType() == Instrument::SoftSynth) {
         getSelectedInstrument()->setLevel(dB);
-        getSelectedInstrument()->changed();
-
-        // ??? Perhaps it would be better for StudioControl to monitor
-        //     the Instrument objects (InstrumentStaticSignals::changed())
-        //     and update the properties whenever the Instrument changes.
-        //     Then this StudioControl code which is spread all over this
-        //     class and duplicated in AudioMixerWindow would go away.
-        StudioControl::setStudioObjectProperty
-        (MappedObjectId(getSelectedInstrument()->getMappedId()),
-         MappedAudioFader::FaderLevel,
-         MappedObjectValue(dB));
+        Instrument::emitControlChange(getSelectedInstrument(),
+                                      MIDI_CONTROLLER_VOLUME);
+        RosegardenMainWindow::self()->getDocument()->setModified();
     }
 }
 
 void
 AudioInstrumentParameterPanel::slotSelectAudioRecordLevel(float dB)
 {
-    if (getSelectedInstrument() == 0)
+    if (getSelectedInstrument() == nullptr)
         return ;
 
     //    std::cerr << "AudioInstrumentParameterPanel::slotSelectAudioRecordLevel("
@@ -166,7 +177,16 @@ AudioInstrumentParameterPanel::slotSelectAudioRecordLevel(float dB)
 
     if (getSelectedInstrument()->getType() == Instrument::Audio) {
         getSelectedInstrument()->setRecordLevel(dB);
-        getSelectedInstrument()->changed();
+        // ??? Another potential candidate for high-frequency update
+        //     treatment like the controlChange() signal.  Since no one
+        //     else seems to display this value, we could just set
+        //     the doc modified flag without sending a notification.
+        //     Or we could introduce a new high-frequency update
+        //     notification for this and the only one receiving it
+        //     would be whoever should do the setStudioObjectProperty()
+        //     below.  See the controlChange() signal and handlers for
+        //     more ideas.
+        RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
 
         StudioControl::setStudioObjectProperty
         (MappedObjectId(getSelectedInstrument()->getMappedId()),
@@ -184,19 +204,18 @@ AudioInstrumentParameterPanel::slotPluginSelected(InstrumentId instrumentId,
         return;
     }
 
-    RG_DEBUG << "AudioInstrumentParameterPanel::slotPluginSelected - "
-             << "instrument = " << instrumentId
-             << ", index = " << index
-             << ", plugin = " << plugin << endl;
+    //RG_DEBUG << "slotPluginSelected() - " << "instrument = " << instrumentId << ", index = " << index << ", plugin = " << plugin;
 
     QColor pluginBackgroundColour = QColor(Qt::black);
     bool bypassed = false;
 
-    PluginPushButton *button = 0;
+    PluginPushButton *button = nullptr;
     QString noneText;
 
     // updates synth gui button &c:
-    m_audioFader->slotSetInstrument(&m_doc->getStudio(), getSelectedInstrument());
+    m_audioFader->slotSetInstrument(
+            &(RosegardenMainWindow::self()->getDocument()->getStudio()),
+            getSelectedInstrument());
 
     if (index == (int)Instrument::SYNTH_PLUGIN_POSITION) {
         button = m_audioFader->m_synthButton;
@@ -216,7 +235,9 @@ AudioInstrumentParameterPanel::slotPluginSelected(InstrumentId instrumentId,
 
     } else {
 
-        AudioPlugin *pluginClass = m_doc->getPluginManager()->getPlugin(plugin);
+        QSharedPointer<AudioPlugin> pluginClass =
+                RosegardenMainWindow::self()->getDocument()->
+                    getPluginManager()->getPlugin(plugin);
 
         if (pluginClass) {
             button->setText(pluginClass->getLabel());
@@ -234,17 +255,6 @@ AudioInstrumentParameterPanel::slotPluginSelected(InstrumentId instrumentId,
         bypassed = inst->isBypassed();
 
     setButtonColour(index, bypassed, pluginBackgroundColour);
-
-    if (index == (int)Instrument::SYNTH_PLUGIN_POSITION) {
-        // A new plugin has been selected.  Let everyone know.
-        // This makes sure the TrackParameterBox and TrackButtons
-        // are updated to show the name of the plugin.
-        // ??? Yeah, but.  It would be better if the part of this that
-        //     actually changed the Instrument (AudioPluginDialog maybe?)
-        //     called changed() when it made the actual changes.  The
-        //     emitters of pluginSelected() would be a place to start.
-        getSelectedInstrument()->changed();
-    }
 }
 
 void
@@ -255,16 +265,19 @@ AudioInstrumentParameterPanel::slotPluginBypassed(InstrumentId instrumentId,
             instrumentId != getSelectedInstrument()->getId())
         return ;
 
+    //RG_DEBUG << "slotPluginBypassed()";
+
     AudioPluginInstance *inst =
         getSelectedInstrument()->getPlugin(pluginIndex);
 
     QColor backgroundColour = QColor(Qt::black); // default background colour
 
     if (inst && inst->isAssigned()) {
-        AudioPlugin *pluginClass
-        = m_doc->getPluginManager()->getPlugin(
-              m_doc->getPluginManager()->
-              getPositionByIdentifier(inst->getIdentifier().c_str()));
+        QSharedPointer<AudioPluginManager> pluginMgr =
+                RosegardenMainWindow::self()->getDocument()->getPluginManager();
+        QSharedPointer<AudioPlugin> pluginClass = pluginMgr->getPlugin(
+                pluginMgr->getPositionByIdentifier(
+                        inst->getIdentifier().c_str()));
 
         /// Set the colour on the button
         //
@@ -279,12 +292,9 @@ void
 AudioInstrumentParameterPanel::setButtonColour(
     int pluginIndex, bool bypassState, const QColor &colour)
 {
-    RG_DEBUG << "AudioInstrumentParameterPanel::setButtonColour "
-    << "pluginIndex = " << pluginIndex
-    << ", bypassState = " << bypassState
-    << ", rgb = " << colour.name() << endl;
+    //RG_DEBUG << "setButtonColour() " << "pluginIndex = " << pluginIndex << ", bypassState = " << bypassState << ", rgb = " << colour.name();
 
-    PluginPushButton *button = 0;
+    PluginPushButton *button = nullptr;
 
     if (pluginIndex == int(Instrument::SYNTH_PLUGIN_POSITION)) {
         button = m_audioFader->m_synthButton;
@@ -312,38 +322,36 @@ AudioInstrumentParameterPanel::setButtonColour(
 void
 AudioInstrumentParameterPanel::slotSynthButtonClicked()
 {
-    RG_DEBUG << "AudioInstrumentParameterPanel::slotSynthButtonClicked()" << endl;
+    //RG_DEBUG << "slotSynthButtonClicked()";
+
     slotSelectPlugin(Instrument::SYNTH_PLUGIN_POSITION);
 }
 
 void
 AudioInstrumentParameterPanel::slotSynthGUIButtonClicked()
 {
-    emit showPluginGUI(getSelectedInstrument()->getId(),
-                       Instrument::SYNTH_PLUGIN_POSITION);
+    //RG_DEBUG << "slotSynthGUIButtonClicked()";
+
+    // Launch the Synth Plugin's parameter editor GUI.
+    RosegardenMainWindow::self()->slotShowPluginGUI(
+            getSelectedInstrument()->getId(),
+            Instrument::SYNTH_PLUGIN_POSITION);
 }
 
 void
 AudioInstrumentParameterPanel::slotSetPan(float pan)
 {
-    RG_DEBUG << "AudioInstrumentParameterPanel::slotSetPan - "
-    << "pan = " << pan << endl;
-
-    StudioControl::setStudioObjectProperty
-    (MappedObjectId(getSelectedInstrument()->getMappedId()),
-     MappedAudioFader::Pan,
-     MappedObjectValue(pan));
-
     getSelectedInstrument()->setPan(MidiByte(pan + 100.0));
-    getSelectedInstrument()->changed();
+    Instrument::emitControlChange(getSelectedInstrument(),
+                                  MIDI_CONTROLLER_PAN);
+    RosegardenMainWindow::self()->getDocument()->setModified();
 }
 
 void
 AudioInstrumentParameterPanel::setAudioMeter(float dBleft, float dBright,
         float recDBleft, float recDBright)
 {
-    //    RG_DEBUG << "AudioInstrumentParameterPanel::setAudioMeter: (" << dBleft
-    //             << "," << dBright << ")" << endl;
+    //RG_DEBUG << "setAudioMeter: (" << dBleft << "," << dBright << ")";
 
     if (getSelectedInstrument()) {
         // Always set stereo, because we have to reflect what's happening
@@ -358,7 +366,7 @@ AudioInstrumentParameterPanel::setupForInstrument(Instrument* instrument)
 {
     blockSignals(true);
 
-    RG_DEBUG << "AudioInstrumentParameterPanel[" << this << "]::setupForInstrument(" << instrument << ")" << endl;
+    //RG_DEBUG << "this: " << this << " setupForInstrument(" << instrument << ")";
 
     QString l = QString::fromStdString(instrument->getAlias());
     if (l.isEmpty()) l = instrument->getLocalizedPresentationName();
@@ -371,7 +379,9 @@ AudioInstrumentParameterPanel::setupForInstrument(Instrument* instrument)
     m_audioFader->m_recordFader->setFader(instrument->getRecordLevel());
     m_audioFader->m_fader->setFader(instrument->getLevel());
 
-    m_audioFader->slotSetInstrument(&m_doc->getStudio(), instrument);
+    m_audioFader->slotSetInstrument(
+            &(RosegardenMainWindow::self()->getDocument()->getStudio()),
+            instrument);
 
     int start = 0;
 
@@ -398,10 +408,12 @@ AudioInstrumentParameterPanel::setupForInstrument(Instrument* instrument)
         AudioPluginInstance *inst = instrument->getPlugin(index);
 
         if (inst && inst->isAssigned()) {
-            AudioPlugin *pluginClass
-            = m_doc->getPluginManager()->getPlugin(
-                  m_doc->getPluginManager()->
-                  getPositionByIdentifier(inst->getIdentifier().c_str()));
+            QSharedPointer<AudioPluginManager> pluginMgr =
+                    RosegardenMainWindow::self()->getDocument()->
+                        getPluginManager();
+            QSharedPointer<AudioPlugin> pluginClass = pluginMgr->getPlugin(
+                    pluginMgr->getPositionByIdentifier(
+                        inst->getIdentifier().c_str()));
 
             if (pluginClass) {
                 button->setText(pluginClass->getLabel());
@@ -434,11 +446,10 @@ AudioInstrumentParameterPanel::setupForInstrument(Instrument* instrument)
 void
 AudioInstrumentParameterPanel::slotAudioChannels(int channels)
 {
-    RG_DEBUG << "AudioInstrumentParameterPanel::slotAudioChannels - "
-    << "channels = " << channels << endl;
+    //RG_DEBUG << "slotAudioChannels() " << "channels = " << channels;
 
     getSelectedInstrument()->setAudioChannels(channels);
-    getSelectedInstrument()->changed();
+    RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
 
     StudioControl::setStudioObjectProperty
     (MappedObjectId(getSelectedInstrument()->getMappedId()),
@@ -451,12 +462,64 @@ void
 AudioInstrumentParameterPanel::slotSelectPlugin(int index)
 {
     if (getSelectedInstrument()) {
-        emit selectPlugin(0, getSelectedInstrument()->getId(), index);
+        // Launch the plugin dialog.
+        RosegardenMainWindow::self()->slotShowPluginDialog(
+                nullptr, getSelectedInstrument()->getId(), index);
     }
 }
 
 void
-AudioInstrumentParameterPanel::slotInstrumentChanged(Instrument *instrument)
+AudioInstrumentParameterPanel::slotAliasChanged()
+{
+    RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
+
+    // ??? This is wrong.  We should connect to the
+    //     RosegardenDocument::documentModified() signal and refresh
+    //     everything in response to it.
+    setupForInstrument(getSelectedInstrument());
+}
+
+void
+AudioInstrumentParameterPanel::slotNewDocument(RosegardenDocument *doc)
+{
+    connect(doc, &RosegardenDocument::documentModified,
+            this, &AudioInstrumentParameterPanel::slotDocumentModified);
+}
+
+void
+AudioInstrumentParameterPanel::slotDocumentModified(bool)
+{
+    RosegardenDocument *doc = RosegardenMainWindow::self()->getDocument();
+
+    // Get the selected Track's Instrument.
+    InstrumentId instrumentId =
+            doc->getComposition().getSelectedInstrumentId();
+
+    Instrument *instrument = nullptr;
+
+    // If an instrument has been selected.
+    if (instrumentId != NoInstrument)
+        instrument = doc->getStudio().getInstrumentById(instrumentId);
+
+    if (!instrument) {
+        setSelectedInstrument(nullptr);
+        return;
+    }
+
+    if (instrument->getType() != Instrument::Audio  &&
+        instrument->getType() != Instrument::SoftSynth) {
+        setSelectedInstrument(nullptr);
+        return;
+    }
+
+    setSelectedInstrument(instrument);
+
+    // Update the parameters on the widgets
+    setupForInstrument(instrument);
+}
+
+void
+AudioInstrumentParameterPanel::slotControlChange(Instrument *instrument, int cc)
 {
     if (!instrument)
         return;
@@ -468,10 +531,19 @@ AudioInstrumentParameterPanel::slotInstrumentChanged(Instrument *instrument)
     if (getSelectedInstrument()->getId() != instrument->getId())
         return;
 
-    // Update the parameters on the widgets
-    setupForInstrument(instrument);
+    // Just update the relevant cc widget.
+    if (cc == MIDI_CONTROLLER_VOLUME) {
+
+        // Update only the volume slider.
+        m_audioFader->m_fader->setFader(instrument->getLevel());
+
+    } else if (cc == MIDI_CONTROLLER_PAN) {
+
+        // Update only the pan rotary.
+        m_audioFader->m_pan->setPosition(instrument->getPan() - 100);
+
+    }
 }
 
 
 }
-#include "AudioInstrumentParameterPanel.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -23,7 +23,7 @@ namespace Rosegarden
 
 const Rosegarden::Clef clefIndexToClef(int index)
 {
-	Rosegarden::Clef clef;
+    Rosegarden::Clef clef;
 
     // insert an initial clef from track parameters
     switch (index) {
@@ -43,6 +43,7 @@ const Rosegarden::Clef clefIndexToClef(int index)
     case BaritoneClef:     clef = Clef(Clef::Baritone);     break;
     case VarbaritoneClef:  clef = Clef(Clef::Varbaritone);  break;
     case SubbassClef:      clef = Clef(Clef::Subbass);      break;
+    case TwoBarClef:       clef = Clef(Clef::TwoBar);       break;
     default:               clef = Clef(Clef::Treble);       break;
     }
     return clef;
@@ -51,7 +52,7 @@ const Rosegarden::Clef clefIndexToClef(int index)
 int clefNameToClefIndex(QString s)
 {
     int m_elClef = 0;
-	if (!s.isEmpty()) {
+    if (!s.isEmpty()) {
         if (s == "treble")
             m_elClef = TrebleClef;
         else if (s == "bass")
@@ -87,9 +88,9 @@ int clefNameToClefIndex(QString s)
         else if (s == "two-bar")
             m_elClef = TwoBarClef;
         else {
-            RG_DEBUG << "startElement: processed unrecognized clef type: " << s << endl;
+            RG_DEBUG << "startElement: processed unrecognized clef type: " << s;
         }
-	}
+    }
     return m_elClef;
 }
 

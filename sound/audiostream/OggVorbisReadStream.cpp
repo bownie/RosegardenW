@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2005-2011 Chris Cannam.
 
@@ -32,12 +32,26 @@
 namespace Rosegarden
 {
 
-static
-AudioReadStreamBuilder<OggVorbisReadStream>
-oggbuilder(
-    QUrl("http://breakfastquay.com/rdf/rosegarden/fileio/OggVorbisReadStream"),
-    QStringList() << "ogg" << "oga"
+// Fix bug #1503:
+// Static object oggbuilder was no more initialized since OggVorbisReadStream.o
+// is included in a static library when building RG in release mode.
+// This fix allows it to be explicitely initialized from main.cpp by calling
+// OggVorbisReadStream::initStaticObjects().
+// The *oggbuilder object itself is never used but its creation initializes
+// a needed "ThingBuilder" defined in Thingfactory.h.
+
+static AudioReadStreamBuilder<OggVorbisReadStream> * oggbuilder;
+
+void
+OggVorbisReadStream::initStaticObjects()
+{
+    oggbuilder = new AudioReadStreamBuilder<OggVorbisReadStream>(
+        QUrl("http://breakfastquay.com/rdf/rosegarden/fileio/OggVorbisReadStream"),
+        QStringList() << "ogg" << "oga"
     );
+}
+
+
 
 class OggVorbisReadStream::D
 {

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -16,7 +16,7 @@
 #include "SequencerDataBlock.h"
 #include "MappedEventList.h"
 
-//#include "misc/Debug.h"
+#include "misc/Debug.h"
 
 //#include <QThread>
 #include <QMutexLocker>
@@ -27,7 +27,7 @@ namespace Rosegarden
 SequencerDataBlock *
 SequencerDataBlock::getInstance()
 {
-    static SequencerDataBlock *instance = 0;
+    static SequencerDataBlock *instance = nullptr;
     if (!instance) instance = new SequencerDataBlock();
     return instance;
 }
@@ -156,8 +156,8 @@ SequencerDataBlock::instrumentToIndexCreating(InstrumentId id)
     }
 
     if (i == SEQUENCER_DATABLOCK_MAX_NB_INSTRUMENTS) {
-        std::cerr << "ERROR: SequencerDataBlock::instrumentToIndexCreating("
-        << id << "): out of instrument index space" << std::endl;
+        RG_WARNING << "ERROR: SequencerDataBlock::instrumentToIndexCreating("
+        << id << "): out of instrument index space";
         return -1;
     }
 
@@ -317,7 +317,7 @@ SequencerDataBlock::getSubmasterLevel(int submaster, LevelInfo &info) const
     //     in clearTemporaries().
     static int lastUpdateIndex[SEQUENCER_DATABLOCK_MAX_NB_SUBMASTERS];
 
-    if (submaster < 0 || submaster > SEQUENCER_DATABLOCK_MAX_NB_SUBMASTERS) {
+    if (submaster < 0 || submaster >= SEQUENCER_DATABLOCK_MAX_NB_SUBMASTERS) {
         info.level = info.levelRight = 0;
         return false;
     }
@@ -336,7 +336,7 @@ SequencerDataBlock::getSubmasterLevel(int submaster, LevelInfo &info) const
 void
 SequencerDataBlock::setSubmasterLevel(int submaster, const LevelInfo &info)
 {
-    if (submaster < 0 || submaster > SEQUENCER_DATABLOCK_MAX_NB_SUBMASTERS) {
+    if (submaster < 0 || submaster >= SEQUENCER_DATABLOCK_MAX_NB_SUBMASTERS) {
         return ;
     }
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,10 +18,14 @@
 #ifndef RG_AUDIO_FILE_TIME_STRETCHER_H
 #define RG_AUDIO_FILE_TIME_STRETCHER_H
 
-#include <QObject>
 #include "AudioFile.h"
 #include "base/Exception.h"
 #include "misc/Strings.h"
+
+#include <QObject>
+#include <QPointer>
+
+class QProgressDialog;
 
 namespace Rosegarden {
 
@@ -32,37 +36,25 @@ class AudioFileTimeStretcher : public QObject
     Q_OBJECT
     
 public:
-    AudioFileTimeStretcher(AudioFileManager *mgr);
-    virtual ~AudioFileTimeStretcher();
+    AudioFileTimeStretcher(AudioFileManager *afm);
+    ~AudioFileTimeStretcher() override;
 
     /**
      * Stretch an audio file and return the ID of the stretched
-     * version.  May throw SoundFile::BadSoundFileException,
-     * AudioFileManager::BadAudioPathException, CancelledException
+     * version.
+     *
+     * Returns -1 on error.
      */
     AudioFileId getStretchedAudioFile(AudioFileId source,
                                       float ratio);
 
-    class CancelledException : public Exception
-    {
-    public:
-	CancelledException() : Exception(qstrtostr(QObject::tr("Cancelled"))) { }
-	~CancelledException() throw() { }
-    };
+    void setProgressDialog(QPointer<QProgressDialog> progressDialog)
+            { m_progressDialog = progressDialog; }
 
-signals:
-    void setValue(int);
-
-public slots:
-    /**
-     * Cancel an ongoing getStretchedAudioFile
-     */
-    void slotStopTimestretch();
-    
 protected:
-    AudioFileManager *m_manager;
+    AudioFileManager *m_audioFileManager;
 
-    bool m_timestretchCancelled;
+    QPointer<QProgressDialog> m_progressDialog;
 };
 
 }

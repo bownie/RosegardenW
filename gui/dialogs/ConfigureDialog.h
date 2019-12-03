@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,8 +38,8 @@ class ConfigureDialog : public ConfigureDialogBase
     Q_OBJECT
 public:
     ConfigureDialog(RosegardenDocument *doc,
-                    QWidget *parent=0,
-                    const char *name=0 );
+                    QWidget *parent=nullptr,
+                    const char *name=nullptr );
 //    ~ConfigureDialog();
 
 
@@ -47,7 +47,6 @@ public:
     
 signals:
     void updateAutoSaveInterval(unsigned int);
-    void updateSidebarStyle(unsigned int);    
     
 protected:
 };

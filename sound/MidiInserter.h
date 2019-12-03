@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -45,7 +45,7 @@ class MidiInserter : public MappedInserterBase
         // Make and insert a tempo event.
         void insertTempo(timeT t, long tempo);
         void endTrack(timeT t);
-        MidiTrack m_midiTrack;
+        MidiFile::MidiTrack m_midiTrack;
         timeT     m_previousTime;
     };
 
@@ -56,7 +56,7 @@ class MidiInserter : public MappedInserterBase
  public:
     MidiInserter(Composition &composition, int timingDivision, RealTime trueEnd);
 
-    virtual void insertCopy(const MappedEvent &evt);
+    void insertCopy(const MappedEvent &evt) override;
 
     void assignToMidiFile(MidiFile &midifile);
         
@@ -74,11 +74,11 @@ class MidiInserter : public MappedInserterBase
 
     // Get ready to receive events.  Assumes nothing is written to
     // tracks yet.
-    void setup(void);
+    void setup();
 
     // Done receiving events.  Tracks will be complete when this
     // returns.
-    void finish(void);
+    void finish();
  
     Composition   &m_comp;
     // From RG track pos -> MIDI TrackData, the opposite direction

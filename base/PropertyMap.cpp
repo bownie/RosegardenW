@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -74,7 +74,7 @@ PropertyMap::clear()
 // us anything anyway).
 
 string
-PropertyMap::toXmlString()
+PropertyMap::toXmlString() const
 {
     string xml;
 
@@ -89,6 +89,20 @@ PropertyMap::toXmlString()
     }
 
     return xml;
+}
+
+static bool propertyPairEqual(const PropertyPair &p1, const PropertyPair &p2)
+{
+    return p1.first == p2.first &&
+            p1.second->getTypeName() == p2.second->getTypeName()
+            && p1.second->unparse() == p2.second->unparse();
+}
+
+bool PropertyMap::operator==(const PropertyMap &other) const
+{
+    // The default std::map::operator== would compare pointers, provide our own predicate
+    return size() == other.size()
+       && std::equal(begin(), end(), other.begin(), propertyPairEqual);
 }
 
 }

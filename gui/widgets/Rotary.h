@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -18,7 +18,6 @@
 #ifndef RG_ROTARY_H
 #define RG_ROTARY_H
 
-#include <map>
 #include <QColor>
 #include <QWidget>
 
@@ -57,7 +56,7 @@ public:
            bool snapToTicks = false,
            bool centred = false,
            bool logarithmic = false); // extents are logs, exp for display
-    ~Rotary();
+    ~Rotary() override;
 
     void setMinimum(float min);
     float getMinValue() const { return m_minimum; }
@@ -101,13 +100,13 @@ signals:
     void valueChanged(float);
 
 protected:
-    virtual void paintEvent(QPaintEvent *e);
-    virtual void mousePressEvent(QMouseEvent *e);
-    virtual void mouseReleaseEvent(QMouseEvent *e);
-    virtual void mouseMoveEvent(QMouseEvent *e);
-    virtual void mouseDoubleClickEvent(QMouseEvent *e);
-    virtual void wheelEvent(QWheelEvent *e);
-    virtual void enterEvent(QEvent *e);
+    void paintEvent(QPaintEvent *e) override;
+    void mousePressEvent(QMouseEvent *e) override;
+    void mouseReleaseEvent(QMouseEvent *e) override;
+    void mouseMoveEvent(QMouseEvent *e) override;
+    void mouseDoubleClickEvent(QMouseEvent *e) override;
+    void wheelEvent(QWheelEvent *e) override;
+    void enterEvent(QEvent *e) override;
 
     void snapPosition();
     void drawPosition();
@@ -131,37 +130,6 @@ protected:
     int                  m_lastX;
 
     QColor               m_knobColour;
-
-    struct CacheIndex {
-
-        CacheIndex(int s, int c, int a, int n, int ct) :
-            size(s), colour(c), angle(a), numTicks(n), centred(ct) { }
-
-        bool operator<(const CacheIndex &i) const {
-            // woo!
-            if (size < i.size) return true;
-            else if (size > i.size) return false;
-            else if (colour < i.colour) return true;
-            else if (colour > i.colour) return false;
-            else if (angle < i.angle) return true;
-            else if (angle > i.angle) return false;
-            else if (numTicks < i.numTicks) return true;
-            else if (numTicks > i.numTicks) return false;
-            else if (centred == i.centred) return false;
-            else if (!centred) return true;
-            return false;
-        }
-
-        int          size;
-        unsigned int colour;
-        int          angle;
-        int          numTicks;
-        bool         centred;
-    };
-
-    typedef std::map<CacheIndex, QPixmap> PixmapCache;
-    static PixmapCache m_pixmaps;
-    bool m_Thorn;
 };
 
 

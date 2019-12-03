@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -12,6 +12,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[Segment]"
 
 #include "base/Segment.h"
 #include "base/NotationTypes.h"
@@ -22,11 +24,13 @@
 #include "base/SegmentLinker.h"
 #include "document/DocumentGet.h"
 #include "gui/general/GUIPalette.h"
+//#include "misc/Debug.h"
 
 #include <QtGlobal>
 
 #include <iostream>
 #include <algorithm>
+#include <vector>
 #include <iterator>
 #include <cstdio>
 #include <typeinfo>
@@ -46,9 +50,9 @@ static int g_runtimeSegmentId = 0;
 
 Segment::Segment(SegmentType segmentType, timeT startTime) :
     EventContainer(),
-    m_composition(0),
+    m_composition(nullptr),
     m_startTime(startTime),
-    m_endMarkerTime(0),
+    m_endMarkerTime(nullptr),
     m_endTime(startTime),
     m_trackId(0),
     m_type(segmentType),
@@ -67,17 +71,18 @@ Segment::Segment(SegmentType segmentType, timeT startTime) :
     m_realTimeDelay(0, 0),
     m_highestPlayable(127),
     m_lowestPlayable(0),
-    m_clefKeyList(0),
+    m_percussionPitch(-1),
+    m_clefKeyList(nullptr),
     m_notifyResizeLocked(false),
     m_memoStart(0),
-    m_memoEndMarkerTime(0),
+    m_memoEndMarkerTime(nullptr),
     m_runtimeSegmentId(g_runtimeSegmentId++),
     m_snapGridSize(-1),
     m_viewFeatures(0),
     m_autoFade(false),
     m_fadeInTime(Rosegarden::RealTime::zeroTime),
     m_fadeOutTime(Rosegarden::RealTime::zeroTime),
-    m_segmentLinker(0),
+    m_segmentLinker(nullptr),
     m_isTmp(0),
     m_participation(normal),
     m_verseCount(-1),   // -1 => computation needed
@@ -88,10 +93,10 @@ Segment::Segment(SegmentType segmentType, timeT startTime) :
 Segment::Segment(const Segment &segment):
     QObject(),
     EventContainer(),
-    m_composition(0), // Composition should decide what's in it and what's not
+    m_composition(nullptr), // Composition should decide what's in it and what's not
     m_startTime(segment.getStartTime()),
     m_endMarkerTime(segment.m_endMarkerTime ?
-                    new timeT(*segment.m_endMarkerTime) : 0),
+                    new timeT(*segment.m_endMarkerTime) : nullptr),
     m_endTime(segment.getEndTime()),
     m_trackId(segment.getTrack()),
     m_type(segment.getType()),
@@ -112,21 +117,22 @@ Segment::Segment(const Segment &segment):
     m_realTimeDelay(segment.getRealTimeDelay()),
     m_highestPlayable(127),
     m_lowestPlayable(0),
-    m_clefKeyList(0),
+    m_percussionPitch(-1),
+    m_clefKeyList(nullptr),
     m_notifyResizeLocked(false),  // To copy a segment while notifications
     m_memoStart(0),               // are locked doesn't sound as a good
-    m_memoEndMarkerTime(0),       // idea.
+    m_memoEndMarkerTime(nullptr),       // idea.
     m_runtimeSegmentId(g_runtimeSegmentId++),
     m_snapGridSize(-1),
     m_viewFeatures(0),
     m_autoFade(segment.isAutoFading()),
     m_fadeInTime(segment.getFadeInTime()),
     m_fadeOutTime(segment.getFadeOutTime()),
-    m_segmentLinker(0), //yes, this is intentional. clone() handles this
+    m_segmentLinker(nullptr), //yes, this is intentional. clone() handles this
     m_isTmp(segment.isTmp()),
     m_participation(segment.m_participation),
     m_verseCount(-1),   // -1 => computation needed
-    m_verse(0)   // Needs a global recomputation on the whole composition 
+    m_verse(0)   // Needs a global recomputation on the whole composition
 {
     for (const_iterator it = segment.begin();
          it != segment.end(); ++it) {
@@ -212,7 +218,7 @@ Segment::setTmp() {
 }
 
 void
-Segment::setGreyOut(void) {
+Segment::setGreyOut() {
     for (iterator it = begin(); it != end(); ++it) {
         (*it)->set<Bool>(BaseProperties::TMP, true, false);
     }
@@ -354,7 +360,8 @@ Segment::getEndTime() const
 void
 Segment::setStartTime(timeT t)
 {
-    Profiler profiler("Segment::setStartTime()");
+    //Profiler profiler("Segment::setStartTime()");
+
     typedef EventContainer base;
     int dt = t - m_startTime;
     if (dt == 0) return;
@@ -366,7 +373,7 @@ Segment::setStartTime(timeT t)
 
     // still, this is rather unsatisfactory
 
-    FastVector<Event *> events;
+    std::vector<Event *> events;
 
     /** This is effectively calling Segment::erase on each event after
         copyMoving it.  Segment::erase did the following:
@@ -528,7 +535,7 @@ void
 Segment::clearEndMarker()
 {
     delete m_endMarkerTime;
-    m_endMarkerTime = 0;
+    m_endMarkerTime = nullptr;
     notifyEndMarkerChange(false);
 }
 
@@ -559,7 +566,7 @@ Segment::insert(Event *e)
     // Event Start Time
     timeT t0 = e->getAbsoluteTime();
     // Event End Time
-    timeT t1 = t0 + e->getDuration();
+    timeT t1 = t0 + e->getGreaterDuration();
 
     // If this event starts before the segment start time
     if (t0 < m_startTime ||
@@ -584,8 +591,13 @@ Segment::insert(Event *e)
 
     iterator i = EventContainer::insert(e);
     notifyAdd(e);
-    updateRefreshStatuses(e->getAbsoluteTime(),
-                          e->getAbsoluteTime() + e->getDuration());
+
+    // Fix #1548: Last syllable of lyrics is not copied between two
+    // linked segments.
+    // Ensure event is inside the refresh status range
+    if (t1 == t0) t1 += 1;
+
+    updateRefreshStatuses(t0, t1);
     return i;
 }
 
@@ -595,7 +607,7 @@ Segment::updateEndTime()
 {
     m_endTime = m_startTime;
     for (iterator i = begin(); i != end(); ++i) {
-        timeT t = (*i)->getAbsoluteTime() + (*i)->getDuration();
+        timeT t = (*i)->getAbsoluteTime() + (*i)->getGreaterDuration();
         if (t > m_endTime) m_endTime = t;
     }
 }
@@ -608,9 +620,8 @@ Segment::erase(iterator pos)
 
     Q_CHECK_PTR(e);
     
-
     timeT t0 = e->getAbsoluteTime();
-    timeT t1 = t0 + e->getDuration();
+    timeT t1 = t0 + e->getGreaterDuration();
 
     EventContainer::erase(pos);
     notifyRemove(e);
@@ -638,7 +649,7 @@ Segment::erase(iterator from, iterator to)
 {
     timeT startTime = 0, endTime = m_endTime;
     if (from != end()) startTime = (*from)->getAbsoluteTime();
-    if (to != end()) endTime = (*to)->getAbsoluteTime() + (*to)->getDuration();
+    if (to != end()) endTime = (*to)->getAbsoluteTime() + (*to)->getGreaterDuration();
 
     // Not very efficient, but without an observer event for
     // multiple erase we can't do any better.
@@ -796,7 +807,7 @@ Segment::fillWithRests(timeT startTime, timeT endTime)
 void
 Segment::normalizeRests(timeT startTime, timeT endTime)
 {
-    Profiler profiler("Segment::normalizeRests");
+    //Profiler profiler("Segment::normalizeRests");
 
 #ifdef DEBUG_NORMALIZE_RESTS
     cerr << "normalizeRests (" << startTime << "->" << endTime << "), segment starts at " << m_startTime << endl;
@@ -914,7 +925,8 @@ Segment::normalizeRests(timeT startTime, timeT endTime)
     for (iterator i = ia, j = i; i != ib && i != end(); i = j) {
         ++j;
         if ((*i)->isa(Note::EventRestType) &&
-            !(*i)->has(BaseProperties::BEAMED_GROUP_TUPLET_BASE)) {
+            !(*i)->has(BaseProperties::BEAMED_GROUP_TUPLET_BASE) &&
+            !(*i)->has(BaseProperties::INVISIBLE)) {
 #ifdef DEBUG_NORMALIZE_RESTS
             cerr << "normalizeRests: erasing rest at " << (*i)->getAbsoluteTime() << endl;
 #endif
@@ -1100,13 +1112,6 @@ Segment::setQuantizeLevel(timeT unit)
     m_quantizer->setUnit(unit);
     if (m_quantize) m_quantizer->quantize(this, begin(), end());
 }
-
-const BasicQuantizer *
-Segment::getQuantizer() const
-{
-    return m_quantizer;
-}
-
 
 void
 Segment::setRepeating(bool value)
@@ -1555,7 +1560,7 @@ Segment::lockResizeNotifications()
 {
     m_notifyResizeLocked = true;
     m_memoStart = m_startTime;
-    m_memoEndMarkerTime = m_endMarkerTime ? new timeT(*m_endMarkerTime) : 0;
+    m_memoEndMarkerTime = m_endMarkerTime ? new timeT(*m_endMarkerTime) : nullptr;
 }
 
 void
@@ -1574,7 +1579,7 @@ Segment::unlockResizeNotifications()
     // opposite) ?   Is such a case possible ?
     
     if (m_memoEndMarkerTime) delete m_memoEndMarkerTime;
-    m_memoEndMarkerTime = 0;
+    m_memoEndMarkerTime = nullptr;
     notifyEndMarkerChange(shorten);
 }
 
@@ -1655,7 +1660,7 @@ Segment::getEventRuler(const std::string &type, int controllerValue)
         if ((*it)->m_type == type && (*it)->m_controllerValue == controllerValue)
             return *it;
 
-    return 0;
+    return nullptr;
 }
 
 
@@ -1698,7 +1703,7 @@ Segment::countVerses()
 
 SegmentMultiSet&
 Segment::
-getCompositionSegments(void)
+getCompositionSegments()
 {
     Composition* composition = DocumentGet::getComposition();
     return composition->getSegments();
@@ -1774,4 +1779,3 @@ EventContainer::findEventOfType(EventContainer::iterator i,
 
 }
 
-#include "Segment.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -31,7 +31,7 @@ TimerCallbackAssistant::TimerCallbackAssistant(int ms, void (*callback)(void *da
         m_data(data)
 {
     QTimer *timer = new QTimer(this);
-    connect(timer, SIGNAL(timeout()), this, SLOT(slotCallback()));
+    connect(timer, &QTimer::timeout, this, &TimerCallbackAssistant::slotCallback);
     timer->start(ms); // not a single shot timer
 }
 
@@ -47,4 +47,3 @@ TimerCallbackAssistant::slotCallback()
 }
 
 }
-#include "TimerCallbackAssistant.moc"

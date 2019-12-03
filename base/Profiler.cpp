@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -30,7 +30,7 @@ using std::endl;
 
 namespace Rosegarden {
 
-Profiles* Profiles::m_instance = 0;
+Profiles* Profiles::m_instance = nullptr;
 
 Profiles* Profiles::getInstance()
 {
@@ -183,7 +183,7 @@ Profiler::Profiler(const char* c, bool showOnDestruct) :
     m_startCPU = clock();
 
     struct timeval tv;
-    (void)gettimeofday(&tv, 0);
+    (void)gettimeofday(&tv, nullptr);
     m_startTime = RealTime::fromTimeval(tv);
 }
 
@@ -193,7 +193,7 @@ Profiler::update() const
     clock_t elapsedCPU = clock() - m_startCPU;
 
     struct timeval tv;
-    (void)gettimeofday(&tv, 0);
+    (void)gettimeofday(&tv, nullptr);
     RealTime elapsedTime = RealTime::fromTimeval(tv) - m_startTime;
 
     cerr << "Profiler : id = " << m_c
@@ -212,7 +212,7 @@ Profiler::end()
     clock_t elapsedCPU = clock() - m_startCPU;
 
     struct timeval tv;
-    (void)gettimeofday(&tv, 0);
+    (void)gettimeofday(&tv, nullptr);
     RealTime elapsedTime = RealTime::fromTimeval(tv) - m_startTime;
 
     Profiles::getInstance()->accumulate(m_c, elapsedCPU, elapsedTime);

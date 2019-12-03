@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -53,7 +53,7 @@ EventParameterDialog::ParamWidget::ParamWidget(QLayout *parent)
 
 // Get the result value when done
 int
-EventParameterDialog::ParamWidget::getValue(void)
+EventParameterDialog::ParamWidget::getValue()
 {
     return m_spinBox->value();
 }
@@ -73,7 +73,7 @@ EventParameterDialog::ParamWidget::showByArgs(const SliderSpec* args)
 
 // Hide the widget
 void
-EventParameterDialog::ParamWidget::hide(void)
+EventParameterDialog::ParamWidget::hide()
 {
     m_label->hide();
     m_spinBox->hide();
@@ -144,13 +144,13 @@ EventParameterDialog::EventParameterDialog(
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     mainLayout->addWidget(buttonBox);
 
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 // Initialize the widget that selects a pattern
 void
-EventParameterDialog::initializePatternBox(void)
+EventParameterDialog::initializePatternBox()
 {
     typedef ParameterPattern::ParameterPatternVec::const_iterator iterator;
     QString propertyName = m_situation->getPropertyNameQString();
@@ -194,7 +194,7 @@ EventParameterDialog::slotPatternSelected(int value)
 // Get a vector of the current parameters.  This makes part of our
 // final result object.
 ParameterPattern::BareParams
-EventParameterDialog::getBareParams(void)
+EventParameterDialog::getBareParams()
 {
     BareParams result;
     for (int i = 0; i < m_NbParameters; ++i) {
@@ -206,7 +206,7 @@ EventParameterDialog::getBareParams(void)
 
 // Get the final result object.
 ParameterPattern::Result
-EventParameterDialog::getResult(void)
+EventParameterDialog::getResult()
 {
     const int patternIndex = m_patternCombo->currentIndex();
     return 
@@ -216,4 +216,3 @@ EventParameterDialog::getResult(void)
 }
 
 }
-#include "EventParameterDialog.moc"

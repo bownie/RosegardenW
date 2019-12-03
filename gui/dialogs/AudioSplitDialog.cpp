@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -116,9 +116,9 @@ AudioSplitDialog::AudioSplitDialog(QWidget *parent,
 
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Help);
     layout->addWidget(buttonBox);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &AudioSplitDialog::slotHelpRequested);
 }
 
 void
@@ -170,7 +170,7 @@ AudioSplitDialog::drawPreview()
     //
     AudioFileManager &aFM = m_doc->getAudioFileManager();
     AudioFile *aF = aFM.getAudioFile(m_segment->getAudioFileId());
-    if (aF == NULL) {
+    if (aF == nullptr) {
         noPreviewMsg();
         return;
     }
@@ -184,7 +184,7 @@ AudioSplitDialog::drawPreview()
                                 m_segment->getAudioEndTime(),
                                 m_previewWidth,
                                 false);
-    } catch (Exception e) {
+    } catch (const Exception &e) {
         noPreviewMsg();
         return ;
     }
@@ -353,4 +353,3 @@ AudioSplitDialog::slotThresholdChanged(int threshold)
 }
 
 }
-#include "AudioSplitDialog.moc"

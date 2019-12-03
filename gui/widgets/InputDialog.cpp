@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -25,7 +25,6 @@
 #include <QDialogButtonBox>
 #include <QPushButton>
 #include <QGroupBox>
-#include <QSettings>
 
 
 namespace Rosegarden
@@ -35,14 +34,6 @@ InputDialog::InputDialog(const QString &title, const QString &label,
                          QWidget *parent, QWidget *input, Qt::WindowFlags f)
     : QDialog(parent, f)
 {
-    QSettings settings;
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    bool Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
-
-    QString localStyle("QDialog {background-color: #000000} QLabel{background-color: transparent; color: #FFFFFF}");
-    if (Thorn) setStyleSheet(localStyle);
-
     // set the window title
     setWindowTitle(tr("Rosegarden"));
     QVBoxLayout *vboxLayout = new QVBoxLayout(this);
@@ -69,7 +60,7 @@ InputDialog::InputDialog(const QString &title, const QString &label,
     gboxLayout->addStretch(1);
 
     // I have no idea what this is for, but Qt had it, so we'll keep it in our
-    // doctored version
+    // doctored version --- this is for the accelerator (Alt+letter marked with '&' gives focus to input)
 //    lbl->setBuddy(input);
 
     // Put some clicky buttons and hook them up
@@ -79,8 +70,8 @@ InputDialog::InputDialog(const QString &title, const QString &label,
     okButton->setDefault(true);
     vboxLayout->addWidget(buttonBox);
 
-    QObject::connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    QObject::connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    QObject::connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    QObject::connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     // No size grip.  Size grips are stupid looking, and I detest them.
     // Rosegarden has a NO SIZE GRIP policy.
@@ -117,4 +108,3 @@ InputDialog::getText(QWidget *parent, const QString &title, const QString &label
 
 }
 
-#include "InputDialog.moc"

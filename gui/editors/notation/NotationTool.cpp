@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -32,7 +32,7 @@ NotationTool::NotationTool(QString rcFileName, QString menuName,
                            NotationWidget *widget) :
     BaseTool(menuName, widget),
     m_widget(widget),
-    m_scene(0),
+    m_scene(nullptr),
     m_rcFileName(rcFileName)
 {
 }
@@ -45,7 +45,7 @@ NotationTool::NotationTool(NotationWidget *widget) :
 
 NotationTool::~NotationTool()
 {
-    NOTATION_DEBUG << "NotationTool::~NotationTool()" << endl;
+    NOTATION_DEBUG << "NotationTool::~NotationTool()";
 //    delete m_menu;
 }
 
@@ -79,19 +79,22 @@ NotationTool::handleMouseRelease(const NotationMouseEvent *) { }
 void
 NotationTool::handleMouseDoubleClick(const NotationMouseEvent *) { }
 
-NotationTool::FollowMode
+FollowMode
 NotationTool::handleMouseMove(const NotationMouseEvent *)
 {
-    return NoFollow;
+    return NO_FOLLOW;
 }
+
+void
+NotationTool::handleWheelTurned(int, const NotationMouseEvent *) { }
 
 void
 NotationTool::invokeInParentView(QString actionName)
 {
     QAction *a = findActionInParentView(actionName);
     if (!a) {
-        std::cerr << "NotationTool::invokeInParentView: No action \"" << actionName
-                  << "\" found in parent view" << std::endl;
+        RG_WARNING << "NotationTool::invokeInParentView: No action \"" << actionName
+                  << "\" found in parent view";
     } else {
         a->trigger();
     }
@@ -100,15 +103,15 @@ NotationTool::invokeInParentView(QString actionName)
 QAction *
 NotationTool::findActionInParentView(QString actionName)
 {
-    if (!m_widget) return 0;
+    if (!m_widget) return nullptr;
     QWidget *w = m_widget;
-    ActionFileClient *c = 0;
-    while (w->parentWidget() && !(c = dynamic_cast<ActionFileClient *>(w))) {
+    ActionFileClient *c = nullptr;
+    while (w && !(c = dynamic_cast<ActionFileClient *>(w))) {
         w = w->parentWidget();
     }
     if (!c) {
-        std::cerr << "NotationTool::findActionInParentView: Can't find ActionFileClient in parent widget hierarchy" << std::endl;
-        return 0;
+        RG_WARNING << "NotationTool::findActionInParentView: Can't find ActionFileClient in parent widget hierarchy";
+        return nullptr;
     }
     QAction *a = c->findAction(actionName);
     return a;
@@ -117,19 +120,19 @@ NotationTool::findActionInParentView(QString actionName)
 void
 NotationTool::createMenu()
 {
-    NOTATION_DEBUG << "NotationTool::createMenu() " << m_rcFileName << " - " << m_menuName << endl;
+    NOTATION_DEBUG << "NotationTool::createMenu() " << m_rcFileName << " - " << m_menuName;
 
-    if (!createGUI(m_rcFileName)) {
-        std::cerr << "NotationTool::createMenu(" << m_rcFileName << "): menu creation failed" << std::endl;
-        m_menu = 0;
+    if (!createMenusAndToolbars(m_rcFileName)) {
+        RG_WARNING << "NotationTool::createMenu(" << m_rcFileName << "): menu creation failed";
+        m_menu = nullptr;
         return;
     }
 
     QMenu *menu = findMenu(m_menuName);
     if (!menu) {
-        std::cerr << "NotationTool::createMenu(" << m_rcFileName
-                  << "): menu name "
-                  << m_menuName << " not created by RC file\n";
+        RG_WARNING << "NotationTool::createMenu(" << m_rcFileName
+                   << "): menu name "
+                   << m_menuName << "not created by RC file";
         return;
     }
 
@@ -138,5 +141,4 @@ NotationTool::createMenu()
 
 }
 
-#include "NotationTool.moc"
 

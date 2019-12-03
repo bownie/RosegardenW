@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,21 +19,17 @@
 #define RG_GENERALCONFIGURATIONPAGE_H
 
 #include "TabbedConfigurationPage.h"
-#include "gui/editors/eventlist/EventView.h"
 
 #include <QString>
-#include <QCheckBox>
-#include <QSpinBox>
-#include <QComboBox>
 
-
+class QCheckBox;
+class QComboBox;
+class QSpinBox;
 class QWidget;
 
 
 namespace Rosegarden
 {
-
-class RosegardenDocument;
 
 
 /**
@@ -46,6 +42,8 @@ class GeneralConfigurationPage : public TabbedConfigurationPage
     Q_OBJECT
 
 public:
+    GeneralConfigurationPage(QWidget *parent);
+
     enum DoubleClickClient
     {
         NotationView,
@@ -78,17 +76,16 @@ public:
         HPLIP
     };
 
-    enum GraphicsSystem
+    enum MetronomeDuring
     {
-        Raster,
-        Native,
-        OpenGL
+        DuringCountIn,
+        DuringRecord,
+        DuringBoth
     };
 
-    GeneralConfigurationPage(RosegardenDocument *doc, QWidget *parent = 0);
+    void apply() override;
 
-    virtual void apply();
-
+    // For ConfigureDialog
     static QString iconLabel() { return tr("General"); }
     static QString title()     { return tr("General Configuration"); }
     static QString iconName()  { return "configure-general"; }
@@ -96,41 +93,33 @@ public:
 signals:
     void updateAutoSaveInterval(unsigned int);
 
-protected slots:
+private slots:
     void slotShowStatus();
 
-protected:
-    int getCountInSpin()            { return m_countIn->value(); }
-    int getDblClickClient()         { return m_client->currentIndex(); }
-    int getNoteNameStyle()          { return m_nameStyle->currentIndex(); }
-    int getAppendLabel()            { return m_appendLabel->isChecked(); }
-    int getPdfViewer()              { return m_pdfViewer->currentIndex(); }
-    int getFilePrinter()            { return m_filePrinter->currentIndex(); }
-    int getGraphicsSystem()         { return m_graphicsSystem->currentIndex(); }
-    
-    //--------------- Data members ---------------------------------
-    RosegardenDocument* m_doc;
+private:
+    // Behavior tab
+    QComboBox *m_openSegmentsIn;
+    QSpinBox *m_countIn;
+    QComboBox *m_enableMetronomeDuring;
+    QComboBox *m_autoSaveInterval;
+    QCheckBox *m_appendSuffixes;
+    QCheckBox *m_useTrackName;
+    QCheckBox *m_enableEditingDuringPlayback;
+    QCheckBox *m_useJackTransport;
 
-    QComboBox* m_client;
-    QSpinBox  *m_countIn;
-    QCheckBox *m_toolContextHelp;
+    // Presentation tab
+    QCheckBox *m_Thorn;
+    QComboBox *m_nameStyle;
     QCheckBox *m_backgroundTextures;
     QCheckBox *m_notationBackgroundTextures;
-    QCheckBox *m_matrixBackgroundTextures;
-    QComboBox *m_autoSave;
-    QComboBox *m_nameStyle;
-    QComboBox *m_globalStyle;
-    QCheckBox *m_appendLabel;
-    QCheckBox *m_jackTransport;
-    QCheckBox *m_Thorn;
     QCheckBox *m_longTitles;
 
+    // External Applications tab
     QComboBox *m_pdfViewer;
     QComboBox *m_filePrinter;
-    QComboBox *m_graphicsSystem;
 
-    unsigned int m_lastGraphicsSystemIndex;
 };
+
 
 }
 

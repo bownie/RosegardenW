@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,7 +23,6 @@
 #include "base/PropertyName.h"
 #include "base/Segment.h"
 #include "base/Studio.h"
-#include "gui/general/ProgressReporter.h"
 #include "HydrogenXMLHandler.h"
 #include <QFile>
 #include <QObject>
@@ -33,9 +32,7 @@
 namespace Rosegarden
 {
 
-HydrogenLoader::HydrogenLoader(Studio *studio,
-                               QObject *parent):
-        ProgressReporter(parent),
+HydrogenLoader::HydrogenLoader(Studio *studio):
         m_studio(studio)
 {}
 

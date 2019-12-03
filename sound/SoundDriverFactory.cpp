@@ -3,9 +3,9 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
-
+ 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
@@ -14,43 +14,40 @@
 */
 
 #include "DummyDriver.h"
-#include "misc/Debug.h"
 
 #ifdef HAVE_ALSA
 #include "AlsaDriver.h"
 #endif
-
-#ifdef _PORTABLE_SOUND_
-#include "PortableSoundDriver.h"
-#endif
-
-
 
 #include "SoundDriverFactory.h"
 
 namespace Rosegarden
 {
 
+static bool s_soundEnabled = true;
+
 SoundDriver *
 SoundDriverFactory::createDriver(MappedStudio *studio)
 {
-    SoundDriver *driver = 0;
+    SoundDriver *driver = nullptr;
     bool initialised = false;
 
 #ifdef HAVE_ALSA
-    SEQUENCER_DEBUG << "Creating AlsaDriver" << endl;
-    driver = new AlsaDriver(studio);
-#elif _PORTABLE_SOUND_
-    SEQUENCER_DEBUG << "Creating PortableSoundDriver" << endl;
-    driver = new PortableSoundDriver(studio);
+    if (s_soundEnabled) {
+        driver = new AlsaDriver(studio);
+    } else {
+        driver = new DummyDriver(studio);
+    }
 #else
-    SEQUENCER_DEBUG << "Creating DummyDriver" << endl;
     driver = new DummyDriver(studio);
 #endif
 
     initialised = driver->initialise();
 
     if ( ! initialised ) {
+
+        QString log = driver->getStatusLog();
+
         driver->shutdown();
         delete driver;
 
@@ -58,12 +55,16 @@ SoundDriverFactory::createDriver(MappedStudio *studio)
         // fall to the DummyDriver as a last chance,
         // so GUI can still be used for notation.
         //
-        driver = new DummyDriver(studio);
+        driver = new DummyDriver(studio, log);
         driver->initialise();
     }
     return driver;
 }
 
+void SoundDriverFactory::setSoundEnabled(bool b)
+{
+    s_soundEnabled = b;
+}
 
 }
 

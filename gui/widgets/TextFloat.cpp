@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -31,7 +31,7 @@ namespace Rosegarden
 {
 
 
-TextFloat *TextFloat::m_textFloat = 0;
+TextFloat *TextFloat::m_textFloat = nullptr;
 
 TextFloat::TextFloat(QWidget *parent):
     BaseTextFloat(parent),
@@ -42,14 +42,14 @@ TextFloat::TextFloat(QWidget *parent):
 TextFloat::~TextFloat()
 {
     // m_textFloat is static
-    m_textFloat = 0;
+    m_textFloat = nullptr;
 }
 
 TextFloat *
 TextFloat::getTextFloat()
 {
     if (!m_textFloat) {
-        m_textFloat = new TextFloat(0);
+        m_textFloat = new TextFloat(nullptr);
     }
 
     return m_textFloat;

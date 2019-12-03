@@ -2,7 +2,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -43,6 +43,8 @@ public:
         TransportStartAtTime, // time arg required
         TransportStopAtTime // time arg required
     };
+
+    virtual ~ExternalTransport() {}
 
     virtual TransportToken transportChange(TransportRequest) = 0;
     virtual TransportToken transportJump(TransportRequest, RealTime) = 0;

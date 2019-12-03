@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,7 +35,7 @@ EventUnquantizeCommand::EventUnquantizeCommand(Segment &segment,
         BasicCommand(tr("Unquantize Events"), segment, startTime, endTime,
                      true),  // bruteForceRedo
         m_quantizer(quantizer),
-        m_selection(0)
+        m_selection(nullptr)
 {
     // nothing else
 }

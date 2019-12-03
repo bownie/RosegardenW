@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -52,9 +52,9 @@ public:
      * to the user as a nice continuous range.
      */
     ZoomSlider(const std::vector<T> &sizes, T defaultValue,
-               Qt::Orientation, QWidget * parent, const char * name=0);
+               Qt::Orientation, QWidget * parent, const char * name=nullptr);
 
-    virtual ~ZoomSlider();
+    ~ZoomSlider() override;
     
     void reinitialise(const std::vector<T> &sizes, T defaultValue);
 

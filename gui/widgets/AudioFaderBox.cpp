@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -67,7 +67,7 @@ AudioFaderBox::AudioFaderBox(QWidget *parent,
     // Plugin box
     //
     PluginPushButton *plugin;
-    QWidget *pluginVbox = 0;
+    QWidget *pluginVbox = nullptr;
 
     pluginVbox = new QWidget(this);
     QVBoxLayout *pluginVboxLayout = new QVBoxLayout;
@@ -145,8 +145,8 @@ AudioFaderBox::AudioFaderBox(QWidget *parent,
     m_stereoButton->setIcon(QIcon(m_monoPixmap)); // default is mono
     m_stereoButton->setFixedSize(24, 24);
 
-    connect(m_stereoButton, SIGNAL(clicked()),
-            this, SLOT(slotChannelStateChanged()));
+    connect(m_stereoButton, &QAbstractButton::clicked,
+            this, &AudioFaderBox::slotChannelStateChanged);
 
     m_synthGUIButton = new QPushButton(this);
     m_synthGUIButton->setText(tr("Editor"));
@@ -162,8 +162,8 @@ AudioFaderBox::AudioFaderBox(QWidget *parent,
     } else {
         m_pan->setKnobColour(GUIPalette::getColour(GUIPalette::RotaryPastelOrange));
 
-        m_audioInput = 0;
-        m_audioOutput = 0;
+        m_audioInput = nullptr;
+        m_audioOutput = nullptr;
     }
 
     m_pan->setToolTip(tr("Set the audio pan position in the stereo field"));
@@ -227,27 +227,31 @@ AudioFaderBox::setIsSynth(bool isSynth)
 }
 
 void
-AudioFaderBox::slotSetInstrument(Studio *studio,
+AudioFaderBox::slotSetInstrument(Studio * /*studio*/,
                                  Instrument *instrument)
 {
+    InstrumentId instrumentId = NoInstrument;
+    if (instrument)
+        instrumentId = instrument->getId();
+
     if (m_audioInput)
-        m_audioInput->slotSetInstrument(studio, instrument);
+        m_audioInput->setInstrument(instrumentId);
     if (m_audioOutput)
-        m_audioOutput->slotSetInstrument(studio, instrument);
+        m_audioOutput->setInstrument(instrumentId);
     if (instrument)
         setAudioChannels(instrument->getAudioChannels());
     if (instrument) {
 
-        RG_DEBUG << "AudioFaderBox::slotSetInstrument(" << instrument->getId() << ")" << endl;
+        RG_DEBUG << "AudioFaderBox::slotSetInstrument(" << instrument->getId() << ")";
 
         setIsSynth(instrument->getType() == Instrument::SoftSynth);
         if (instrument->getType() == Instrument::SoftSynth) {
             bool gui = false;
-            RG_DEBUG << "AudioFaderBox::slotSetInstrument(" << instrument->getId() << "): is soft synth" << endl;
+            RG_DEBUG << "AudioFaderBox::slotSetInstrument(" << instrument->getId() << "): is soft synth";
 
             gui = RosegardenMainWindow::self()->getPluginGUIManager()->hasGUI
                   (instrument->getId(), Instrument::SYNTH_PLUGIN_POSITION);
-            RG_DEBUG << "AudioFaderBox::slotSetInstrument(" << instrument->getId() << "): has gui = " << gui << endl;
+            RG_DEBUG << "AudioFaderBox::slotSetInstrument(" << instrument->getId() << "): has gui = " << gui;
 
             m_synthGUIButton->setEnabled(gui);
         }
@@ -287,9 +291,9 @@ AudioFaderBox::setAudioChannels(int channels)
     }
 
     if (m_audioInput)
-        m_audioInput->slotRepopulate();
+        m_audioInput->updateWidget();
     if (m_audioOutput)
-        m_audioOutput->slotRepopulate();
+        m_audioOutput->updateWidget();
 }
 
 void
@@ -319,4 +323,3 @@ AudioFaderBox::setFont(QFont f)
 
 
 }
-#include "AudioFaderBox.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -34,9 +34,9 @@ public:
     MatrixViewSegment(MatrixScene *,
                       Segment *,
                       bool drumMode);
-    virtual ~MatrixViewSegment();
+    ~MatrixViewSegment() override;
 
-    void endMarkerTimeChanged(const Segment *segment, bool shorten);
+    void endMarkerTimeChanged(const Segment *segment, bool shorten) override;
 
     SegmentRefreshStatus &getRefreshStatus() const;
     void resetRefreshStatus();
@@ -50,20 +50,20 @@ protected:
      * Override from ViewSegment
      * Wrap only notes 
      */
-    virtual bool wrapEvent(Event*);
+    bool wrapEvent(Event*) override;
 
     /**
      * Override from ViewSegment
      */
-    virtual void eventAdded(const Segment *, Event *);
+    void eventAdded(const Segment *, Event *) override;
 
     /**
      * Override from ViewSegment
      * Let tools know if their current element has gone
      */
-    virtual void eventRemoved(const Segment *, Event *);
+    void eventRemoved(const Segment *, Event *) override;
 
-    virtual ViewElement* makeViewElement(Event *);
+    ViewElement* makeViewElement(Event *) override;
 
     MatrixScene *m_scene;
     bool m_drum;

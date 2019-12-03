@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,14 +20,18 @@
 
 #include "base/Device.h"
 #include "base/MidiProgram.h"
-#include "gui/general/ProgressReporter.h"
+#include "base/Event.h"
+
+#include <QString>
+#include <QXmlDefaultHandler>
+#include <QtCore/QSharedPointer>
+#include <QPointer>
+#include <QProgressDialog>
+#include <QSharedPointer>
+
 #include <map>
 #include <set>
 #include <string>
-#include <QString>
-#include "base/Event.h"
-#include <QXmlDefaultHandler>
-#include <QtCore/QSharedPointer>
 
 
 class QXmlParseException;
@@ -56,7 +60,7 @@ class AudioFileManager;
 /**
  * Handler for the Rosegarden XML format
  */
-class RoseXmlHandler : public ProgressReporter, public QXmlDefaultHandler
+class RoseXmlHandler : public QObject, public QXmlDefaultHandler
 {
     //Q_OBJECT
 public:
@@ -80,37 +84,36 @@ public:
      */
     RoseXmlHandler(RosegardenDocument *doc,
                    unsigned int elementCount,
+                   QPointer<QProgressDialog> progressDialog,
                    bool createNewDevicesWhenNeeded);
 
-    virtual ~RoseXmlHandler();
+    ~RoseXmlHandler() override;
 
     /// overloaded handler functions
-    virtual bool startDocument();
-    virtual bool startElement(const QString& namespaceURI,
+    bool startDocument() override;
+    bool startElement(const QString& namespaceURI,
                               const QString& localName,
                               const QString& qName,
-                              const QXmlAttributes& atts);
+                              const QXmlAttributes& atts) override;
 
-    virtual bool endElement(const QString& namespaceURI,
+    bool endElement(const QString& namespaceURI,
                             const QString& localName,
-                            const QString& qName);
+                            const QString& qName) override;
 
-    virtual bool characters(const QString& ch);
+    bool characters(const QString& ch) override;
 
-    virtual bool endDocument (); // [rwb] - for tempo element catch
+    bool endDocument() override; // [rwb] - for tempo element catch
 
     bool isDeprecated() { return m_deprecation; }
 
-    bool isCancelled() { return m_cancelled; }
-
     /// Return the error string set during the parsing (if any)
-    QString errorString() const;
+    QString errorString() const override;
 
     bool hasActiveAudio() const { return m_hasActiveAudio; }
     std::set<QString> &pluginsNotFound() { return m_pluginsNotFound; }
 
-    bool error(const QXmlParseException& exception);
-    bool fatalError(const QXmlParseException& exception);
+    bool error(const QXmlParseException& exception) override;
+    bool fatalError(const QXmlParseException& exception) override;
 
 
 protected:
@@ -120,7 +123,7 @@ protected:
     Composition& getComposition();
     Studio& getStudio();
     AudioFileManager& getAudioFileManager();
-    AudioPluginManager* getAudioPluginManager();
+    QSharedPointer<AudioPluginManager> getAudioPluginManager();
 
     void setSubHandler(XmlSubHandler* sh);
     XmlSubHandler* getSubHandler() { return m_subHandler; }
@@ -167,7 +170,6 @@ protected:
     InstrumentId                      m_deviceReadInstrumentBase;
     std::map<InstrumentId, InstrumentId> m_actualInstrumentIdMap;
     bool                              m_percussion;
-    bool                              m_sendProgramChange;
     bool                              m_sendBankSelect;
     MidiByte                          m_msb;
     MidiByte                          m_lsb;
@@ -176,7 +178,7 @@ protected:
     AudioPluginInstance              *m_plugin;
     bool                              m_pluginInBuss;
     ColourMap                        *m_colourMap;
-    MidiKeyMapping                   *m_keyMapping;
+    QSharedPointer<MidiKeyMapping> m_keyMapping;
     MidiKeyMapping::KeyNameMap        m_keyNameMap;
     unsigned int                      m_pluginId;
     unsigned int                      m_totalElements;
@@ -186,9 +188,14 @@ protected:
     bool                              m_deprecation;
     bool                              m_createDevices;
     bool                              m_haveControls;
-    bool                              m_cancelled;
     bool                              m_skipAllAudio;
     bool                              m_hasActiveAudio;
+
+    // In case we encounter an old solo attribute at the composition level,
+    // hold onto it and use it to set the solo for the proper track.
+    bool m_oldSolo;
+
+    QPointer<QProgressDialog> m_progressDialog;
 };
 
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,6 +19,8 @@
 #define RG_MAPPEDEVENTBUFFER_H
 
 #include "base/RealTime.h"
+#include "base/Track.h"
+
 #include <QReadWriteLock>
 #include <QAtomicInt>
 
@@ -79,11 +81,15 @@ public:
     /**
      * The only overrider is SegmentMapper and it just debug-prints.
      */
-    virtual void initSpecial(void)  { }
+    virtual void initSpecial()  { }
 
     /// Access to the internal buffer of events.  NOT LOCKED
     /**
      * un-locked, use only from write/resize thread
+     *
+     * ??? Unsafe.  This allows direct access to the buffer without any
+     *     sort of range checking.  Recommend adding an operator[] and/or an
+     *     at() that asserts on range problems.
      */
     MappedEvent *getBuffer() { return m_buffer; }
 
@@ -172,7 +178,7 @@ public:
     virtual void doInsert(MappedInserterBase &inserter, MappedEvent &evt,
                           RealTime refTime, bool firstOutput);
 
-    // Return whether the event would even sound.  
+    /// Return whether the event would even sound.
     /**
      * For instance, it might be on a muted track and shouldn't be
      * played, or it might have already ended by startTime.  The exact
@@ -180,7 +186,7 @@ public:
      */
     virtual bool shouldPlay(MappedEvent *evt, RealTime startTime)=0;
 
-    // Make the channel, if any, ready to be played on.
+    /// Make the channel, if any, ready to be played on.
     /**
      * InternalSegmentMapper and MetronomeMapper override this to bring
      * ChannelManager into the picture.
@@ -192,31 +198,6 @@ public:
      * @see isReady
      */
     virtual void makeReady(MappedInserterBase &inserter, RealTime time);
-
-    /// Record one more owner of this mapper.
-    /**
-     * This increases the reference count to prevent deletion of a mapper
-     * that is still owned.
-     *
-     * Called by:
-     *   - MappedEventBuffer::iterator's ctor
-     *   - CompositionMapper::mapSegment()
-     *   - SequenceManager::resetMetronomeMapper()
-     *   - SequenceManager::resetTempoSegmentMapper()
-     *   - SequenceManager::resetTimeSigSegmentMapper()
-     *
-     * @see removeOwner()
-     */
-    void addOwner(void);
-
-    /// Record one fewer owner of this mapper.
-    /**
-     * When the owner count reaches 0, this object will destroy itself
-     * with a "delete this".
-     *
-     * @see addOwner()
-     */
-    void removeOwner(void);
 
     /// Get the earliest and latest sounding times.
     /**
@@ -230,40 +211,13 @@ public:
         end   = m_end;
     }
 
+    virtual TrackId getTrackID() const  { return UINT_MAX; }
+    virtual void insertChannelSetup(MappedInserterBase &)  { }
+
     class iterator 
     {
     public:
-        iterator(MappedEventBuffer* s);
-
-        /// Destructor.
-        /**
-         * Since this destructor is "non-trivial", we are required to provide
-         * (or hide) the other two of the "big three".  I.e. the copy ctor
-         * and op=.
-         */
-        ~iterator(void)  { m_s->removeOwner(); }
-
-        /// Copy ctor.  (UNTESTED)
-        /**
-         * Copy ctors are not for the faint of heart, and should be avoided
-         * whenever possible.  In this case, the postfix op++ needs the copy
-         * ctor in its first line.  We could probably get rid of the postfix
-         * op++ and force users to use the prefix op++ which would then let
-         * us remove this copy ctor.
-         *
-         * UNTESTED.  Use carefully.
-         */
-        iterator(const iterator&);
-
-        /// Assignment operator.  (UNTESTED)
-        /**
-         * Turns out this is never used.  However, since there's a copy ctor
-         * and the non-trivial dtor that rounds out the "big three", we might
-         * as well be complete and correct.
-         *
-         * UNTESTED.  Use carefully.
-         */
-        iterator& operator=(const iterator&);  // never used
+        iterator(QSharedPointer<MappedEventBuffer> s);
 
         /// Equality
         /**
@@ -282,12 +236,6 @@ public:
 
         /// Postfix operator++  (UNTESTED)
         /**
-         * This is never actually used anywhere.  But, unfortunately it
-         * triggers the need for a copy ctor.  It would probably be best to
-         * get rid of this and force all clients to use the prefix
-         * operator++.  But then someone might try to implement this and do
-         * it incorrectly.
-         *
          * UNTESTED.  Use carefully.
          */
         iterator  operator++(int);
@@ -321,9 +269,9 @@ public:
         MappedEvent *peek() const;
 
         /// Access to the segment the iterator is connected to.
-        MappedEventBuffer *getSegment() { return m_s; }
+        QSharedPointer<MappedEventBuffer> getSegment() { return m_s; }
         /// Access to the segment the iterator is connected to.
-        const MappedEventBuffer *getSegment() const { return m_s; }
+        QSharedPointer<const MappedEventBuffer> getSegment() const { return m_s; }
 
         /**
          * Called by MappedBufMetaIterator::fetchEventsNoncompeting().
@@ -354,20 +302,18 @@ public:
          */
         bool getActive() const  { return m_active; }
 
+        /// Whether makeReady() needs to be called.
         /**
-         * Set to true by doInsert().  Set to false by
-         * MappedBufMetaIterator::moveIteratorToTime() and
-         * MappedBufMetaIterator::resetIteratorForSegment().
-         *
-         * @see isReady()
+         * @see isReady() and makeReady()
          */
         void setReady(bool value)  { m_ready = value; };
 
-        /// Whether we are ready with regard to performance time.
+        /// Does makeReady() need to be called?
         /**
-         * Called by MappedEventBuffer::iterator::doInsert().
+         * MappedBufMetaIterator::fetchEventsNoncompeting() is the only
+         * real user.  There is another caller, but the result is ignored.
          *
-         * @see m_ready
+         * @see setReady() and makeReady()
          */
         bool isReady() const  { return m_ready; }
 
@@ -380,6 +326,14 @@ public:
          */
         void doInsert(MappedInserterBase &inserter, MappedEvent &evt);
 
+        /// Prepares an Instrument for playback.
+        /**
+         * Only InternalSegmentMapper and MetronomeMapper handle this.
+         * They send out a channel setup (BS/PC/CCs) when asked to make
+         * an Instrument ready.
+         *
+         * @see setReady() and isReady()
+         */
         void makeReady(MappedInserterBase &inserter, RealTime time) {
             m_s->makeReady(inserter, time);
             setReady(true);
@@ -394,12 +348,12 @@ public:
         { return m_s->shouldPlay(evt, startTime); }
 
         // Get a pointer to the MappedEventBuffer's lock.
-        QReadWriteLock* getLock(void) const
+        QReadWriteLock* getLock() const
         { return &m_s->m_lock; }
 
     protected:
         /// The buffer this iterator points into.
-        MappedEventBuffer *m_s;
+        QSharedPointer<MappedEventBuffer> m_s;
 
         /// Position of the iterator in the buffer.
         int m_index;

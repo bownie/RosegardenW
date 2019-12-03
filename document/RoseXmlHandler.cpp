@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -16,6 +16,8 @@
 */
 
 #define RG_MODULE_STRING "[RoseXmlHandler]"
+
+#define RG_NO_DEBUG_PRINT 1
 
 #include "RoseXmlHandler.h"
 
@@ -47,18 +49,14 @@
 #include "gui/application/RosegardenMainWindow.h"
 #include "sequencer/RosegardenSequencer.h"
 #include "gui/dialogs/FileLocateDialog.h"
-#include "gui/general/ProgressReporter.h"
 #include "gui/widgets/StartupLogo.h"
 #include "gui/studio/AudioPlugin.h"
 #include "gui/studio/AudioPluginManager.h"
-#include "gui/widgets/CurrentProgressDialog.h"
-#include "gui/widgets/ProgressDialog.h"
 #include "RosegardenDocument.h"
 #include "sound/AudioFileManager.h"
 #include "XmlStorableEvent.h"
 #include "XmlSubHandler.h"
 
-#include <QFileDialog>
 #include <QMessageBox>
 #include <QByteArray>
 #include <QDataStream>
@@ -78,17 +76,17 @@ public:
     ConfigurationXmlSubHandler(const QString &elementName,
                    Rosegarden::Configuration *configuration);
     
-    virtual bool startElement(const QString& namespaceURI,
+    bool startElement(const QString& namespaceURI,
                               const QString& localName,
                               const QString& qName,
-                              const QXmlAttributes& atts);
+                              const QXmlAttributes& atts) override;
 
-    virtual bool endElement(const QString& namespaceURI,
+    bool endElement(const QString& namespaceURI,
                             const QString& localName,
                             const QString& qName,
-                            bool& finished);
+                            bool& finished) override;
 
-    virtual bool characters(const QString& ch);
+    bool characters(const QString& ch) override;
 
     //--------------- Data members ---------------------------------
 
@@ -114,14 +112,14 @@ bool ConfigurationXmlSubHandler::startElement(const QString&, const QString&,
     m_propertyType = atts.value("type");
 
     if (m_propertyName == "property") {
-    // handle alternative encoding for properties with arbitrary names
-    m_propertyName = atts.value("name");
-    QString value = atts.value("value");
-    if (!value.isEmpty()) {
-        m_propertyType = "String";
-        m_configuration->set<String>(qstrtostr(m_propertyName),
-                     qstrtostr(value));
-    }
+        // handle alternative encoding for properties with arbitrary names
+        m_propertyName = atts.value("name");
+        QString value = atts.value("value");
+        if (!value.isEmpty()) {
+            m_propertyType = "String";
+            m_configuration->set<String>(qstrtostr(m_propertyName),
+                                         qstrtostr(value));
+        }
     }
 
     return true;
@@ -129,6 +127,8 @@ bool ConfigurationXmlSubHandler::startElement(const QString&, const QString&,
 
 bool ConfigurationXmlSubHandler::characters(const QString& chars)
 {
+    //RG_DEBUG << "ConfigurationXmlSubHandler::characters()";
+
     QString ch = chars.trimmed();
     // this method is also called on newlines - skip these cases
     if (ch.isEmpty()) return true;
@@ -136,8 +136,7 @@ bool ConfigurationXmlSubHandler::characters(const QString& chars)
 
     if (m_propertyType == "Int") {
         long i = ch.toInt();
-        RG_DEBUG << "\"" << m_propertyName << "\" "
-                 << "value = " << i << endl;
+        //RG_DEBUG << "  setting (int) " << m_propertyName << "=" << i;
         m_configuration->set<Int>(qstrtostr(m_propertyName), i);
 
         return true;
@@ -147,11 +146,10 @@ bool ConfigurationXmlSubHandler::characters(const QString& chars)
         Rosegarden::RealTime rt;
         int sepIdx = ch.indexOf(',');
         
-        rt.sec = ch.left(sepIdx).toInt();
-        rt.nsec = ch.mid(sepIdx + 1).toInt();
+        rt.sec = ch.leftRef(sepIdx).toInt();
+        rt.nsec = ch.midRef(sepIdx + 1).toInt();
 
-        RG_DEBUG << "\"" << m_propertyName << "\" "
-                 << "sec = " << rt.sec << ", nsec = " << rt.nsec << endl;
+        //RG_DEBUG << "  setting (RealTimeT) " << m_propertyName << "=" << rt.sec << "(sec) " << rt.nsec << "(nsec)";
 
         m_configuration->set<Rosegarden::RealTimeT>(qstrtostr(m_propertyName), rt);
 
@@ -165,6 +163,8 @@ bool ConfigurationXmlSubHandler::characters(const QString& chars)
                   chLc == "1"    ||
                   chLc == "on");
         
+        //RG_DEBUG << "  setting (Bool) " << m_propertyName << "=" << b;
+
         m_configuration->set<Rosegarden::Bool>(qstrtostr(m_propertyName), b);
 
         return true;
@@ -173,6 +173,8 @@ bool ConfigurationXmlSubHandler::characters(const QString& chars)
     if (m_propertyType.isEmpty() ||
     m_propertyType == "String") {
         
+        //RG_DEBUG << "  setting (String) " << m_propertyName << "=" << ch;
+
         m_configuration->set<Rosegarden::String>(qstrtostr(m_propertyName),
                          qstrtostr(ch));
 
@@ -202,44 +204,49 @@ ConfigurationXmlSubHandler::endElement(const QString&,
 
 RoseXmlHandler::RoseXmlHandler(RosegardenDocument *doc,
                                unsigned int elementCount,
+                               QPointer<QProgressDialog> progressDialog,
                                bool createNewDevicesWhenNeeded) :
-    ProgressReporter(0),
     m_doc(doc),
-    m_currentSegment(0),
-    m_currentEvent(0),
+    m_currentSegment(nullptr),
+    m_currentEvent(nullptr),
     m_currentTime(0),
     m_chordDuration(0),
-    m_segmentEndMarkerTime(0),
+    m_segmentEndMarkerTime(nullptr),
     m_inChord(false),
     m_inGroup(false),
     m_inComposition(false),
+    m_inColourMap(false),
     m_groupId(0),
+    m_groupTupletBase(0),
+    m_groupTupledCount(0),
+    m_groupUntupledCount(0),
     m_foundTempo(false),
     m_section(NoSection),
-    m_device(0),
+    m_device(nullptr),
     m_deviceRunningId(Device::NO_DEVICE),
     m_deviceInstrumentBase(MidiInstrumentBase),
     m_deviceReadInstrumentBase(0),
-    m_sendProgramChange(false),
+    m_percussion(false),
     m_sendBankSelect(false),
     m_msb(0),
     m_lsb(0),
-    m_instrument(0),
-    m_plugin(0),
+    m_instrument(nullptr),
+    m_buss(nullptr),
+    m_plugin(nullptr),
     m_pluginInBuss(false),
-    m_colourMap(0),
-    m_keyMapping(0),
+    m_colourMap(nullptr),
+    m_keyMapping(),
     m_pluginId(0),
     m_totalElements(elementCount),
     m_elementsSoFar(0),
-    m_subHandler(0),
+    m_subHandler(nullptr),
     m_deprecation(false),
     m_createDevices(createNewDevicesWhenNeeded),
     m_haveControls(false),
-    m_cancelled(false),
     m_skipAllAudio(false),
-    m_hasActiveAudio(false)
-
+    m_hasActiveAudio(false),
+    m_oldSolo(false),
+    m_progressDialog(progressDialog)
 {}
 
 RoseXmlHandler::~RoseXmlHandler()
@@ -265,7 +272,7 @@ RoseXmlHandler::getAudioFileManager()
     return m_doc->getAudioFileManager();
 }
 
-AudioPluginManager *
+QSharedPointer<AudioPluginManager>
 RoseXmlHandler::getAudioPluginManager()
 {
     return m_doc->getPluginManager();
@@ -274,6 +281,11 @@ RoseXmlHandler::getAudioPluginManager()
 bool
 RoseXmlHandler::startDocument()
 {
+    if (m_progressDialog) {
+        m_progressDialog->setLabelText(tr("Reading file..."));
+        m_progressDialog->setRange(0, 100);
+    }
+
     // Clear tracks
     //
     getComposition().clearTracks();
@@ -296,16 +308,9 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                              const QString& localName,
                              const QString& qName, const QXmlAttributes& atts)
 {
-    // First check if user pressed cancel button on the value()
-    // dialog
-    //
-    if (isOperationCancelled()) {
-        // Ideally, we'd throw here, but at this point Qt is in the stack
-        // and Qt is very often compiled without exception support.
-        //
-        m_cancelled = true;
+    // If the user cancelled, bail.
+    if (m_progressDialog  &&  m_progressDialog->wasCanceled())
         return false;
-    }
 
     QString lcName = qName.toLower();
 
@@ -315,10 +320,10 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
 
     if (lcName == "event") {
 
-        //        RG_DEBUG << "RoseXmlHandler::startElement: found event, current time is " << m_currentTime << endl;
+        //        RG_DEBUG << "RoseXmlHandler::startElement: found event, current time is " << m_currentTime;
 
         if (m_currentEvent) {
-            RG_DEBUG << "RoseXmlHandler::startElement: Warning: new event found at time " << m_currentTime << " before previous event has ended; previous event will be lost" << endl;
+            RG_DEBUG << "RoseXmlHandler::startElement: Warning: new event found at time " << m_currentTime << " before previous event has ended; previous event will be lost";
             delete m_currentEvent;
         }
 
@@ -369,7 +374,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
 
             m_currentTime = m_currentEvent->getAbsoluteTime() + duration;
 
-            //            RG_DEBUG << "RoseXmlHandler::startElement: (we're not in a chord) " << endl;
+            //            RG_DEBUG << "RoseXmlHandler::startElement: (we're not in a chord) ";
 
         } else if (duration != 0) {
 
@@ -385,7 +390,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
     } else if (lcName == "property") {
 
         if (!m_currentEvent) {
-            RG_DEBUG << "RoseXmlHandler::startElement: Warning: Found property outside of event at time " << m_currentTime << ", ignoring" << endl;
+            RG_DEBUG << "RoseXmlHandler::startElement: Warning: Found property outside of event at time " << m_currentTime << ", ignoring";
         } else {
             m_currentEvent->setPropertyFromAttributes(atts, true);
         }
@@ -393,7 +398,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
     } else if (lcName == "nproperty") {
 
         if (!m_currentEvent) {
-            RG_DEBUG << "RoseXmlHandler::startElement: Warning: Found nproperty outside of event at time " << m_currentTime << ", ignoring" << endl;
+            RG_DEBUG << "RoseXmlHandler::startElement: Warning: Found nproperty outside of event at time " << m_currentTime << ", ignoring";
         } else {
             m_currentEvent->setPropertyFromAttributes(atts, false);
         }
@@ -410,7 +415,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
         }
 
         if (!m_deprecation)
-            std::cerr << "WARNING: This Rosegarden file uses the deprecated element \"group\".  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+            RG_WARNING << "WARNING: This Rosegarden file uses the deprecated element \"group\".  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
         m_deprecation = true;
 
         m_inGroup = true;
@@ -433,7 +438,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
         QString smajor = atts.value("format-version-major");
         QString sminor = atts.value("format-version-minor");
 
-//        std::cerr << "\n\n\nRosegarden file version = \"" << version << "\"\n\n\n" << std::endl;
+//        RG_WARNING << "\n\n\nRosegarden file version = \"" << version << "\"\n";
 
         if (!smajor.isEmpty()) {
 
@@ -448,12 +453,10 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
             if (major == RosegardenDocument::FILE_FORMAT_VERSION_MAJOR &&
                     minor > RosegardenDocument::FILE_FORMAT_VERSION_MINOR) {
 
-                CurrentProgressDialog::freeze();
                 StartupLogo::hideIfStillThere();
 
-                QMessageBox::information(0, tr("Rosegarden"), tr("This file was written by Rosegarden %1, which is more recent than this version.\nThere may be some incompatibilities with the file format.").arg(version));
+                QMessageBox::information(nullptr, tr("Rosegarden"), tr("This file was written by Rosegarden %1, which is more recent than this version.\nThere may be some incompatibilities with the file format.").arg(version));
 
-                CurrentProgressDialog::thaw();
             }
         }
 
@@ -464,14 +467,16 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
             return false;
         }
 
+        Studio &studio = m_doc->getStudio();
+
         // In the Studio we clear down everything apart from Devices and
         // Instruments before we reload.  Instruments are derived from
         // the Sequencer, the bank/program information is loaded from
         // the file we're currently examining.
         //
-        getStudio().clearMidiBanksAndPrograms();
-        getStudio().clearBusses();
-        getStudio().clearRecordIns();
+        studio.clearMidiBanksAndPrograms();
+        studio.clearBusses();
+        studio.clearRecordIns();
 
         m_section = InStudio; // set top level section
 
@@ -480,12 +485,12 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
         QString thruStr = atts.value("thrufilter");
 
         if (!thruStr.isEmpty())
-            getStudio().setMIDIThruFilter(thruStr.toInt());
+            studio.setMIDIThruFilter(thruStr.toInt());
 
         QString recordStr = atts.value("recordfilter");
 
         if (!recordStr.isEmpty())
-            getStudio().setMIDIRecordFilter(recordStr.toInt());
+            studio.setMIDIRecordFilter(recordStr.toInt());
 
         QString inputStr = atts.value("audioinputpairs");
 
@@ -493,24 +498,35 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
             int inputs = inputStr.toInt();
             if (inputs < 1)
                 inputs = 1; // we simply don't permit no inputs
-            while (int(getStudio().getRecordIns().size()) < inputs) {
-                getStudio().addRecordIn(new RecordIn());
+            while (int(studio.getRecordIns().size()) < inputs) {
+                studio.addRecordIn(new RecordIn());
             }
-        }
-
-        QString mixerStr = atts.value("mixerdisplayoptions");
-
-        if (!mixerStr.isEmpty()) {
-            unsigned int mixer = mixerStr.toUInt();
-            getStudio().setMixerDisplayOptions(mixer);
         }
 
         QString metronomeStr = atts.value("metronomedevice");
 
         if (!metronomeStr.isEmpty()) {
             DeviceId metronome = metronomeStr.toUInt();
-            getStudio().setMetronomeDevice(metronome);
+            studio.setMetronomeDevice(metronome);
         }
+
+        QString temp;
+
+        temp = atts.value("amwshowaudiofaders");
+        studio.amwShowAudioFaders =
+                temp.isEmpty() ? true : (temp.toInt() != 0);
+
+        temp = atts.value("amwshowsynthfaders");
+        studio.amwShowSynthFaders =
+                temp.isEmpty() ? true : (temp.toInt() != 0);
+
+        temp = atts.value("amwshowaudiosubmasters");
+        studio.amwShowAudioSubmasters =
+                temp.isEmpty() ? true : (temp.toInt() != 0);
+
+        temp = atts.value("amwshowunassignedfaders");
+        studio.amwShowUnassignedFaders =
+                temp.isEmpty() ? false : (temp.toInt() != 0);
 
     } else if (lcName == "timesignature") {
 
@@ -595,11 +611,11 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
 
         QString recordPlStr = atts.value("recordtracks");
         if (!recordPlStr.isEmpty()) {
-            RG_DEBUG << "Record tracks: " << recordPlStr << endl;
+            RG_DEBUG << "Record tracks: " << recordPlStr;
             QStringList recordList = recordPlStr.split(',');
             for (QStringList::iterator i = recordList.begin();
                     i != recordList.end(); ++i) {
-                RG_DEBUG << "Record track: " << (*i).toInt() << endl;
+                RG_DEBUG << "Record track: " << (*i).toInt();
                 getComposition().setTrackRecording((*i).toInt(), true);
             }
         }
@@ -659,13 +675,10 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
         }
 
         QString soloTrackStr = atts.value("solo");
-        if (!soloTrackStr.isEmpty()) {
+        m_oldSolo = false;
+        if (!soloTrackStr.isEmpty())
             if (soloTrackStr.toInt() == 1)
-                getComposition().setSolo(true);
-            else
-                getComposition().setSolo(false);
-        }
-
+                m_oldSolo = true;
 
         QString playMetStr = atts.value("playmetronome");
         if (!playMetStr.isEmpty()) {
@@ -721,6 +734,14 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
             AudioLevel::setPanLaw(0);
         }
 
+        QString notationSpacingStr = atts.value("notationspacing");
+        if (!notationSpacingStr.isEmpty()) {
+            getComposition().m_notationSpacing = notationSpacingStr.toInt();
+        } else {
+            // Default to 100.
+            getComposition().m_notationSpacing = 100;
+        }
+
     } else if (lcName == "track") {
 
         if (m_section != InComposition) {
@@ -768,6 +789,14 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                                  label,
                                  muted);
 
+        if (m_oldSolo) {
+            // if this is the selected track
+            if (static_cast<TrackId>(id) ==
+                    getComposition().getSelectedTrack()) {
+                track->setSolo(true);
+            }
+        }
+
         QString shortLabelStr = atts.value("shortLabel");
         if (!shortLabelStr.isEmpty()) {
             track->setShortLabel(shortLabelStr.toStdString());
@@ -778,7 +807,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
         // here
         
         QString presetLabelStr = atts.value("defaultLabel");
-        if (!labelStr.isEmpty()) {
+        if (!presetLabelStr.isEmpty()) {
             track->setPresetLabel( qstrtostr(presetLabelStr) );
         }
     
@@ -816,6 +845,30 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
         if (!staffBracketStr.isEmpty()) {
             track->setStaffBracket(staffBracketStr.toInt());
         }
+
+        QString inputDeviceStr = atts.value("inputDevice");
+        if (!inputDeviceStr.isEmpty()) {
+            track->setMidiInputDevice(inputDeviceStr.toUInt());
+        }
+
+        QString inputChannelStr = atts.value("inputChannel");
+        if (!inputChannelStr.isEmpty()) {
+            track->setMidiInputChannel(inputChannelStr.toInt());
+        }
+
+        QString thruRoutingStr = atts.value("thruRouting");
+        if (!thruRoutingStr.isEmpty()) {
+            track->setThruRouting(
+                    static_cast<Track::ThruRouting>(thruRoutingStr.toInt()));
+        }
+
+        QString soloStr = atts.value("solo");
+        if (soloStr == "true")
+            track->setSolo(true);
+
+        QString archivedStr = atts.value("archived");
+        if (archivedStr == "true")
+            track->setArchived(true);
 
         // If the composition tag had this track set to record, make sure
         // it is armed.
@@ -891,9 +944,9 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
 
         QString delayStr = atts.value("delay");
         if (!delayStr.isEmpty()) {
-            RG_DEBUG << "Delay string is \"" << delayStr << "\"" << endl;
+            RG_DEBUG << "Delay string is \"" << delayStr << "\"";
             long delay = delayStr.toLong();
-            RG_DEBUG << "Delay is " << delay << endl;
+            RG_DEBUG << "Delay is " << delay;
             m_currentSegment->setDelay(delay);
         }
 
@@ -977,7 +1030,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
             m_currentSegment->setStartTimeDataMember(startTime);
         } else {
             if (!linkerIdStr.isEmpty()) {
-                SegmentLinker *linker = 0;                                  
+                SegmentLinker *linker = nullptr;                                  
                 int linkId = linkerIdStr.toInt();
                 SegmentLinkerMap::iterator linkerItr = 
                                                   m_segmentLinkers.find(linkId);
@@ -1023,7 +1076,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
         }
 
         QString type = atts.value("type");
-        //RG_DEBUG << "RoseXmlHandler::startElement - controller type = " << type << endl;
+        //RG_DEBUG << "RoseXmlHandler::startElement - controller type = " << type;
 
         if (type == strtoqstr(PitchBend::EventType))
             m_currentSegment->addEventRuler(PitchBend::EventType);
@@ -1037,7 +1090,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
     } else if (lcName == "resync") {
 
         if (!m_deprecation)
-            std::cerr << "WARNING: This Rosegarden file uses the deprecated element \"resync\".  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+            RG_WARNING << "WARNING: This Rosegarden file uses the deprecated element \"resync\".  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
         m_deprecation = true;
 
         QString time(atts.value("time"));
@@ -1054,7 +1107,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
         }
 
         if (m_skipAllAudio) {
-            std::cout << "SKIPPING audio file" << std::endl;
+            RG_DEBUG << "SKIPPING audio file";
             return true;
         }
 
@@ -1102,9 +1155,6 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
             if (getAudioFileManager().insertFile(qstrtostr(label),
                                                  file, id.toInt()) == false) {
 
-                // Freeze the progress dialog
-                CurrentProgressDialog::freeze();
-
                 // Hide splash screen if present on startup
                 StartupLogo::hideIfStillThere();
 
@@ -1134,7 +1184,6 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                     } else {
                         // don't process any more audio files
                         m_skipAllAudio = true;
-                        CurrentProgressDialog::thaw();
                         return true;
                     }
 
@@ -1151,8 +1200,6 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
 
                 getAudioFileManager().print();
 
-                // Restore progress dialog's normal state
-                CurrentProgressDialog::thaw();
             } else {
                 // AudioPath is modified so set a document post modify flag
                 //
@@ -1338,7 +1385,8 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                 setMIDIDeviceConnection(connection);
             }
 
-            setMIDIDeviceName(nameStr);
+            if (m_createDevices)
+                setMIDIDeviceName(nameStr);
 
             QString vstr = atts.value("variation").toLower();
             MidiDevice::VariationType variation =
@@ -1475,11 +1523,11 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                     //
                     // File formats <1.6.0 assume the existence of bank tag implies
                     // send program change should be set to true.
-                    m_sendProgramChange = !(atts.value("send").toLower() == "false");
+                    bool sendProgramChange = !(atts.value("send").toLower() == "false");
 
                     MidiByte id = atts.value("id").toInt();
                     m_instrument->setProgramChange(id);
-                    m_instrument->setSendProgramChange(m_sendProgramChange);
+                    m_instrument->setSendProgramChange(sendProgramChange);
                 }
             } else
             {
@@ -1491,7 +1539,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
     } else if (lcName == "keymapping") {
 
         if (m_section == InInstrument) {
-            RG_DEBUG << "Old-style keymapping in instrument found, ignoring" << endl;
+            RG_DEBUG << "Old-style keymapping in instrument found, ignoring";
         } else {
 
             if (m_section != InStudio) {
@@ -1501,7 +1549,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
 
             if (m_device && (m_device->getType() == Device::Midi)) {
                 QString name = atts.value("name");
-                m_keyMapping = new MidiKeyMapping(qstrtostr(name));
+                m_keyMapping.reset(new MidiKeyMapping(qstrtostr(name)));
                 m_keyNameMap.clear();
             }
         }
@@ -1538,7 +1586,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
             // but have no sequencer support, for example.  we need a separate m_inDevice
             // flag
             //        m_deprecation = true;
-            //        std::cerr << "WARNING: This Rosegarden file uses a deprecated control parameter structure.  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+            //        RG_WARNING << "WARNING: This Rosegarden file uses a deprecated control parameter structure.  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
 
         } else if (m_device->getType() == Device::Midi) {
 
@@ -1577,7 +1625,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
     } else if (lcName == "reverb") { // deprecated but we still read 'em
 
         if (!m_deprecation)
-            std::cerr << "WARNING: This Rosegarden file uses the deprecated element \"reverb\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+            RG_WARNING << "WARNING: This Rosegarden file uses the deprecated element \"reverb\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
         m_deprecation = true;
 
         if (m_section != InInstrument) {
@@ -1594,7 +1642,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
     } else if (lcName == "chorus") { // deprecated but we still read 'em
 
         if (!m_deprecation)
-            std::cerr << "WARNING: This Rosegarden file uses the deprecated element \"chorus\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+            RG_WARNING << "WARNING: This Rosegarden file uses the deprecated element \"chorus\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
         m_deprecation = true;
 
         if (m_section != InInstrument) {
@@ -1610,7 +1658,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
     } else if (lcName == "filter") { // deprecated but we still read 'em
 
         if (!m_deprecation)
-            std::cerr << "WARNING: This Rosegarden file uses the deprecated element \"filter\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+            RG_WARNING << "WARNING: This Rosegarden file uses the deprecated element \"filter\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
         m_deprecation = true;
 
         if (m_section != InInstrument) {
@@ -1627,7 +1675,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
     } else if (lcName == "resonance") { // deprecated but we still read 'em
 
         if (!m_deprecation)
-            std::cerr << "WARNING: This Rosegarden file uses the deprecated element \"resonance\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+            RG_WARNING << "WARNING: This Rosegarden file uses the deprecated element \"resonance\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
         m_deprecation = true;
 
         if (m_section != InInstrument) {
@@ -1644,7 +1692,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
     } else if (lcName == "attack") { // deprecated but we still read 'em
 
         if (!m_deprecation)
-            std::cerr << "WARNING: This Rosegarden file uses the deprecated element \"attack\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+            RG_WARNING << "WARNING: This Rosegarden file uses the deprecated element \"attack\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
         m_deprecation = true;
 
         if (m_section != InInstrument) {
@@ -1660,7 +1708,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
     } else if (lcName == "release") { // deprecated but we still read 'em
 
         if (!m_deprecation)
-            std::cerr << "WARNING: This Rosegarden file uses the deprecated element \"release\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+            RG_WARNING << "WARNING: This Rosegarden file uses the deprecated element \"release\" (now replaced by a control parameter).  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
         m_deprecation = true;
 
         if (m_section != InInstrument) {
@@ -1698,7 +1746,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
 
         if (lcName == "velocity") {
             if (!m_deprecation)
-                std::cerr << "WARNING: This Rosegarden file uses the deprecated element \"velocity\" for an overall MIDI instrument level (now replaced by \"volume\").  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+                RG_WARNING << "WARNING: This Rosegarden file uses the deprecated element \"velocity\" for an overall MIDI instrument level (now replaced by \"volume\").  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
             m_deprecation = true;
         }
 
@@ -1717,7 +1765,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                 // Note that we have no such compatibility for
                 // "recordLevel", whose range has changed silently.
                 if (!m_deprecation)
-                    std::cerr << "WARNING: This Rosegarden file uses the deprecated element \"volume\" for an audio instrument (now replaced by \"level\").  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions" << std::endl;
+                    RG_WARNING << "WARNING: This Rosegarden file uses the deprecated element \"volume\" for an audio instrument (now replaced by \"level\").  We recommend re-saving the file from this version of Rosegarden to assure your ability to re-load it in future versions";
                 m_deprecation = true;
                 m_instrument->setLevel
                     (AudioLevel::multiplier_to_dB(float(value) / 100.0));
@@ -1764,14 +1812,14 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
 
     } else if (lcName == "plugin" || lcName == "synth") {
 
-        PluginContainer *container = 0;
+        PluginContainer *container = nullptr;
 
         if (m_section == InInstrument) {
-//            std::cerr << "Found plugin in instrument" << std::endl;
+//            RG_WARNING << "Found plugin in instrument";
             container = m_instrument;
             m_pluginInBuss = false;
         } else if (m_section == InBuss) {
-//            std::cerr << "Found plugin in buss" << std::endl;
+//            RG_WARNING << "Found plugin in buss";
             container = m_buss;
             m_pluginInBuss = true;
         } else {
@@ -1784,9 +1832,11 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
         //
         if (container) {
 
-//            std::cerr << "Have container" << std::endl;
+//            RG_WARNING << "Have container";
 
-            emit setOperationName(tr("Loading plugins..."));
+            if (m_progressDialog)
+                m_progressDialog->setLabelText(tr("Loading plugins..."));
+
             qApp->processEvents(QEventLoop::AllEvents, 100);
 
             // Get the details
@@ -1814,8 +1864,8 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
 
             QString identifier = atts.value("identifier");
 
-            AudioPlugin *plugin = 0;
-            AudioPluginManager *apm = getAudioPluginManager();
+            QSharedPointer<AudioPlugin> plugin;
+            QSharedPointer<AudioPluginManager> apm = getAudioPluginManager();
 
             if ( identifier.isEmpty() ) {
                 QString q = atts.value("id");
@@ -1829,7 +1879,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                     plugin = apm->getPluginByIdentifier(identifier);
             }
 
-            std::cerr << "Plugin identifier " << identifier << " -> plugin " << plugin << std::endl;
+            RG_DEBUG << "Plugin identifier " << identifier << " -> plugin " << plugin;
 
             // If we find the plugin all is well and good but if
             // we don't we just skip it.
@@ -1839,12 +1889,12 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                 if (!m_plugin) {
                     RG_DEBUG << "WARNING: RoseXmlHandler: instrument/buss "
                     << container->getId() << " has no plugin position "
-                    << position << endl;
+                    << position;
                 } else {
                     m_plugin->setAssigned(true);
                     m_plugin->setBypass(bypassed);
                     m_plugin->setIdentifier( qstrtostr( plugin->getIdentifier() ) );
-                    std::cerr << "set identifier to plugin at position " << position << " of container " << container->getId() << std::endl;
+                    RG_DEBUG << "set identifier to plugin at position " << position << " of container " << container->getId();
                     if (program != "") {
                         m_plugin->setProgram(program);
                     }
@@ -1856,10 +1906,10 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
                 QString q = atts.value("id");
 
                 if (!identifier.isEmpty()) {
-                    RG_DEBUG << "WARNING: RoseXmlHandler: plugin " << identifier << " not found" << endl;
+                    RG_DEBUG << "WARNING: RoseXmlHandler: plugin " << identifier << " not found";
                     m_pluginsNotFound.insert(identifier);
                 } else if (!q.isEmpty()) {
-                    RG_DEBUG << "WARNING: RoseXmlHandler: plugin uid " << atts.value("id") << " not found" << endl;
+                    RG_DEBUG << "WARNING: RoseXmlHandler: plugin uid " << atts.value("id") << " not found";
                 } else {
                     m_errorString = "No plugin identifier or uid specified";
                     return false;
@@ -1870,7 +1920,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
             if (lcName == "synth") {
                 QString identifier = atts.value("identifier");
                 if (!identifier.isEmpty()) {
-                    RG_DEBUG << "WARNING: RoseXmlHandler: no instrument for plugin " << identifier << endl;
+                    RG_DEBUG << "WARNING: RoseXmlHandler: no instrument for plugin " << identifier;
                     m_pluginsNotFound.insert(identifier);
                 }
             }
@@ -1998,7 +2048,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
         //
         Instrument *instrument = getStudio().getInstrumentById(id);
 
-        RG_DEBUG << "Found Instrument in document: mapped actual id " << id << " to instrument " << instrument << endl;
+        RG_DEBUG << "Found Instrument in document: mapped actual id " << id << " to instrument " << instrument;
 
         // If we've got an instrument and the types match then
         // we use it from now on.
@@ -2210,7 +2260,7 @@ RoseXmlHandler::startElement(const QString& namespaceURI,
 
         getComposition().addMarker(marker);
     } else {
-        RG_DEBUG << "RoseXmlHandler::startElement : Don't know how to parse this : " << qName << endl;
+        RG_DEBUG << "RoseXmlHandler::startElement : Don't know how to parse this : " << qName;
     }
 
     return true;
@@ -2225,7 +2275,7 @@ RoseXmlHandler::endElement(const QString& namespaceURI,
         bool finished;
         bool res = getSubHandler()->endElement(namespaceURI, localName, qName.toLower(), finished);
         if (finished)
-            setSubHandler(0);
+            setSubHandler(nullptr);
         return res;
     }
 
@@ -2234,11 +2284,18 @@ RoseXmlHandler::endElement(const QString& namespaceURI,
     if ((m_totalElements > m_elementsSoFar) &&
         (++m_elementsSoFar % 300 == 0)) {
 
-        Profiler profiler("RoseXmlHandler::endElement: emit progress");
+        if (m_progressDialog) {
+            // If the user cancelled, bail.
+            if (m_progressDialog->wasCanceled())
+                return false;
 
-//        std::cout << "emitting setValue(" << int(double(m_elementsSoFar) / double(m_totalElements) * 100.0) << ")" << std::endl;
+            m_progressDialog->setValue(static_cast<int>(
+                    static_cast<double>(m_elementsSoFar) /
+                    static_cast<double>(m_totalElements) * 100.0));
+        }
 
-        emit setValue(int(double(m_elementsSoFar) / double(m_totalElements) * 100.0));
+        // Kick the event loop so that we don't appear to be in
+        // an endless loop.
         qApp->processEvents(QEventLoop::AllEvents, 100);
     }
 
@@ -2284,7 +2341,7 @@ RoseXmlHandler::endElement(const QString& namespaceURI,
 
         if (m_currentSegment && m_currentEvent) {
             m_currentSegment->insert(m_currentEvent);
-            m_currentEvent = 0;
+            m_currentEvent = nullptr;
         } else if (!m_currentSegment && m_currentEvent) {
             m_errorString = "Got event outside of a Segment";
             return false;
@@ -2315,15 +2372,15 @@ RoseXmlHandler::endElement(const QString& namespaceURI,
             }
 
             delete m_segmentEndMarkerTime;
-            m_segmentEndMarkerTime = 0;
+            m_segmentEndMarkerTime = nullptr;
         }
 
-        m_currentSegment = 0;
+        m_currentSegment = nullptr;
         m_section = NoSection;
 
     } else if (lcName == "bar-segment" || lcName == "tempo-segment") {
 
-        m_currentSegment = 0;
+        m_currentSegment = nullptr;
 
     } else if (lcName == "composition") {
         m_inComposition = false;
@@ -2336,12 +2393,12 @@ RoseXmlHandler::endElement(const QString& namespaceURI,
     } else if (lcName == "buss") {
 
         m_section = InStudio;
-        m_buss = 0;
+        m_buss = nullptr;
 
     } else if (lcName == "instrument") {
 
         m_section = InStudio;
-        m_instrument = 0;
+        m_instrument = nullptr;
 
     } else if (lcName == "plugin") {
 
@@ -2350,12 +2407,12 @@ RoseXmlHandler::endElement(const QString& namespaceURI,
         } else {
             m_section = InInstrument;
         }
-        m_plugin = 0;
+        m_plugin = nullptr;
         m_pluginId = 0;
 
     } else if (lcName == "device") {
 
-        m_device = 0;
+        m_device = nullptr;
 
     } else if (lcName == "keymapping") {
 
@@ -2369,7 +2426,8 @@ RoseXmlHandler::endElement(const QString& namespaceURI,
                         md->addKeyMapping(*m_keyMapping);
                     }
                 }
-                m_keyMapping = 0;
+
+                m_keyMapping.reset();
             }
         }
 
@@ -2383,7 +2441,7 @@ RoseXmlHandler::endElement(const QString& namespaceURI,
 
     } else if (lcName == "colourmap") {
         m_inColourMap = false;
-        m_colourMap = 0;
+        m_colourMap = nullptr;
     }
 
     return true;
@@ -2461,8 +2519,8 @@ RoseXmlHandler::addMIDIDevice(QString name, bool createAtSequencer, QString dir)
     } else if (dir == "record") {
         devDir = MidiDevice::Record;
     } else {
-        std::cerr << "Error: Device direction \"" << dir
-                  << "\" invalid in RoseXmlHandler::addMIDIDevice()" << std::endl;
+        RG_WARNING << "Error: Device direction \"" << dir
+                  << "\" invalid in RoseXmlHandler::addMIDIDevice()";
         return;
     }
 
@@ -2472,15 +2530,14 @@ RoseXmlHandler::addMIDIDevice(QString name, bool createAtSequencer, QString dir)
     if (createAtSequencer) {
         if (!RosegardenSequencer::getInstance()->
             addDevice(Device::Midi, deviceId, instrumentBase, devDir)) {
-            SEQMAN_DEBUG << "RoseXmlHandler::addMIDIDevice - "
-                         << "sequencer addDevice failed" << endl;
+            RG_DEBUG << "addMIDIDevice() - sequencer addDevice failed";
             return;
         }
 
-        SEQMAN_DEBUG << "RoseXmlHandler::addMIDIDevice - "
+        RG_DEBUG << "addMIDIDevice() - "
                      << " added device " << deviceId
                      << " with instrument base " << instrumentBase
-                     << " at sequencer" << endl;
+                     << " at sequencer";
     }
 
     getStudio().addDevice(qstrtostr(name), deviceId,
@@ -2491,10 +2548,10 @@ RoseXmlHandler::addMIDIDevice(QString name, bool createAtSequencer, QString dir)
         if (md) md->setDirection(devDir);
     }
 
-    SEQMAN_DEBUG << "RoseXmlHandler::addMIDIDevice - "
+    RG_DEBUG << "addMIDIDevice() - "
                  << " added device " << deviceId
                  << " with instrument base " << instrumentBase
-                 << " in studio" << endl;
+                 << " in studio";
 
     m_deviceRunningId = deviceId;
     m_deviceInstrumentBase = instrumentBase;
@@ -2576,7 +2633,7 @@ RoseXmlHandler::mapToActualInstrument(InstrumentId oldId)
 void
 RoseXmlHandler::skipToNextPlayDevice()
 {
-    SEQMAN_DEBUG << "RoseXmlHandler::skipToNextPlayDevice; m_deviceRunningId is " << m_deviceRunningId << endl;
+    RG_DEBUG << "skipToNextPlayDevice(): m_deviceRunningId is " << m_deviceRunningId;
 
     for (DeviceList::iterator i = getStudio().getDevices()->begin();
             i != getStudio().getDevices()->end(); ++i) {
@@ -2587,7 +2644,7 @@ RoseXmlHandler::skipToNextPlayDevice()
             if (m_deviceRunningId == Device::NO_DEVICE ||
                 md->getId() > m_deviceRunningId) {
 
-                SEQMAN_DEBUG << "RoseXmlHandler::skipToNextPlayDevice: found next device: id " << md->getId() << endl;
+                RG_DEBUG << "skipToNextPlayDevice(): found next device: id " << md->getId();
 
                 m_device = md;
                 m_deviceRunningId = md->getId();
@@ -2596,15 +2653,15 @@ RoseXmlHandler::skipToNextPlayDevice()
         }
     }
 
-    SEQMAN_DEBUG << "RoseXmlHandler::skipToNextPlayDevice: fresh out of devices" << endl;
+    RG_DEBUG << "skipToNextPlayDevice(): fresh out of devices";
 
-    m_device = 0;
+    m_device = nullptr;
 }
 
 void
 RoseXmlHandler::setMIDIDeviceConnection(QString connection)
 {
-    SEQMAN_DEBUG << "RoseXmlHandler::setMIDIDeviceConnection(" << connection << ")" << endl;
+    RG_DEBUG << "setMIDIDeviceConnection(" << connection << ")";
 
     MidiDevice *md = dynamic_cast<MidiDevice *>(m_device);
     if (!md) return;
@@ -2619,7 +2676,7 @@ RoseXmlHandler::setMIDIDeviceConnection(QString connection)
 void
 RoseXmlHandler::setMIDIDeviceName(QString name)
 {
-    SEQMAN_DEBUG << "RoseXmlHandler::setMIDIDeviceName(" << name << ")" << endl;
+    RG_DEBUG << "setMIDIDeviceName(" << name << ")";
 
     MidiDevice *md = dynamic_cast<MidiDevice *>(m_device);
     if (!md) return;

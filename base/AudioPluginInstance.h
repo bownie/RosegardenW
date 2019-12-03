@@ -2,7 +2,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -100,7 +100,9 @@ public:
     AudioPluginInstance(std::string identifier,
                         unsigned int position);
 
+    /// E.g. "dssi:/usr/lib/dssi/hexter.so:hexter"
     void setIdentifier(std::string identifier) { m_identifier = identifier; }
+    /// E.g. "dssi:/usr/lib/dssi/hexter.so:hexter"
     std::string getIdentifier() const { return m_identifier; }
 
     void setPosition(unsigned int position) { m_position = position; }
@@ -119,7 +121,7 @@ public:
     unsigned int getPortCount() const { return m_ports.size(); }
 
     // export
-    std::string toXmlString();
+    std::string toXmlString() const override;
 
     // Is the instance assigned to a plugin?
     //
@@ -143,9 +145,12 @@ public:
 
     std::string getDistinctiveConfigurationText() const;
 
+    std::string getDisplayName() const;
+
 protected:
 
     int                                m_mappedId;
+    /// E.g. "dssi:/usr/lib/dssi/hexter.so:hexter"
     std::string                        m_identifier;
     std::vector<PluginPortInstance*>   m_ports;
     unsigned int                       m_position;

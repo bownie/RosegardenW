@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -52,6 +52,7 @@
 #include <QScrollArea>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QSharedPointer>
 
 namespace Rosegarden
 {
@@ -74,7 +75,7 @@ SynthPluginManagerDialog::SynthPluginManagerDialog(QWidget *parent,
     setupGuiMain();
     setupGuiCreatePluginList();
     
-//    createGUI ( "synthpluginmanager.rc" );
+//    createMenusAndToolbars("synthpluginmanager.rc");
 
     setAttribute(Qt::WA_DeleteOnClose);
     setSizePolicy(QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
@@ -141,8 +142,8 @@ SynthPluginManagerDialog:: setupGuiMain()
     }
 
 //         connect(m_dialogButtonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect ( m_dialogButtonBox, SIGNAL ( rejected() ), this, SLOT ( slotClose() ) );
-    connect ( m_dialogButtonBox, SIGNAL ( helpRequested() ), this, SLOT ( slotHelpRequested() ) );
+    connect ( m_dialogButtonBox, &QDialogButtonBox::rejected, this, &SynthPluginManagerDialog::slotClose );
+    connect ( m_dialogButtonBox, &QDialogButtonBox::helpRequested, this, &SynthPluginManagerDialog::slotHelpRequested );
 
     //
     // end dialog button-box setup
@@ -161,7 +162,7 @@ void SynthPluginManagerDialog:: setupGuiCreatePluginList(){
 
     int count = 0;
 
-    for ( PluginIterator itr = m_pluginManager->begin();
+    for ( AudioPluginManager::iterator itr = m_pluginManager->begin();
           itr != m_pluginManager->end(); ++itr ){
 
         if ( ( *itr )->isSynth() ){
@@ -200,7 +201,7 @@ void SynthPluginManagerDialog:: setupGuiCreatePluginList(){
             if ( m_synthPlugins[j] == -1 )
                 continue;
 
-            AudioPlugin *plugin =
+            QSharedPointer<AudioPlugin> plugin =
                 m_pluginManager->getPlugin ( m_synthPlugins[j] );
 
             pluginCombo->addItem ( plugin->getName() );
@@ -210,8 +211,8 @@ void SynthPluginManagerDialog:: setupGuiCreatePluginList(){
             }
         }
 
-        connect ( pluginCombo, SIGNAL ( activated ( int ) ),
-                  this, SLOT ( slotPluginChanged ( int ) ) );
+        connect (pluginCombo, SIGNAL(activated(int)),
+                 this, SLOT(slotPluginChanged(int)));
 
         m_scrollWidgetLayout->addWidget ( pluginCombo, i, 1 );
 
@@ -219,14 +220,14 @@ void SynthPluginManagerDialog:: setupGuiCreatePluginList(){
 
         QPushButton *controlsButton = new QPushButton ( tr ( "Controls" ), m_scrollWidget );
         m_scrollWidgetLayout->addWidget ( controlsButton, i, 2 );
-        connect ( controlsButton, SIGNAL ( clicked() ), this, SLOT ( slotControlsButtonClicked() ) );
+        connect ( controlsButton, &QAbstractButton::clicked, this, &SynthPluginManagerDialog::slotControlsButtonClicked );
         m_controlsButtons.push_back ( controlsButton );
 
         QPushButton *guiButton = new QPushButton ( tr ( "Editor >>" ), m_scrollWidget );
         m_scrollWidgetLayout->addWidget ( guiButton, i, 3 );
         guiButton->setEnabled ( m_guiManager->hasGUI
                                 ( id, Instrument::SYNTH_PLUGIN_POSITION ) );
-        connect ( guiButton, SIGNAL ( clicked() ), this, SLOT ( slotGUIButtonClicked() ) );
+        connect ( guiButton, &QAbstractButton::clicked, this, &SynthPluginManagerDialog::slotGUIButtonClicked );
         m_guiButtons.push_back ( guiButton );
 
     }// end for i
@@ -304,7 +305,7 @@ SynthPluginManagerDialog::slotGUIButtonClicked(){
     }
 
     if ( instrumentNo == -1 ){
-        RG_DEBUG << "WARNING: SynthPluginManagerDialog::slotGUIButtonClicked: unknown sender" << endl;
+        RG_DEBUG << "WARNING: SynthPluginManagerDialog::slotGUIButtonClicked: unknown sender";
         return ;
     }
 
@@ -326,7 +327,7 @@ void SynthPluginManagerDialog:: slotControlsButtonClicked(){
     }
 
     if ( instrumentNo == -1 ){
-        RG_DEBUG << "WARNING: SynthPluginManagerDialog::slotControlsButtonClicked: unknown sender" << endl;
+        RG_DEBUG << "WARNING: SynthPluginManagerDialog::slotControlsButtonClicked: unknown sender";
         return ;
     }
 
@@ -352,7 +353,7 @@ void SynthPluginManagerDialog::slotPluginChanged ( int index ){
     }
 
     if ( instrumentNo == -1 ){
-        RG_DEBUG << "WARNING: SynthPluginManagerDialog::slotValueChanged: unknown sender" << endl;
+        RG_DEBUG << "WARNING: SynthPluginManagerDialog::slotValueChanged: unknown sender";
         return ;
     }
 
@@ -366,7 +367,7 @@ void SynthPluginManagerDialog::slotPluginChanged ( int index ){
 
     // NB m_synthPlugins[0] is -1 to represent the <none> item
 
-    AudioPlugin *plugin = m_pluginManager->getPlugin ( m_synthPlugins[index] );
+    QSharedPointer<AudioPlugin> plugin = m_pluginManager->getPlugin ( m_synthPlugins[index] );
     Instrument *instrument = m_studio->getInstrumentById ( id );
 
     if ( instrument ){
@@ -377,20 +378,21 @@ void SynthPluginManagerDialog::slotPluginChanged ( int index ){
         if ( pluginInstance ){
 
             if ( plugin ){
-                RG_DEBUG << "plugin is " << plugin->getIdentifier() << endl;
+                RG_DEBUG << "plugin is " << plugin->getIdentifier();
                 pluginInstance->setIdentifier ( qstrtostr ( plugin->getIdentifier() ) );
 
                 // set ports to defaults
 
-                AudioPlugin::PortIterator it = plugin->begin();
                 int count = 0;
 
-                for ( ; it != plugin->end(); ++it ){
+                for (AudioPlugin::PluginPortVector::iterator it = plugin->begin();
+                     it != plugin->end();
+                     ++it) {
 
                     if ( ( ( *it )->getType() & PluginPort::Control ) &&
                          ( ( *it )->getType() & PluginPort::Input ) ){
 
-                        if ( pluginInstance->getPort ( count ) == 0 ){
+                        if ( pluginInstance->getPort ( count ) == nullptr ){
                             pluginInstance->addPort ( count, ( float ) ( *it )->getDefaultValue() );
                         }
                         else{
@@ -422,4 +424,3 @@ void SynthPluginManagerDialog::slotPluginChanged ( int index ){
 
 }
 
-#include "SynthPluginManagerDialog.moc"

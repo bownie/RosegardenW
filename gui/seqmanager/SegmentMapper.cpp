@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,10 +15,13 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[SegmentMapper]"
 
 #include "SegmentMapper.h"
-#include "misc/Debug.h"
 
+#include "InternalSegmentMapper.h"
+#include "AudioSegmentMapper.h"
+#include "misc/Debug.h"
 #include "misc/Strings.h"
 #include "base/BaseProperties.h"
 #include "base/Segment.h"
@@ -33,24 +36,54 @@ SegmentMapper::SegmentMapper(RosegardenDocument *doc,
     MappedEventBuffer(doc),
     m_segment(segment)
 {
-    SEQMAN_DEBUG << "SegmentMapper : " << this << endl;
+    RG_DEBUG << "ctor: " << this;
 }
 
 
 void
 SegmentMapper::
-initSpecial(void)
+initSpecial()
 {
-    if (m_segment != 0) {
-        SEQMAN_DEBUG << "SegmentMapper::initSpecial " 
-                     << " for segment " << m_segment->getLabel() << endl;
+    if (m_segment != nullptr) {
+        RG_DEBUG << "initSpecial()  for segment " << m_segment->getLabel();
     }    
 };
 
 
 SegmentMapper::~SegmentMapper()
 {
-    SEQMAN_DEBUG << "~SegmentMapper : " << this << endl;
+    RG_DEBUG << "dtor: " << this;
+}
+
+QSharedPointer<SegmentMapper>
+SegmentMapper::makeMapperForSegment(RosegardenDocument *doc,
+                                    Segment *segment)
+{
+    QSharedPointer<SegmentMapper> mapper;
+
+    if (segment == nullptr) {
+        RG_DEBUG << "makeMapperForSegment() segment == 0";
+        return QSharedPointer<SegmentMapper>();
+    }
+
+    switch (segment->getType()) {
+    case Segment::Internal :
+        mapper = QSharedPointer<SegmentMapper>(new InternalSegmentMapper(doc, segment));
+        break;
+    case Segment::Audio :
+        mapper = QSharedPointer<SegmentMapper>(new AudioSegmentMapper(doc, segment));
+        break;
+    default:
+        RG_DEBUG << "makeMapperForSegment(" << segment << ") : can't map, unknown segment type " << segment->getType();
+        mapper = QSharedPointer<SegmentMapper>();
+    }
+
+    // ??? InternalSegmentMapper and AudioSegmentMapper's ctors should
+    //     call init().
+    if (mapper)
+        mapper->init();
+
+    return mapper;
 }
 
 int
@@ -71,21 +104,33 @@ SegmentMapper::getSegmentRepeatCount()
     return repeatCount;
 }
 
+TrackId
+SegmentMapper::getTrackID() const
+{
+    if (m_segment)
+        return m_segment->getTrack();
+
+    return UINT_MAX;
+}
+
 bool
 SegmentMapper::
-mutedEtc(void)
+mutedEtc()
 {
+    const ControlBlock *controlBlock = ControlBlock::getInstance();
     TrackId trackId = m_segment->getTrack();
 
-    // If we're soloing (i.e. playing only a selected track), that
-    // overrides the usual muting logic.  We're effectively muted if
-    // the solo track isn't ours.
-    if (ControlBlock::getInstance()->isSolo()) {
-        return (trackId != ControlBlock::getInstance()->getSelectedTrack());
-    }
+    // Archived overrides everything.  Check it first.
+    if (controlBlock->isTrackArchived(trackId))
+        return true;
 
-    // Otherwise use the normal muting logic.
-    return ControlBlock::getInstance()->isTrackMuted(trackId);
+    // If we are in solo mode, mute based on whether our track
+    // is being soloed.
+    if (controlBlock->isAnyTrackInSolo())
+        return !controlBlock->isSolo(trackId);
+
+    // Otherwise use the normal muting/archiving logic.
+    return controlBlock->isTrackMuted(trackId);
 }
 
 }

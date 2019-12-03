@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -48,7 +48,6 @@
 #include "gui/rulers/ChordNameRuler.h"
 #include "gui/rulers/TempoRuler.h"
 #include "gui/rulers/LoopRuler.h"
-#include "gui/widgets/ProgressDialog.h"
 #include "gui/widgets/DeferScrollArea.h"
 #include "sound/AudioFile.h"
 #include "document/Command.h"
@@ -91,18 +90,18 @@ TrackEditor::TrackEditor(RosegardenDocument *doc,
     QWidget(mainViewWidget),
     m_doc(doc),
     m_compositionRefreshStatusId(doc->getComposition().getNewRefreshStatusId()),
-    m_compositionView(0),
-    m_compositionModel(0),
+    m_compositionView(nullptr),
+    m_compositionModel(nullptr),
     m_playTracking(true),
     m_trackCellHeight(0),
-    m_trackButtons(0),
-    m_trackButtonScroll(0),
+    m_trackButtons(nullptr),
+    m_trackButtonScroll(nullptr),
     m_showTrackLabels(showTrackLabels),
     m_rulerScale(rulerScale),
-    m_tempoRuler(0),
-    m_chordNameRuler(0),
-    m_topStandardRuler(0),
-    m_bottomStandardRuler(0)
+    m_tempoRuler(nullptr),
+    m_chordNameRuler(nullptr),
+    m_topStandardRuler(nullptr),
+    m_bottomStandardRuler(nullptr)
     //m_canvasWidth(0)
 {
     // Accept objects dragged and dropped onto this widget.
@@ -124,33 +123,22 @@ TrackEditor::init(RosegardenMainViewWidget *mainViewWidget)
     grid->setMargin(0);
     grid->setSpacing(0);
 
-    // Height for top and bottom standard rulers.
-    // rename: standardRulerHeight
-    const int barButtonsHeight = 25;
-
     // Top Rulers
     
     m_chordNameRuler = new ChordNameRuler(m_rulerScale,
                                           m_doc,
-                                          0.0,
                                           20,
                                           this);
     grid->addWidget(m_chordNameRuler, 0, 1);
 
     m_tempoRuler = new TempoRuler(m_rulerScale,
                                   m_doc,
-                                  RosegardenMainWindow::self(),
-                                  0.0,
                                   24,
-                                  true,
-                                  this);
-    m_tempoRuler->connectSignals();
+                                  true);
     grid->addWidget(m_tempoRuler, 1, 1);
 
     m_topStandardRuler = new StandardRuler(m_doc,
                                      m_rulerScale,
-                                     0,
-                                     barButtonsHeight,
                                      false,
                                      true,
                                      this);
@@ -172,8 +160,6 @@ TrackEditor::init(RosegardenMainViewWidget *mainViewWidget)
 
     m_bottomStandardRuler = new StandardRuler(m_doc,
                                         m_rulerScale,
-                                        0,
-                                        barButtonsHeight,
                                         true,
                                         true,
                                         m_compositionView);
@@ -218,8 +204,6 @@ TrackEditor::init(RosegardenMainViewWidget *mainViewWidget)
                                       canvasHeight,
                                       m_trackButtonScroll);
 
-    m_trackButtons->setObjectName("TRACK_BUTTONS"); // permit styling; internal string; no tr()
-
     m_trackButtonScroll->setWidget(m_trackButtons);
 
     // Connections
@@ -227,28 +211,34 @@ TrackEditor::init(RosegardenMainViewWidget *mainViewWidget)
     //connect(m_trackButtons, SIGNAL(widthChanged()),
     //        this, SLOT(slotTrackButtonsWidthChanged()));
 
-    connect(m_trackButtons, SIGNAL(trackSelected(int)),
-            mainViewWidget, SLOT(slotSelectTrackSegments(int)));
+    connect(m_trackButtons, &TrackButtons::trackSelected,
+            mainViewWidget, &RosegardenMainViewWidget::slotSelectTrackSegments);
 
-    connect(m_trackButtons, SIGNAL(instrumentSelected(int)),
-            mainViewWidget, SLOT(slotUpdateInstrumentParameterBox(int)));
-
-    connect(this, SIGNAL(stateChange(QString, bool)),
-            mainViewWidget, SIGNAL(stateChange(QString, bool)));
+    connect(this, &TrackEditor::stateChange,
+            mainViewWidget, &RosegardenMainViewWidget::stateChange);
 
     // No such signal.  Was there ever?
 //    connect(m_trackButtons, SIGNAL(modified()),
 //            m_doc, SLOT(slotDocumentModified()));
 
-    // connect loop rulers' follow-scroll signals
-    connect(m_topStandardRuler->getLoopRuler(), SIGNAL(startMouseMove(int)),
-            m_compositionView, SLOT(slotStartAutoScroll(int)));
-    connect(m_topStandardRuler->getLoopRuler(), SIGNAL(stopMouseMove()),
-            m_compositionView, SLOT(slotStopAutoScroll()));
-    connect(m_bottomStandardRuler->getLoopRuler(), SIGNAL(startMouseMove(int)),
-            m_compositionView, SLOT(slotStartAutoScroll(int)));
-    connect(m_bottomStandardRuler->getLoopRuler(), SIGNAL(stopMouseMove()),
-            m_compositionView, SLOT(slotStopAutoScroll()));
+    // Connect for all standard ruler mouse move starts and stops.  This
+    // allows for auto-scroll while the user drags (pointer or loop) in
+    // a StandardRuler.
+    connect(m_topStandardRuler->getLoopRuler(), &LoopRuler::startMouseMove,
+            this, &TrackEditor::slotSRStartMouseMove);
+    connect(m_topStandardRuler->getLoopRuler(), &LoopRuler::stopMouseMove,
+            this, &TrackEditor::slotSRStopMouseMove);
+    connect(m_bottomStandardRuler->getLoopRuler(), &LoopRuler::startMouseMove,
+            this, &TrackEditor::slotSRStartMouseMove);
+    connect(m_bottomStandardRuler->getLoopRuler(), &LoopRuler::stopMouseMove,
+            this, &TrackEditor::slotSRStopMouseMove);
+
+    // Connect for TempoRuler mouse press/release to allow for
+    // auto-scroll while the user drags in the TempoRuler.
+    connect(m_tempoRuler, &TempoRuler::mousePress,
+            this, &TrackEditor::slotTRMousePress);
+    connect(m_tempoRuler, &TempoRuler::mouseRelease,
+            this, &TrackEditor::slotTRMouseRelease);
 
     //&&&  Interesting one here.  Q(3)ScrollArea had a contentsMoving signal we
     // used to grab for some purpose.  Q(Abstract)ScrollArea has no usable
@@ -261,74 +251,68 @@ TrackEditor::init(RosegardenMainViewWidget *mainViewWidget)
 
     // Synchronize TrackButtons scroll area (m_trackButtonScroll) with
     // segment canvas's vertical scrollbar.
-    connect(m_compositionView->verticalScrollBar(), SIGNAL(valueChanged(int)),
-            this, SLOT(slotVerticalScrollTrackButtons(int)));
-    connect(m_compositionView->verticalScrollBar(), SIGNAL(sliderMoved(int)),
-            this, SLOT(slotVerticalScrollTrackButtons(int)));
+    connect(m_compositionView->verticalScrollBar(), &QAbstractSlider::valueChanged,
+            this, &TrackEditor::slotVerticalScrollTrackButtons);
+    connect(m_compositionView->verticalScrollBar(), &QAbstractSlider::sliderMoved,
+            this, &TrackEditor::slotVerticalScrollTrackButtons);
 
     // Connect scrolling with the mouse wheel in the TrackButtons to
     // scrolling the CompositionView.
-    connect(m_trackButtonScroll, SIGNAL(gotWheelEvent(QWheelEvent*)),
-            m_compositionView, SLOT(slotExternalWheelEvent(QWheelEvent*)));
+    connect(m_trackButtonScroll, &DeferScrollArea::gotWheelEvent,
+            m_compositionView, &CompositionView::slotExternalWheelEvent);
 
     // Synchronize the rulers with the horizontal scrollbar.
 
-    connect(m_compositionView->horizontalScrollBar(), SIGNAL(valueChanged(int)),
-            m_topStandardRuler, SLOT(slotScrollHoriz(int)));
-    connect(m_compositionView->horizontalScrollBar(), SIGNAL(sliderMoved(int)),
-            m_topStandardRuler, SLOT(slotScrollHoriz(int)));
+    connect(m_compositionView->horizontalScrollBar(), &QAbstractSlider::valueChanged,
+            m_topStandardRuler, &StandardRuler::slotScrollHoriz);
+    connect(m_compositionView->horizontalScrollBar(), &QAbstractSlider::sliderMoved,
+            m_topStandardRuler, &StandardRuler::slotScrollHoriz);
 
-    connect(m_compositionView->horizontalScrollBar(), SIGNAL(valueChanged(int)),
-            m_bottomStandardRuler, SLOT(slotScrollHoriz(int)));
-    connect(m_compositionView->horizontalScrollBar(), SIGNAL(sliderMoved(int)),
-            m_bottomStandardRuler, SLOT(slotScrollHoriz(int)));
+    connect(m_compositionView->horizontalScrollBar(), &QAbstractSlider::valueChanged,
+            m_bottomStandardRuler, &StandardRuler::slotScrollHoriz);
+    connect(m_compositionView->horizontalScrollBar(), &QAbstractSlider::sliderMoved,
+            m_bottomStandardRuler, &StandardRuler::slotScrollHoriz);
 
-    connect(m_compositionView->horizontalScrollBar(), SIGNAL(valueChanged(int)),
-            m_tempoRuler, SLOT(slotScrollHoriz(int)));
-    connect(m_compositionView->horizontalScrollBar(), SIGNAL(sliderMoved(int)),
-            m_tempoRuler, SLOT(slotScrollHoriz(int)));
+    connect(m_compositionView->horizontalScrollBar(), &QAbstractSlider::valueChanged,
+            m_tempoRuler, &TempoRuler::slotScrollHoriz);
+    connect(m_compositionView->horizontalScrollBar(), &QAbstractSlider::sliderMoved,
+            m_tempoRuler, &TempoRuler::slotScrollHoriz);
 
-    connect(m_compositionView->horizontalScrollBar(), SIGNAL(valueChanged(int)),
-            m_chordNameRuler, SLOT(slotScrollHoriz(int)));
-    connect(m_compositionView->horizontalScrollBar(), SIGNAL(sliderMoved(int)),
-            m_chordNameRuler, SLOT(slotScrollHoriz(int)));
+    connect(m_compositionView->horizontalScrollBar(), &QAbstractSlider::valueChanged,
+            m_chordNameRuler, &ChordNameRuler::slotScrollHoriz);
+    connect(m_compositionView->horizontalScrollBar(), &QAbstractSlider::sliderMoved,
+            m_chordNameRuler, &ChordNameRuler::slotScrollHoriz);
 
     // Was only emitted from dead code.
     //connect(this, SIGNAL(needUpdate()),
     //        m_compositionView, SLOT(slotUpdateAll()));
 
     connect(m_compositionView->getModel(),
-            SIGNAL(selectionChanged(const SegmentSelection &)),
+            &CompositionModelImpl::selectionChanged,
             mainViewWidget,
-            SLOT(slotSelectedSegments(const SegmentSelection &)));
+            &RosegardenMainViewWidget::slotSelectedSegments);
 
-    connect(m_compositionView, SIGNAL(viewportResize()),
-            this, SLOT(slotViewportResize()));
-    connect(m_compositionView, SIGNAL(zoomIn()),
-            RosegardenMainWindow::self(), SLOT(slotZoomIn()));
-    connect(m_compositionView, SIGNAL(zoomOut()),
-            RosegardenMainWindow::self(), SLOT(slotZoomOut()));
+    connect(m_compositionView, &RosegardenScrollView::viewportResize,
+            this, &TrackEditor::slotViewportResize);
+    connect(m_compositionView, &RosegardenScrollView::zoomIn,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotZoomIn);
+    connect(m_compositionView, &RosegardenScrollView::zoomOut,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotZoomOut);
 
     connect(CommandHistory::getInstance(), SIGNAL(commandExecuted()),
             this, SLOT(slotCommandExecuted()));
 
-    connect(m_doc, SIGNAL(pointerPositionChanged(timeT)),
-            this, SLOT(slotSetPointerPosition(timeT)));
+    connect(m_doc, &RosegardenDocument::pointerPositionChanged,
+            this, &TrackEditor::slotSetPointerPosition);
 
     // Top/Bottom ruler pointer drag.
-    connect(m_topStandardRuler, SIGNAL(dragPointerToPosition(timeT)),
-            this, SLOT(slotPointerDraggedToPosition(timeT)));
-    connect(m_bottomStandardRuler, SIGNAL(dragPointerToPosition(timeT)),
-            this, SLOT(slotPointerDraggedToPosition(timeT)));
+    connect(m_topStandardRuler, &StandardRuler::dragPointerToPosition,
+            this, &TrackEditor::slotPointerDraggedToPosition);
+    connect(m_bottomStandardRuler, &StandardRuler::dragPointerToPosition,
+            this, &TrackEditor::slotPointerDraggedToPosition);
 
-    // Top/Bottom ruler loop drag.
-    connect(m_topStandardRuler, SIGNAL(dragLoopToPosition(timeT)),
-            this, SLOT(slotLoopDraggedToPosition(timeT)));
-    connect(m_bottomStandardRuler, SIGNAL(dragLoopToPosition(timeT)),
-            this, SLOT(slotLoopDraggedToPosition(timeT)));
-
-    connect(m_doc, SIGNAL(loopChanged(timeT, timeT)),
-            this, SLOT(slotSetLoop(timeT, timeT)));
+    connect(m_doc, &RosegardenDocument::loopChanged,
+            this, &TrackEditor::slotSetLoop);
 }
 
 void TrackEditor::updateCanvasSize()
@@ -341,7 +325,6 @@ void TrackEditor::slotTrackButtonsWidthChanged()
 {
     // We need to make sure the trackButtons geometry is fully updated
     //
-//    ProgressDialog::processEvents();
 
     m_trackButtonScroll->setMinimumWidth(m_trackButtons->width());
     m_doc->slotDocumentModified();
@@ -485,50 +468,37 @@ TrackEditor::slotSetPointerPosition(timeT pointerTime)
 void
 TrackEditor::slotPointerDraggedToPosition(timeT position)
 {
-    int currentPointerPos = m_compositionView->getPointerPos();
+    if (!m_rulerScale)
+        return;
 
-    double newPosition;
+    double newPosition = m_rulerScale->getXForTime(position);
 
-    if (handleAutoScroll(currentPointerPos, position, newPosition))
-        m_compositionView->drawPointer(int(newPosition));
+    m_compositionView->drawPointer(static_cast<int>(newPosition));
 }
 
 void
-TrackEditor::slotLoopDraggedToPosition(timeT position)
+TrackEditor::slotSRStartMouseMove()
 {
-    if (!m_doc)
-        return;
-
-    int currentEndLoopPos = m_doc->getComposition().getLoopEnd();
-    double dummy;
-    handleAutoScroll(currentEndLoopPos, position, dummy);
+    m_compositionView->setFollowMode(FOLLOW_HORIZONTAL);
+    m_compositionView->startAutoScroll();
 }
 
-bool TrackEditor::handleAutoScroll(int currentPosition, timeT newTimePosition, double &newPosition)
+void TrackEditor::slotSRStopMouseMove()
 {
-    if (!m_rulerScale)
-        return false;
+    m_compositionView->stopAutoScroll();
+}
 
-    newPosition = m_rulerScale->getXForTime(newTimePosition);
-    const double distance = fabs(newPosition - currentPosition);
+void
+TrackEditor::slotTRMousePress()
+{
+    m_compositionView->setFollowMode(FOLLOW_HORIZONTAL);
+    m_compositionView->startAutoScroll();
+}
 
-    bool moveDetected = (distance >= 1.0);
-
-    if (moveDetected) {
-
-        if (m_doc  &&  m_doc->getSequenceManager()  &&
-            m_doc->getSequenceManager()->getTransportStatus() != STOPPED) {
-
-            if (m_playTracking) {
-                m_compositionView->scrollHoriz(newPosition);
-            }
-        } else {
-            m_compositionView->doAutoScroll();
-        }
-
-    }
-
-    return moveDetected;
+void
+TrackEditor::slotTRMouseRelease()
+{
+    m_compositionView->stopAutoScroll();
 }
 
 void
@@ -686,6 +656,8 @@ void TrackEditor::slotCommandExecuted()
 
         // Redraw the contents.
         // ??? CompositionView should take care of this.
+        // ??? CompositionModelImpl now does this in response to doc
+        //     modified.  It is likely that this is redundant.
         m_compositionView->deleteCachedPreviews();
         m_compositionView->updateContents();
 
@@ -749,7 +721,7 @@ void TrackEditor::dragEnterEvent(QDragEnterEvent *e)
         }
     } else {
         QStringList formats(mime->formats());
-        RG_DEBUG << "HINT: Unaccepted MimeFormat in TrackEditor::dragEnterEvent : " << formats << endl;
+        RG_DEBUG << "HINT: Unaccepted MimeFormat in TrackEditor::dragEnterEvent : " << formats;
     }
 }
 
@@ -776,26 +748,37 @@ void TrackEditor::dropEvent(QDropEvent *e)
         }
 
         if (e->mimeData()->hasUrls()) {
+            RG_DEBUG << "dropEvent() urls: " << e->mimeData()->urls();
+
+            // Note: December 2015, with Qt5, links dragged from Chromium
+            //       and dropped onto rg end up as a list containing an
+            //       empty URL and a URL that consists of the link text
+            //       (e.g. "Click Here!") rather than the link itself.
+            //       Firefox does not have this problem.  With Qt4, Chromium
+            //       works fine.  I'm assuming the issue is with either
+            //       Chromium or Qt5 and will eventually get fixed.
+
             QList<QUrl> uList = e->mimeData()->urls();
             if (!uList.isEmpty()) {
                 for (int i = 0; i < uList.size(); ++i)  {
                     uriList.append(QString::fromLocal8Bit(uList.value(i).toEncoded().data()));
-               }
+                }
             }
+
+            RG_DEBUG << "dropEvent() uri list: " << uriList;
         }
 
         if (e->mimeData()->hasText()) {
+            RG_DEBUG << "dropEvent() text: " << e->mimeData()->text();
+
             text = e->mimeData()->text();
         }
     }
 
     if (uriList.empty() && text == "") {
-        RG_DEBUG << "TrackEditor::dropEvent: Nothing dropped" << endl;
+        RG_DEBUG << "dropEvent(): Nothing dropped";
         return;
     }
-
-    RG_DEBUG << "TrackEditor::dropEvent: uri list is " << uriList
-             << ", text is " << text << endl;
 
     QPoint cpoint = m_compositionView->mapFrom(this, e->pos());
 
@@ -805,11 +788,11 @@ void TrackEditor::dropEvent(QDropEvent *e)
     timeT time = m_compositionView->grid().snapX
         (cpoint.x() + m_compositionView->contentsX());
 
-    RG_DEBUG << "trackPos = " << trackPos << ", time = " << time << endl;
+    RG_DEBUG << "dropEvent() trackPos = " << trackPos << ", time = " << time;
 
     Track *track = m_doc->getComposition().getTrackByPosition(trackPos);
 
-    bool internal = (e->source() != 0); // have a source widget
+    bool internal = (e->source() != nullptr); // have a source widget
 
     if (!internal && !uriList.empty()) {
 
@@ -817,7 +800,7 @@ void TrackEditor::dropEvent(QDropEvent *e)
         // Old behavior of stopping if .rg or .midi file encountered still works
         // We have a URI, and it didn't come from within RG
 
-        RG_DEBUG << "TrackEditor::dropEvent() : got URI :" << uriList.first() << endl;
+        RG_DEBUG << "dropEvent() first URI: " << uriList.first();
         
         QStringList::const_iterator ci;
         for (ci = uriList.constBegin(); ci != uriList.constEnd(); ++ci) {
@@ -833,22 +816,20 @@ void TrackEditor::dropEvent(QDropEvent *e)
                 emit droppedDocument(uri);
                 return;
                 //
-                // WARNING
+                // !!! WARNING
                 //
-                // DO NOT PERFORM ANY OPERATIONS AFTER THAT
-                // EMITTING THIS SIGNAL TRIGGERS THE LOADING OF A NEW DOCUMENT
-                // AND AS A CONSEQUENCE THE DELETION OF THIS TrackEditor OBJECT
+                // DO NOT PERFORM ANY OPERATIONS AFTER EMITTING droppedDocument().
+                // EMITTING droppedDocument() TRIGGERS THE LOADING OF A NEW DOCUMENT
+                // AND AS A CONSEQUENCE THE DELETION OF THIS TrackEditor OBJECT.
                 //
 
             } else {
             
                 if (!track) return;
 
-                RG_DEBUG << "TrackEditor::dropEvent() : dropping at track pos = "
-                         << trackPos
+                RG_DEBUG << "dropEvent() : dropping at track pos = " << trackPos
                          << ", time = " << time
-                         << ", x = " << e->pos().x()
-                         << endl;
+                         << ", x = " << e->pos().x();
 
                 QString audioText;
                 QTextStream t(&audioText, QIODevice::ReadWrite);
@@ -857,7 +838,7 @@ void TrackEditor::dropEvent(QDropEvent *e)
                 t << time << "\n";
                 t.flush();
 
-                RG_DEBUG << "TrackEditor::dropEvent() audioText = \n " << audioText << "\n";
+                RG_DEBUG << "dropEvent() audioText = " << audioText;
 
                 emit droppedNewAudio(audioText);
                 // connected to RosegardenMainViewWidget::slotDroppedNewAudio()
@@ -870,7 +851,7 @@ void TrackEditor::dropEvent(QDropEvent *e)
         // drop, which will hopefully turn out to be from the audio
         // file manager
 
-        RG_DEBUG << "TrackEditor::dropEvent() : got text info " << endl;
+        RG_DEBUG << "dropEvent(): got text info";
         
         QString tester = text.toLower();
 
@@ -882,11 +863,11 @@ void TrackEditor::dropEvent(QDropEvent *e)
             emit droppedDocument(text);
             return;
             //
-            // WARNING
+            // !!! WARNING
             //
-            // DO NOT PERFORM ANY OPERATIONS AFTER THAT
-            // EMITTING THIS SIGNAL TRIGGERS THE LOADING OF A NEW DOCUMENT
-            // AND AS A CONSEQUENCE THE DELETION OF THIS TrackEditor OBJECT
+            // DO NOT PERFORM ANY OPERATIONS AFTER EMITTING droppedDocument().
+            // EMITTING droppedDocument() TRIGGERS THE LOADING OF A NEW DOCUMENT
+            // AND AS A CONSEQUENCE THE DELETION OF THIS TrackEditor OBJECT.
             //
 
         } else {
@@ -909,20 +890,18 @@ void TrackEditor::dropEvent(QDropEvent *e)
             s >> endTime.sec;
             s >> endTime.nsec;
 
-            // We know e->source() is non-NULL, tested it above when
+            // We know e->source() is non-nullptr, tested it above when
             // setting internal, but no harm in leaving this check in
-            QString sourceName = "NULL";
+            QString sourceName = "nullptr";
             if (e->source()) sourceName = e->source()->objectName();
             
-            RG_DEBUG << "TrackEditor::dropEvent() - event source : " << sourceName << endl;
+            RG_DEBUG << "dropEvent() event source: " << sourceName;
             
             if (sourceName == "AudioListView") { // only create something if this is data from the right client
                 
-                RG_DEBUG << "TrackEditor::dropEvent() : dropping at track pos = "
-                         << trackPos
+                RG_DEBUG << "dropEvent() : dropping at track pos = " << trackPos
                          << ", time = " << time
-                         << ", x = " << e->pos().x()
-                         << endl;
+                         << ", x = " << e->pos().x();
 
                 QString audioText;
                 QTextStream t(&audioText);
@@ -950,4 +929,3 @@ void TrackEditor::dropEvent(QDropEvent *e)
 
 } // end namespace Rosegarden
 
-#include "TrackEditor.moc"

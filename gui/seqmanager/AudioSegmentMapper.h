@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,17 +28,16 @@ class RosegardenDocument;
 
 class AudioSegmentMapper : public SegmentMapper
 {
-    friend class SegmentMapperFactory;
-
-protected:
+public:
     AudioSegmentMapper(RosegardenDocument *, Segment *);
 
-    virtual int calculateSize();
+protected:
+    int calculateSize() override;
 
     /// dump all segment data in the file
-    virtual void fillBuffer();
+    void fillBuffer() override;
     // Return whether the event should be played.
-    virtual bool shouldPlay(MappedEvent *evt, RealTime startTime);
+    bool shouldPlay(MappedEvent *evt, RealTime startTime) override;
 };
 
 

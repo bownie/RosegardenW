@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2003-2006
         D. Michael McIntyre <dmmcintyr@users.sourceforge.net>
@@ -54,7 +54,7 @@ class EventFilterDialog : public QDialog
 public:
 
     EventFilterDialog(QWidget* parent);
-    ~EventFilterDialog();
+    ~EventFilterDialog() override;
 
     //-------[ accessor functions ]------------------------
 
@@ -112,7 +112,7 @@ protected slots:
     void slotToggleNone();
 
     // write out settings to QSettings data for next time
-    virtual void accept();
+    void accept() override;
 
     // update note name text display and ensure From <= To
     void slotPitchFromChanged(int pitch);

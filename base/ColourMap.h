@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This file is Copyright 2003
@@ -118,8 +118,6 @@ public:
     RCMap::const_iterator end();
 
     std::string toXmlString(std::string name) const;
-
-    ColourMap& operator=(const ColourMap& input);
 
     unsigned int size() const;
 

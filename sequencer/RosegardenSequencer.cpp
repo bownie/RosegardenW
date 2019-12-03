@@ -1,9 +1,9 @@
-/* -*- c-basic-offset: 4 indent-tabs-mode: nil -*- vi:set ts=8 sts=4 sw=4: */
+﻿/* -*- c-basic-offset: 4 indent-tabs-mode: nil -*- vi:set ts=8 sts=4 sw=4: */
 
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[RosegardenSequencer]"
 
 #include "RosegardenSequencer.h"
 
@@ -35,9 +37,14 @@
 #include "sound/MappedEventInserter.h"
 #include "base/Profiler.h"
 #include "sound/PluginFactory.h"
+#include "base/Instrument.h"
+#include "base/InstrumentStaticSignals.h"
+#include "gui/studio/StudioControl.h"
 
 #include "gui/application/RosegardenApplication.h"
 #include "gui/application/RosegardenMainWindow.h"
+
+#include "rosegarden-version.h"
 
 // #define DEBUG_ROSEGARDEN_SEQUENCER
 
@@ -45,7 +52,7 @@ namespace Rosegarden
 {
 
 RosegardenSequencer *
-RosegardenSequencer::m_instance = 0;
+RosegardenSequencer::m_instance = nullptr;
 
 QMutex
 RosegardenSequencer::m_instanceMutex;
@@ -54,20 +61,20 @@ RosegardenSequencer::m_instanceMutex;
 
 #define LOCKED QMutexLocker rgseq_locker(&m_mutex)
 
-// The default latency and read-ahead values are actually sent
-// down from the GUI every time playback or recording starts
-// so the local values are kind of meaningless.
-//
 RosegardenSequencer::RosegardenSequencer() :
-    m_driver(0),
+    m_driver(nullptr),
     m_transportStatus(STOPPED),
     m_songPosition(0, 0),
     m_lastFetchSongPosition(0, 0),
-    m_readAhead(0, 80000000),          // default value
-    m_audioMix(0, 60000000),          // default value
-    m_audioRead(0, 100000000),          // default value
-    m_audioWrite(0, 200000000),          // default value
-    m_smallFileSize(128),
+    // 160 msecs for low latency mode.  Historically, we used
+    // 500 msecs for "high" latency mode.
+    m_readAhead(0, 160000000),
+    // 60 msecs for low latency mode.  Historically, we used
+    // 400 msecs for "high" latency mode.
+    m_audioMix(0, 60000000),
+    m_audioRead(2, 500000000),  // 2.5 secs
+    m_audioWrite(4, 0),  // 4.0 secs
+    m_smallFileSize(256),  // 256 kbytes
     m_loopStart(0, 0),
     m_loopEnd(0, 0),
     m_studio(new MappedStudio()),
@@ -97,14 +104,34 @@ RosegardenSequencer::RosegardenSequencer() :
                                   m_smallFileSize);
 
     m_driver->setExternalTransportControl(this);
+
+    // Connect for high-frequency control change notifications.
+    // Note that we must use a DirectConnection or else the signals may
+    // get lost.  I assume this is because the sequencer thread doesn't
+    // handle queued signals.  Perhaps it doesn't have a Qt event loop?
+    // Regardless, we really don't want something as high-frequency as
+    // this going through a message queue anyway.  We should probably
+    // request a DirectConnection for every controlChange() connection.
+    connect(Instrument::getStaticSignals().data(),
+                &InstrumentStaticSignals::controlChange,
+            this, &RosegardenSequencer::slotControlChange,
+            Qt::DirectConnection);
 }
 
 RosegardenSequencer::~RosegardenSequencer()
 {
-    SEQUENCER_DEBUG << "RosegardenSequencer - shutting down" << endl;
-    m_driver->shutdown();
+    SEQUENCER_DEBUG << "RosegardenSequencer - shutting down";
+    cleanup();
+}
+
+void
+RosegardenSequencer::cleanup()
+{
+    if (m_driver) m_driver->shutdown();
     delete m_studio;
+    m_studio = nullptr;
     delete m_driver;
+    m_driver = nullptr;
 }
 
 RosegardenSequencer *
@@ -113,7 +140,7 @@ RosegardenSequencer::getInstance()
     m_instanceMutex.lock();
     if (!m_instance) {
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER        
-        SEQUENCER_DEBUG << "RosegardenSequencer::getInstance: Creating" << endl;
+        SEQUENCER_DEBUG << "RosegardenSequencer::getInstance: Creating";
 #endif
         m_instance = new RosegardenSequencer();
     }
@@ -154,14 +181,12 @@ RosegardenSequencer::quit()
 // and play the piece until we get a signal to stop.
 //
 bool
-RosegardenSequencer::play(const RealTime &time,
-                             const RealTime &readAhead,
-                             const RealTime &audioMix,
-                             const RealTime &audioRead,
-                             const RealTime &audioWrite,
-                             long smallFileSize)
+RosegardenSequencer::play(const RealTime &time)
 {
     LOCKED;
+
+    // ??? Precondition: readAhead should be larger than the JACK
+    //     (m_driver) period size.
 
     if (m_transportStatus == PLAYING ||
         m_transportStatus == STARTING_TO_PLAY)
@@ -189,17 +214,6 @@ RosegardenSequencer::play(const RealTime &time,
 
     m_driver->stopClocks();
 
-    // Set up buffer size
-    //
-    m_readAhead = readAhead;
-    if (m_readAhead == RealTime::zeroTime)
-        m_readAhead.sec = 1;
-
-    m_audioMix = audioMix;
-    m_audioRead = audioRead;
-    m_audioWrite = audioWrite;
-    m_smallFileSize = smallFileSize;
-
     m_driver->setAudioBufferSizes(m_audioMix, m_audioRead, m_audioWrite,
                                   m_smallFileSize);
 
@@ -217,25 +231,23 @@ RosegardenSequencer::play(const RealTime &time,
 
 bool
 RosegardenSequencer::record(const RealTime &time,
-                            const RealTime &readAhead,
-                            const RealTime &audioMix,
-                            const RealTime &audioRead,
-                            const RealTime &audioWrite,
-                            long smallFileSize,
                             long recordMode)
 {
     LOCKED;
 
+    // ??? Precondition: readAhead should be larger than the JACK
+    //     (m_driver) period size.
+
     TransportStatus localRecordMode = (TransportStatus) recordMode;
 
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER        
-    SEQUENCER_DEBUG << "RosegardenSequencer::record - recordMode is " << recordMode << ", transport status is " << m_transportStatus << endl;
+    SEQUENCER_DEBUG << "RosegardenSequencer::record - recordMode is " << recordMode << ", transport status is " << m_transportStatus;
 #endif
     // punch in recording
     if (m_transportStatus == PLAYING) {
         if (localRecordMode == STARTING_TO_RECORD) {
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER        
-            SEQUENCER_DEBUG << "RosegardenSequencer::record: punching in" << endl;
+            SEQUENCER_DEBUG << "RosegardenSequencer::record: punching in";
 #endif
             localRecordMode = RECORDING; // no need to start playback
         }
@@ -321,7 +333,7 @@ RosegardenSequencer::record(const RealTime &time,
         //
         m_driver->initialisePlayback(m_songPosition);
 
-        return play(time, readAhead, audioMix, audioRead, audioWrite, smallFileSize);
+        return play(time);
     }
 }
 
@@ -337,7 +349,7 @@ RosegardenSequencer::stop()
     // report
     //
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER        
-    SEQUENCER_DEBUG << "RosegardenSequencer::stop() - stopping" << endl;
+    SEQUENCER_DEBUG << "RosegardenSequencer::stop() - stopping";
 #endif
     // process pending NOTE OFFs and stop the Sequencer
     m_driver->stopPlayback();
@@ -410,7 +422,7 @@ RosegardenSequencer::jumpTo(const RealTime &pos)
 
     incrementTransportToken();
 
-    //    SEQUENCER_DEBUG << "RosegardenSequencer::jumpTo: pausing to simulate high-load environment" << endl;
+    //    SEQUENCER_DEBUG << "RosegardenSequencer::jumpTo: pausing to simulate high-load environment";
     //    ::sleep(1);
 
     m_driver->startClocks();
@@ -440,6 +452,10 @@ RosegardenSequencer::getSoundDriverStatus(const QString &guiVersion)
     LOCKED;
 
     unsigned int driverStatus = m_driver->getStatus();
+    // ??? How would it ever be possible for these versions to mismatch?
+    //     They both come from the exact same place.  This might have been
+    //     an attempt at separating the GUI and Sequencer into .so files
+    //     or something.  I say remove this check.  Version is always OK.
     if (guiVersion == VERSION)
         driverStatus |= VERSION_OK;
     else {
@@ -630,14 +646,6 @@ RosegardenSequencer::setCurrentTimer(QString timer)
     m_driver->setCurrentTimer(timer);
 }
 
-void
-RosegardenSequencer::setLowLatencyMode(bool ll)
-{
-    LOCKED;
-
-    m_driver->setLowLatencyMode(ll);
-}
-
 RealTime
 RosegardenSequencer::getAudioPlayLatency()
 {
@@ -662,11 +670,7 @@ RosegardenSequencer::setMappedProperty(int id,
 {
     LOCKED;
 
-
-    //    SEQUENCER_DEBUG << "setProperty: id = " << id
-    //                    << " : property = \"" << property << "\""
-    //		    << ", value = " << value << endl;
-
+    //RG_DEBUG << "setMappedProperty(int, QString, float): id = " << id << "; property = \"" << property << "\"" << "; value = " << value;
 
     MappedObject *object = m_studio->getObjectById(id);
 
@@ -681,7 +685,7 @@ RosegardenSequencer::setMappedProperties(const MappedObjectIdList &ids,
 {
     LOCKED;
 
-    MappedObject *object = 0;
+    MappedObject *object = nullptr;
     MappedObjectId prevId = 0;
 
     for (size_t i = 0;
@@ -855,7 +859,7 @@ RosegardenSequencer::setMappedPort(int pluginId,
         slot->setPort(portId, value);
     } else {
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER        
-        SEQUENCER_DEBUG << "no such slot" << endl;
+        SEQUENCER_DEBUG << "no such slot";
 #endif
     }
 }
@@ -876,7 +880,7 @@ RosegardenSequencer::getMappedPort(int pluginId,
         return slot->getPort(portId);
     } else {
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER        
-        SEQUENCER_DEBUG << "no such slot" << endl;
+        SEQUENCER_DEBUG << "no such slot";
 #endif
     }
 
@@ -971,7 +975,7 @@ RosegardenSequencer::clearStudio()
     LOCKED;
 
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER        
-    SEQUENCER_DEBUG << "clearStudio()" << endl;
+    SEQUENCER_DEBUG << "clearStudio()";
 #endif
     m_studio->clear();
     SequencerDataBlock::getInstance()->clearTemporaries();
@@ -1005,17 +1009,17 @@ void RosegardenSequencer::dumpFirstSegment()
 {
     LOCKED;
 
-    SEQUENCER_DEBUG << "Dumping 1st segment data :" << endl;
+    SEQUENCER_DEBUG << "Dumping 1st segment data :";
 
     unsigned int i = 0;
     
-    std::set<MappedEventBuffer *> segs = m_metaIterator.getSegments();
+    std::set<QSharedPointer<MappedEventBuffer> > segs = m_metaIterator.getSegments();
     if (segs.empty()) {
-        SEQUENCER_DEBUG << "(no segments)" << endl;
+        SEQUENCER_DEBUG << "(no segments)";
         return;
     }
 
-    MappedEventBuffer *firstMappedEventBuffer = *segs.begin();
+    QSharedPointer<MappedEventBuffer> firstMappedEventBuffer = *segs.begin();
 
     MappedEventBuffer::iterator it(firstMappedEventBuffer);
 
@@ -1039,7 +1043,7 @@ void RosegardenSequencer::dumpFirstSegment()
 }
 
 void
-RosegardenSequencer::segmentModified(MappedEventBuffer *mapper)
+RosegardenSequencer::segmentModified(QSharedPointer<MappedEventBuffer> mapper)
 {
     if (!mapper) return;
 
@@ -1056,7 +1060,7 @@ RosegardenSequencer::segmentModified(MappedEventBuffer *mapper)
 }
 
 void
-RosegardenSequencer::segmentAdded(MappedEventBuffer *mapper)
+RosegardenSequencer::segmentAdded(QSharedPointer<MappedEventBuffer> mapper)
 {
     if (!mapper) return;
 
@@ -1071,9 +1075,11 @@ RosegardenSequencer::segmentAdded(MappedEventBuffer *mapper)
 }
 
 void
-RosegardenSequencer::segmentAboutToBeDeleted(MappedEventBuffer *mapper)
+RosegardenSequencer::segmentAboutToBeDeleted(
+        QSharedPointer<MappedEventBuffer> mapper)
 {
-    if (!mapper) return;
+    if (!mapper)
+        return;
 
     LOCKED;
 
@@ -1161,11 +1167,11 @@ RosegardenSequencer::getSlice(MappedEventList &mappedEventList,
                                  const RealTime &end,
                                  bool firstFetch)
 {
-    //    SEQUENCER_DEBUG << "RosegardenSequencer::getSlice (" << start << " -> " << end << ", " << firstFetch << ")" << endl;
+    //    SEQUENCER_DEBUG << "RosegardenSequencer::getSlice (" << start << " -> " << end << ", " << firstFetch << ")";
 
     if (firstFetch || (start < m_lastStartTime)) {
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER        
-        SEQUENCER_DEBUG << "[calling jumpToTime on start]" << endl;
+        SEQUENCER_DEBUG << "[calling jumpToTime on start]";
 #endif
         m_metaIterator.jumpToTime(start);
     }
@@ -1228,7 +1234,7 @@ RosegardenSequencer::startPlaying()
     m_metaIterator.getAudioEvents(audioEvents);
     m_driver->initialiseAudioQueue(audioEvents);
 
-    //SEQUENCER_DEBUG << "RosegardenSequencer::startPlaying: pausing to simulate high-load environment" << endl;
+    //SEQUENCER_DEBUG << "RosegardenSequencer::startPlaying: pausing to simulate high-load environment";
     //::sleep(2);
 
     // and only now do we signal to start the clock
@@ -1275,7 +1281,7 @@ RosegardenSequencer::updateClocks()
 
     m_driver->runTasks();
 
-    //SEQUENCER_DEBUG << "RosegardenSequencer::updateClocks" << endl;
+    //SEQUENCER_DEBUG << "RosegardenSequencer::updateClocks";
 
     // If we're not playing etc. then that's all we need to do
     //
@@ -1348,17 +1354,15 @@ RosegardenSequencer::processRecordedMidi()
 
     // Handle "thru" first to reduce latency.
 
-    if (ControlBlock::getInstance()->isMidiRoutingEnabled()) {
-        // Make a copy so we don't mess up the list for recording.
-        MappedEventList thruList = recordList;
+    // Make a copy so we don't mess up the list for recording.
+    MappedEventList thruList = recordList;
 
-        // Remove events that match the thru filter
-        applyFiltering(&thruList, ControlBlock::getInstance()->getThruFilter(), true);
+    // Remove events that match the thru filter
+    applyFiltering(&thruList, ControlBlock::getInstance()->getThruFilter(), true);
 
-        // Route the MIDI thru events to MIDI out.  Use the instrument and
-        // track information from each event.
-        routeEvents(&thruList, false);
-    }
+    // Route the MIDI thru events to MIDI out.  Use the instrument and
+    // track information from each event.
+    routeEvents(&thruList, true);
 
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER
     SEQUENCER_DEBUG << "RosegardenSequencer::processRecordedMidi: have " << mC.size() << " events";
@@ -1372,30 +1376,29 @@ RosegardenSequencer::processRecordedMidi()
 }
 
 void
-RosegardenSequencer::routeEvents(MappedEventList *mC, bool useSelectedTrack)
+RosegardenSequencer::routeEvents(
+        MappedEventList *mappedEventList, bool recording)
 {
-    ControlBlock *control = ControlBlock::getInstance();
-    if (useSelectedTrack) {
-        InstrumentAndChannel 
-            info = control->getInsAndChanForSelectedTrack();
-        
-        for (MappedEventList::iterator i = mC->begin();
-                i != mC->end(); ++i) {
-            (*i)->setInstrument(info.m_id);
-            (*i)->setRecordedChannel(info.m_channel);
-        }
-    } else {
-        for (MappedEventList::iterator i = mC->begin();
-                i != mC->end(); ++i) {
-            InstrumentAndChannel 
-                info = control->getInsAndChanForEvent
-                ((*i)->getRecordedDevice(), (*i)->getRecordedChannel());
-            
-            (*i)->setInstrument(info.m_id);
-            (*i)->setRecordedChannel(info.m_channel);
-        }
+    // For each event
+    for (MappedEventList::iterator i = mappedEventList->begin();
+         i != mappedEventList->end();
+         ++i) {
+        MappedEvent *event = (*i);
+
+        // Transform the output instrument and channel as needed.
+
+        InstrumentAndChannel info =
+                ControlBlock::getInstance()->getInstAndChanForEvent(
+                        recording,
+                        event->getRecordedDevice(),
+                        event->getRecordedChannel());
+
+        event->setInstrument(info.id);
+        event->setRecordedChannel(info.channel);
     }
-    m_driver->processEventsOut(*mC);
+
+    // Send the transformed events out...
+    m_driver->processEventsOut(*mappedEventList);
 }
 
 // Send an update
@@ -1436,12 +1439,10 @@ RosegardenSequencer::processAsynchronousEvents()
         m_asyncQueueMutex.lock();
         m_asyncInQueue.merge(mC);
         m_asyncQueueMutex.unlock();
-        if (ControlBlock::getInstance()->isMidiRoutingEnabled()) {
-            applyFiltering(&mC, ControlBlock::getInstance()->getThruFilter(), true);
-            // Send the incoming events back out using the instrument and
-            // track for the selected track.
-            routeEvents(&mC, true);
-        }
+        applyFiltering(&mC, ControlBlock::getInstance()->getThruFilter(), true);
+        // Send the incoming events back out using the instrument and
+        // track for the selected track.
+        routeEvents(&mC, false);
     }
 
     // Process any pending events (Note Offs or Audio) as part of same
@@ -1498,7 +1499,7 @@ RosegardenSequencer::checkForNewClients()
 
     if (m_driver->checkForNewClients()) {
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER        
-        SEQUENCER_DEBUG << "client list changed" << endl;
+        SEQUENCER_DEBUG << "client list changed";
 #endif
     }
 }
@@ -1564,8 +1565,49 @@ RosegardenSequencer::incrementTransportToken()
 {
     ++m_transportToken;
 #ifdef DEBUG_ROSEGARDEN_SEQUENCER        
-    SEQUENCER_DEBUG << "RosegardenSequencer::incrementTransportToken: incrementing to " << m_transportToken << endl;
+    SEQUENCER_DEBUG << "RosegardenSequencer::incrementTransportToken: incrementing to " << m_transportToken;
 #endif
 }
+
+void
+RosegardenSequencer::slotControlChange(Instrument *instrument, int cc)
+{
+    if (!instrument)
+        return;
+
+    // MIDI
+    if (instrument->getType() == Instrument::Midi)
+    {
+        //RG_DEBUG << "slotControlChange(): cc = " << cc << " value = " << instrument->getControllerValue(cc);
+
+        instrument->sendController(cc, instrument->getControllerValue(cc));
+
+        return;
+    }
+
+    // Audio or SoftSynth
+    if (instrument->getType() == Instrument::Audio  ||
+        instrument->getType() == Instrument::SoftSynth)
+    {
+        if (cc == MIDI_CONTROLLER_VOLUME) {
+
+            setMappedProperty(
+                    instrument->getMappedId(),
+                    MappedAudioFader::FaderLevel,
+                    instrument->getLevel());
+
+        } else if (cc == MIDI_CONTROLLER_PAN) {
+
+            setMappedProperty(
+                    instrument->getMappedId(),
+                    MappedAudioFader::Pan,
+                    static_cast<float>(instrument->getPan()) - 100);
+
+        }
+
+        return;
+    }
+}
+
 
 }

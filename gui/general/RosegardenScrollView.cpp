@@ -3,7 +3,7 @@
 /*
   Rosegarden
   A MIDI and audio sequencer and musical notation editor.
-  Copyright 2000-2015 the Rosegarden development team.
+  Copyright 2000-2018 the Rosegarden development team.
  
   Other copyrights also apply to some parts of this work.  Please
   see the AUTHORS file and individual file headers for details.
@@ -22,7 +22,7 @@
 #include "misc/Debug.h"
 #include "gui/rulers/StandardRuler.h"
 
-//#include <QApplication>
+#include <QApplication>
 #include <QCursor>
 #include <QDesktopWidget>
 #include <QMouseEvent>
@@ -42,24 +42,18 @@ namespace Rosegarden
 {
 
 
-const int RosegardenScrollView::AutoScrollTimerInterval = 30;  // msecs
-
-
 RosegardenScrollView::RosegardenScrollView(QWidget *parent)
     : QAbstractScrollArea(parent),
 
-      m_bottomRuler(0),
+      m_bottomRuler(nullptr),
       m_contentsWidth(0),
-      m_contentsHeight(0),
-      m_followMode(NoFollow),
-      m_autoScrolling(false)
+      m_contentsHeight(0)
 {
     // Turn off the frame which causes positioning issues.
     // The rest of the code assumes there is no frame.
     setFrameStyle(QFrame::NoFrame);
 
-    connect(&m_autoScrollTimer, SIGNAL(timeout()),
-            this, SLOT(slotOnAutoScrollTimer()));
+    m_autoScroller.connectScrollArea(this);
 }
 
 int RosegardenScrollView::contentsX()
@@ -136,8 +130,6 @@ void RosegardenScrollView::updateContents(int x, int y, int w, int h)
 
     if (!isVisible() || !updatesEnabled())
         return;
-
-    //RG_DEBUG << "updateContents()";
 
     // Translate contents coords to viewport coords.
     x -= contentsX();
@@ -225,102 +217,12 @@ void RosegardenScrollView::setBottomRuler(StandardRuler *ruler)
 
 void RosegardenScrollView::startAutoScroll()
 {
-    if (!m_autoScrollTimer.isActive()) {
-        m_autoScrollTimer.start(AutoScrollTimerInterval);
-    }
-
-    m_autoScrolling = true;
+    m_autoScroller.start();
 }
 
-void RosegardenScrollView::slotStartAutoScroll(int followMode)
+void RosegardenScrollView::stopAutoScroll()
 {
-    setFollowMode(followMode);
-    startAutoScroll();
-}
-
-void RosegardenScrollView::slotStopAutoScroll()
-{
-    m_autoScrollTimer.stop();
-    m_autoScrolling = false;
-}
-
-double RosegardenScrollView::distanceToScrollRate(int distance)
-{
-    // We'll hit MaxScrollRate at this distance outside the viewport.
-    const double maxDistance = 40;
-    const double distanceNormalized = distance / maxDistance;
-    // Apply a curve to reduce the touchiness.
-    // Simple square curve.  Something more pronounced might be better.
-    const double distanceWithCurve = distanceNormalized * distanceNormalized;
-
-    const double minScrollRate = 1.2;
-    const double maxScrollRate = 100;
-    const double scrollRateRange = (maxScrollRate - minScrollRate);
-
-    const double scrollRate = distanceWithCurve * scrollRateRange + minScrollRate;
-
-    return std::min(scrollRate, maxScrollRate);
-}
-
-void RosegardenScrollView::doAutoScroll()
-{
-    const QPoint mousePos = viewport()->mapFromGlobal(QCursor::pos());
-
-    m_autoScrollTimer.start(AutoScrollTimerInterval);
-
-    if (m_followMode & FollowHorizontal) {
-
-        // The following auto scroll behavior is patterned after Chromium,
-        // Eclipse, and the GIMP.  Auto scroll will only happen if the
-        // mouse is outside the viewport.  The auto scroll rate is
-        // proportional to how far outside the viewport the mouse is.
-
-        int scrollX = 0;
-
-        // If the mouse is to the left of the viewport
-        if (mousePos.x() < 0) {
-            // Set the scroll rate based on how far outside we are.
-            scrollX = lround(-distanceToScrollRate(-mousePos.x()));
-        }
-
-        // If the mouse is to the right of the viewport
-        if (mousePos.x() > viewport()->width()) {
-            // Set the scroll rate based on how far outside we are.
-            scrollX = lround(distanceToScrollRate(mousePos.x() - viewport()->width()));
-        }
-
-        // Scroll if needed.
-        if (scrollX)
-            horizontalScrollBar()->setValue(horizontalScrollBar()->value() + scrollX);
-    }
-
-    if (m_followMode & FollowVertical) {
-
-        // This vertical auto scroll behavior is patterned after
-        // Audacity.  Auto scroll will only happen if the mouse is
-        // outside the viewport.  The auto scroll rate is fixed.
-
-        int scrollY = 0;
-
-        // If the mouse is above the viewport
-        if (mousePos.y() < 0) {
-            scrollY = -5;
-        }
-
-        // If the mouse is below the viewport
-        if (mousePos.y() > viewport()->height()) {
-            scrollY = +5;
-        }
-
-        // Scroll if needed.
-        if (scrollY)
-            verticalScrollBar()->setValue(verticalScrollBar()->value() + scrollY);
-    }
-}
-
-void RosegardenScrollView::slotOnAutoScrollTimer()
-{
-    doAutoScroll();
+    m_autoScroller.stop();
 }
 
 void RosegardenScrollView::scrollHoriz(int x)
@@ -388,8 +290,6 @@ void RosegardenScrollView::scrollVert(int y)
 
 void RosegardenScrollView::resizeEvent(QResizeEvent *e)
 {
-    RG_DEBUG << "resizeEvent()";
-
     QAbstractScrollArea::resizeEvent(e);
 
     // Since the viewport size has changed, we need to update
@@ -405,8 +305,6 @@ void RosegardenScrollView::resizeEvent(QResizeEvent *e)
 
 void RosegardenScrollView::updateBottomRulerGeometry()
 {
-    RG_DEBUG << "updateBottomRulerGeometry()";
-
     if (!m_bottomRuler)
         return;
 
@@ -426,18 +324,64 @@ void RosegardenScrollView::updateBottomRulerGeometry()
 
 void RosegardenScrollView::wheelEvent(QWheelEvent *e)
 {
+    //RG_DEBUG << "wheelEvent()";
+    //RG_DEBUG << "  delta(): " << e->delta();
+    //RG_DEBUG << "  angleDelta(): " << e->angleDelta();
+    //RG_DEBUG << "  pixelDelta(): " << e->pixelDelta();
+
+    // See also Panned::processWheelEvent().
+
+    // We'll handle this.  Don't pass to parent.
+    e->accept();
+
+    QPoint angleDelta = e->angleDelta();
+
+    // Ctrl+wheel to zoom
     if (e->modifiers() & Qt::CTRL) {
-        if (e->delta() > 0)
+        // Wheel down
+        if (angleDelta.y() > 0)
             emit zoomIn();
-        else if (e->delta() < 0)
+        else if (angleDelta.y() < 0)  // Wheel up
             emit zoomOut();
 
         return;
     }
-    
+
+    // Shift+wheel to scroll left/right.
+    // If shift is pressed and we are scrolling vertically...
+    if ((e->modifiers() & Qt::SHIFT)  &&  angleDelta.y() != 0) {
+        // Transform the incoming vertical scroll event into a
+        // horizontal scroll event.
+
+        // Swap x/y
+        QPoint pixelDelta2(e->pixelDelta().y(), e->pixelDelta().x());
+        QPoint angleDelta2(angleDelta.y(), angleDelta.x());
+
+        // Create a new event.
+        // We remove the Qt::SHIFT modifier otherwise we end up
+        // moving left/right a page at a time.
+        QWheelEvent e2(
+                e->pos(),  // pos
+                e->globalPosF(),  // globalPos
+                pixelDelta2,  // pixelDelta
+                angleDelta2,  // angleDelta
+                e->delta(),  // qt4Delta
+                Qt::Horizontal,  // qt4Orientation
+                e->buttons(),  // buttons
+                e->modifiers() & ~Qt::SHIFT,  // modifiers
+                e->phase(),  // phase
+                e->source(),  // source
+                e->inverted());  // inverted
+
+        // Let baseclass handle as usual.
+        QAbstractScrollArea::wheelEvent(&e2);
+
+        return;
+    }
+
+    // Let baseclass handle normal scrolling.
     QAbstractScrollArea::wheelEvent(e);
 }
 
 
 }
-#include "RosegardenScrollView.moc"

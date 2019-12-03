@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -21,11 +21,13 @@
 #ifndef RG_CONFIG_GROUPS_H
 #define RG_CONFIG_GROUPS_H
 
+#include <rosegardenprivate_export.h>
+
 namespace Rosegarden 
 {
-    extern const char* const GeneralOptionsConfigGroup;
+    extern ROSEGARDENPRIVATE_EXPORT const char* const GeneralOptionsConfigGroup;
     extern const char* const LatencyOptionsConfigGroup;
-    extern const char* const SequencerOptionsConfigGroup;
+    extern ROSEGARDENPRIVATE_EXPORT const char* const SequencerOptionsConfigGroup;
     extern const char* const NotationViewConfigGroup;
     extern const char* const PitchTrackerConfigGroup;
     extern const char* const AudioManagerDialogConfigGroup;
@@ -48,7 +50,7 @@ namespace Rosegarden
     extern const char* const EditViewConfigGroup;
     extern const char* const PresetDialogConfigGroup;
     extern const char* const ExternalApplicationsConfigGroup;
-    extern const char* const LilyPondExportConfigGroup;
+    extern ROSEGARDENPRIVATE_EXPORT const char* const LilyPondExportConfigGroup;
     extern const char* const MusicXMLExportConfigGroup;
     extern const char* const LastUsedPathsConfigGroup;
     extern const char* const WindowGeometryConfigGroup;
@@ -60,6 +62,9 @@ namespace Rosegarden
     extern const char* const PitchBendSequenceConfigGroup;
     extern const char* const CheckButtonConfigGroup;
     extern const char* const SelectDialogConfigGroup;
+    extern const char* const GridQuantizeConfigGroup;
+    extern const char* const NotationQuantizeConfigGroup;
+    extern const char* const TextEventDialogConfigGroup;
 }
 
 #endif

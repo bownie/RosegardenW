@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2005
         Toni Arnold         <toni__arnold@bluewin.ch>
@@ -35,18 +35,19 @@
 namespace Rosegarden
 {
 
-LircClient::LircClient(void)
+LircClient::LircClient()
         : QObject()
 {
     int socketFlags;
 
     // socket setup with nonblock
-    m_socket = lirc_init("rosegarden", 1);
+    char prog[] = "rosegarden";  // fixes compiler warning
+    m_socket = lirc_init(prog, 1);
     if (m_socket == -1) {
         throw Exception("Failed to connect to LIRC");
     }
 
-    if (lirc_readconfig(NULL, &m_config, NULL) == -1) {
+    if (lirc_readconfig(nullptr, &m_config, nullptr) == -1) {
         throw Exception("Failed reading LIRC config file");
     }
 
@@ -56,10 +57,10 @@ LircClient::LircClient(void)
         fcntl(socketFlags, F_SETFL, socketFlags | O_NONBLOCK);
     }
 
-    m_socketNotifier = new QSocketNotifier(m_socket, QSocketNotifier::Read, 0);
-    connect(m_socketNotifier, SIGNAL(activated(int)), this, SLOT(readButton()) );
+    m_socketNotifier = new QSocketNotifier(m_socket, QSocketNotifier::Read, nullptr);
+    connect(m_socketNotifier, &QSocketNotifier::activated, this, &LircClient::readButton );
 
-    RG_DEBUG << "LircClient::LircClient: connected to socket: " << m_socket << endl;
+    RG_DEBUG << "LircClient::LircClient: connected to socket: " << m_socket;
 }
 
 LircClient::~LircClient()
@@ -68,7 +69,7 @@ LircClient::~LircClient()
     delete m_socketNotifier;
     lirc_deinit();
 
-    RG_DEBUG << "LircClient::~LircClient: cleaned up" << endl;
+    RG_DEBUG << "LircClient::~LircClient: cleaned up";
 }
 
 void LircClient::readButton()
@@ -76,11 +77,11 @@ void LircClient::readButton()
     char *code;
     int ret;
 
-    RG_DEBUG << "LircClient::readButton" << endl;
+    RG_DEBUG << "LircClient::readButton";
 
-    if (lirc_nextcode(&code) == 0 && code != NULL) {   // no error && a string is available
+    if (lirc_nextcode(&code) == 0 && code != nullptr) {   // no error && a string is available
         // handle any command attached to that button
-        while ( (ret = lirc_code2char(m_config, code, &m_command)) == 0 && m_command != NULL ) 
+        while ( (ret = lirc_code2char(m_config, code, &m_command)) == 0 && m_command != nullptr ) 
         {
             emit buttonPressed(m_command);
         }
@@ -90,6 +91,5 @@ void LircClient::readButton()
 
 }
 
-#include "LircClient.moc"
 
 #endif

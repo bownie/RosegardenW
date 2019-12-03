@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,29 +19,29 @@
 #define RG_SEQUENCEMANAGER_H
 
 #include "base/Composition.h"
-#include "base/Event.h"
-#include "base/MidiProgram.h"
 #include "base/RealTime.h"
-#include "base/Track.h"
 #include "gui/application/TransportStatus.h"
 #include "sound/MappedEventList.h"
 #include "sound/MappedEvent.h"
-#include <QObject>
-#include <QString>
-#include <vector>
-#include <map>
+#include "sound/SoundDriver.h"
 
+#include <QObject>
+#include <QSharedPointer>
+#include <QString>
 
 class QTimer;
 class QTime;
 class QEvent;
 
+#include <vector>
+#include <map>
 
 namespace Rosegarden
 {
 
-class TransportDialog;
+
 class Track;
+class TrackEditor;
 class TimeSigSegmentMapper;
 class TempoSegmentMapper;
 class Segment;
@@ -49,263 +49,447 @@ class RosegardenDocument;
 class MetronomeMapper;
 class CountdownDialog;
 class CompositionMapper;
-class Composition;
 class AudioManagerDialog;
 class MappedBufMetaIterator;
 
-class SequenceManager : public QObject, public CompositionObserver
+
+/**
+ * A layer between the UI (RosegardenMainWindow) and the sequencer
+ * (RosegardenSequencer).
+ *
+ * A single instance is owned by RosegardenMainWindow.  See
+ * RosegardenMainWindow::m_seqManager.
+ *
+ * Owns the CompositionMapper.
+ *
+ * What are the broad categories of functionality here?  Can they be split off
+ * into separate classes?
+ *
+ *   - Asynchronous MIDI (incoming/internal MIDI)
+ *   - Management of the Mappers.
+ *   - Transport handling (play(), record(), etc...).
+ */
+class ROSEGARDENPRIVATE_EXPORT SequenceManager :
+        public QObject, public CompositionObserver
 {
     Q_OBJECT
 public:
     /**
-     * Construct a SequenceManager.  The SequenceManager is not
-     * designed to operate without a document; you must call
-     * setDocument before you do anything with it.
+     * The owner of this sequence manager will need to call
+     * checkSoundDriverStatus() on it to set up its status appropriately
+     * immediately after construction; we used to do it from the ctor but
+     * we're not well placed to handle reporting to the user if it
+     * throws an exception (and we don't want to leave the object half
+     * constructed).
      */
-    SequenceManager(TransportDialog *transport);
-    ~SequenceManager();
-
-    /** Used to transmit the type of sequencer warning, so the WarningWidget
-     * knows which icon to manipulate
-     */
-    //typedef enum { Midi, Audio, Timer } WarningType;
+    SequenceManager();
+    ~SequenceManager() override;
 
     /**
-     * Replaces the internal document
+     * Sets (replaces) the internal document, and sets a parent widget for
+     * the CountDownDialog.
+     *
+     * SequenceManager is not designed to operate without a document;
+     * you must call setDocument() before you do anything with it.
+     *
+     * ??? Subscribe for RMW::documentChanged() instead of this.
+     *     parentWidget is just RMW::self().  No need to pass it in.
      */
-    void setDocument(RosegardenDocument *);
+    void setDocument(RosegardenDocument *doc);
+
+    /// Reset everything.
+    void resetCompositionMapper();
 
     /**
-     * Return the current internal document
+     * Update m_soundDriverStatus.
+     *
+     * This is called at startup and by play() and record().  At startup,
+     * warnUser is true which indicates that a warning dialog can be
+     * shown if there is a problem with the setup.  In other cases, the
+     * status is only sent to the debug output.  And only if debug output
+     * is enabled.
      */
-    RosegardenDocument* getDocument();
+    void checkSoundDriverStatus(bool warnUser);
+
+    /// Find what has been initialised and what hasn't
+    unsigned int getSoundDriverStatus() const  { return m_soundDriverStatus; }
+
+    /// Reinitialise the studio.
+    /**
+     * Sends a SystemAudioPorts and a SystemAudioFileFormat event to
+     * RosegardenSequencer.
+     *
+     * Called only by RosegardenMainWindow's ctor.
+     */
+    static void reinitialiseSequencerStudio();
+
+    /// Send JACK and MMC transport control statuses
+    static void sendTransportControlStatuses();
+
+    /// Align Instrument lists before playback starts.
+    void preparePlayback();
 
     //
     // Transport controls
     //
 
-    /// returns true if the call actually paused playback
-    bool play();
-
-    // We don't call stop() directly - using stopping() and then
-    // call stop().
-    //
+    /// Start or pause playback.
+    void play();
+    /// Stop playback.
     void stop();
-
-    void stopping();
-    void rewind();
-    void fastforward();
+    /// Start recording.
     void record(bool countIn);
-    void rewindToBeginning();
-    void fastForwardToEnd();
+
+    void jumpTo(const RealTime &time);
 
     void setLoop(const timeT &lhs, const timeT &rhs);
-    void notifySequencerStatus(TransportStatus status);
-    void sendSequencerJump(const RealTime &time);
 
-    // Events coming in
+    void setTransportStatus(TransportStatus status)
+            { m_transportStatus = status; }
+    TransportStatus getTransportStatus() const  { return m_transportStatus; }
+
+    bool inCountIn(const RealTime &time) const;
+
+    /**
+     * Sends tempo to RosegardenSequencer::setQuarterNoteLength().
+     *
+     * Emits signalTempoChanged() which is connected to
+     * TransportDialog::slotTempoChanged().
+     */
+    void setTempo(const tempoT tempo);
+
+    /// Handle incoming and internal MappedEvent's.
+    /**
+     * This handles both incoming events when recording and incoming events
+     * that are unrelated to recording.
+     *
+     * The events come from RosegardenMainWindow who gets them from
+     * SequencerDataBlock and RosegardenSequencer.
+     *
+     * This routine mainly emits the following signals which are handled
+     * by various parts of the UI:
+     *
+     *   - sigProgramChange() -> MIPP::slotExternalProgramChange()
+     *   - signalMidiInLabel() -> TransportDialog::slotMidiInLabel()
+     *   - signalMidiOutLabel() -> TransportDialog::slotMidiOutLabel()
+     *   - insertableNoteOffReceived()
+     *     -> NotationView::slotInsertableNoteOffReceived()
+     *     -> PitchTrackerView::slotInsertableNoteOffReceived()
+     *     -> MatrixView::slotInsertableNoteOffReceived()
+     *   - insertableNoteOnReceived()
+     *     -> NotationView::slotInsertableNoteOnReceived()
+     *     -> PitchTrackerView::slotInsertableNoteOnReceived()
+     *     -> MatrixView::slotInsertableNoteOnReceived()
+     *   - controllerDeviceEventReceived()
+     *     -> RMVW::slotControllerDeviceEventReceived()
+     *
+     * This routine also performs extensive error checking and displays
+     * error messages when a problem is detected.
+     *
+     * ??? It feels to me like this spaghetti can be simplified.  Why not
+     *     create a new AsyncMIDIHandler object that makes a more direct
+     *     connection between RosegardenSequencer/SequencerDataBlock and
+     *     the UI?  That would be a first step.  Then we might be able to
+     *     make the connections even more direct.
+     */
     void processAsynchronousMidi(const MappedEventList &mC,
                                  AudioManagerDialog *aMD);
 
-    // Before playing and recording.  If warnUser is true, show the
-    // user a warning dialog if there is a problem with the setup.
-    //
-    void checkSoundDriverStatus(bool warnUser);
-
-    /**
-     * Send program changes and align Instrument lists before playback
-     * starts.
-     * Also called at document loading (with arg set to true) to reset all instruments
-     * (fix for bug 820174)
-     *
-     * @arg forceProgramChanges if true, always send program changes even if the instrument is
-     * set not to send any.
-     */
-    void preparePlayback(bool forceProgramChanges = false);
-
-    /// Check and set sequencer status
-    void setTransportStatus(const TransportStatus &status);
-    TransportStatus getTransportStatus() const { return m_transportStatus; }
-
-    /**
-     * Suspend the sequencer to allow for a safe DCOP call() i.e. one
-     * when we don't hang both clients 'cos they're blocking on each
-     * other.
-     */
-    void suspendSequencer(bool value);
-
-    /// Send the audio level to VU meters
-    void sendAudioLevel(MappedEvent *mE);
-
-    /// Find what has been initialised and what hasn't
-    unsigned int getSoundDriverStatus() { return m_soundDriverStatus; }
-
-    /// Reset MIDI controllers
-    void resetControllers();
-
-    /// Reset MIDI network
+    /// Reset MIDI network.  Send an FF Reset on all devices and channels.
     void resetMidiNetwork();
 
-    /// Reinitialise the studio
-    void reinitialiseSequencerStudio();
-
-    /// Send JACK and MMC transport control statuses
-    void sendTransportControlStatuses();
-
-    /// Send all note offs and resets to MIDI devices
+    /// Send all note offs and resets to MIDI devices.
+    /**
+     * The actual work appears to be done by AlsaDriver::processEventsOut()
+     * when it sees a MappedEvent::Panic.
+     */
     void panic();
 
-    /// Send an MC to the view
-    void showVisuals(const MappedEventList &mC);
+    /// ??? The CountdownDialog has been disabled.
+    CountdownDialog *getCountdownDialog()  { return m_countdownDialog; }
 
-    /// Apply in-situ filtering to a MappedEventList
-    MappedEventList
-        applyFiltering(const MappedEventList &mC,
-                       MappedEvent::MappedEventType filter);
+    /// Assemble and return a meta-iterator for MIDI file generation.
+    MappedBufMetaIterator *makeTempMetaiterator();
 
-    CountdownDialog* getCountdownDialog() { return m_countdownDialog; }
-
-    // Return a new metaiterator on the current composition (suitable
-    // for MidiFile)
-    MappedBufMetaIterator *makeTempMetaiterator(void);
     //
     // CompositionObserver interface
     //
-    virtual void segmentAdded              (const Composition*, Segment*);
-    virtual void segmentRemoved            (const Composition*, Segment*);
-    virtual void segmentRepeatChanged      (const Composition*, Segment*, bool);
-    virtual void segmentRepeatEndChanged   (const Composition*, Segment*, timeT);
-    virtual void segmentEventsTimingChanged(const Composition*, Segment *, timeT delay, RealTime rtDelay);
-    virtual void segmentTransposeChanged   (const Composition*, Segment *, int transpose);
-    virtual void segmentTrackChanged       (const Composition*, Segment *, TrackId id);
-    virtual void segmentEndMarkerChanged   (const Composition*, Segment *, bool);
-    virtual void endMarkerTimeChanged      (const Composition*, bool shorten);
-    virtual void tracksAdded               (const Composition*, std::vector<TrackId> &/*trackIds*/);
-    virtual void trackChanged              (const Composition*, Track*);
-    virtual void tracksDeleted             (const Composition*, std::vector<TrackId> &/*trackIds*/);
-    virtual void timeSignatureChanged      (const Composition*);
-    virtual void metronomeChanged          (const Composition*);
-    virtual void soloChanged               (const Composition*, bool solo, TrackId selectedTrack);
-    virtual void tempoChanged              (const Composition*);
 
-    void processAddedSegment(Segment*);
-    void processRemovedSegment(Segment*);
-    void segmentModified(Segment*);
+    void segmentAdded(const Composition *, Segment *) override;
+    void segmentRemoved(const Composition *, Segment *) override;
+    void segmentRepeatChanged(const Composition *, Segment *, bool) override;
+    void segmentRepeatEndChanged(const Composition *, Segment *, timeT) override;
+    void segmentEventsTimingChanged(const Composition *, Segment *, timeT delay, RealTime rtDelay) override;
+    void segmentTransposeChanged(const Composition *, Segment *, int transpose) override;
+    void segmentTrackChanged(const Composition *, Segment *, TrackId id) override;
+    void segmentEndMarkerChanged(const Composition *, Segment *, bool) override;
+    void endMarkerTimeChanged(const Composition *, bool shorten) override;
+    void tracksAdded(const Composition *, std::vector<TrackId> &/*trackIds*/) override;
+    void trackChanged(const Composition *, Track *) override;
+    void tracksDeleted(const Composition *, std::vector<TrackId> &/*trackIds*/) override;
+    void timeSignatureChanged(const Composition *) override;
+    void metronomeChanged(const Composition *) override;
+    void selectedTrackChanged(const Composition *) override;
+    void tempoChanged(const Composition *) override;
+
+    /**
+     * Called by TrackButtons.
+     *
+     * ??? Is there a notification we can subscribe to instead?
+     */
     void segmentInstrumentChanged(Segment *s);
 
-    virtual bool event(QEvent *e);
+    /// Handle QEvent::User messages from update().
+    /**
+     * QObject override.
+     *
+     * Calls refresh().
+     */
+    bool event(QEvent *e) override;
 
-    /// for the gui to call to indicate that the metronome needs to be remapped
+    /// Sets a new Instrument for the metronome and regenerates the ticks.
+    /**
+     * Used by ManageMetronomeDialog and MIDIConfigurationPage to reconfigure
+     * the metronome.
+     *
+     * ??? Both callers set regenerateTicks to true.  Get rid of it.
+     *
+     * @see resetMetronomeMapper(), ControlBlock::setInstrumentForMetronome()
+     */
     void metronomeChanged(InstrumentId id, bool regenerateTicks);
 
-    /// for the gui to call to indicate that a MIDI filter needs to be remapped
-    void filtersChanged(MidiFilter thruFilter,
-                        MidiFilter recordFilter);
+    /// Forward new filtering parameters to ControlBlock.
+    /**
+     * Used by MidiFilterDialog.
+     */
+    static void filtersChanged(MidiFilter thruFilter,
+                               MidiFilter recordFilter);
 
-    void setTransport(TransportDialog* t) { m_transport = t; }
-    
-    void enableMIDIThruRouting(bool state);
-    
-    int getSampleRate(); // may return 0 if sequencer uncontactable
+    /// Get sample rate from RosegardenSequencer.
+    int getSampleRate() const;
 
 public slots:
 
+    /**
+     * Connected to CommandHistory::commandExecuted() to ensure an update
+     * after every command.
+     */
     void update();
 
+    // Transport Controls (cont'd)
+
+    // The following are slots to allow the test driver
+    // (test_notationview_selection.cpp) to access them.
+
+    void rewind();
+    void fastforward();
+    void rewindToBeginning();
+    void fastForwardToEnd();
+
 signals:
-    void signalSelectProgramNoSend(int, int, int);
-    void setValue(int);
+    /// A program change was received.
+    /**
+     * Emitted by processAsynchronousMidi().
+     *
+     * Connected to MIDIInstrumentParameterPanel::slotExternalProgramChange().
+     *
+     * Incoming program changes from a connected device are sent to the MIPP
+     * where, if the "Receive external" checkbox is checked, the bank and
+     * program on the MIPP will be changed to match.
+     */
+    void sigProgramChange(int bankMSB, int bankLSB, int programChange);
 
+    /// A note-on event was received that might be of interest to the editors.
+    /**
+     * Emitted by processAsynchronousMidi().
+     *
+     * Connected to MatrixView, NotationView, and PitchTrackerView for
+     * step editing features.
+     */
     void insertableNoteOnReceived(int pitch, int velocity);
-    void insertableNoteOffReceived(int pitch, int velocity);
-    void controllerDeviceEventReceived(MappedEvent *ev);
 
-    /// signal RosegardenMainWindow to display a warning on the WarningWidget
+    /// A note-off event was received that might be of interest to the editors.
+    /**
+     * Emitted by processAsynchronousMidi().
+     *
+     * Connected to MatrixView, NotationView, and PitchTrackerView for
+     * step editing features.
+     */
+    void insertableNoteOffReceived(int pitch, int velocity);
+
+    /// An event was received from the "external controller" port.
+    /**
+     * Emitted by processAsynchronousMidi().
+     *
+     * Connected to
+     * RosegardenMainViewWindow::slotControllerDeviceEventReceived().  These
+     * are events from the "external controller" port.
+     */
+    void controllerDeviceEventReceived(MappedEvent *event);
+
+    /// Signal RosegardenMainWindow to display a warning.
+    /**
+     * Connected to RosegardenMainWindow::slotDisplayWarning().
+     *
+     * RMW displays an appropriate warning icon on the status bar
+     * (WarningWidget) and displays a WarningDialog in response to this.
+     */
     void sendWarning(int type, QString text, QString informativeText);
 
-protected slots:
+    // TransportDialog signals
+
+    /// Connected to TransportDialog::slotTempoChanged().
+    void signalTempoChanged(tempoT tempo);
+    /// Connected to TransportDialog::slotMidiInLabel().
+    void signalMidiInLabel(const MappedEvent *event);
+    /// Connected to TransportDialog::slotMidiOutLabel().
+    void signalMidiOutLabel(const MappedEvent *event);
+    /// Connected to TransportDialog::slotPlaying().
+    void signalPlaying(bool checked);
+    /// Connected to TransportDialog::slotRecording().
+    void signalRecording(bool checked);
+    /// Connected to TransportDialog::slotMetronomeActivated().
+    void signalMetronomeActivated(bool checked);
+
+private slots:
+    /// For the (unused) CountdownDialog.  See m_countdownDialog.
     void slotCountdownTimerTimeout();
 
     // Activated by timer to allow a message to be reported to 
     // the user - we use this mechanism so that the user isn't
     // bombarded with dialogs in the event of lots of failures.
-    //
-    void slotAllowReport() { m_canReport = true; }
+    // See m_reportTimer.
+    //void slotAllowReport() { m_canReport = true; }
 
-    void slotFoundMountPoint(const QString&,
-                             unsigned long kBSize,
-                             unsigned long kBUsed,
-                             unsigned long kBAvail);
-
+    /// Reset Composition Mapper.
+    /**
+     * ??? This is no longer scheduled and no longer needs to be a slot.
+     *     Inline into only caller.  It's only two lines of code.
+     */
     void slotScheduledCompositionMapperReset();
     
-protected:
+private:
+    // ??? Get rid of this and go through RMW.
+    RosegardenDocument *m_doc;
 
-    void resetCompositionMapper();
+    /**
+     * @see RosegardenSequencer::getSoundDriverStatus()
+     */
+    SoundDriverStatus m_soundDriverStatus;
+
+    // *** CompositionMapper
+
+    QSharedPointer<CompositionMapper> m_compositionMapper;  // owned
+    /// Add each Segment from the Composition to the CompositionMapper.
     void populateCompositionMapper();
-    void resetControlBlock();
+    /**
+     * Add Segment to CompositionMapper, RosegardenSequencer, and the
+     * SegmentRefreshMap (m_segments).
+     */
+    void segmentAdded(Segment *);
+    /// Inform CompositionMapper and RosegardenSequencer that a Segment has changed.
+    void segmentModified(Segment *);
+    /**
+     * Remove Segment from CompositionMapper, RosegardenSequencer, and the
+     * SegmentRefreshMap (m_segments).
+     *
+     * Incoming Segment pointer can point to unallocated memory.
+     * ??? This needs to be rectified.  We should never pass around pointers
+     *     to unallocated memory anywhere.
+     */
+    void segmentDeleted(Segment *);
+
+    // *** Other Mappers
+
+    QSharedPointer<MetronomeMapper> m_metronomeMapper;  // owned
     void resetMetronomeMapper();
+
+    QSharedPointer<TempoSegmentMapper> m_tempoSegmentMapper;  // owned
     void resetTempoSegmentMapper();
+
+    QSharedPointer<TimeSigSegmentMapper> m_timeSigSegmentMapper;  // owned
     void resetTimeSigSegmentMapper();
-    void checkRefreshStatus();
-    bool shouldWarnForImpreciseTimer();
-    
-    //--------------- Data members ---------------------------------
 
-    RosegardenDocument    *m_doc;
-    CompositionMapper     *m_compositionMapper;
-    MetronomeMapper       *m_metronomeMapper;
-    TempoSegmentMapper    *m_tempoSegmentMapper;
-    TimeSigSegmentMapper  *m_timeSigSegmentMapper;
+    // *** Refresh Mappers and RosegardenSequencer
 
-    std::vector<Segment *> m_addedSegments;
-    std::vector<Segment *> m_removedSegments;
-    bool m_metronomeNeedsRefresh;
+    /// Let RosegardenSequencer know about any changes.
+    void refresh();
 
-    // statuses
-    TransportStatus            m_transportStatus;
-    unsigned int               m_soundDriverStatus;
+    /// Used by update() to let event() know we want a refresh().
+    bool m_refreshRequested;
 
-    // pointer to the transport dialog
-    TransportDialog *m_transport;
-
-    clock_t                    m_lastRewoundAt;
-
-    CountdownDialog           *m_countdownDialog;
-    QTimer                    *m_countdownTimer;
-
-    bool                      m_shownOverrunWarning;
-
-    // Keep a track of elapsed record time with this object
-    //
-    QTime                     *m_recordTime;
-
-    typedef std::map<Segment *, int> SegmentRefreshMap;
-    SegmentRefreshMap m_segments; // map to refresh status id
+    /// Map from Segment to refresh status ID.
+    typedef std::map<Segment *, int /* refreshStatusID */> SegmentRefreshMap;
+    SegmentRefreshMap m_segments;
     SegmentRefreshMap m_triggerSegments;
-    unsigned int m_compositionRefreshStatusId;
-    bool m_updateRequested;
 
-    // used to schedule a composition mapper reset when the
-    // composition end time marker changes this can be caused by a
-    // window resize, and since the reset is potentially expensive we
-    // want to collapse several following requests into one.
-    //QTimer                    *m_compositionMapperResetTimer;
+    /// Added Segment refresh queue.
+    /**
+     * Holds new Segment's until they can be refreshed.
+     *
+     * segmentAdded(const Composition *, Segment *) (CompositionObserver)
+     * puts Segments in this list.  refresh() calls
+     * segmentAdded(Segment *) for each Segment it finds here, then clears
+     * this list.
+     */
+    std::vector<Segment *> m_addedSegments;
 
-    // Just to make sure we don't bother the user too often
-    //
-    QTimer                    *m_reportTimer;
-    bool                       m_canReport;
+    /// Removed Segment refresh queue.
+    /**
+     * Holds removed Segment's until they can be refreshed.
+     *
+     * segmentRemoved() (CompositionObserver) puts Segment's in this list.
+     * refresh() calls segmentDeleted() for each Segment it finds
+     * here, then clears this list.
+     */
+    std::vector<Segment *> m_removedSegments;
 
-    bool                       m_gotDiskSpaceResult;
-    unsigned long              m_diskSpaceKBAvail;
+    // *** Async MIDI
 
-    bool                       m_lastLowLatencySwitchSent;
+    /// When handling an async MappedEvent::WarningImpreciseTimer.
+    bool shouldWarnForImpreciseTimer();
 
-    timeT                      m_lastTransportStartPosition;
+    /// Prevents showing an overrun warning more than once.
+    bool m_shownOverrunWarning;
 
-    int                        m_sampleRate;
+    /// Just to make sure we don't bother the user too often
+    QTimer *m_reportTimer;
+    bool m_canReport;
 
+    // *** Misc
+
+    /// TransportStatus on the GUI side.
+    /**
+     * This usually reflects the TransportStatus on the RosegardenSequencer
+     * side, but can be briefly out of sync as the sequencer moves from one
+     * state to another.
+     *
+     * RosegardenMainWindow::slotHandleInputs() keeps this updated to
+     * reflect RosegardenSequencer's TransportStatus.
+     *
+     * @see RosegardenSequencer::m_transportStatus
+     */
+    TransportStatus m_transportStatus;
+
+    /// Used by rewind() to detect rapid pressing of the rewind button.
+    clock_t m_lastRewoundAt;
+
+    /// ??? The CountdownDialog has been disabled.  See feature request #453.
+    CountdownDialog *m_countdownDialog;
+    QTimer *m_countdownTimer;
+    QSharedPointer<QTime> m_recordTime;
+
+    /// Used by stop() to return to the last start position.
+    timeT m_lastTransportStartPosition;
+
+    /// used to determine whether we are in count in
+    RealTime m_realRecordStart;
+
+    /// Cache used by getSampleRate() to avoid locks.
+    mutable int m_sampleRate;
+
+    /// Used by setTempo() to detect tempo changes.
+    tempoT m_tempo;
 };
 
 

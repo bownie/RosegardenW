@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file based on code from KMix
     Copyright (C) 2000 Stefan Schimanski <1Stein@gmx.de>.
@@ -20,34 +20,25 @@
 
 
 #include "LedButton.h"
-#include "Led.h"
 
 #include <QMouseEvent>
-#include <QColor>
-#include <QWidget>
-
 
 namespace Rosegarden
 {
 
-LedButton::LedButton(const QColor &col, QWidget *parent) :
-    Led( col, parent )
+
+LedButton::LedButton(const QColor &color, QWidget *parent) :
+    Led(color, parent)
 {
-    // enable styling; internal string, no tr()
-    setObjectName("LED");
 }
 
-LedButton::~LedButton()
-{}
-
-void LedButton::mousePressEvent( QMouseEvent *e )
+void LedButton::mousePressEvent(QMouseEvent *e)
 {
     if (e->button() == Qt::LeftButton) {
         toggle();
-        emit stateChanged( state() );
+        emit stateChanged(state());
     }
 }
 
-}
 
-#include "LedButton.moc"
+}

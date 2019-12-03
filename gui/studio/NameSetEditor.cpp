@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,205 +15,190 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[NameSetEditor]"
 
 #include "NameSetEditor.h"
-#include "BankEditorDialog.h"
-#include "gui/widgets/LineEdit.h"
 
+#include "BankEditorDialog.h"
+#include "misc/Debug.h"
+#include "gui/widgets/LineEdit.h"
 
 #include <QFrame>
 #include <QGroupBox>
 #include <QLabel>
-#include <QLayout>
-#include <QVBoxLayout>
 #include <QPushButton>
 #include <QString>
 #include <QTabWidget>
-#include <QToolTip>
 #include <QWidget>
 #include <QCompleter>
-#include <QTreeWidget>
-#include <QTreeWidgetItem>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QToolButton>
-
-#include <iostream>
+#include <QScrollArea>
 
 namespace Rosegarden
 {
 
-NameSetEditor::NameSetEditor(BankEditorDialog* bankEditor,
+
+NameSetEditor::NameSetEditor(BankEditorDialog *bankEditor,
                              QString title,
-                             QWidget* parent,
-                             const char* name,
-                             QString headingPrefix,
+                             QWidget *parent,
                              bool showKeyMapButtons) :
     QGroupBox(title, parent),
     m_bankEditor(bankEditor),
-    m_mainFrame(new QFrame(this))
+    m_topFrame(new QFrame(this)),
+    m_topLayout(new QGridLayout(m_topFrame)),
+    m_librarian(nullptr),
+    m_librarianEmail(nullptr),
+    m_names(),
+    m_completions(),
+    m_numberingBaseButton(nullptr),
+    m_numberingBase(1),
+    m_labels(),
+    m_keyMapButtons()
 {
-    setObjectName(name);  // probably not needed, but too lazy to research this time
-    QVBoxLayout *layout = new QVBoxLayout;
+    QVBoxLayout *mainLayout = new QVBoxLayout;
+    mainLayout->setContentsMargins(6, 2, 6, 6);
 
-    m_mainFrame->setContentsMargins(0, 1, 0, 1);
-    m_mainLayout = new QGridLayout(m_mainFrame);
-    m_mainLayout->setSpacing(0);
-    m_mainFrame->setLayout(m_mainLayout);
-    layout->addWidget(m_mainFrame);
+    // Area above the tabbed widget.
 
-    // Librarian
-    //
-    QGroupBox *groupBox = new QGroupBox(tr("Provided by"), m_mainFrame);
+    m_topFrame->setContentsMargins(0, 0, 0, 5);
+    m_topLayout->setSpacing(0);
+    m_topLayout->setMargin(0);
+    m_topFrame->setLayout(m_topLayout);
+    mainLayout->addWidget(m_topFrame);
+
+    // "Provided by" groupbox
+
+    QGroupBox *groupBox = new QGroupBox(tr("Provided by"), m_topFrame);
     QGridLayout *groupBoxLayout = new QGridLayout;
 
-    m_mainLayout->addWidget(groupBox, 0, 3, 3, 3);
+    m_topLayout->addWidget(groupBox, 0, 3, 3, 3);
 
-    //TODO convert to LineEdit or such, so end users can edit these fields (but
-    // not at this stage of sorting out; save this for polish afterwards)
+    // Librarian
+    // ??? Would be nice if we could edit this.
     m_librarian = new QLabel(groupBox);
     groupBoxLayout->addWidget(m_librarian, 0, 1);
 
+    // Librarian email
+    // ??? Would be nice if we could edit this.
     m_librarianEmail = new QLabel(groupBox);
     groupBoxLayout->addWidget(m_librarianEmail, 1, 1);
 
     groupBox->setLayout(groupBoxLayout);
-    //TODO add some message box to come up from a suitable context and explain
-    // where to send modified files, and that you can browse the latest
-    // available library at:
-    //
-    // http://rosegarden.svn.sourceforge.net/viewvc/rosegarden/trunk/rosegarden/data/library/
-    //
-//  groupBox->setToolTip(tr("<qt><p>The librarian maintains the Rosegarden device data for this device.</p><p>If you've made modifications to suit your own device, it might be worth\nliaising with the librarian in order to publish your information for the benefit\nof others."));
 
-    QTabWidget* tabw = new QTabWidget(this);
-    layout->addWidget(tabw);
+    // QScrollArea
 
-    setLayout(layout);
+    QScrollArea *scrollArea = new QScrollArea(this);
+    // Make sure widget is expanded to fill the scroll area.
+    scrollArea->setWidgetResizable(true);
 
-    QWidget *h;
-    QHBoxLayout *hLayout;
+    mainLayout->addWidget(scrollArea);
 
-    QWidget *v;
-    QVBoxLayout *vLayout;
+    setLayout(mainLayout);
 
-    QWidget *numBox;
-    QHBoxLayout *numBoxLayout;
+    // Widget and layout to hold each of the rows.
+    QWidget *listWidget = new QWidget;
+    QVBoxLayout *listLayout = new QVBoxLayout;
+    listLayout->setSpacing(2);
 
-    unsigned int tabs = 4;
-    unsigned int cols = 2;
-    unsigned int labelId = 0;
+    unsigned index = 0;
 
-    for (unsigned int tab = 0; tab < tabs; ++tab) {
-        h = new QWidget(tabw);
-        hLayout = new QHBoxLayout;
+    // For each row
+    for (unsigned int row = 0; row < 128; ++row) {
+        // Widget and layout to hold the row.  A row consists of the
+        // number label, optional keymap button, and name line edit.
+        QWidget *rowWidget = new QWidget;
+        QHBoxLayout *rowLayout = new QHBoxLayout;
+        // take out the excess vertical space that was making this
+        // dialog two screens tall
+        rowLayout->setMargin(0);
 
-        for (unsigned int col = 0; col < cols; ++col) {
-            v = new QWidget(h);
-            vLayout = new QVBoxLayout;
-            hLayout->addWidget(v);
+        // If this is the very first number label, make it a button.
+        if (index == 0) {
+            m_numberingBaseButton = new QPushButton("", rowWidget);
+            m_numberingBaseButton->setFixedWidth(25);
+            connect(m_numberingBaseButton,
+                    &QAbstractButton::clicked,
+                    this, &NameSetEditor::slotToggleNumberingBase);
 
-            for (unsigned int row = 0; row < 128 / (tabs*cols); ++row) {
-                numBox = new QWidget(v);
-                numBoxLayout = new QHBoxLayout;
-                vLayout->addWidget(numBox);
-                // take out the excess vertical space that was making this
-                // dialog two screens tall
-                numBoxLayout->setMargin(2);
-                QString numberText = QString("%1").arg(labelId + 1);
+            rowLayout->addWidget(m_numberingBaseButton);
 
-                if (tab == 0 && col == 0 && row == 0) {
-                    // Initial label; button to adjust whether labels start at 0 or 1
-                    m_initialLabel = new QPushButton(numberText, numBox);
-                    m_initialLabel->setFixedWidth(25);
-                    numBoxLayout->addWidget(m_initialLabel);
-                    connect(m_initialLabel,
-                            SIGNAL(clicked()),
-                            this,
-                            SLOT(slotToggleInitialLabel()));
-                } else {
-                    QLabel *label = new QLabel(numberText, numBox);
-                    numBoxLayout->addWidget(label);
-                    label->setFixedWidth(30);
-                    label->setAlignment(Qt::AlignCenter);
-                    m_labels.push_back(label);
-                }
+        } else {  // All other numbers are QLabels.
+            QLabel *label = new QLabel("", rowWidget);
+            label->setFixedWidth(30);
+            label->setAlignment(Qt::AlignCenter);
+            m_labels.push_back(label);
 
-
-                if (showKeyMapButtons) {
-                    QToolButton *button = new QToolButton;
-                    button->setObjectName(numberText);
-                    numBoxLayout->addWidget(button);
-                    connect(button, SIGNAL(clicked()),
-                            this, SLOT(slotKeyMapButtonPressed()));
-                    m_keyMapButtons.push_back(button);
-                }
-
-                LineEdit* lineEdit = new LineEdit("", numBox);
-                lineEdit->setObjectName(numberText);
-                numBoxLayout->addWidget(lineEdit);
-                numBox->setLayout(numBoxLayout);
-                lineEdit->setMinimumWidth(110);
-                
-                lineEdit->setCompleter(new QCompleter(m_completions));
-                
-                m_names.push_back(lineEdit);
-
-                connect(m_names[labelId],
-                        SIGNAL(textChanged(const QString&)),
-                        this,
-                        SLOT(slotNameChanged(const QString&)));
-
-                ++labelId;
-            }
-            v->setLayout(vLayout);
-            vLayout->setSpacing(0);
+            rowLayout->addWidget(label);
         }
-        h->setLayout(hLayout);
 
-        tabw->addTab(h,
-                     (tab == 0 ? headingPrefix + QString(" %1 - %2") :
-                      QString("%1 - %2")).
-                     arg(tab * (128 / tabs) + 1).
-                     arg((tab + 1) * (128 / tabs)));
+        if (showKeyMapButtons) {
+            QToolButton *button = new QToolButton;
+            // Object name is required or else serious data loss occurs.
+            // ??? Actually, this seems to work fine without this.  Leaving
+            //     it here for safety.
+            button->setObjectName(QString("Key Map Button %1").arg(index));
+            button->setProperty("index", index);
+            connect(button, &QAbstractButton::clicked,
+                    this, &NameSetEditor::slotKeyMapButtonPressed);
+            m_keyMapButtons.push_back(button);
+
+            rowLayout->addWidget(button);
+        }
+
+        // Note: ThornStyle::sizeFromContents() reduces the size
+        //       of these so they will fit on smaller displays.
+        LineEdit *lineEdit = new LineEdit("", rowWidget);
+        // A unique object name is required for each widget or else serious
+        // data loss occurs when switching between nodes on the tree.  Not
+        // sure why.
+        lineEdit->setObjectName(QString("Line Edit %1").arg(index));
+        lineEdit->setProperty("index", index);
+        lineEdit->setCompleter(new QCompleter(m_completions));
+
+        m_names.push_back(lineEdit);
+        connect(m_names[index],
+                &QLineEdit::textChanged,
+                this, &NameSetEditor::slotNameChanged);
+
+        rowLayout->addWidget(lineEdit, 1);
+
+        rowWidget->setLayout(rowLayout);
+
+        listLayout->addWidget(rowWidget);
+
+        ++index;
     }
 
-    m_initialLabel->setMaximumSize(m_labels.front()->size());
+    listWidget->setLayout(listLayout);
+
+    scrollArea->setWidget(listWidget);
+
+    m_numberingBaseButton->setMaximumSize(m_labels.front()->size());
+
+    updateLabels();
 }
 
 void
-NameSetEditor::slotToggleInitialLabel()
+NameSetEditor::slotToggleNumberingBase()
 {
-    QString initial = m_initialLabel->text();
+    m_numberingBase ^= 1;
+    updateLabels();
+}
 
-    // strip some unrequested nice-ification.. urg!
-    if (initial.startsWith("&")) {
-        initial = initial.right(initial.length() - 1);
-    }
+void
+NameSetEditor::updateLabels()
+{
+    unsigned index = m_numberingBase;
 
-    bool ok;
-    unsigned index = initial.toUInt(&ok);
+    m_numberingBaseButton->setText(QString("%1").arg(index++));
 
-    if (!ok) {
-        std::cerr << "conversion of '"
-        << initial.toStdString().c_str()
-        << "' to number failed"
-        << std::endl;
-        return ;
-    }
-
-    if (index == 0)
-        index = 1;
-    else
-        index = 0;
-
-    m_initialLabel->setText(QString("%1").arg(index++));
-    for (std::vector<QLabel*>::iterator it( m_labels.begin() );
-            it != m_labels.end();
-            ++it) {
-        (*it)->setText(QString("%1").arg(index++));
+    // For each subsequent label.
+    for (size_t i = 0; i < m_labels.size(); ++i) {
+        m_labels[i]->setText(QString("%1").arg(index++));
     }
 }
 
+
 }
-#include "NameSetEditor.moc"

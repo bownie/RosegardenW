@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -36,12 +36,17 @@ public:
                   Event *event,
                   bool drum,
                   long pitchOffset);
-    virtual ~MatrixElement();
+    ~MatrixElement() override;
 
     /// Returns true if the wrapped event is a note
     bool isNote() const;
 
-    double getWidth() const { return m_width; }
+    // return at least 6.0 for width, addresses #1502, avoids drawing velocity
+    // bars that are too small to see and manipulate for extremely short notes
+    // (we have encountered MIDI gear in the field that generates durations as
+    // short as 0, and durations less than about 60 generate too narrow a width
+    // for human manipulation)
+    double getWidth() const { return (m_width >= 6.0f ? m_width : 6.0f); }
     double getElementVelocity() { return m_velocity; }
 
     void setSelected(bool selected);

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2005-2011 Chris Cannam.
 
@@ -20,6 +20,8 @@
 
 #include "AudioWriteStream.h"
 
+#include <rosegardenprivate_export.h>
+
 #ifdef HAVE_LIBSNDFILE
 
 #include <sndfile.h>
@@ -27,15 +29,17 @@
 namespace Rosegarden
 {
     
-class WavFileWriteStream : public AudioWriteStream
+class ROSEGARDENPRIVATE_EXPORT WavFileWriteStream : public AudioWriteStream
 {
 public:
     WavFileWriteStream(Target target);
-    virtual ~WavFileWriteStream();
+    ~WavFileWriteStream() override;
 
-    virtual QString getError() const { return m_error; }
+    static void initStaticObjects();
 
-    virtual bool putInterleavedFrames(size_t count, float *frames);
+    QString getError() const override { return m_error; }
+
+    bool putInterleavedFrames(size_t count, float *frames) override;
     
 protected:
     SF_INFO m_fileInfo;

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -60,9 +60,8 @@ public:
      */
     ChordNameRuler(RulerScale *rulerScale,
                    RosegardenDocument *doc,
-                   double xorigin = 0.0,
                    int height = 0,
-                   QWidget* parent = 0);
+                   QWidget* parent = nullptr);
 
     /**
      * Construct a ChordNameRuler that displays the chords in the
@@ -73,11 +72,10 @@ public:
     ChordNameRuler(RulerScale *rulerScale,
                    RosegardenDocument *doc,
                    std::vector<Segment *> &segments,
-                   double xorigin = 0.0,
                    int height = 0,
-                   QWidget* parent = 0);
+                   QWidget* parent = nullptr);
 
-    ~ChordNameRuler();
+    ~ChordNameRuler() override;
 
     /// Indicate that the chord-name ruler should make itself ready and refresh
     void setReady();
@@ -88,8 +86,8 @@ public:
     // may have one of these (to avoid using percussion tracks in chords):
     void setStudio(Studio *studio);
 
-    virtual QSize sizeHint() const;
-    virtual QSize minimumSizeHint() const;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
     void setMinimumWidth(int width) { m_width = width; }
 
@@ -97,13 +95,12 @@ public slots:
     void slotScrollHoriz(int x);
 
 protected:
-    virtual void paintEvent(QPaintEvent *);
+    void paintEvent(QPaintEvent *) override;
 
 private:
     void recalculate(timeT from = 0,
                      timeT to = 0);
 
-    double m_xorigin;
     int    m_height;
     int    m_currentXOffset;
     int    m_width;

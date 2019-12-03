@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,6 +20,7 @@
 #include "SegmentSplitter.h"
 
 #include "misc/Debug.h"
+#include "misc/ConfigGroups.h"
 #include "base/Segment.h"
 #include "base/SnapGrid.h"
 #include "commands/segment/AudioSegmentSplitCommand.h"
@@ -28,12 +29,16 @@
 #include "document/RosegardenDocument.h"
 #include "gui/general/BaseTool.h"
 #include "gui/general/RosegardenScrollView.h"
+#include "gui/application/RosegardenMainWindow.h"
+#include "gui/application/TransportStatus.h"
+#include "gui/seqmanager/SequenceManager.h"
 #include "SegmentTool.h"
 #include "document/Command.h"
 #include "document/CommandHistory.h"
 
 #include <QPoint>
 #include <QRect>
+#include <QSettings>
 #include <QString>
 #include <QMouseEvent>
 
@@ -42,12 +47,13 @@ namespace Rosegarden
 {
 
 
-const QString SegmentSplitter::ToolName = "segmentsplitter";
+QString SegmentSplitter::ToolName() { return "segmentsplitter"; }
 
-SegmentSplitter::SegmentSplitter(CompositionView *c, RosegardenDocument *d)
-        : SegmentTool(c, d),
-        m_prevX(0),
-        m_prevY(0)
+SegmentSplitter::SegmentSplitter(CompositionView *c, RosegardenDocument *d) :
+    SegmentTool(c, d),
+    m_enableEditingDuringPlayback(true),
+    m_prevX(0),
+    m_prevY(0)
 {
     RG_DEBUG << "SegmentSplitter()\n";
 }
@@ -69,6 +75,18 @@ SegmentSplitter::mousePressEvent(QMouseEvent *e)
 
     // We only care about the left mouse button.
     if (e->button() != Qt::LeftButton)
+        return;
+
+    QSettings settings;
+    settings.beginGroup(GeneralOptionsConfigGroup);
+    m_enableEditingDuringPlayback =
+            settings.value("enableEditingDuringPlayback", false).toBool();
+
+    // Can't split a segment while playing.
+    // ??? What about recording?
+    if (!m_enableEditingDuringPlayback  &&
+        RosegardenMainWindow::self()->getSequenceManager()->
+            getTransportStatus() == PLAYING)
         return;
 
     // No need to propagate.
@@ -97,6 +115,13 @@ SegmentSplitter::mouseReleaseEvent(QMouseEvent *e)
 {
     // We only care about the left mouse button.
     if (e->button() != Qt::LeftButton)
+        return;
+
+    // Can't split a segment while playing.
+    // ??? What about recording?
+    if (!m_enableEditingDuringPlayback  &&
+        RosegardenMainWindow::self()->getSequenceManager()->
+            getTransportStatus() == PLAYING)
         return;
 
     // No need to propagate.
@@ -135,6 +160,13 @@ SegmentSplitter::mouseReleaseEvent(QMouseEvent *e)
 int
 SegmentSplitter::mouseMoveEvent(QMouseEvent *e)
 {
+    // Can't split a segment while playing.
+    // ??? What about recording?
+    if (!m_enableEditingDuringPlayback  &&
+        RosegardenMainWindow::self()->getSequenceManager()->
+            getTransportStatus() == PLAYING)
+        return NO_FOLLOW;
+
     // No need to propagate.
     e->accept();
 
@@ -149,11 +181,11 @@ SegmentSplitter::mouseMoveEvent(QMouseEvent *e)
     if (item) {
 //        m_canvas->viewport()->setCursor(Qt::blankCursor);
         drawSplitLine(e);
-        return RosegardenScrollView::FollowHorizontal;
+        return FOLLOW_HORIZONTAL;
     } else {
         m_canvas->viewport()->setCursor(Qt::SplitHCursor);
         m_canvas->hideSplitLine();
-        return RosegardenScrollView::NoFollow;
+        return NO_FOLLOW;
     }
 }
 
@@ -188,4 +220,3 @@ SegmentSplitter::contentsMouseDoubleClickEvent(QMouseEvent*)
 
 
 }
-#include "SegmentSplitter.moc"

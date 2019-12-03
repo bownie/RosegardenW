@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,6 +20,7 @@
 
 #include "misc/AppendLabel.h"
 #include "misc/Strings.h"
+#include "misc/Debug.h"
 #include "base/Event.h"
 #include "base/Composition.h"
 #include "base/NotationTypes.h"
@@ -27,7 +28,6 @@
 #include "document/RosegardenDocument.h"
 #include "sound/AudioFileTimeStretcher.h"
 #include "sound/AudioFileManager.h"
-#include "gui/widgets/ProgressDialog.h"
 #include <QString>
 
 
@@ -41,7 +41,7 @@ AudioSegmentRescaleCommand::AudioSegmentRescaleCommand(RosegardenDocument *doc,
     m_afm(&doc->getAudioFileManager()),
     m_stretcher(new AudioFileTimeStretcher(m_afm)),
     m_segment(s),
-    m_newSegment(0),
+    m_newSegment(nullptr),
     m_timesGiven(false),
     m_startTime(0),
     m_endMarkerTime(0),
@@ -61,7 +61,7 @@ AudioSegmentRescaleCommand::AudioSegmentRescaleCommand(RosegardenDocument *doc,
     m_afm(&doc->getAudioFileManager()),
     m_stretcher(new AudioFileTimeStretcher(m_afm)),
     m_segment(s),
-    m_newSegment(0),
+    m_newSegment(nullptr),
     m_timesGiven(true),
     m_startTime(st),
     m_endMarkerTime(emt),
@@ -84,55 +84,37 @@ AudioSegmentRescaleCommand::~AudioSegmentRescaleCommand()
 }
 
 void
-AudioSegmentRescaleCommand::connectProgressDialog(ProgressDialog *dlg)
+AudioSegmentRescaleCommand::setProgressDialog(
+        QPointer<QProgressDialog> progressDialog)
 {
-    QObject::connect(m_stretcher, SIGNAL(setValue(int)),
-					 dlg, SLOT(setValue(int)));
-					//dlg->progressBar(), SLOT(setValue(int)));
-    // Removed since ProgressDialog::cancelClicked() does not exist.
-    //QObject::connect(dlg, SIGNAL(cancelClicked()),
-    //                 m_stretcher, SLOT(slotStopTimestretch()));
-}
- 
-void
-AudioSegmentRescaleCommand::disconnectProgressDialog(ProgressDialog *dlg)
-{
-    QObject::disconnect(m_stretcher, SIGNAL(setValue(int)),
-						dlg, SLOT(setValue(int)));
-						//dlg->progressBar(), SLOT(setValue(int)));
-    // Removed since ProgressDialog::cancelClicked() does not exist.
-    //QObject::disconnect(dlg, SIGNAL(cancelClicked()),
-    //                    m_stretcher, SLOT(slotStopTimestretch()));
+    if (m_stretcher)
+        m_stretcher->setProgressDialog(progressDialog);
 }
 
 void
 AudioSegmentRescaleCommand::execute()
 {
-    /* timeT startTime = m_segment->getStartTime(); */
-
+    // Audio segments only.
     if (m_segment->getType() != Segment::Audio) {
+        RG_WARNING << "WARNING: execute() called with a non-audio segment.";
         return;
     }
 
-    bool failed = false;
-
+    // If we don't have the rescaled segment yet, create it.
     if (!m_newSegment) {
 
-        m_newSegment = m_segment->clone(false);
-
-        std::string label = m_newSegment->getLabel();
-        m_newSegment->setLabel(appendLabel(label, qstrtostr(tr("(rescaled)"))));
+        // Rescale the audio file.
 
         AudioFileId sourceFileId = m_segment->getAudioFileId();
         float absoluteRatio = m_ratio;
 
-        std::cerr << "AudioSegmentRescaleCommand: segment file id " << sourceFileId << ", given ratio " << m_ratio << std::endl;
+        RG_DEBUG << "AudioSegmentRescaleCommand: segment file id " << sourceFileId << ", given ratio " << m_ratio;
 
         if (m_segment->getStretchRatio() != 1.f &&
             m_segment->getStretchRatio() != 0.f) {
             sourceFileId = m_segment->getUnstretchedFileId();
             absoluteRatio *= m_segment->getStretchRatio();
-            std::cerr << "AudioSegmentRescaleCommand: unstretched file id " << sourceFileId << ", prev ratio " << m_segment->getStretchRatio() << ", resulting ratio " << absoluteRatio << std::endl;
+            RG_DEBUG << "AudioSegmentRescaleCommand: unstretched file id " << sourceFileId << ", prev ratio " << m_segment->getStretchRatio() << ", resulting ratio " << absoluteRatio;
         }
 
         if (!m_timesGiven) {
@@ -140,48 +122,35 @@ AudioSegmentRescaleCommand::execute()
                 (m_segment->getEndMarkerTime() - m_segment->getStartTime()) * m_ratio;
         }
 
-        try {
-            m_fid = m_stretcher->getStretchedAudioFile(sourceFileId,
-                                                       absoluteRatio);
-            m_newSegment->setAudioFileId(m_fid);
-            m_newSegment->setUnstretchedFileId(sourceFileId);
-            m_newSegment->setStretchRatio(absoluteRatio);
-            m_newSegment->setAudioStartTime(m_segment->getAudioStartTime() *
-                                            m_ratio);
-            if (m_timesGiven) {
-                m_newSegment->setStartTime(m_startTime);
-                m_newSegment->setAudioEndTime(m_segment->getAudioEndTime() *
-                                              m_ratio);
-                m_newSegment->setEndMarkerTime(m_endMarkerTime);
-            } else {
-                m_newSegment->setEndMarkerTime(m_endMarkerTime);
-                m_newSegment->setAudioEndTime(m_segment->getAudioEndTime() *
-                                              m_ratio);
-            }
-        } catch (SoundFile::BadSoundFileException e) {
-            std::cerr << "AudioSegmentRescaleCommand: ERROR: BadSoundFileException: "
-                      << e.getMessage() << std::endl;
-            delete m_newSegment;
-            m_newSegment = 0;
-            m_fid = -1;
-            failed = true;
-        } catch (AudioFileManager::BadAudioPathException e) {
-            std::cerr << "AudioSegmentRescaleCommand: ERROR: BadAudioPathException: "
-                      << e.getMessage() << std::endl;
-            delete m_newSegment;
-            m_newSegment = 0;
-            m_fid = -1;
-            failed = true;
-        } catch (AudioFileTimeStretcher::CancelledException e) {
-            std::cerr << "AudioSegmentRescaleCommand: ERROR: Rescale cancelled" << std::endl;
-            delete m_newSegment;
-            m_newSegment = 0;
-            m_fid = -1;
-            failed = true;
+        m_fid = m_stretcher->getStretchedAudioFile(sourceFileId,
+                                                   absoluteRatio);
+        // If the stretch failed, bail.
+        if (m_fid < 0)
+            return;
+
+        // Audio file was rescaled successfully.  Create the new Segment.
+
+        m_newSegment = m_segment->clone(false);
+
+        std::string label = m_newSegment->getLabel();
+        m_newSegment->setLabel(appendLabel(label, qstrtostr(tr("(rescaled)"))));
+
+        m_newSegment->setAudioFileId(m_fid);
+        m_newSegment->setUnstretchedFileId(sourceFileId);
+        m_newSegment->setStretchRatio(absoluteRatio);
+        m_newSegment->setAudioStartTime(m_segment->getAudioStartTime() *
+                                        m_ratio);
+        if (m_timesGiven) {
+            m_newSegment->setStartTime(m_startTime);
+            m_newSegment->setAudioEndTime(m_segment->getAudioEndTime() *
+                                          m_ratio);
+            m_newSegment->setEndMarkerTime(m_endMarkerTime);
+        } else {
+            m_newSegment->setEndMarkerTime(m_endMarkerTime);
+            m_newSegment->setAudioEndTime(m_segment->getAudioEndTime() *
+                                          m_ratio);
         }
     }
-
-    if (failed) return;
 
     m_segment->getComposition()->addSegment(m_newSegment);
     m_segment->getComposition()->detachSegment(m_segment);

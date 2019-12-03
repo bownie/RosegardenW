@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -59,21 +59,21 @@ public:
      * Only destroy the graphical representation of the Event, not the
      * Event itself
      */
-    ~NotationElement();
+    ~NotationElement() override;
 
     /**
      * Returns the time at which the Event is to be displayed in
      * notation (usually the result of notation quantization on the
      * raw event time)
      */
-    virtual timeT getViewAbsoluteTime() const;
+    timeT getViewAbsoluteTime() const override;
 
     /**
      * Returns the duration with which the Event is to be displayed in
      * notation (usually the result of notation quantization on the
      * raw event duration)
      */
-    virtual timeT getViewDuration() const;
+    timeT getViewDuration() const override;
 
     /**
      * Return the position and horizontal size spanned by the item,

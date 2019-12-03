@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -29,6 +29,7 @@
 #include "base/AudioLevel.h"
 #include "base/Composition.h"
 #include "base/Instrument.h"
+#include "base/InstrumentStaticSignals.h"
 #include "base/MidiDevice.h"
 #include "base/MidiProgram.h"
 #include "base/NotationTypes.h"
@@ -54,6 +55,7 @@
 #include "gui/editors/matrix/MatrixView.h"
 #include "gui/editors/notation/NotationView.h"
 #include "gui/editors/parameters/InstrumentParameterBox.h"
+#include "gui/editors/parameters/RosegardenParameterArea.h"
 #include "gui/editors/parameters/SegmentParameterBox.h"
 #include "gui/editors/parameters/TrackParameterBox.h"
 #include "gui/editors/pitchtracker/PitchTrackerView.h"
@@ -65,8 +67,7 @@
 #include "gui/rulers/LoopRuler.h"
 #include "gui/rulers/TempoRuler.h"
 #include "gui/rulers/StandardRuler.h"
-#include "gui/widgets/ProgressDialog.h"
-#include "gui/widgets/CurrentProgressDialog.h"
+#include "gui/studio/StudioControl.h"
 #include "RosegardenMainWindow.h"
 #include "SetWaitCursor.h"
 #include "sound/AudioFile.h"
@@ -79,6 +80,7 @@
 #include <QSettings>
 #include <QMessageBox>
 #include <QProcess>
+#include <QProgressDialog>
 #include <QApplication>
 #include <QCursor>
 #include <QDialog>
@@ -105,7 +107,7 @@ namespace Rosegarden
 //
 static double barWidth44 = 100.0;
 
-const QWidget *RosegardenMainViewWidget::m_lastActiveMainWindow = 0;
+const QWidget *RosegardenMainViewWidget::m_lastActiveMainWindow = nullptr;
 
 // This is the maximum number of matrix, event view or percussion
 // matrix editors to open in a single operation (not the maximum that
@@ -114,14 +116,14 @@ const QWidget *RosegardenMainViewWidget::m_lastActiveMainWindow = 0;
 static int maxEditorsToOpen = 8;
 
 RosegardenMainViewWidget::RosegardenMainViewWidget(bool showTrackLabels,
-                                     SegmentParameterBox* segmentParameterBox,
-                                     InstrumentParameterBox* instrumentParameterBox,
-                                     TrackParameterBox* trackParameterBox,
-                                     QWidget *parent,
-                                     const char* /*name*/)
+                                                   SegmentParameterBox* segmentParameterBox,
+                                                   InstrumentParameterBox* instrumentParameterBox,
+                                                   TrackParameterBox* trackParameterBox,
+                                                   RosegardenParameterArea* parameterArea,
+                                                   QWidget *parent)
         : QWidget(parent),
-        m_rulerScale(0),
-        m_trackEditor(0),
+        m_rulerScale(nullptr),
+        m_trackEditor(nullptr),
         m_segmentParameterBox(segmentParameterBox),
         m_instrumentParameterBox(instrumentParameterBox),
         m_trackParameterBox(trackParameterBox)
@@ -129,7 +131,10 @@ RosegardenMainViewWidget::RosegardenMainViewWidget(bool showTrackLabels,
     setObjectName("View");
     RosegardenDocument* doc = getDocument();
     Composition *comp = &doc->getComposition();
-    QVBoxLayout *layout = new QVBoxLayout;
+    QHBoxLayout *layout = new QHBoxLayout;
+    layout->setMargin(0);
+    layout->setSpacing(0);
+    layout->addWidget(parameterArea);
 
     double unitsPerPixel =
         TimeSignature(4, 4).getBarDuration() / barWidth44;
@@ -144,8 +149,8 @@ RosegardenMainViewWidget::RosegardenMainViewWidget(bool showTrackLabels,
     setLayout(layout);
 
     connect(m_trackEditor->getCompositionView(),
-            SIGNAL(editSegment(Segment*)),
-            SLOT(slotEditSegment(Segment*)));
+            &CompositionView::editSegment,
+            this, &RosegardenMainViewWidget::slotEditSegment);
 
     //connect(m_trackEditor->getCompositionView(),
     //        SIGNAL(editSegmentNotation(Segment*)),
@@ -172,12 +177,12 @@ RosegardenMainViewWidget::RosegardenMainViewWidget(bool showTrackLabels,
     //        SLOT(slotEditSegmentEventList(Segment*)));
 
     connect(m_trackEditor->getCompositionView(),
-            SIGNAL(editRepeat(Segment*, timeT)),
-            SLOT(slotEditRepeat(Segment*, timeT)));
+            &CompositionView::editRepeat,
+            this, &RosegardenMainViewWidget::slotEditRepeat);
 
     connect(m_trackEditor->getCompositionView(),
-            SIGNAL(setPointerPosition(timeT)),
-            doc, SLOT(slotSetPointerPosition(timeT)));
+            &CompositionView::setPointerPosition,
+            doc, &RosegardenDocument::slotSetPointerPosition);
 
     connect(m_trackEditor,
             SIGNAL(droppedDocument(QString)),
@@ -185,24 +190,19 @@ RosegardenMainViewWidget::RosegardenMainViewWidget(bool showTrackLabels,
             SLOT(slotOpenDroppedURL(QString)));
 
     connect(m_trackEditor,
-            SIGNAL(droppedAudio(QString)),
+            &TrackEditor::droppedAudio,
             this,
-            SLOT(slotDroppedAudio(QString)));
+            &RosegardenMainViewWidget::slotDroppedAudio);
 
     connect(m_trackEditor,
-            SIGNAL(droppedNewAudio(QString)),
+            &TrackEditor::droppedNewAudio,
             this,
-            SLOT(slotDroppedNewAudio(QString)));
-
-    connect(m_trackEditor->getTrackButtons(),
-            SIGNAL(instrumentSelected(int)),
-            m_trackParameterBox,
-            SLOT(slotUpdateControls(int)));
+            &RosegardenMainViewWidget::slotDroppedNewAudio);
 
     connect(m_trackParameterBox,
-            SIGNAL(instrumentSelected(TrackId, int)),
+            &TrackParameterBox::instrumentSelected,
             m_trackEditor->getTrackButtons(),
-            SLOT(slotTPBInstrumentSelected(TrackId, int)));
+            &TrackButtons::slotTPBInstrumentSelected);
 
     connect(this, SIGNAL(controllerDeviceEventReceived(MappedEvent *, const void *)),
             this, SLOT(slotControllerDeviceEventReceived(MappedEvent *, const void *)));
@@ -223,7 +223,8 @@ RosegardenMainViewWidget::RosegardenMainViewWidget(bool showTrackLabels,
 
 RosegardenMainViewWidget::~RosegardenMainViewWidget()
 {
-    RG_DEBUG << "~RosegardenMainViewWidget()" << endl;
+    RG_DEBUG << "dtor";
+
     delete m_rulerScale;
 }
 
@@ -355,7 +356,7 @@ void RosegardenMainViewWidget::slotEditSegmentNotation(Segment* p)
     SetWaitCursor waitCursor;
     std::vector<Segment *> segmentsToEdit;
 
-    RG_DEBUG << "\n\n\n\nRosegardenMainViewWidget::slotEditSegmentNotation: p is " << p << endl;
+    RG_DEBUG << "slotEditSegmentNotation(): p is " << p;
 
     // The logic here is: If we're calling for this operation to
     // happen on a particular segment, then open that segment and if
@@ -408,42 +409,29 @@ RosegardenMainViewWidget::createNotationView(std::vector<Segment *> segmentsToEd
     NotationView *notationView =
         new NotationView(getDocument(), segmentsToEdit, this);
 
-    // For tempo changes (ugh -- it'd be nicer to make a tempo change
-    // command that could interpret all this stuff from the dialog)
-    //
-    connect(notationView, SIGNAL(changeTempo(timeT,
-                                 tempoT,
-                                 tempoT,
-                                 TempoDialog::TempoDialogAction)),
-            RosegardenMainWindow::self(), SLOT(slotChangeTempo(timeT,
-                                           tempoT,
-                                           tempoT,
-                                           TempoDialog::TempoDialogAction)));
-
-
     connect(notationView, SIGNAL(windowActivated()),
             this, SLOT(slotActiveMainWindowChanged()));
 
-    connect(notationView, SIGNAL(selectTrack(int)),
-            this, SLOT(slotSelectTrackSegments(int)));
+    connect(notationView, &EditViewBase::selectTrack,
+            this, &RosegardenMainViewWidget::slotSelectTrackSegments);
 
-    connect(notationView, SIGNAL(play()),
-            RosegardenMainWindow::self(), SLOT(slotPlay()));
-    connect(notationView, SIGNAL(stop()),
-            RosegardenMainWindow::self(), SLOT(slotStop()));
-    connect(notationView, SIGNAL(fastForwardPlayback()),
-            RosegardenMainWindow::self(), SLOT(slotFastforward()));
-    connect(notationView, SIGNAL(rewindPlayback()),
-            RosegardenMainWindow::self(), SLOT(slotRewind()));
-    connect(notationView, SIGNAL(fastForwardPlaybackToEnd()),
-            RosegardenMainWindow::self(), SLOT(slotFastForwardToEnd()));
-    connect(notationView, SIGNAL(rewindPlaybackToBeginning()),
-            RosegardenMainWindow::self(), SLOT(slotRewindToBeginning()));
-    connect(notationView, SIGNAL(panic()),
-            RosegardenMainWindow::self(), SLOT(slotPanic()));
+    connect(notationView, &NotationView::play,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotPlay);
+    connect(notationView, &NotationView::stop,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotStop);
+    connect(notationView, &NotationView::fastForwardPlayback,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotFastforward);
+    connect(notationView, &NotationView::rewindPlayback,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotRewind);
+    connect(notationView, &NotationView::fastForwardPlaybackToEnd,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotFastForwardToEnd);
+    connect(notationView, &NotationView::rewindPlaybackToBeginning,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotRewindToBeginning);
+    connect(notationView, &NotationView::panic,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotPanic);
 
-    connect(notationView, SIGNAL(saveFile()),
-            RosegardenMainWindow::self(), SLOT(slotFileSave()));
+    connect(notationView, &EditViewBase::saveFile,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotFileSave);
     connect(notationView, SIGNAL(openInNotation(std::vector<Segment *>)),
             this, SLOT(slotEditSegmentsNotation(std::vector<Segment *>)));
     connect(notationView, SIGNAL(openInMatrix(std::vector<Segment *>)),
@@ -452,15 +440,13 @@ RosegardenMainViewWidget::createNotationView(std::vector<Segment *> segmentsToEd
             this, SLOT(slotEditSegmentsPercussionMatrix(std::vector<Segment *>)));
     connect(notationView, SIGNAL(openInEventList(std::vector<Segment *>)),
             this, SLOT(slotEditSegmentsEventList(std::vector<Segment *>)));
-    connect(notationView, SIGNAL(editTriggerSegment(int)),
-            this, SLOT(slotEditTriggerSegment(int)));
+    connect(notationView, &NotationView::editTriggerSegment,
+            this, &RosegardenMainViewWidget::slotEditTriggerSegment);
     // No such signal comes from NotationView
     //connect(notationView, SIGNAL(staffLabelChanged(TrackId, QString)),
     //        this, SLOT(slotChangeTrackLabel(TrackId, QString)));
-    connect(notationView, SIGNAL(toggleSolo(bool)),
-            RosegardenMainWindow::self(), SLOT(slotToggleSolo(bool)));
-    //connect(notationView, SIGNAL(editTimeSignature(timeT)),
-    //        RosegardenMainWindow::self(), SLOT(slotEditTempos(timeT)));
+    connect(notationView, &EditViewBase::toggleSolo,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotToggleSolo);
 
     SequenceManager *sM = getDocument()->getSequenceManager();
 
@@ -469,14 +455,14 @@ RosegardenMainViewWidget::createNotationView(std::vector<Segment *> segmentsToEd
     connect(sM, SIGNAL(insertableNoteOffReceived(int, int)),
             notationView, SLOT(slotInsertableNoteOffReceived(int, int)));
 
-    connect(notationView, SIGNAL(stepByStepTargetRequested(QObject *)),
-            this, SIGNAL(stepByStepTargetRequested(QObject *)));
+    connect(notationView, &NotationView::stepByStepTargetRequested,
+            this, &RosegardenMainViewWidget::stepByStepTargetRequested);
     connect(this, SIGNAL(stepByStepTargetRequested(QObject *)),
             notationView, SLOT(slotStepByStepTargetRequested(QObject *)));
-    connect(RosegardenMainWindow::self(), SIGNAL(compositionStateUpdate()),
-            notationView, SLOT(slotCompositionStateUpdate()));
-    connect(this, SIGNAL(compositionStateUpdate()),
-            notationView, SLOT(slotCompositionStateUpdate()));
+    connect(RosegardenMainWindow::self(), &RosegardenMainWindow::compositionStateUpdate,
+            notationView, &EditViewBase::slotCompositionStateUpdate);
+    connect(this, &RosegardenMainViewWidget::compositionStateUpdate,
+            notationView, &EditViewBase::slotCompositionStateUpdate);
 
     // Encourage the notation view window to open to the same
     // interval as the current segment view.  Since scrollToTime is
@@ -503,7 +489,7 @@ void RosegardenMainViewWidget::slotEditSegmentPitchTracker(Segment* p)
     SetWaitCursor waitCursor;
     std::vector<Segment *> segmentsToEdit;
 
-    RG_DEBUG << "\n\n\n\nRosegardenMainViewWidget::slotEditSegmentNotation: p is " << p << endl;
+    RG_DEBUG << "slotEditSegmentPitchTracker(): p is " << p;
 
     // The logic here is: If we're calling for this operation to
     // happen on a particular segment, then open that segment and if
@@ -575,43 +561,29 @@ RosegardenMainViewWidget::createPitchTrackerView(std::vector<Segment *> segments
     PitchTrackerView *pitchTrackerView =
         new PitchTrackerView(getDocument(), segmentsToEdit, this);
 
-
-    // For tempo changes (ugh -- it'd be nicer to make a tempo change
-    // command that could interpret all this stuff from the dialog)
-    //
-    connect(pitchTrackerView, SIGNAL(changeTempo(timeT,
-                                 tempoT,
-                                 tempoT,
-                                 TempoDialog::TempoDialogAction)),
-            RosegardenMainWindow::self(), SLOT(slotChangeTempo(timeT,
-                                           tempoT,
-                                           tempoT,
-                                           TempoDialog::TempoDialogAction)));
-
-
     connect(pitchTrackerView, SIGNAL(windowActivated()),
             this, SLOT(slotActiveMainWindowChanged()));
 
-    connect(pitchTrackerView, SIGNAL(selectTrack(int)),
-            this, SLOT(slotSelectTrackSegments(int)));
+    connect(pitchTrackerView, &EditViewBase::selectTrack,
+            this, &RosegardenMainViewWidget::slotSelectTrackSegments);
 
-    connect(pitchTrackerView, SIGNAL(play()),
-            RosegardenMainWindow::self(), SLOT(slotPlay()));
-    connect(pitchTrackerView, SIGNAL(stop()),
-            RosegardenMainWindow::self(), SLOT(slotStop()));
-    connect(pitchTrackerView, SIGNAL(fastForwardPlayback()),
-            RosegardenMainWindow::self(), SLOT(slotFastforward()));
-    connect(pitchTrackerView, SIGNAL(rewindPlayback()),
-            RosegardenMainWindow::self(), SLOT(slotRewind()));
-    connect(pitchTrackerView, SIGNAL(fastForwardPlaybackToEnd()),
-            RosegardenMainWindow::self(), SLOT(slotFastForwardToEnd()));
-    connect(pitchTrackerView, SIGNAL(rewindPlaybackToBeginning()),
-            RosegardenMainWindow::self(), SLOT(slotRewindToBeginning()));
-    connect(pitchTrackerView, SIGNAL(panic()),
-            RosegardenMainWindow::self(), SLOT(slotPanic()));
+    connect(pitchTrackerView, &NotationView::play,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotPlay);
+    connect(pitchTrackerView, &NotationView::stop,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotStop);
+    connect(pitchTrackerView, &NotationView::fastForwardPlayback,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotFastforward);
+    connect(pitchTrackerView, &NotationView::rewindPlayback,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotRewind);
+    connect(pitchTrackerView, &NotationView::fastForwardPlaybackToEnd,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotFastForwardToEnd);
+    connect(pitchTrackerView, &NotationView::rewindPlaybackToBeginning,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotRewindToBeginning);
+    connect(pitchTrackerView, &NotationView::panic,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotPanic);
 
-    connect(pitchTrackerView, SIGNAL(saveFile()),
-            RosegardenMainWindow::self(), SLOT(slotFileSave()));
+    connect(pitchTrackerView, &EditViewBase::saveFile,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotFileSave);
 //  This probably is obsolete in Thorn.
 //    connect(pitchTrackerView, SIGNAL(jumpPlaybackTo(timeT)),
 //            getDocument(), SLOT(slotSetPointerPosition(timeT)));
@@ -627,15 +599,13 @@ RosegardenMainViewWidget::createPitchTrackerView(std::vector<Segment *> segments
     connect(pitchTrackerView, SIGNAL(editMetadata(QString)),
             this, SLOT(slotEditMetadata(QString)));
 */
-    connect(pitchTrackerView, SIGNAL(editTriggerSegment(int)),
-            this, SLOT(slotEditTriggerSegment(int)));
+    connect(pitchTrackerView, &NotationView::editTriggerSegment,
+            this, &RosegardenMainViewWidget::slotEditTriggerSegment);
     // No such signal comes from PitchTrackerView
     //connect(pitchTrackerView, SIGNAL(staffLabelChanged(TrackId, QString)),
     //        this, SLOT(slotChangeTrackLabel(TrackId, QString)));
-    connect(pitchTrackerView, SIGNAL(toggleSolo(bool)),
-            RosegardenMainWindow::self(), SLOT(slotToggleSolo(bool)));
-    //connect(pitchTrackerView, SIGNAL(editTimeSignature(timeT)),
-    //        RosegardenMainWindow::self(), SLOT(slotEditTempos(timeT)));
+    connect(pitchTrackerView, &EditViewBase::toggleSolo,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotToggleSolo);
 
     SequenceManager *sM = getDocument()->getSequenceManager();
 
@@ -644,14 +614,14 @@ RosegardenMainViewWidget::createPitchTrackerView(std::vector<Segment *> segments
     connect(sM, SIGNAL(insertableNoteOffReceived(int, int)),
             pitchTrackerView, SLOT(slotInsertableNoteOffReceived(int, int)));
 
-    connect(pitchTrackerView, SIGNAL(stepByStepTargetRequested(QObject *)),
-            this, SIGNAL(stepByStepTargetRequested(QObject *)));
+    connect(pitchTrackerView, &NotationView::stepByStepTargetRequested,
+            this, &RosegardenMainViewWidget::stepByStepTargetRequested);
     connect(this, SIGNAL(stepByStepTargetRequested(QObject *)),
             pitchTrackerView, SLOT(slotStepByStepTargetRequested(QObject *)));
-    connect(RosegardenMainWindow::self(), SIGNAL(compositionStateUpdate()),
-            pitchTrackerView, SLOT(slotCompositionStateUpdate()));
-    connect(this, SIGNAL(compositionStateUpdate()),
-            pitchTrackerView, SLOT(slotCompositionStateUpdate()));
+    connect(RosegardenMainWindow::self(), &RosegardenMainWindow::compositionStateUpdate,
+            pitchTrackerView, &EditViewBase::slotCompositionStateUpdate);
+    connect(this, &RosegardenMainViewWidget::compositionStateUpdate,
+            pitchTrackerView, &EditViewBase::slotCompositionStateUpdate);
 
     // Encourage the notation view window to open to the same
     // interval as the current segment view.  Since scrollToTime is
@@ -792,41 +762,29 @@ RosegardenMainViewWidget::createMatrixView(std::vector<Segment *> segmentsToEdit
                                                   drumMode,
                                                   this);
 
-    // For tempo changes (ugh -- it'd be nicer to make a tempo change
-    // command that could interpret all this stuff from the dialog)
-    //
-    connect(matrixView, SIGNAL(changeTempo(timeT,
-                                           tempoT,
-                                           tempoT,
-                                           TempoDialog::TempoDialogAction)),
-            RosegardenMainWindow::self(), SLOT(slotChangeTempo(timeT,
-                                           tempoT,
-                                           tempoT,
-                                           TempoDialog::TempoDialogAction)));
-
     connect(matrixView, SIGNAL(windowActivated()),
             this, SLOT(slotActiveMainWindowChanged()));
 
-    connect(matrixView, SIGNAL(selectTrack(int)),
-            this, SLOT(slotSelectTrackSegments(int)));
+    connect(matrixView, &EditViewBase::selectTrack,
+            this, &RosegardenMainViewWidget::slotSelectTrackSegments);
 
-    connect(matrixView, SIGNAL(play()),
-            RosegardenMainWindow::self(), SLOT(slotPlay()));
-    connect(matrixView, SIGNAL(stop()),
-            RosegardenMainWindow::self(), SLOT(slotStop()));
-    connect(matrixView, SIGNAL(fastForwardPlayback()),
-            RosegardenMainWindow::self(), SLOT(slotFastforward()));
-    connect(matrixView, SIGNAL(rewindPlayback()),
-            RosegardenMainWindow::self(), SLOT(slotRewind()));
-    connect(matrixView, SIGNAL(fastForwardPlaybackToEnd()),
-            RosegardenMainWindow::self(), SLOT(slotFastForwardToEnd()));
-    connect(matrixView, SIGNAL(rewindPlaybackToBeginning()),
-            RosegardenMainWindow::self(), SLOT(slotRewindToBeginning()));
-    connect(matrixView, SIGNAL(panic()),
-            RosegardenMainWindow::self(), SLOT(slotPanic()));
+    connect(matrixView, &MatrixView::play,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotPlay);
+    connect(matrixView, &MatrixView::stop,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotStop);
+    connect(matrixView, &MatrixView::fastForwardPlayback,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotFastforward);
+    connect(matrixView, &MatrixView::rewindPlayback,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotRewind);
+    connect(matrixView, &MatrixView::fastForwardPlaybackToEnd,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotFastForwardToEnd);
+    connect(matrixView, &MatrixView::rewindPlaybackToBeginning,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotRewindToBeginning);
+    connect(matrixView, &MatrixView::panic,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotPanic);
 
-    connect(matrixView, SIGNAL(saveFile()),
-            RosegardenMainWindow::self(), SLOT(slotFileSave()));
+    connect(matrixView, &EditViewBase::saveFile,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotFileSave);
     connect(matrixView, SIGNAL(openInNotation(std::vector<Segment *>)),
             this, SLOT(slotEditSegmentsNotation(std::vector<Segment *>)));
     connect(matrixView, SIGNAL(openInMatrix(std::vector<Segment *>)),
@@ -835,12 +793,10 @@ RosegardenMainViewWidget::createMatrixView(std::vector<Segment *> segmentsToEdit
             this, SLOT(slotEditSegmentsPercussionMatrix(std::vector<Segment *>)));
     connect(matrixView, SIGNAL(openInEventList(std::vector<Segment *>)),
             this, SLOT(slotEditSegmentsEventList(std::vector<Segment *>)));
-    connect(matrixView, SIGNAL(editTriggerSegment(int)),
-            this, SLOT(slotEditTriggerSegment(int)));
-    connect(matrixView, SIGNAL(toggleSolo(bool)),
-            RosegardenMainWindow::self(), SLOT(slotToggleSolo(bool)));
-    //connect(matrixView, SIGNAL(editTimeSignature(timeT)),
-    //        RosegardenMainWindow::self(), SLOT(slotEditTempos(timeT)));
+    connect(matrixView, &MatrixView::editTriggerSegment,
+            this, &RosegardenMainViewWidget::slotEditTriggerSegment);
+    connect(matrixView, &EditViewBase::toggleSolo,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotToggleSolo);
 
     SequenceManager *sM = getDocument()->getSequenceManager();
 
@@ -849,14 +805,14 @@ RosegardenMainViewWidget::createMatrixView(std::vector<Segment *> segmentsToEdit
     connect(sM, SIGNAL(insertableNoteOffReceived(int, int)),
             matrixView, SLOT(slotInsertableNoteOffReceived(int, int)));
 
-    connect(matrixView, SIGNAL(stepByStepTargetRequested(QObject *)),
-            this, SIGNAL(stepByStepTargetRequested(QObject *)));
+    connect(matrixView, &MatrixView::stepByStepTargetRequested,
+            this, &RosegardenMainViewWidget::stepByStepTargetRequested);
     connect(this, SIGNAL(stepByStepTargetRequested(QObject *)),
             matrixView, SLOT(slotStepByStepTargetRequested(QObject *)));
-    connect(RosegardenMainWindow::self(), SIGNAL(compositionStateUpdate()),
-            matrixView, SLOT(slotCompositionStateUpdate()));
-    connect(this, SIGNAL(compositionStateUpdate()),
-            matrixView, SLOT(slotCompositionStateUpdate()));
+    connect(RosegardenMainWindow::self(), &RosegardenMainWindow::compositionStateUpdate,
+            matrixView, &EditViewBase::slotCompositionStateUpdate);
+    connect(this, &RosegardenMainViewWidget::compositionStateUpdate,
+            matrixView, &EditViewBase::slotCompositionStateUpdate);
 
     // Encourage the matrix view window to open to the same
     // interval as the current segment view.   Since scrollToTime is
@@ -930,7 +886,8 @@ void RosegardenMainViewWidget::slotEditSegmentsEventList(std::vector<Segment *> 
 
 void RosegardenMainViewWidget::slotEditTriggerSegment(int id)
 {
-    std::cerr << "RosegardenMainViewWidget caught editTriggerSegment signal" << std::endl;
+    RG_DEBUG << "slotEditTriggerSegment(): caught editTriggerSegment signal";
+
     SetWaitCursor waitCursor;
 
     std::vector<Segment *> segmentsToEdit;
@@ -940,7 +897,7 @@ void RosegardenMainViewWidget::slotEditTriggerSegment(int id)
     if (s) {
         segmentsToEdit.push_back(s);
     } else {
-        std::cerr << "caught id: " << id << " and must not have been valid?" << std::endl;
+        RG_WARNING << "slotEditTriggerSegment(): caught id: " << id << " and must not have been valid?";
         return ;
     }
 
@@ -961,8 +918,7 @@ void RosegardenMainViewWidget::slotSegmentAutoSplit(Segment *segment)
 
 void RosegardenMainViewWidget::slotEditSegmentAudio(Segment *segment)
 {
-    std::cout << "RosegardenMainViewWidget::slotEditSegmentAudio() - "
-    << "starting external audio editor" << std::endl;
+    RG_DEBUG << "slotEditSegmentAudio() - starting external audio editor";
 
     QSettings settings;
     settings.beginGroup( GeneralOptionsConfigGroup );
@@ -978,9 +934,7 @@ void RosegardenMainViewWidget::slotEditSegmentAudio(Segment *segment)
 
     if (splitCommand.size() == 0) {
 
-        std::cerr << "RosegardenMainViewWidget::slotEditSegmentAudio() - "
-        << "external editor \"" << application.data()
-        << "\" not found" << std::endl;
+        RG_WARNING << "slotEditSegmentAudio() - external editor \"" << application.data() << "\" not found";
 
          QMessageBox::warning(this, tr("Rosegarden"), 
                            tr("You've not yet defined an audio editor for Rosegarden to use.\nSee Edit -> Preferences -> Audio."));
@@ -990,17 +944,14 @@ void RosegardenMainViewWidget::slotEditSegmentAudio(Segment *segment)
 
     QFileInfo *appInfo = new QFileInfo(splitCommand[0]);
     if (appInfo->exists() == false || appInfo->isExecutable() == false) {
-        std::cerr << "RosegardenMainViewWidget::slotEditSegmentAudio() - "
-                  << "can't execute \"" << splitCommand[0] << "\""
-                  << std::endl;
+        RG_WARNING << "slotEditSegmentAudio() - can't execute \"" << splitCommand[0] << "\"";
         return;
     }
 
     AudioFile *aF = getDocument()->getAudioFileManager().
                     getAudioFile(segment->getAudioFileId());
-    if (aF == 0) {
-        std::cerr << "RosegardenMainViewWidget::slotEditSegmentAudio() - "
-        << "can't find audio file" << std::endl;
+    if (aF == nullptr) {
+        RG_WARNING << "slotEditSegmentAudio() - can't find audio file";
         return ;
     }
 
@@ -1016,8 +967,7 @@ void RosegardenMainViewWidget::slotEditSegmentAudio(Segment *segment)
     //
     process->start(splitCommand.takeFirst(), splitCommand);
     if (!process->waitForStarted()) {  //@@@ JAS Check here first for errors
-        std::cerr << "RosegardenMainViewWidget::slotEditSegmentAudio() - "
-        << "can't start external editor" << std::endl;
+        RG_WARNING << "slotEditSegmentAudio() - can't start external editor";
     }
 
     // restore cursor
@@ -1042,8 +992,7 @@ void RosegardenMainViewWidget::setZoomSize(double size)
 #if 0
     double duration44 = TimeSignature(4, 4).getBarDuration();
     double xScale = duration44 / (size * barWidth44);
-    RG_DEBUG << "RosegardenMainViewWidget::setZoomSize():  xScale = " << 
-        xScale;
+    RG_DEBUG << "setZoomSize():  xScale = " << xScale;
 #endif
 
     // Redraw everything
@@ -1091,7 +1040,7 @@ void RosegardenMainViewWidget::slotSelectTrackSegments(int trackId)
     Composition &comp = getDocument()->getComposition();
     Track *track = comp.getTrackById(trackId);
 
-    if (track == 0)
+    if (track == nullptr)
         return ;
 
     SegmentSelection segments;
@@ -1175,12 +1124,6 @@ void RosegardenMainViewWidget::slotSelectTrackSegments(int trackId)
     //
     comp.setSelectedTrack(trackId);
 
-    m_trackParameterBox->slotSelectedTrackChanged();
-
-    // update the instrument parameter box
-    slotUpdateInstrumentParameterBox(comp.getTrackById(trackId)->
-                                     getInstrument());
-
 
     slotPropagateSegmentSelection(segments);
 
@@ -1196,16 +1139,13 @@ void RosegardenMainViewWidget::slotPropagateSegmentSelection(const SegmentSelect
     // to write the Segments into
     //
     if (!segments.empty()) {
-        emit activateTool(SegmentSelector::ToolName);
+        emit activateTool(SegmentSelector::ToolName());
     }
 
     // Send the segment list even if it's empty as we
     // use that to clear any current selection
     //
     m_trackEditor->getCompositionView()->selectSegments(segments);
-
-    // update the segment parameter box
-    m_segmentParameterBox->useSegments(segments);
 
     if (!segments.empty()) {
         emit stateChange("have_selection", true);
@@ -1221,26 +1161,11 @@ void RosegardenMainViewWidget::slotSelectAllSegments()
 {
     SegmentSelection segments;
 
-    InstrumentId instrument = 0;
-    bool haveInstrument = false;
-    bool multipleInstruments = false;
-
     Composition &comp = getDocument()->getComposition();
 
+    // For each Segment in the Composition
     for (Composition::iterator i = comp.begin(); i != comp.end(); ++i) {
-
-        InstrumentId myInstrument =
-            comp.getTrackById((*i)->getTrack())->getInstrument();
-
-        if (haveInstrument) {
-            if (myInstrument != instrument) {
-                multipleInstruments = true;
-            }
-        } else {
-            instrument = myInstrument;
-            haveInstrument = true;
-        }
-
+        // Add this Segment to segments.
         segments.insert(*i);
     }
 
@@ -1249,23 +1174,13 @@ void RosegardenMainViewWidget::slotSelectAllSegments()
     // to write the Segments into
     //
     if (!segments.empty()) {
-        emit activateTool(SegmentSelector::ToolName);
+        emit activateTool(SegmentSelector::ToolName());
     }
 
     // Send the segment list even if it's empty as we
     // use that to clear any current selection
     //
     m_trackEditor->getCompositionView()->selectSegments(segments);
-
-    // update the segment parameter box
-    m_segmentParameterBox->useSegments(segments);
-
-    // update the instrument parameter box
-    if (haveInstrument && !multipleInstruments) {
-        slotUpdateInstrumentParameterBox(instrument);
-    } else {
-        m_instrumentParameterBox->useInstrument(0);
-    }
 
     //!!! similarly, how to set no selected track?
     //comp.setSelectedTrack(trackId);
@@ -1282,82 +1197,6 @@ void RosegardenMainViewWidget::slotSelectAllSegments()
     // inform
     //!!! inform what? is this signal actually used?
     emit segmentsSelected(segments);
-}
-
-void RosegardenMainViewWidget::slotUpdateInstrumentParameterBox(int id)
-{
-    Studio &studio = getDocument()->getStudio();
-    Instrument *instrument = studio.getInstrumentById(id);
-    // Composition &comp = getDocument()->getComposition();
-
-    // Track *track = comp.getTrackById(comp.getSelectedTrack());
-
-    // Reset the instrument
-    //
-    m_instrumentParameterBox->useInstrument(instrument);
-    
-    // set prog-change select-box unchecked (if selected TrackChanged)
-    MIDIInstrumentParameterPanel *mipp;
-    mipp = m_instrumentParameterBox->getMIDIInstrumentParameterPanel();
-    mipp->clearReceiveExternal();
-    
-    // Then do this instrument/track fiddling
-    //
-    /*
-        if (track && instrument &&
-                instrument->getType() == Instrument::Audio)
-        {
-            // Set the mute status
-            m_instrumentParameterBox->setMute(track->isMuted());
-     
-            // Set the record track
-            m_instrumentParameterBox->setRecord(
-                        track->getId() == comp.getRecordTrack());
-     
-            // Set solo
-            m_instrumentParameterBox->setSolo(
-                    comp.isSolo() && (track->getId() == comp.getSelectedTrack()));
-        }
-    */
-    emit checkTrackAssignments();
-}
-
-void RosegardenMainViewWidget::showVisuals(const MappedEvent *mE)
-{
-    double valueLeft = ((double)mE->getData1()) / 127.0;
-    double valueRight = ((double)mE->getData2()) / 127.0;
-
-    if (mE->getType() == MappedEvent::AudioLevel) {
-
-        // Send to the high sensitivity instrument parameter box
-        // (if any)
-        //
-        if (m_instrumentParameterBox->getSelectedInstrument() &&
-                mE->getInstrument() ==
-                m_instrumentParameterBox->getSelectedInstrument()->getId()) {
-            float dBleft = AudioLevel::fader_to_dB
-                           (mE->getData1(), 127, AudioLevel::LongFader);
-            float dBright = AudioLevel::fader_to_dB
-                            (mE->getData2(), 127, AudioLevel::LongFader);
-
-            m_instrumentParameterBox->setAudioMeter(dBleft, dBright,
-                                                    AudioLevel::DB_FLOOR,
-                                                    AudioLevel::DB_FLOOR);
-        }
-
-        // Don't always send all audio levels so we don't
-        // get vu meter flickering on track meters
-        //
-        if (valueLeft < 0.05 && valueRight < 0.05)
-            return ;
-
-    } else if (mE->getType() != MappedEvent::MidiNote)
-        return ;
-
-    m_trackEditor->getTrackButtons()->
-    slotSetMetersByInstrument((valueLeft + valueRight) / 2,
-                              mE->getInstrument());
-
 }
 
 void
@@ -1455,13 +1294,27 @@ RosegardenMainViewWidget::updateMeters()
                 toSet = true;
             }
 
-            if (toSet &&
-                m_instrumentParameterBox->getSelectedInstrument() &&
-                instrument->getId() ==
-                m_instrumentParameterBox->getSelectedInstrument()->getId()) {
+            if (toSet) {
+                RosegardenDocument *doc = RosegardenMainWindow::self()->getDocument();
+                Composition &comp = doc->getComposition();
 
-                m_instrumentParameterBox->setAudioMeter(dBleft, dBright,
-                                                        recDBleft, recDBright);
+                InstrumentId selectedInstrumentId = comp.getSelectedInstrumentId();
+
+                Instrument *selectedInstrument = nullptr;
+
+                if (selectedInstrumentId != NoInstrument) {
+                    // ??? Performance: LINEAR SEARCH
+                    selectedInstrument =
+                            doc->getStudio().getInstrumentById(selectedInstrumentId);
+                }
+
+                if (selectedInstrument  &&
+                    instrument->getId() == selectedInstrument->getId()) {
+
+                    m_instrumentParameterBox->setAudioMeter(
+                            dBleft, dBright, recDBleft, recDBright);
+
+                }
             }
 
         } else {
@@ -1492,16 +1345,27 @@ RosegardenMainViewWidget::updateMeters()
 void
 RosegardenMainViewWidget::updateMonitorMeters()
 {
-    Instrument *instrument =
-        m_instrumentParameterBox->getSelectedInstrument();
-    if (!instrument ||
-        (instrument->getType() != Instrument::Audio)) {
+    RosegardenDocument *doc = RosegardenMainWindow::self()->getDocument();
+    Composition &comp = doc->getComposition();
+
+    InstrumentId selectedInstrumentId = comp.getSelectedInstrumentId();
+
+    Instrument *selectedInstrument = nullptr;
+
+    if (selectedInstrumentId != NoInstrument) {
+        // ??? Performance: LINEAR SEARCH
+        selectedInstrument =
+                doc->getStudio().getInstrumentById(selectedInstrumentId);
+    }
+
+    if (!selectedInstrument ||
+        (selectedInstrument->getType() != Instrument::Audio)) {
         return;
     }
 
     LevelInfo level;
     if (!SequencerDataBlock::getInstance()->
-        getInstrumentRecordLevel(instrument->getId(), level)) {
+        getInstrumentRecordLevel(selectedInstrument->getId(), level)) {
         return;
     }
 
@@ -1518,9 +1382,6 @@ RosegardenMainViewWidget::updateMonitorMeters()
 void
 RosegardenMainViewWidget::slotSelectedSegments(const SegmentSelection &segments)
 {
-    // update the segment parameter box
-    m_segmentParameterBox->useSegments(segments);
-
     if (!segments.empty()) {
         emit stateChange("have_selection", true);
         if (!hasNonAudioSegment(segments))
@@ -1577,16 +1438,14 @@ void RosegardenMainViewWidget::slotShowSegmentLabels(bool v)
 void RosegardenMainViewWidget::slotAddTracks(unsigned int nbTracks,
                                       InstrumentId id, int pos)
 {
-    RG_DEBUG << "RosegardenMainViewWidget::slotAddTracks(" << nbTracks << ", " << pos << ")" << endl;
+    RG_DEBUG << "slotAddTracks(" << nbTracks << ", " << pos << ")";
     m_trackEditor->addTracks(nbTracks, id, pos);
 }
 
 void RosegardenMainViewWidget::slotDeleteTracks(
     std::vector<TrackId> tracks)
 {
-    RG_DEBUG << "RosegardenMainViewWidget::slotDeleteTracks - "
-    << "deleting " << tracks.size() << " tracks"
-    << endl;
+    RG_DEBUG << "slotDeleteTracks() - deleting " << tracks.size() << " tracks";
 
     m_trackEditor->deleteTracks(tracks);
 }
@@ -1636,7 +1495,8 @@ RosegardenMainViewWidget::slotAddAudioSegmentCurrentPosition(AudioFileId audioFi
         const RealTime &startTime,
         const RealTime &endTime)
 {
-    std::cerr << "RosegardenMainViewWidget::slotAddAudioSegmentCurrentPosition(...) - slot firing as ordered, sir!" << std::endl;
+    RG_DEBUG << "slotAddAudioSegmentCurrentPosition(...) - slot firing as ordered, sir!";
+
     Composition &comp = getDocument()->getComposition();
 
     AudioSegmentInsertCommand *command =
@@ -1662,7 +1522,7 @@ RosegardenMainViewWidget::slotAddAudioSegmentDefaultPosition(AudioFileId audioFi
         const RealTime &startTime,
         const RealTime &endTime)
 {
-    RG_DEBUG << "RosegardenMainViewWidget::slotAddAudioSegmentDefaultPosition()..." << endl;
+    RG_DEBUG << "slotAddAudioSegmentDefaultPosition()...";
 
     // Add at current track if it's an audio track, otherwise at first
     // empty audio track if there is one, otherwise at first audio track.
@@ -1749,115 +1609,90 @@ RosegardenMainViewWidget::slotDroppedNewAudio(QString audioDesc)
         return;
     }
 
-    QTextStream s(&audioDesc, QIODevice::ReadWrite); //### use QIODevice::ReadOnly instead ?
-    
-    QString url;
+    QTextStream s(&audioDesc, QIODevice::ReadOnly);
+
+    QString url = s.readLine();
+
     int trackId;
-    timeT time;
-    url = s.readLine();
     s >> trackId;
+
+    timeT time;
     s >> time;
 
-    std::cerr << "RosegardenMainViewWidget::slotDroppedNewAudio: url " << url << ", trackId " << trackId << ", time " << time << std::endl;
+    RG_DEBUG << "slotDroppedNewAudio(): url " << url << ", trackId " << trackId << ", time " << time;
 
-    // RosegardenMainWindow *mainWindow = RosegardenMainWindow::self();
+    // If we don't have a valid path for audio files, bail.
+    if (!RosegardenMainWindow::self()->testAudioPath(tr("importing an audio file that needs to be converted or resampled")))
+        return;
+
+    // Progress Dialog
+    // Note: The label text and range will be set later as needed.
+    QProgressDialog progressDialog(
+            tr("Adding audio file..."),  // labelText
+            tr("Cancel"),  // cancelButtonText
+            0, 100,  // min, max
+            RosegardenMainWindow::self());  // parent
+    progressDialog.setWindowTitle(tr("Rosegarden"));
+    progressDialog.setWindowModality(Qt::WindowModal);
+    // Don't want to auto close since this is a multi-step
+    // process.  Any of the steps may set progress to 100.  We
+    // will close anyway when this object goes out of scope.
+    progressDialog.setAutoClose(false);
+    // Just force the progress dialog up.
+    // Both Qt4 and Qt5 have bugs related to delayed showing of progress
+    // dialogs.  In Qt4, the dialog sometimes won't show.  In Qt5, KDE
+    // based distros might lock up.  See Bug #1546.
+    progressDialog.show();
+
     AudioFileManager &aFM = getDocument()->getAudioFileManager();
+
+    aFM.setProgressDialog(&progressDialog);
+
+    // Flush the event queue.
+    qApp->processEvents(QEventLoop::AllEvents);
 
     AudioFileId audioFileId = 0;
 
-    int sampleRate = 0;
-    if (getDocument()->getSequenceManager()) {
-        sampleRate = getDocument()->getSequenceManager()->getSampleRate();
-    }
-
     QUrl qurl(url);
-    if (!RosegardenMainWindow::self()->testAudioPath(tr("importing an audio file that needs to be converted or resampled"))) {
-        return;
-    }
 
-    // from qt4-doc : " don't use a (modal) QProgressDialog inside a paintEvent() !"
-
-    //cc 20150508: because ProgressDialog has WA_DeleteOnClose set, it
-    // is destroyed if the user closes it during event processing --
-    // use a QPointer to avoid dereferencing it afterwards
-    QPointer<ProgressDialog> progressDlg =
-        new ProgressDialog(tr("Adding audio file..."),
-                           (QWidget*)this);
-    progressDlg->setIndeterminate(true);
-    
-    // warning: pointer &progressDlg becomes invalid, if function quits.
-    CurrentProgressDialog::set(progressDlg);
-    
-    // Connect the progress dialog
-    //
-    connect(&aFM, SIGNAL(setValue(int)),
-            progressDlg, SLOT(setValue(int)));
-    connect(&aFM, SIGNAL(setOperationName(QString)),
-            progressDlg, SLOT(setLabelText(QString)));
-    connect(progressDlg, SIGNAL(canceled()),
-            &aFM, SLOT(slotStopImport()));
+    int sampleRate = 0;
+    if (getDocument()->getSequenceManager())
+        sampleRate = getDocument()->getSequenceManager()->getSampleRate();
 
     try {
         audioFileId = aFM.importURL(qurl, sampleRate);
-    } catch (AudioFileManager::BadAudioPathException e) {
-        CurrentProgressDialog::freeze();
-        if (progressDlg) progressDlg->close(); 
+    } catch (const AudioFileManager::BadAudioPathException &e) {
         QString errorString = tr("Can't add dropped file. ") + strtoqstr(e.getMessage());
         QMessageBox::warning(this, tr("Rosegarden"), errorString);
         return ;
-    } catch (SoundFile::BadSoundFileException e) {
-        CurrentProgressDialog::freeze();
-        if (progressDlg) progressDlg->close(); 
+    } catch (const SoundFile::BadSoundFileException &e) {
         QString errorString = tr("Can't add dropped file. ") + strtoqstr(e.getMessage());
         QMessageBox::warning(this, tr("Rosegarden"), errorString);
         return;
     }
 
-    if (progressDlg) progressDlg->close(); 
-             
-    progressDlg = new ProgressDialog(tr("Generating audio preview..."),
-                               (QWidget*)this);
-
-    connect(progressDlg, SIGNAL(canceled()),
-            &aFM, SLOT(slotStopPreview()));
-    
     try {
         aFM.generatePreview(audioFileId);
-    } catch (Exception e) {
-        CurrentProgressDialog::freeze();
-        if (progressDlg) progressDlg->close(); 
+    } catch (const Exception &e) {
         QString message = strtoqstr(e.getMessage()) + "\n\n" +
                           tr("Try copying this file to a directory where you have write permission and re-add it");
         QMessageBox::information(this, tr("Rosegarden"), message);
         return;
     }
 
-    if (progressDlg) {
-        disconnect(progressDlg, SIGNAL(canceled()),
-                   &aFM, SLOT(slotStopPreview()));
-    }
-
     // add the file at the sequencer
     emit addAudioFile(audioFileId);
 
     // Now fetch file details
-    //
     AudioFile *aF = aFM.getAudioFile(audioFileId);
 
     if (aF) {
-        
-        RG_DEBUG << "RosegardenMainViewWidget::slotDroppedNewAudio("
-        << "file = " << url
-        << ", trackid = " << trackId
-        << ", time = " << time << endl;
-        
+        RG_DEBUG << "slotDroppedNewAudio(file = " << url << ", trackid = " << trackId << ", time = " << time;
+
+        // Add the audio segment to the Composition.
         slotAddAudioSegment(audioFileId, trackId, time,
                             RealTime(0, 0), aF->getLength());
-        
     }
-    
-    if (progressDlg) progressDlg->close();  // note: Qt::WA_DeleteOnClose set
-    CurrentProgressDialog::set(0);
 }
 
 void
@@ -1879,16 +1714,15 @@ RosegardenMainViewWidget::slotDroppedAudio(QString audioDesc)
     s >> endTime.sec;
     s >> endTime.nsec;
 
-    RG_DEBUG << "RosegardenMainViewWidget::slotDroppedAudio("
-    //<< audioDesc
-    << ") : audioFileId = " << audioFileId
-    << " - trackId = " << trackId
-    << " - position = " << position
-    << " - startTime.sec = " << startTime.sec
-    << " - startTime.nsec = " << startTime.nsec
-    << " - endTime.sec = " << endTime.sec
-    << " - endTime.nsec = " << endTime.nsec
-    << endl;
+    RG_DEBUG << "slotDroppedAudio("
+             //<< audioDesc
+             << ") : audioFileId = " << audioFileId
+             << " - trackId = " << trackId
+             << " - position = " << position
+             << " - startTime.sec = " << startTime.sec
+             << " - startTime.nsec = " << startTime.nsec
+             << " - endTime.sec = " << endTime.sec
+             << " - endTime.nsec = " << endTime.nsec;
 
     slotAddAudioSegment(audioFileId, trackId, position, startTime, endTime);
 }
@@ -1896,9 +1730,7 @@ RosegardenMainViewWidget::slotDroppedAudio(QString audioDesc)
 void
 RosegardenMainViewWidget::slotSetRecord(InstrumentId id, bool value)
 {
-    RG_DEBUG << "RosegardenMainViewWidget::slotSetRecord - "
-    << "id = " << id
-    << ",value = " << value << endl;
+    RG_DEBUG << "slotSetRecord() - id = " << id << ",value = " << value;
     /*
         // IPB
         //
@@ -1913,8 +1745,6 @@ RosegardenMainViewWidget::slotSetRecord(InstrumentId id, bool value)
         if (comp.getSelectedTrack() == (*it).second->getId()) {
             //!!! MTR            m_trackEditor->getTrackButtons()->
             //                setRecordTrack((*it).second->getPosition());
-            //!!! MTR is this needed? I think probably not
-            slotUpdateInstrumentParameterBox((*it).second->getInstrument());
         }
     }
 #endif
@@ -1925,9 +1755,7 @@ RosegardenMainViewWidget::slotSetRecord(InstrumentId id, bool value)
 void
 RosegardenMainViewWidget::slotSetSolo(InstrumentId id, bool value)
 {
-    RG_DEBUG << "RosegardenMainViewWidget::slotSetSolo - "
-    << "id = " << id
-    << ",value = " << value << endl;
+    RG_DEBUG << "slotSetSolo() - " << "id = " << id << ",value = " << value;
 
     emit toggleSolo(value);
 }
@@ -1938,7 +1766,7 @@ RosegardenMainViewWidget::slotUpdateRecordingSegment(Segment *segment,
 {
     // We're only interested in this on the first call per recording segment,
     // when we possibly create a view for it
-    static Segment *lastRecordingSegment = 0;
+    static Segment *lastRecordingSegment = nullptr;
 
     if (segment == lastRecordingSegment)
         return ;
@@ -1953,7 +1781,7 @@ RosegardenMainViewWidget::slotUpdateRecordingSegment(Segment *segment,
     if (tracking != 1)
         return ;
 
-    RG_DEBUG << "RosegardenMainViewWidget::slotUpdateRecordingSegment: segment is " << segment << ", lastRecordingSegment is " << lastRecordingSegment << ", opening a new view" << endl;
+    RG_DEBUG << "slotUpdateRecordingSegment(): segment is " << segment << ", lastRecordingSegment is " << lastRecordingSegment << ", opening a new view";
 
     std::vector<Segment *> segments;
     segments.push_back(segment);
@@ -1976,15 +1804,6 @@ RosegardenMainViewWidget::slotSynchroniseWithComposition()
     // Track buttons
     //
     m_trackEditor->getTrackButtons()->slotSynchroniseWithComposition();
-
-    // Update all IPBs
-    //
-    Composition &comp = getDocument()->getComposition();
-    Track *track = comp.getTrackById(comp.getSelectedTrack());
-    slotUpdateInstrumentParameterBox(track->getInstrument());
-
-    // Update the MatrixWidget's PitchRuler.
-    m_instrumentParameterBox->emitInstrumentPercussionSetChanged();
 }
 
 void
@@ -2012,7 +1831,7 @@ RosegardenMainViewWidget::slotActiveMainWindowChanged()
 void
 RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e)
 {
-    RG_DEBUG << "Controller device event received - send to " << (void *)m_lastActiveMainWindow << " (I am " << this << ")" << endl;
+    //RG_DEBUG << "slotControllerDeviceEventReceived() - send to " << (void *)m_lastActiveMainWindow << " (I am " << this << ")";
 
     //!!! So, what _should_ we do with these?
 
@@ -2051,8 +1870,12 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e)
             if (window < 10) { // me
 
                 show();
-                raise();
+
+                // Some window managers (e.g. GNOME) do not allow the
+                // application to change focus on the user.  So, this
+                // might not work.
                 activateWindow();
+                raise();
 
             } else if (window < 20) {
 
@@ -2083,10 +1906,15 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e, cons
 {
     if (preferredCustomer != this)
         return ;
-    RG_DEBUG << "RosegardenMainViewWidget::slotControllerDeviceEventReceived: this one's for me" << endl;
+
+    //RG_DEBUG << "slotControllerDeviceEventReceived(): this one's for me";
+
+    // Some window managers (e.g. GNOME) do not allow the application to
+    // change focus on the user.  So, this might not work.
+    activateWindow();
     raise();
 
-    RG_DEBUG << "Event is type: " << int(e->getType()) << ", channel " << int(e->getRecordedChannel()) << ", data1 " << int(e->getData1()) << ", data2 " << int(e->getData2()) << endl;
+    //RG_DEBUG << "  Event is type: " << int(e->getType()) << ", channel " << int(e->getRecordedChannel()) << ", data1 " << int(e->getData1()) << ", data2 " << int(e->getData2());
 
     Composition &comp = getDocument()->getComposition();
     Studio &studio = getDocument()->getStudio();
@@ -2113,7 +1941,8 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e, cons
             if (!instrument)
                 return ;
             instrument->setProgramChange(program);
-            instrument->changed();
+            instrument->sendChannelSetup();
+            RosegardenMainWindow::self()->getDocument()->slotDocumentModified();
         }
         return ;
     }
@@ -2130,6 +1959,11 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e, cons
             comp.notifyTrackSelectionChanged(track->getId());
 
             slotSelectTrackSegments(track->getId());
+
+            // Emit a documentModified(), but don't set the document
+            // modified flag.  This refreshes the UI but doesn't make
+            // the star appear in the titlebar.
+            RosegardenMainWindow::self()->getDocument()->emitDocumentModified();
         }
         return ;
     }
@@ -2148,16 +1982,18 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e, cons
     case Instrument::Midi: {
             MidiDevice *md = dynamic_cast<MidiDevice *>(instrument->getDevice());
             if (!md) {
-                std::cerr << "WARNING: MIDI instrument has no MIDI device in slotControllerDeviceEventReceived" << std::endl;
+                RG_WARNING << "slotControllerDeviceEventReceived(): WARNING: MIDI instrument has no MIDI device in slotControllerDeviceEventReceived";
                 return ;
             }
 
             ControlList cl = md->getControlParameters();
             for (ControlList::const_iterator i = cl.begin(); i != cl.end(); ++i) {
                 if ((*i).getControllerValue() == controller) {
-                    RG_DEBUG << "Setting controller " << controller << " for instrument " << instrument->getId() << " to " << value << endl;
+                    //RG_DEBUG << "  Setting controller " << controller << " for instrument " << instrument->getId() << " to " << value;
                     instrument->setControllerValue(controller, value);
-                    instrument->changed();
+                    Instrument::emitControlChange(instrument, controller);
+                    getDocument()->setModified();
+
                     break;
                 }
             }
@@ -2169,24 +2005,38 @@ RosegardenMainViewWidget::slotControllerDeviceEventReceived(MappedEvent *e, cons
 
         switch (controller) {
 
-        case MIDI_CONTROLLER_VOLUME:
-            RG_DEBUG << "Setting volume for instrument " << instrument->getId() << " to " << value << endl;
-            instrument->setLevel(AudioLevel::fader_to_dB
-                                 (value, 127, AudioLevel::ShortFader));
-            instrument->changed();
-            break;
+        case MIDI_CONTROLLER_VOLUME:  {
+            //RG_DEBUG << "  Setting volume for instrument " << instrument->getId() << " to " << value;
 
-        case MIDI_CONTROLLER_PAN:
-            RG_DEBUG << "Setting pan for instrument " << instrument->getId() << " to " << value << endl;
-            instrument->setControllerValue(MIDI_CONTROLLER_PAN, MidiByte((value / 64.0) * 100.0 + 0.01));
-            instrument->changed();
+            float dB = AudioLevel::fader_to_dB(
+                    value, 127, AudioLevel::ShortFader);
+
+            instrument->setLevel(dB);
+            Instrument::emitControlChange(instrument, MIDI_CONTROLLER_VOLUME);
+            getDocument()->setModified();
+
             break;
+        }
+
+        case MIDI_CONTROLLER_PAN:  {
+            //RG_DEBUG << "  Setting pan for instrument " << instrument->getId() << " to " << value;
+
+            float pan = (value / 64.0) * 100.0 + 0.01;
+
+            // This wants 0 to 200.
+            instrument->setControllerValue(MIDI_CONTROLLER_PAN, MidiByte(pan));
+            Instrument::emitControlChange(instrument, MIDI_CONTROLLER_PAN);
+            getDocument()->setModified();
+
+            break;
+        }
 
         default:
             break;
         }
         break;
 
+    case Instrument::InvalidInstrument:
     default:
         break;
     }
@@ -2210,11 +2060,11 @@ RosegardenMainViewWidget::createEventView(std::vector<Segment *> segmentsToEdit)
     connect(eventView, SIGNAL(windowActivated()),
         this, SLOT(slotActiveMainWindowChanged()));
 
-    connect(eventView, SIGNAL(selectTrack(int)),
-            this, SLOT(slotSelectTrackSegments(int)));
+    connect(eventView, &EditViewBase::selectTrack,
+            this, &RosegardenMainViewWidget::slotSelectTrackSegments);
 
-    connect(eventView, SIGNAL(saveFile()),
-        RosegardenMainWindow::self(), SLOT(slotFileSave()));
+    connect(eventView, &EditViewBase::saveFile,
+        RosegardenMainWindow::self(), &RosegardenMainWindow::slotFileSave);
 
     connect(eventView, SIGNAL(openInNotation(std::vector<Segment *>)),
         this, SLOT(slotEditSegmentsNotation(std::vector<Segment *>)));
@@ -2224,14 +2074,14 @@ RosegardenMainViewWidget::createEventView(std::vector<Segment *> segmentsToEdit)
         this, SLOT(slotEditSegmentsPercussionMatrix(std::vector<Segment *>)));
     connect(eventView, SIGNAL(openInEventList(std::vector<Segment *>)),
         this, SLOT(slotEditSegmentsEventList(std::vector<Segment *>)));
-    connect(eventView, SIGNAL(editTriggerSegment(int)),
-        this, SLOT(slotEditTriggerSegment(int)));
-    connect(this, SIGNAL(compositionStateUpdate()),
-        eventView, SLOT(slotCompositionStateUpdate()));
-    connect(RosegardenMainWindow::self(), SIGNAL(compositionStateUpdate()),
-        eventView, SLOT(slotCompositionStateUpdate()));
-    connect(eventView, SIGNAL(toggleSolo(bool)),
-            RosegardenMainWindow::self(), SLOT(slotToggleSolo(bool)));
+    connect(eventView, &EventView::editTriggerSegment,
+        this, &RosegardenMainViewWidget::slotEditTriggerSegment);
+    connect(this, &RosegardenMainViewWidget::compositionStateUpdate,
+        eventView, &EditViewBase::slotCompositionStateUpdate);
+    connect(RosegardenMainWindow::self(), &RosegardenMainWindow::compositionStateUpdate,
+        eventView, &EditViewBase::slotCompositionStateUpdate);
+    connect(eventView, &EditViewBase::toggleSolo,
+            RosegardenMainWindow::self(), &RosegardenMainWindow::slotToggleSolo);
 
     // create keyboard shortcuts on view
     //
@@ -2257,4 +2107,3 @@ bool RosegardenMainViewWidget::hasNonAudioSegment(const SegmentSelection &segmen
 
 
 }
-#include "RosegardenMainViewWidget.moc"

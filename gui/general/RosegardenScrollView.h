@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -17,6 +17,8 @@
 
 #ifndef RG_ROSEGARDENSCROLLVIEW_H
 #define RG_ROSEGARDENSCROLLVIEW_H
+
+#include "gui/general/AutoScroller.h"
 
 #include <QAbstractScrollArea>
 #include <QDateTime>
@@ -77,28 +79,12 @@ public:
 
     void updateContents();
 
-    /// Follow Mode
-    /**
-     * Derivers from SegmentTool override SegmentTool::handleMouseMove() and
-     * return an OR-ed combination of these to indicate the auto-scroll
-     * direction.
-     *
-     * See MatrixTool::FollowMode, NotationTool::FollowMode, and
-     * ControlTool::FollowMode.
-     *
-     * Would this make more sense in SegmentTool?
-     */
-    enum FollowMode {
-        NoFollow = 0x0,
-        FollowHorizontal = 0x1,
-        FollowVertical = 0x2
-    };
+    void startAutoScroll();
+    void setFollowMode(FollowMode followMode)
+            { m_autoScroller.setFollowMode(followMode); }
+    void stopAutoScroll();
 
-    /**
-     * Called by TrackEditor::handleAutoScroll().
-     */
-    void doAutoScroll();
-    bool isAutoScrolling() const  { return m_autoScrolling; }
+    bool isAutoScrolling() const  { return m_autoScroller.isRunning(); }
 
     /// Playback scrolling.
     /**
@@ -117,15 +103,6 @@ public:
      * selected track.
      */
     void scrollVert(int y);
-
-public slots:
-    /// Handle top and bottom StandardRuler::startMouseMove() signals.
-    /**
-     * See enum FollowMode for valid mask values.
-     */
-    void slotStartAutoScroll(int followMode);
-    /// Handle top and bottom StandardRuler::stopMouseMove() signals.
-    void slotStopAutoScroll();
 
 signals:
     /// Used by TrackEditor to keep TrackButtons the right size.
@@ -156,19 +133,10 @@ protected:
 
     void updateContents(const QRect &);
 
-    /// See enum FollowMode.
-    void setFollowMode(int followMode)  { m_followMode = followMode; }
-    void startAutoScroll();
-
     /// Viewport resize.
-    virtual void resizeEvent(QResizeEvent *);
+    void resizeEvent(QResizeEvent *) override;
 
-    virtual void wheelEvent(QWheelEvent *);
-
-private slots:
-
-    /// Handler for m_autoScrollTimer.
-    void slotOnAutoScrollTimer();
+    void wheelEvent(QWheelEvent *) override;
 
 private:
 
@@ -190,17 +158,7 @@ private:
 
     // *** Auto Scrolling
 
-    /// Convert a distance outside the viewport into a scroll rate.
-    double distanceToScrollRate(int distance);
-
-    /// Calls slotOnAutoScrollTimer().
-    QTimer m_autoScrollTimer;
-    /// m_autoScrollTimer interval.
-    static const int AutoScrollTimerInterval;
-
-    /// See enum FollowMode for valid mask values.
-    int m_followMode;
-    bool m_autoScrolling;
+    AutoScroller m_autoScroller;
 
 };
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -70,7 +70,7 @@ FileMergeDialog::FileMergeDialog(QWidget *parent,
     hbox->setLayout(hboxLayout);
     m_choice->addItem(tr("At start of existing composition"));
     m_choice->addItem(tr("From end of existing composition"));
-    m_useTimings = 0;
+    m_useTimings = nullptr;
 
     if (timingsDiffer) {
         new QLabel(tr("The file has different time signatures or tempos."), vbox);
@@ -82,9 +82,9 @@ FileMergeDialog::FileMergeDialog(QWidget *parent,
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Help);
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &FileMergeDialog::slotHelpRequested);
 }
 
 int
@@ -116,4 +116,3 @@ FileMergeDialog::slotHelpRequested()
     QDesktopServices::openUrl(QUrl(helpURL));
 }
 }
-#include "FileMergeDialog.moc"

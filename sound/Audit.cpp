@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -13,7 +13,11 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[Audit]"
+
 #include "Audit.h"
+
+#include "misc/Debug.h"
 
 namespace Rosegarden
 {
@@ -21,7 +25,6 @@ namespace Rosegarden
 Audit::~Audit()
 {
     std::string s = str();
-    std::cerr << s;
     m_audit += s;
 }
 

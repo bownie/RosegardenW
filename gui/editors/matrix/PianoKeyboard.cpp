@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[PianoKeyboard]"
 
 #include "PianoKeyboard.h"
 #include "misc/Debug.h"
@@ -45,22 +46,15 @@ PianoKeyboard::PianoKeyboard(QWidget *parent, int keys)
         m_blackKeySize(24, 8),
         m_nbKeys(keys),
         m_mouseDown(false),
-        m_hoverHighlight(new QWidget(this)),
-        m_lastHoverHighlight(-1),
+        m_highlight(new QWidget(this)),
+        m_lastHighlightPitch(-1),
         m_lastKeyPressed(0)
 {
-    m_hoverHighlight->hide();
-//    m_hoverHighlight->setPaletteBackgroundColor(GUIPalette::getColour(GUIPalette::MatrixKeyboardFocus));
-    QColor c = GUIPalette::getColour(GUIPalette::MatrixKeyboardFocus);
-    int r, g, b, a;
-    c.getRgb(&r, &g, &b, &a);
-    QString colorStr = QString("rgba(%1, %2, %3, %4)").arg(r).arg(g).arg(b).arg(a);
-    QString localStyle = QString("background: %1").arg(colorStr);
-    m_hoverHighlight->setStyleSheet(localStyle);
-
-//    setPaletteBackgroundColor(QColor(238, 238, 224));
-    localStyle = "background: rgb(238, 238, 224); color: black;";
-    setStyleSheet(localStyle);
+    m_highlight->hide();
+    QPalette highlightPalette = m_highlight->palette();
+    highlightPalette.setColor(QPalette::Window, GUIPalette::getColour(GUIPalette::MatrixKeyboardFocus));
+    m_highlight->setPalette(highlightPalette);
+    m_highlight->setAutoFillBackground(true);
 
     computeKeyPos();
     setMouseTracking(true);
@@ -129,7 +123,7 @@ void PianoKeyboard::computeKeyPos()
 
 void PianoKeyboard::paintEvent(QPaintEvent*)
 {
-    static QFont *pFont = 0;
+    static QFont *pFont = nullptr;
     if (!pFont) {
         pFont = new QFont();
         pFont->setPixelSize(9);
@@ -137,11 +131,20 @@ void PianoKeyboard::paintEvent(QPaintEvent*)
 
     QPainter paint(this);
 
-    paint.setFont(*pFont);
+    // Fill the keyboard with ivory.
+    paint.fillRect(rect(), QColor(255, 255, 240));
+
+    // White Keys
+
+    paint.setPen(Qt::black);
 
     for (unsigned int i = 0; i < m_whiteKeyPos.size(); ++i)
         paint.drawLine(0, m_whiteKeyPos[i],
                        m_keySize.width(), m_whiteKeyPos[i]);
+
+    // White Key Labels
+
+    paint.setFont(*pFont);
 
     for (unsigned int i = 0; i < m_labelKeyPos.size(); ++i) {
 
@@ -156,7 +159,9 @@ void PianoKeyboard::paintEvent(QPaintEvent*)
                        label.getQString());
     }
 
-    paint.setBrush(palette().foreground());
+    // Black Keys
+
+    paint.setBrush(Qt::black);
 
     for (unsigned int i = 0; i < m_blackKeyPos.size(); ++i)
         paint.drawRect(0, m_blackKeyPos[i],
@@ -165,12 +170,12 @@ void PianoKeyboard::paintEvent(QPaintEvent*)
 
 void PianoKeyboard::enterEvent(QEvent *)
 {
-    //drawHoverNote(e->y());
+    //showHighlight(e->y());
 }
 
 void PianoKeyboard::leaveEvent(QEvent*)
 {
-    hideHoverNote();
+    hideHighlight();
 
     int pos = mapFromGlobal( cursor().pos() ).x();
     if ( pos > m_keySize.width() - 5 || pos < 0 ) { // bit of a hack
@@ -178,11 +183,12 @@ void PianoKeyboard::leaveEvent(QEvent*)
     }
 }
 
-void PianoKeyboard::drawHoverNote(int evPitch)
+void PianoKeyboard::showHighlight(int evPitch)
 {
-    if (m_lastHoverHighlight != evPitch) {
-        //MATRIX_DEBUG << "PianoKeyboard::drawHoverNote : note = " << evPitch << endl;
-        m_lastHoverHighlight = evPitch;
+    if (m_lastHighlightPitch != evPitch) {
+        //RG_DEBUG << "showHighlight() : note = " << evPitch;
+
+        m_lastHighlightPitch = evPitch;
 
         int count = 0;
         std::vector<unsigned int>::iterator it;
@@ -217,7 +223,7 @@ void PianoKeyboard::drawHoverNote(int evPitch)
                             tIt = wIt;
 
                             if (++tIt != m_whiteKeyPos.end()) {
-                                //MATRIX_DEBUG << "WHITE KEY HEIGHT = " << *tIt - *wIt << endl;
+                                //MATRIX_DEBUG << "WHITE KEY HEIGHT = " << *tIt - *wIt;
                                 if (*tIt - *wIt == whiteKeyHeight) {
                                     yPos += 2;
                                 }
@@ -231,9 +237,9 @@ void PianoKeyboard::drawHoverNote(int evPitch)
 
                 }
 
-                m_hoverHighlight->setFixedSize(width, 4);
-                m_hoverHighlight->move(3, yPos);
-                m_hoverHighlight->show();
+                m_highlight->setFixedSize(width, 4);
+                m_highlight->move(3, yPos);
+                m_highlight->show();
 
                 return ;
             }
@@ -241,10 +247,10 @@ void PianoKeyboard::drawHoverNote(int evPitch)
     }
 }
 
-void PianoKeyboard::hideHoverNote()
+void PianoKeyboard::hideHighlight()
 {
-    m_hoverHighlight->hide();
-    m_lastHoverHighlight = -1;
+    m_highlight->hide();
+    m_lastHighlightPitch = -1;
 }
 
 void PianoKeyboard::mouseMoveEvent(QMouseEvent* e)
@@ -291,4 +297,3 @@ void PianoKeyboard::mouseReleaseEvent(QMouseEvent *e)
 }
 
 }
-#include "PianoKeyboard.moc"

@@ -2,7 +2,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -53,13 +53,13 @@ public:
     /**
     * Default constructor.
     */
-    explicit SqueezedLabel(QWidget *parent = 0);
-    explicit SqueezedLabel(const QString &text, QWidget *parent = 0);
+    explicit SqueezedLabel(QWidget *parent = nullptr);
+    explicit SqueezedLabel(const QString &text, QWidget *parent = nullptr);
 
-    virtual ~SqueezedLabel();
+    ~SqueezedLabel() override;
 
-    virtual QSize minimumSizeHint() const;
-    virtual QSize sizeHint() const;
+    QSize minimumSizeHint() const override;
+    QSize sizeHint() const override;
     /**
     * Overridden for internal reasons; the API remains unaffected.
     */
@@ -104,11 +104,11 @@ protected:
     /**
     * Called when widget is resized
     */
-    void resizeEvent(QResizeEvent *);
+    void resizeEvent(QResizeEvent *) override;
     /**
     * \reimp
     */
-    void contextMenuEvent(QContextMenuEvent*);
+    void contextMenuEvent(QContextMenuEvent*) override;
     /**
     * does the dirty work
     */

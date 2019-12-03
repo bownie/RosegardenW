@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -21,7 +21,6 @@
 // 
 //
 
-#include <iostream>
 #include <fstream>
 #include <string>
 
@@ -33,24 +32,7 @@
 namespace Rosegarden
 {
 
-
-// Constants related to RIFF/WAV files
-//
-const std::string AUDIO_RIFF_ID = "RIFF";
-const std::string AUDIO_WAVE_ID = "WAVE";
-const std::string AUDIO_FORMAT_ID = "fmt ";   // Always four bytes
-
-const std::string AUDIO_BWF_ID = "bext";       // BWF chunk id
-const std::string AUDIO_BWF_PEAK_ID = "levl";  // BWF peak chunk id
-
-
-const float SAMPLE_MAX_8BIT  = (float)(0xff);
-const float SAMPLE_MAX_16BIT = (float)(0xffff/2);
-const float SAMPLE_MAX_24BIT = (float)(0xffffff/2);
-
-
-
-typedef unsigned char FileByte; 
+typedef unsigned char FileByte;
 
 class SoundFile
 {
@@ -70,7 +52,7 @@ public:
         BadSoundFileException(QString path, QString file, int line) :
             Exception(QObject::tr("Bad sound file ") + path, file, line), m_path(path) { }
 
-        ~BadSoundFileException() throw() { }
+        ~BadSoundFileException() throw() override { }
 
         QString getPath() const { return m_path; }
 

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,63 +20,80 @@
 #define RG_SEGMENTSELECTOR_H
 
 #include "SegmentTool.h"
+
 #include <QPoint>
 #include <QString>
 
-
 class QMouseEvent;
-
+class QKeyEvent;
 
 namespace Rosegarden
 {
 
+
 class RosegardenDocument;
 class CompositionView;
 
-
+/// The "Select and Edit (F2)" arrow tool
+/**
+ * ??? rename: SelectAndEditTool
+ */
 class SegmentSelector : public SegmentTool
 {
     Q_OBJECT
 
-    friend class SegmentToolBox;
-    friend class SegmentTool;
-
 public:
+    static QString ToolName();
 
-    virtual ~SegmentSelector();
+    SegmentSelector(CompositionView *, RosegardenDocument *);
+    ~SegmentSelector() override;
 
-    virtual void ready();
-    virtual void stow();
+    /// Called when this tool becomes the active tool.
+    void ready() override;
+    void stow()  override { }
 
-    virtual void mousePressEvent(QMouseEvent *);
-    virtual int mouseMoveEvent(QMouseEvent *);
-    virtual void mouseReleaseEvent(QMouseEvent *);
+    void mousePressEvent(QMouseEvent *) override;
+    int mouseMoveEvent(QMouseEvent *) override;
+    void mouseReleaseEvent(QMouseEvent *) override;
+    void keyPressEvent(QKeyEvent *) override;
+    void keyReleaseEvent(QKeyEvent *) override;
 
-    bool isSegmentAdding() const { return m_segmentAddMode; }
-    bool isSegmentCopying() const { return m_segmentCopyMode; }
+    // Unused
+    //bool isSegmentAdding() const { return m_segmentAddMode; }
+    //bool isSegmentCopying() const { return m_segmentCopyMode; }
 
-    static const QString ToolName;
-
-protected:
-    SegmentSelector(CompositionView*, RosegardenDocument*);
-
-    void setContextHelpFor(QPoint p, bool ctrlPressed = false);
+private:
+    void setContextHelpFor(QPoint pos, Qt::KeyboardModifiers modifiers = nullptr);
 
     //--------------- Data members ---------------------------------
 
-    bool m_segmentAddMode;
-    bool m_segmentCopyMode;
-    bool m_segmentCopyingAsLink;
+    /// Recorded by mousePressEvent().
     QPoint m_clickPoint;
-    bool m_segmentQuickCopyDone;
+
+    QPoint m_lastMousePos;
+
+    /// Shift
+    bool m_segmentAddMode;
+    /// Ctrl
+    bool m_segmentCopyMode;
+    /// Alt+Ctrl
+    bool m_segmentCopyingAsLink;
+
+    /// The mouse has moved enough that we can start moving segments.
     bool m_passedInertiaEdge;
-    bool m_buttonPressed;
+
+    /// Set to true after move makes copies.
+    bool m_segmentQuickCopyDone;
+
+    /// Whether we've notified CompositionModelImpl that things are changing.
     bool m_selectionMoveStarted;
+
+    /// Set by mouse move when segments have moved.
     bool m_changeMade;
 
+    /// Secondary tool for resizing or creating new segments.
     SegmentTool *m_dispatchTool;
 };
-
 
 
 }

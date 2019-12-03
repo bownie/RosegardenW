@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -54,13 +54,13 @@ namespace Rosegarden
 using namespace BaseProperties;
 
 MatrixScene::MatrixScene() :
-    m_widget(0),
-    m_document(0),
-    m_scale(0),
-    m_referenceScale(0),
-    m_snapGrid(0),
+    m_widget(nullptr),
+    m_document(nullptr),
+    m_scale(nullptr),
+    m_referenceScale(nullptr),
+    m_snapGrid(nullptr),
     m_resolution(8),
-    m_selection(0),
+    m_selection(nullptr),
     m_currentSegmentIndex(0)
 {
     connect(CommandHistory::getInstance(), SIGNAL(commandExecuted()),
@@ -82,14 +82,9 @@ MatrixScene::~MatrixScene()
     delete m_snapGrid;
     delete m_referenceScale;
     delete m_scale;
+    delete m_selection;
 
     RG_DEBUG << "MatrixScene::~MatrixScene() - end";
-}
-
-void
-MatrixScene::setMatrixWidget(MatrixWidget *w)
-{
-    m_widget = w;
 }
 
 void
@@ -192,7 +187,7 @@ MatrixScene::setSegments(RosegardenDocument *document,
 Segment *
 MatrixScene::getCurrentSegment()
 {
-    if (m_segments.empty()) return 0;
+    if (m_segments.empty()) return nullptr;
     if (m_currentSegmentIndex >= int(m_segments.size())) {
         m_currentSegmentIndex = int(m_segments.size()) - 1;
     }
@@ -210,28 +205,27 @@ MatrixScene::setCurrentSegment(Segment *s)
             return;
         }
     }
-    std::cerr << "WARNING: MatrixScene::setCurrentSegment: unknown segment "
-              << s << std::endl;
+    RG_WARNING << "WARNING: MatrixScene::setCurrentSegment: unknown segment" << s;
 }
 
 Segment *
 MatrixScene::getPriorSegment()
 {
-    if (m_currentSegmentIndex == 0) return 0;
+    if (m_currentSegmentIndex == 0) return nullptr;
     return m_segments[m_currentSegmentIndex-1];
 }
 
 Segment *
 MatrixScene::getNextSegment()
 {
-    if ((unsigned int) m_currentSegmentIndex + 1 >= m_segments.size()) return 0;
+    if ((unsigned int) m_currentSegmentIndex + 1 >= m_segments.size()) return nullptr;
     return m_segments[m_currentSegmentIndex+1];
 }
 
 MatrixViewSegment *
 MatrixScene::getCurrentViewSegment()
 {
-    if (m_viewSegments.empty()) return 0;
+    if (m_viewSegments.empty()) return nullptr;
     return m_viewSegments[0];
 }
 
@@ -420,8 +414,7 @@ MatrixScene::recreatePitchHighlights()
         if (!segment->getNextKeyTime(k0, k1)) k1 = segment->getEndMarkerTime();
 
         if (k0 == k1) {
-            std::cerr << "WARNING: MatrixScene::recreatePitchHighlights: k0 == k1 == "
-                      << k0 << std::endl;
+            RG_WARNING << "WARNING: MatrixScene::recreatePitchHighlights: k0 == k1 ==" << k0;
             break;
         }
 
@@ -500,10 +493,10 @@ MatrixScene::setupMouseEvent(QGraphicsSceneMouseEvent *e,
     mme.modifiers = e->modifiers();
     mme.buttons = e->buttons();
 
-    mme.element = 0;
+    mme.element = nullptr;
 
     QList<QGraphicsItem *> l = items(e->scenePos());
-//    MATRIX_DEBUG << "Found " << l.size() << " items at " << e->scenePos() << endl;
+//    MATRIX_DEBUG << "Found " << l.size() << " items at " << e->scenePos();
     for (int i = 0; i < l.size(); ++i) {
         MatrixElement *element = MatrixElement::getMatrixElement(l[i]);
         if (element) {
@@ -603,22 +596,32 @@ MatrixScene::slotCommandExecuted()
 void
 MatrixScene::checkUpdate()
 {
+    bool updateSelectionElementStatus = false;
+
     for (unsigned int i = 0; i < m_viewSegments.size(); ++i) {
 
         SegmentRefreshStatus &rs = m_viewSegments[i]->getRefreshStatus();
-        
+
         if (rs.needsRefresh()) {
             m_viewSegments[i]->updateElements(rs.from(), rs.to());
+            if (!updateSelectionElementStatus && m_selection) {
+                updateSelectionElementStatus =
+                    (m_viewSegments[i]->getSegment() == m_selection->getSegment());
+            }
         }
-            
+
         rs.setNeedsRefresh(false);
+    }
+
+    if (updateSelectionElementStatus) {
+        setSelectionElementStatus(m_selection, true);
     }
 }
 
 void
 MatrixScene::segmentEndMarkerTimeChanged(const Segment *, bool)
 {
-    MATRIX_DEBUG << "MatrixScene::segmentEndMarkerTimeChanged" << endl;
+    MATRIX_DEBUG << "MatrixScene::segmentEndMarkerTimeChanged";
     recreateLines();
 }
 
@@ -631,7 +634,7 @@ MatrixScene::timeSignatureChanged(const Composition *c)
 void
 MatrixScene::segmentRemoved(const Composition *c, Segment *s)
 {
-    MATRIX_DEBUG << "MatrixScene::segmentRemoved(" << c << "," << s << ")" << endl;
+    MATRIX_DEBUG << "MatrixScene::segmentRemoved(" << c << "," << s << ")";
 
     if (!m_document || !c || (c != &m_document->getComposition())) return;
 
@@ -646,7 +649,7 @@ MatrixScene::segmentRemoved(const Composition *c, Segment *s)
     }
 
     if (m_viewSegments.empty()) {
-        MATRIX_DEBUG << "(Scene is now empty)" << endl;
+        MATRIX_DEBUG << "(Scene is now empty)";
         emit sceneDeleted();
     }
 }
@@ -666,6 +669,7 @@ MatrixScene::handleEventRemoved(Event *e)
     if (e->getType() == Rosegarden::Key::EventType) {
         recreatePitchHighlights();
     }
+    update();
     emit eventRemoved(e);
 }
 
@@ -693,18 +697,18 @@ MatrixScene::setSelection(EventSelection *s, bool preview)
 
     if (m_selection) {
         setSelectionElementStatus(m_selection, true);
-        emit selectionChanged();
+        emit QGraphicsScene::selectionChanged();
     }
 
     if (preview) previewSelection(m_selection, oldSelection);
     delete oldSelection;
-    emit selectionChanged();
+    emit QGraphicsScene::selectionChanged();
 }
 
 void
 MatrixScene::slotRulerSelectionChanged(EventSelection *s)
 {
-    std::cout << "MatrixScene: caught " << (s ? "useful" : "null" ) << " selection change from ruler" << std::endl;
+    RG_DEBUG << "MatrixScene: caught " << (s ? "useful" : "null" ) << " selection change from ruler";
     if (m_selection) {
         if (s) m_selection->addFromSelection(s);
         setSelectionElementStatus(m_selection, true);
@@ -755,7 +759,7 @@ MatrixScene::setSelectionElementStatus(EventSelection *s, bool set)
 {
     if (!s) return;
 
-    MatrixViewSegment *vs = 0;
+    MatrixViewSegment *vs = nullptr;
 
     for (std::vector<MatrixViewSegment *>::iterator i = m_viewSegments.begin();
          i != m_viewSegments.end(); ++i) {
@@ -786,6 +790,7 @@ MatrixScene::previewSelection(EventSelection *s,
                               EventSelection *oldSelection)
 {
     if (!s) return;
+    if (!m_document->isSoundEnabled()) return;
 
     for (EventSelection::eventcontainer::iterator i = s->getSegmentEvents().begin();
          i != s->getSegmentEvents().end(); ++i) {
@@ -808,7 +813,7 @@ MatrixScene::previewSelection(EventSelection *s,
 void
 MatrixScene::updateCurrentSegment()
 {
-    MATRIX_DEBUG << "MatrixScene::updateCurrentSegment: current is " << m_currentSegmentIndex << endl;
+    MATRIX_DEBUG << "MatrixScene::updateCurrentSegment: current is " << m_currentSegmentIndex;
     for (int i = 0; i < (int)m_viewSegments.size(); ++i) {
         bool current = (i == m_currentSegmentIndex);
         ViewElementList *vel = m_viewSegments[i]->getViewElementList();
@@ -828,7 +833,7 @@ MatrixScene::updateCurrentSegment()
 void
 MatrixScene::setSnap(timeT t)
 {
-    MATRIX_DEBUG << "MatrixScene::slotSetSnap: time is " << t << endl;
+    MATRIX_DEBUG << "MatrixScene::slotSetSnap: time is " << t;
     m_snapGrid->setSnapTime(t);
 
     for (size_t i = 0; i < m_segments.size(); ++i) {
@@ -880,7 +885,7 @@ void
 MatrixScene::playNote(Segment &segment, int pitch, int velocity)
 {
 //    std::cout << "Scene is playing a note of pitch: " << pitch
-//              << " + " <<  segment.getTranspose() << std::endl;
+//              << " + " <<  segment.getTranspose();
     if (!m_document) return;
 
     Instrument *instrument = m_document->getStudio().getInstrumentFor(&segment);
@@ -888,10 +893,9 @@ MatrixScene::playNote(Segment &segment, int pitch, int velocity)
     StudioControl::playPreviewNote(instrument,
                                    pitch + segment.getTranspose(),
                                    velocity,
-                                   250000000);
+                                   RealTime(0, 250000000));
 }
 
 }
 
-#include "MatrixScene.moc"
 

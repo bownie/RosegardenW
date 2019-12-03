@@ -2,7 +2,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2014 the Rosegarden development team.
+  Copyright 2000-2018 the Rosegarden development team.
  
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -13,7 +13,6 @@
 
 #include "AlsaPort.h"
 
-#include <iostream>
 #include <cstdlib>
 #include <cstdio>
 
@@ -59,7 +58,8 @@ AlsaPortDescription::AlsaPortDescription(Instrument::InstrumentType type,
 
 
 bool
-AlsaPortCmp::operator()(AlsaPortDescription *a1, AlsaPortDescription *a2)
+AlsaPortCmp::operator()(QSharedPointer<AlsaPortDescription> a1,
+                        QSharedPointer<AlsaPortDescription> a2)
 {
     // Ordering for ALSA ports in the list:
     //

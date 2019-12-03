@@ -3,9 +3,9 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2012 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
-
+ 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
@@ -70,7 +70,7 @@ AudioThread::AudioThread(std::string name,
         m_name(name),
         m_driver(driver),
         m_sampleRate(sampleRate),
-        //m_thread(0),
+        m_thread(0),
         m_running(false),
         m_exiting(false)
 {
@@ -87,6 +87,18 @@ AudioThread::AudioThread(std::string name,
 
 AudioThread::~AudioThread()
 {
+#ifdef DEBUG_THREAD_CREATE_DESTROY
+    std::cerr << "AudioThread::~AudioThread() [" << m_name << "]" << std::endl;
+#endif
+
+    if (m_thread) {
+        pthread_mutex_destroy(&m_lock);
+        m_thread = 0;
+    }
+
+#ifdef DEBUG_THREAD_CREATE_DESTROY
+    std::cerr << "AudioThread::~AudioThread() exiting" << std::endl;
+#endif
 }
 
 void
@@ -134,7 +146,7 @@ AudioThread::run()
 
         pthread_attr_init(&attr);
         pthread_attr_setstacksize(&attr, 1048576);
-        //rv = pthread_create(&m_thread, &attr, staticThreadRun, this);
+        rv = pthread_create(&m_thread, &attr, staticThreadRun, this);
     }
 
     if (rv != 0) {
@@ -161,7 +173,7 @@ AudioThread::terminate()
 
     m_running = false;
 
-    /*if (m_thread) {
+    if (m_thread) {
 
         pthread_cancel(m_thread);
 
@@ -170,7 +182,7 @@ AudioThread::terminate()
         std::cerr << name << "::terminate(): cancel requested" << std::endl;
 #endif
 
-        int rv = pthread_join(m_thread, 0);
+        int rv = pthread_join(m_thread, nullptr);
         rv = rv; // shut up compiler warning when the code below is not compiled
 
 #ifdef DEBUG_THREAD_CREATE_DESTROY
@@ -179,7 +191,7 @@ AudioThread::terminate()
 #endif
 
     }
-*/
+
 #ifdef DEBUG_THREAD_CREATE_DESTROY
     std::cerr << name << "::terminate(): done" << std::endl;
 #endif
@@ -190,9 +202,9 @@ AudioThread::staticThreadRun(void *arg)
 {
     AudioThread *inst = static_cast<AudioThread *>(arg);
     if (!inst)
-        return 0;
+        return nullptr;
 
-   // pthread_cleanup_push(staticThreadCleanup, arg);
+    pthread_cleanup_push(staticThreadCleanup, arg);
 
     inst->getLock();
     inst->m_exiting = false;
@@ -204,11 +216,10 @@ AudioThread::staticThreadRun(void *arg)
 #endif
 
     inst->releaseLock();
-    //pthread_cleanup_pop(0);
+    pthread_cleanup_pop(0);
 
-    return 0;
+    return nullptr;
 }
-
 
 void
 AudioThread::staticThreadCleanup(void *arg)
@@ -467,6 +478,7 @@ AudioBussMixer::setBussLevels(int bussId, float dB, float pan)
 
     float volume = AudioLevel::dB_to_multiplier(dB);
 
+     // Basic balance control.  Panning laws are not applied to submasters.
     rec.gainLeft = volume * ((pan > 0.0) ? (1.0 - (pan / 100.0)) : 1.0);
     rec.gainRight = volume * ((pan < 0.0) ? ((pan + 100.0) / 100.0) : 1.0);
 }
@@ -551,7 +563,6 @@ AudioBussMixer::processBlocks()
     int synthInstruments;
     m_driver->getSoftSynthInstrumentNumbers(synthInstrumentBase, synthInstruments);
 
-  /*
     bool *processedInstruments = (bool *)alloca
                                  ((audioInstruments + synthInstruments) * sizeof(bool));
 
@@ -801,7 +812,7 @@ AudioBussMixer::processBlocks()
         }
     }
 
-*/
+
 #ifdef DEBUG_BUSS_MIXER
     std::cerr << "AudioBussMixer::processBlocks: done" << std::endl;
 #endif
@@ -822,7 +833,7 @@ AudioBussMixer::threadRun()
             t = RealTime(0, 10000000); // 10ms minimum
 
         struct timeval now;
-        gettimeofday(&now, 0);
+        gettimeofday(&now, nullptr);
         t = t + RealTime(now.tv_sec, now.tv_usec * 1000);
 
         struct timespec timeout;
@@ -841,7 +852,7 @@ AudioInstrumentMixer::AudioInstrumentMixer(SoundDriver *driver,
         unsigned int blockSize) :
         AudioThread("AudioInstrumentMixer", driver, sampleRate),
         m_fileReader(fileReader),
-        m_bussMixer(0),
+        m_bussMixer(nullptr),
         m_blockSize(blockSize)
 {
     // Pregenerate empty plugin slots
@@ -864,11 +875,11 @@ AudioInstrumentMixer::AudioInstrumentMixer(SoundDriver *driver,
 
         PluginList &list = m_plugins[id];
         for (int j = 0; j < int(Instrument::PLUGIN_COUNT); ++j) {
-            list.push_back(0);
+            list.push_back(nullptr);
         }
 
         if (i >= audioInstruments) {
-            m_synths[id] = 0;
+            m_synths[id] = nullptr;
         }
     }
 
@@ -912,7 +923,7 @@ AudioInstrumentMixer::setPlugin(InstrumentId id, int position, QString identifie
         channels = m_bufferMap[id].channels;
     }
 
-    RunnablePluginInstance *instance = 0;
+    RunnablePluginInstance *instance = nullptr;
 
     PluginFactory *factory = PluginFactory::instanceFor(identifier);
     if (factory) {
@@ -926,14 +937,14 @@ AudioInstrumentMixer::setPlugin(InstrumentId id, int position, QString identifie
             std::cerr << "AudioInstrumentMixer::setPlugin(" << id << ", " << position
                       << ": instance is not OK" << std::endl;
             delete instance;
-            instance = 0;
+            instance = nullptr;
         }
     } else {
         std::cerr << "AudioInstrumentMixer::setPlugin: No factory for identifier "
                   << identifier << std::endl;
     }
 
-    RunnablePluginInstance *oldInstance = 0;
+    RunnablePluginInstance *oldInstance = nullptr;
 
     if (position == int(Instrument::SYNTH_PLUGIN_POSITION)) {
 
@@ -946,7 +957,7 @@ AudioInstrumentMixer::setPlugin(InstrumentId id, int position, QString identifie
 
         if (position < int(Instrument::PLUGIN_COUNT)) {
             while (position >= (int)list.size()) {
-                list.push_back(0);
+                list.push_back(nullptr);
             }
             oldInstance = list[position];
             list[position] = instance;
@@ -969,13 +980,13 @@ AudioInstrumentMixer::removePlugin(InstrumentId id, int position)
 
     std::cerr << "AudioInstrumentMixer::removePlugin(" << id << ", " << position << ")" << std::endl;
 
-    RunnablePluginInstance *oldInstance = 0;
+    RunnablePluginInstance *oldInstance = nullptr;
 
     if (position == int(Instrument::SYNTH_PLUGIN_POSITION)) {
 
         if (m_synths[id]) {
             oldInstance = m_synths[id];
-            m_synths[id] = 0;
+            m_synths[id] = nullptr;
         }
 
     } else {
@@ -983,7 +994,7 @@ AudioInstrumentMixer::removePlugin(InstrumentId id, int position)
         PluginList &list = m_plugins[id];
         if (position < (int)list.size()) {
             oldInstance = list[position];
-            list[position] = 0;
+            list[position] = nullptr;
         }
     }
 
@@ -1003,7 +1014,7 @@ AudioInstrumentMixer::removeAllPlugins()
             i != m_synths.end(); ++i) {
         if (i->second) {
             RunnablePluginInstance *instance = i->second;
-            i->second = 0;
+            i->second = nullptr;
             m_driver->claimUnwantedPlugin(instance);
         }
     }
@@ -1015,7 +1026,7 @@ AudioInstrumentMixer::removeAllPlugins()
 
         for (PluginList::iterator i = list.begin(); i != list.end(); ++i) {
             RunnablePluginInstance *instance = *i;
-            *i = 0;
+            *i = nullptr;
             m_driver->claimUnwantedPlugin(instance);
         }
     }
@@ -1034,7 +1045,7 @@ AudioInstrumentMixer::getPluginInstance(InstrumentId id, int position)
         if (position < int(list.size()))
             return list[position];
     }
-    return 0;
+    return nullptr;
 }
 
 
@@ -1165,10 +1176,10 @@ AudioInstrumentMixer::discardPluginEvents()
         InstrumentId id = j->first;
 
         for (PluginList::iterator i = m_plugins[id].begin();
-         i != m_plugins[id].end(); ++i) {
+	     i != m_plugins[id].end(); ++i) {
 
             RunnablePluginInstance *instance = *i;
-        if (instance) instance->discardEvents();
+	    if (instance) instance->discardEvents();
         }
     }
 
@@ -1265,7 +1276,7 @@ AudioInstrumentMixer::destroyAllPlugins()
     for (SynthPluginMap::iterator j = m_synths.begin();
             j != m_synths.end(); ++j) {
         RunnablePluginInstance *instance = j->second;
-        j->second = 0;
+        j->second = nullptr;
         delete instance;
     }
 
@@ -1278,7 +1289,7 @@ AudioInstrumentMixer::destroyAllPlugins()
                 i != m_plugins[id].end(); ++i) {
 
             RunnablePluginInstance *instance = *i;
-            *i = 0;
+            *i = nullptr;
             delete instance;
         }
     }
@@ -1427,7 +1438,7 @@ AudioInstrumentMixer::generateBuffers()
     for (int i = 0; i < busses; ++i) {
         PluginList &list = m_plugins[i + 1];
         while ((unsigned int)list.size() < Instrument::PLUGIN_COUNT) {
-            list.push_back(0);
+            list.push_back(nullptr);
         }
     }
 
@@ -1531,8 +1542,12 @@ AudioInstrumentMixer::setInstrumentLevels(InstrumentId id, float dB, float pan)
 
     float volume = AudioLevel::dB_to_multiplier(dB);
 
-    rec.gainLeft = volume * ((pan > 0.0) ? (1.0 - (pan / 100.0)) : 1.0);
-    rec.gainRight = volume * ((pan < 0.0) ? ((pan + 100.0) / 100.0) : 1.0);
+//  rec.gainLeft = volume * ((pan > 0.0) ? (1.0 - (pan / 100.0)) : 1.0);
+//  rec.gainRight = volume * ((pan < 0.0) ? ((pan + 100.0) / 100.0) : 1.0);
+
+    // Apply panning law.
+    rec.gainLeft = volume * AudioLevel::panGainLeft(pan);
+    rec.gainRight = volume * AudioLevel::panGainRight(pan);
     rec.volume = volume;
 }
 
@@ -1542,16 +1557,16 @@ AudioInstrumentMixer::updateInstrumentMuteStates()
     ControlBlock *cb = ControlBlock::getInstance();
 
     for (BufferMap::iterator i = m_bufferMap.begin();
-     i != m_bufferMap.end(); ++i) {
+	 i != m_bufferMap.end(); ++i) {
 
-    InstrumentId id = i->first;
-    BufferRec &rec = i->second;
-
-    if (id >= SoftSynthInstrumentBase) {
-        rec.muted = cb->isInstrumentMuted(id);
-    } else {
-        rec.muted = cb->isInstrumentUnused(id);
-    }
+	InstrumentId id = i->first;
+	BufferRec &rec = i->second;
+	
+	if (id >= SoftSynthInstrumentBase) {
+	    rec.muted = cb->isInstrumentMuted(id);
+	} else {
+	    rec.muted = cb->isInstrumentUnused(id);
+	}
     }
 }
 
@@ -1597,7 +1612,7 @@ AudioInstrumentMixer::processBlocks(bool &readSomething)
             if (empty) {
                 for (PluginList::iterator j = m_plugins[id].begin();
                         j != m_plugins[id].end(); ++j) {
-                    if (*j != 0) {
+                    if (*j != nullptr) {
                         empty = false;
                         break;
                     }
@@ -1685,7 +1700,7 @@ AudioInstrumentMixer::processBlock(InstrumentId id,
     BufferRec &rec = m_bufferMap[id];
     RealTime bufferTime = rec.filledTo;
 
-#ifdef DEBUG_MIXER
+#ifdef DEBUG_MIXER 
     //    if (m_driver->isPlaying()) {
     if ((id % 100) == 0)
         std::cerr << "AudioInstrumentMixer::processBlock(" << id << "): buffer time is " << bufferTime << std::endl;
@@ -1716,7 +1731,7 @@ AudioInstrumentMixer::processBlock(InstrumentId id,
         if (ch == 0 || thisWriteSpace < minWriteSpace) {
             minWriteSpace = thisWriteSpace;
             if (minWriteSpace < m_blockSize) {
-#ifdef DEBUG_MIXER
+#ifdef DEBUG_MIXER 
                 //		if (m_driver->isPlaying()) {
                 if ((id % 100) == 0)
                     std::cerr << "AudioInstrumentMixer::processBlock(" << id << "): only " << minWriteSpace << " write space on channel " << ch << " for block size " << m_blockSize << std::endl;
@@ -2052,7 +2067,7 @@ AudioInstrumentMixer::threadRun()
             t = RealTime(0, 10000000); // 10ms minimum
 
         struct timeval now;
-        gettimeofday(&now, 0);
+        gettimeofday(&now, nullptr);
         t = t + RealTime(now.tv_sec, now.tv_usec * 1000);
 
         struct timespec timeout;
@@ -2187,7 +2202,7 @@ AudioFileReader::threadRun()
                 bt = RealTime(0, 10000000); // 10ms minimum
 
             struct timeval now;
-            gettimeofday(&now, 0);
+            gettimeofday(&now, nullptr);
             RealTime t = bt + RealTime(now.tv_sec, now.tv_usec * 1000);
 
             struct timespec timeout;
@@ -2217,7 +2232,7 @@ AudioFileWriter::AudioFileWriter(SoundDriver *driver,
         // refer to the map without a lock (as the number of
         // instruments won't change)
 
-        m_files[id] = FilePair(0, 0);
+        m_files[id] = FilePair(0, nullptr);
     }
 }
 
@@ -2257,7 +2272,7 @@ AudioFileWriter::openRecordFile(InstrumentId id,
         int bytesPerSample = (format == RIFFAudioFile::PCM ? 2 : 4) * channels;
         int bitsPerSample = (format == RIFFAudioFile::PCM ? 16 : 32);
 
-        AudioFile *recordFile = 0;
+        AudioFile *recordFile = nullptr;
 
         try {
             recordFile =
@@ -2277,7 +2292,7 @@ AudioFileWriter::openRecordFile(InstrumentId id,
                 releaseLock();
                 return false;
             }
-        } catch (SoundFile::BadSoundFileException e) {
+        } catch (const SoundFile::BadSoundFileException &e) {
             std::cerr << "AudioFileWriter::openRecordFile: failed to open " << fileName << " for writing: " << e.getMessage() << std::endl;
             delete recordFile;
             releaseLock();
@@ -2403,9 +2418,9 @@ AudioFileWriter::kick(bool wantLock)
             std::cerr << "AudioFileWriter::kick: found defunct file on instrument " << id << std::endl;
 #endif
 
-            m_files[id].first = 0;
+            m_files[id].first = nullptr;
             delete raf; // also deletes the AudioFile
-            m_files[id].second = 0;
+            m_files[id].second = nullptr;
 
         } else {
 #ifdef DEBUG_WRITER
@@ -2433,7 +2448,7 @@ AudioFileWriter::threadRun()
             t = RealTime(0, 10000000); // 10ms minimum
 
         struct timeval now;
-        gettimeofday(&now, 0);
+        gettimeofday(&now, nullptr);
         t = t + RealTime(now.tv_sec, now.tv_usec * 1000);
 
         struct timespec timeout;

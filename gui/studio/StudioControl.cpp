@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,7 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[StudioControl]"
 
 #include "StudioControl.h"
 
@@ -31,7 +32,6 @@
 #include "sound/MappedEvent.h"
 #include "sound/MappedInstrument.h"
 #include "sound/MappedStudio.h"
-#include "sound/ImmediateNote.h"
 
 #include <QByteArray>
 #include <QDataStream>
@@ -41,24 +41,8 @@
 namespace Rosegarden
 {
 
-ImmediateNote *
-StudioControl::
-getFiller(void)
-{
-    m_instanceMutex.lock();
-    if (!m_immediateNoteFiller)
-        { m_immediateNoteFiller = new ImmediateNote(); }
-    m_instanceMutex.unlock();
-    return m_immediateNoteFiller;
-}
+ChannelManager StudioControl::m_channelManager(nullptr);
 
-ImmediateNote *
-StudioControl::
-m_immediateNoteFiller = 0;
-
-QMutex
-StudioControl::m_instanceMutex;
-    
 MappedObjectId
 StudioControl::createStudioObject(MappedObject::MappedObjectType type)
 {
@@ -115,11 +99,13 @@ StudioControl::setStudioObjectPropertyList(MappedObjectId id,
     return error;
 }
 
+#if 0
 MappedObjectId
 StudioControl::getStudioObjectByType(MappedObject::MappedObjectType type)
 {
     return RosegardenSequencer::getInstance()->getMappedObjectId(type);
 }
+#endif
 
 void
 StudioControl::setStudioPluginPort(MappedObjectId pluginId,
@@ -136,11 +122,13 @@ StudioControl::getStudioPluginPort(MappedObjectId pluginId,
     return RosegardenSequencer::getInstance()->getMappedPort(pluginId, portId);
 }
 
+#if 0
 MappedObjectPropertyList
 StudioControl::getPluginInformation()
 {
     return RosegardenSequencer::getInstance()->getPluginInformation();
 }
+#endif
 
 QString
 StudioControl::getPluginProgram(MappedObjectId id, int bank, int program)
@@ -206,38 +194,90 @@ StudioControl::sendQuarterNoteLength(const RealTime &length)
     RosegardenSequencer::getInstance()->setQuarterNoteLength(length);
 }
 
+// @author Tom Breton (Tehom)
+void
+StudioControl::fillWithImmediateNote(
+        MappedEventList &mappedEventList, Instrument *instrument,
+        int pitch, int velocity, RealTime duration, bool oneshot)
+{
+    if (!instrument)
+        return;
+
+#ifdef DEBUG_PREVIEW_NOTES
+    RG_DEBUG << "fillWithNote() on" << (instrument->isPercussion() ? "percussion" : "non-percussion") << instrument->getName() << instrument->getId();
+#endif
+
+    if ((pitch < 0) || (pitch > 127))
+        return;
+
+    if (velocity < 0)
+        velocity = 100;
+
+    MappedEvent::MappedEventType type =
+            oneshot ? MappedEvent::MidiNoteOneShot : MappedEvent::MidiNote;
+
+    // Make the event.
+    MappedEvent mappedEvent(
+            instrument->getId(),
+            type,
+            pitch,
+            velocity,
+            RealTime::zeroTime,  // absTime
+            duration,
+            RealTime::zeroTime);  // audioStartMarker
+
+    // Since we're not going thru MappedBufMetaIterator::acceptEvent()
+    // which checks tracks for muting, we needn't set a track.
+
+    // Set up channel manager.
+    m_channelManager.setInstrument(instrument);
+    m_channelManager.setEternalInterval();
+    // ??? It's odd that we would say "false" for changedInstrument given
+    //     that we did indeed change the Instrument.  Why are we doing this?
+    m_channelManager.allocateChannelInterval(false);
+
+    MappedEventInserter inserter(mappedEventList);
+
+    // Insert the event.
+    // Setting firstOutput to true indicates that we want a channel
+    // setup.
+    m_channelManager.insertEvent(
+            NO_TRACK,  // trackId
+            instrument->getStaticControllers(),
+            RealTime::zeroTime,  // refTime
+            mappedEvent,
+            true,  // firstOutput
+            inserter);
+}
+
 void
 StudioControl::
 playPreviewNote(Instrument *instrument, int pitch,
-                int velocity, int nsecs, bool oneshot)
+                int velocity, RealTime duration, bool oneshot)
 {
     MappedEventList mC;
-    ImmediateNote * filler = getFiller();
-    filler->fillWithNote(mC, instrument, pitch, velocity, nsecs, oneshot);
+    fillWithImmediateNote(mC, instrument, pitch, velocity, duration, oneshot);
     sendMappedEventList(mC);
 }
 
-// Set up a channel for output.  This is used for fixed channel
-// instruments and also to set up MIDI thru channels.
 void
 StudioControl::
 sendChannelSetup(Instrument *instrument, int channel)
 {
-    MappedEventList mC;
-    MappedEventInserter inserter(mC);
-    ChannelManager::SimpleCallbacks callbacks;
-            
-    // Acquire it from ChannelManager.  Passing -1 for trackId which
-    // is unused here.
-    ChannelManager::sendProgramForInstrument(channel, instrument,
-                                             inserter,
-                                             RealTime::zeroTime, -1);
-    ChannelManager::setControllers(channel, instrument,
-                                   inserter, RealTime::zeroTime,
-                                   RealTime::zeroTime, 
-                                   &callbacks, -1);
+    MappedEventList mappedEventList;
+    MappedEventInserter inserter(mappedEventList);
 
-    sendMappedEventList(mC);
+    // Insert BS, PC, CCs, and pitch bend.
+    ChannelManager::insertChannelSetup(
+            -1,  // trackId
+            instrument,
+            channel,
+            RealTime::zeroTime,  // insertTime
+            instrument->getStaticControllers(),
+            inserter);
+
+    // Send it out.
+    sendMappedEventList(mappedEventList);
 }
 
 // Send a single controller to output.  This is used for fixed-channel
@@ -250,11 +290,16 @@ sendController(const Instrument *instrument, int channel,
     MappedEventList mC;
     MappedEventInserter inserter(mC);
 
-    // Acquire it from ChannelManager.  Passing -1 for trackId which
-    // is unused here.
-    ChannelManager::insertController(channel, instrument, inserter,
-                                     RealTime::zeroTime, -1,
-                                     controller, value);
+    // Passing -1 for trackId which is unused here.
+    ChannelManager::insertController(
+            -1,  // trackId
+            instrument,
+            channel,
+            RealTime::zeroTime,  // insertTime
+            controller,
+            value,
+            inserter);
+
     sendMappedEventList(mC);
 }
 

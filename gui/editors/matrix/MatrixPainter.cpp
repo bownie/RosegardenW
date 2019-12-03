@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[MatrixPainter]"
 
 #include "MatrixPainter.h"
 
@@ -44,8 +46,8 @@ namespace Rosegarden
 MatrixPainter::MatrixPainter(MatrixWidget *widget) : 
     MatrixTool("matrixpainter.rc", "MatrixPainter", widget),
     m_clickTime(0),
-    m_currentElement(0),
-    m_currentViewSegment(0)
+    m_currentElement(nullptr),
+    m_currentViewSegment(nullptr)
 {
     createAction("select", SLOT(slotSelectSelected()));
     createAction("resize", SLOT(slotResizeSelected()));
@@ -59,34 +61,28 @@ void MatrixPainter::handleEventRemoved(Event *event)
 {
     if (m_currentElement && m_currentElement->event() == event) {
         delete m_currentElement;
-        m_currentElement = 0;
+        m_currentElement = nullptr;
     }
 }
 
-
-
-void MatrixPainter::handleMidButtonPress(const MatrixMouseEvent *e)
+void MatrixPainter::handleMidButtonPress(const MatrixMouseEvent * /*event*/)
 {
     // note: middle button == third button (== left+right at the same time)
-    // pass
-    e = e;
 }
-
 
 void MatrixPainter::handleMouseDoubleClick(const MatrixMouseEvent *e){
     /**
     left double click with PainterTool : deletes MatrixElement
     **/
-    
-    MATRIX_DEBUG << "MatrixPainter::handleThridButtonPress : pitch = "
-            << e->pitch << ", time : " << e->time << endl;
-    
+
+    RG_DEBUG << "handleMouseDoubleClick(): pitch = " << e->pitch << ", time : " << e->time;
+
     m_currentViewSegment = e->viewSegment;
     if (!m_currentViewSegment) return;
 
     // Don't create an overlapping event on the same note on the same channel
     if (e->element) {
-        //std::cerr << "MatrixPainter::handleLeftButtonPress : overlap with an other matrix element" << std::endl;
+        //RG_DEBUG << "handleMouseDoubleClick(): overlap with another matrix element";
         // In percussion matrix, we delete the existing event rather
         // than just ignoring it -- this is reasonable as the event
         // has no meaningful duration, so we can just toggle it on and
@@ -100,7 +96,7 @@ void MatrixPainter::handleMouseDoubleClick(const MatrixMouseEvent *e){
         }
         //}
         delete m_currentElement;
-        m_currentElement = 0;
+        m_currentElement = nullptr;
         return;
     }
     
@@ -109,7 +105,7 @@ void MatrixPainter::handleMouseDoubleClick(const MatrixMouseEvent *e){
     
     int velocity = m_widget->getCurrentVelocity();
     
-    MATRIX_DEBUG << "velocity = " << velocity << endl;
+    RG_DEBUG << "handleMouseDoubleClick(): velocity = " << velocity;
     
     m_clickTime = e->snappedLeftTime;
     
@@ -129,15 +125,14 @@ void MatrixPainter::handleMouseDoubleClick(const MatrixMouseEvent *e){
 
 void MatrixPainter::handleLeftButtonPress(const MatrixMouseEvent *e)
 {
-    MATRIX_DEBUG << "MatrixPainter::handleLeftButtonPress : pitch = "
-                 << e->pitch << ", time : " << e->time << endl;
+    RG_DEBUG << "handleLeftButtonPress(): pitch = " << e->pitch << ", time : " << e->time;
 
     m_currentViewSegment = e->viewSegment;
     if (!m_currentViewSegment) return;
 
     // Don't create an overlapping event on the same note on the same channel
     if (e->element) {
-        std::cerr << "MatrixPainter::handleLeftButtonPress : overlap with an other matrix element" << std::endl;
+        RG_DEBUG << "handleLeftButtonPress(): overlap with another matrix element";
         // In percussion matrix, we delete the existing event rather
         // than just ignoring it -- this is reasonable as the event
         // has no meaningful duration, so we can just toggle it on and
@@ -151,7 +146,7 @@ void MatrixPainter::handleLeftButtonPress(const MatrixMouseEvent *e)
             }
         }
         delete m_currentElement;
-        m_currentElement = 0;
+        m_currentElement = nullptr;
         return;
     }
 
@@ -159,7 +154,7 @@ void MatrixPainter::handleLeftButtonPress(const MatrixMouseEvent *e)
 
     int velocity = m_widget->getCurrentVelocity();
 
-    MATRIX_DEBUG << "velocity = " << velocity << endl;
+    RG_DEBUG << "handleLeftButtonPress(): velocity = " << velocity;
 
     m_clickTime = e->snappedLeftTime;
 
@@ -174,8 +169,7 @@ void MatrixPainter::handleLeftButtonPress(const MatrixMouseEvent *e)
     ev->set<Int>(BaseProperties::PITCH, adjustedPitch);
     ev->set<Int>(BaseProperties::VELOCITY, velocity);
 
-    std::cout << "MATRIX PAINTER: I'm working from segment \"" << m_currentViewSegment->getSegment().getLabel() << "\"" << std::endl
-              << "  clicked pitch: " << e->pitch << " adjusted pitch: " << adjustedPitch << std::endl;
+    RG_DEBUG << "handleLeftButtonPress(): I'm working from segment \"" << m_currentViewSegment->getSegment().getLabel() << "\"" << "  clicked pitch: " << e->pitch << " adjusted pitch: " << adjustedPitch;
 
     m_currentElement = new MatrixElement(m_scene, ev, m_widget->isDrumMode(), pitchOffset);
 
@@ -183,11 +177,11 @@ void MatrixPainter::handleLeftButtonPress(const MatrixMouseEvent *e)
     m_scene->playNote(m_currentViewSegment->getSegment(), adjustedPitch, velocity);
 }
 
-MatrixPainter::FollowMode
+FollowMode
 MatrixPainter::handleMouseMove(const MatrixMouseEvent *e)
 {
     // sanity check
-    if (!m_currentElement) return NoFollow;
+    if (!m_currentElement) return NO_FOLLOW;
 
     if (getSnapGrid()->getSnapSetting() != SnapGrid::NoSnap) {
         setContextHelp(tr("Hold Shift to avoid snapping to beat grid"));
@@ -201,15 +195,14 @@ MatrixPainter::handleMouseMove(const MatrixMouseEvent *e)
     if (endTime == time) endTime = time + e->snapUnit;
     if (time > endTime) std::swap(time, endTime);
 
-    MATRIX_DEBUG << "MatrixPainter::handleMouseMove : pitch = "
-                 << e->pitch << "time = " << time << ", end time = " << endTime << endl;
+    //RG_DEBUG << "handleMouseMove(): pitch = " << e->pitch << "time = " << time << ", end time = " << endTime;
 
     using BaseProperties::PITCH;
 
     // we need the same pitch/height corrections for dragging notes as for
     // entering new ones
     m_currentViewSegment = e->viewSegment;
-    if (!m_currentViewSegment) return NoFollow;
+    if (!m_currentViewSegment) return NO_FOLLOW;
     long pitchOffset = m_currentViewSegment->getSegment().getTranspose();
     long adjustedPitch = e->pitch + (pitchOffset * -1);
 
@@ -236,7 +229,7 @@ MatrixPainter::handleMouseMove(const MatrixMouseEvent *e)
         m_scene->playNote(m_currentViewSegment->getSegment(), adjustedPitch, velocity);
     }
 
-    return FollowMode(FollowHorizontal | FollowVertical);
+    return (FOLLOW_HORIZONTAL | FOLLOW_VERTICAL);
 }
 
 void MatrixPainter::handleMouseRelease(const MatrixMouseEvent *e)
@@ -292,8 +285,8 @@ void MatrixPainter::handleMouseRelease(const MatrixMouseEvent *e)
         }
     }
 
-    m_currentElement = 0;
-    m_currentViewSegment = 0;
+    m_currentElement = nullptr;
+    m_currentViewSegment = nullptr;
 
     setBasicContextHelp();
 }
@@ -347,8 +340,7 @@ void MatrixPainter::setBasicContextHelp()
     }        
 }
 
-const QString MatrixPainter::ToolName = "painter";
+QString MatrixPainter::ToolName() { return "painter"; }
 
 }
 
-#include "MatrixPainter.moc"

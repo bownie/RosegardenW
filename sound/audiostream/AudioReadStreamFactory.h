@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2005-2011 Chris Cannam.
 
@@ -29,7 +29,7 @@ class AudioReadStreamFactory
 {
 public:
     // May throw FileOpenFailed or AudioReadStream::FileDRMProtected,
-    // or simply return NULL, for failure
+    // or simply return nullptr, for failure
     static AudioReadStream *createReadStream(QString fileName);
 
     static QStringList getSupportedFileExtensions();

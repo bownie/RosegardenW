@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,18 +20,8 @@
 
 #include <QLineEdit>
 
-/**This subclass of QLineEdit uses a spot stylesheet to set its own background
- * color.
- *
- * The normal styling process has involved painting broad "widgetless" areas
- * with QWidget hacks.  These are necessary to paint certain void areas in the
- * main window background and in various other places that don't belong to
- * anything that can be addressed via a QSS selector.  These QWidget hacks
- * affect all child widgets, but it is normally possible to override the
- * background with highly specific selectors.  Not so for QLineEdit, it turns
- * out.  The only way to control its background after a QWidget hack upstream is
- * to use a local stylesheet directly in the code.  This class exists in order
- * to avoid having to pepper the code with stylesheet hacks for QLineEdit.
+/**
+ * This subclass of QLineEdit no longer serves any purpose :-)
  *
  * \author D. Michael McIntyre
  */
@@ -42,9 +32,9 @@ class LineEdit : public QLineEdit
 {
     Q_OBJECT
 public:
-    LineEdit(QWidget *parent=0);
-    LineEdit(const QString&, QWidget *parent=0);
-    ~LineEdit();
+    LineEdit(QWidget *parent=nullptr);
+    LineEdit(const QString&, QWidget *parent=nullptr);
+    ~LineEdit() override;
 };
 
 }

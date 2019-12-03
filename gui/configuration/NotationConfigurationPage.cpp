@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -34,7 +34,6 @@
 #include "gui/editors/notation/NoteFontViewer.h"
 #include "gui/editors/notation/NotePixmapFactory.h"
 #include "gui/editors/notation/NoteStyleFactory.h"
-#include "gui/widgets/QuantizeParameters.h"
 #include "gui/widgets/FontRequester.h"
 #include "TabbedConfigurationPage.h"
 #include <QComboBox>
@@ -93,31 +92,6 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
     layout->addWidget(m_layoutMode, row, 1, 1, 2);
     ++row;
 
-    layout->addWidget(new QLabel(tr("Default spacing"), frame), row, 0);
-
-    m_spacing = new QComboBox(frame);
-    connect(m_spacing, SIGNAL(activated(int)), this, SLOT(slotModified()));
-    m_spacing->setEditable(false);
-
-    std::vector<int> s = NotationHLayout::getAvailableSpacings();
-    int defaultSpacing = settings.value("spacing", 100).toInt() ;
-
-    for (std::vector<int>::iterator i = s.begin(); i != s.end(); ++i) {
-
-        QString text("%1 %");
-        if (*i == 100)
-            text = tr("%1 % (normal)");
-        m_spacing->addItem(text.arg(*i));
-
-        if (*i == defaultSpacing) {
-            m_spacing->setCurrentIndex(m_spacing->count() - 1);
-        }
-    }
-
-    layout->addWidget(m_spacing, row, 1, 1, 2);
-
-    ++row;
-
     layout->addWidget(new QLabel(tr("Show track headers (linear layout only)"),
                                       frame), row, 0);
 
@@ -151,7 +125,7 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Show non-notation events as question marks"), frame),
          row, 0, 1, 2);
     m_showUnknowns = new QCheckBox(frame);
-    connect(m_showUnknowns, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_showUnknowns, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
     bool defaultShowUnknowns = qStrToBool(settings.value("showunknowns", "false")) ;
     m_showUnknowns->setChecked(defaultShowUnknowns);
     layout->addWidget(m_showUnknowns, row, 2);
@@ -162,7 +136,7 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Show notation-quantized notes in a different color"), frame),
          row, 0, 1, 2);
     m_colourQuantize = new QCheckBox(frame);
-    connect(m_colourQuantize, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_colourQuantize, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
     bool defaultColourQuantize = qStrToBool(settings.value("colourquantize", "false")) ;
     m_colourQuantize->setChecked(defaultColourQuantize);
     layout->addWidget(m_colourQuantize, row, 2);
@@ -173,7 +147,7 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Show \"invisible\" events in grey"), frame),
          row, 0, 1, 2);
     m_showInvisibles = new QCheckBox(frame);
-    connect(m_showInvisibles, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_showInvisibles, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
     bool defaultShowInvisibles = qStrToBool(settings.value("showinvisibles", "true")) ;
     m_showInvisibles->setChecked(defaultShowInvisibles);
     layout->addWidget(m_showInvisibles, row, 2);
@@ -184,7 +158,7 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Show notes outside suggested playable range in red"), frame),
          row, 0, 1, 2);
     m_showRanges = new QCheckBox(frame);
-    connect(m_showRanges, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_showRanges, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
     bool defaultShowRanges = qStrToBool(settings.value("showranges", "true")) ;
     m_showRanges->setChecked(defaultShowRanges);
     layout->addWidget(m_showRanges, row, 2);
@@ -195,7 +169,7 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Highlight superimposed notes with a halo effect"), frame),
          row, 0, 1, 2);
     m_showCollisions = new QCheckBox(frame);
-    connect(m_showCollisions, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_showCollisions, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
     bool defaultShowCollisions = qStrToBool(settings.value("showcollisions", "true")) ;
     m_showCollisions->setChecked(defaultShowCollisions);
     layout->addWidget(m_showCollisions, row, 2);
@@ -209,7 +183,7 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("When recording MIDI, split-and-tie long notes at barlines"), frame),
          row, 0, 1, 2);
     m_splitAndTie = new QCheckBox(frame);
-    connect(m_splitAndTie, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_splitAndTie, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
     //NB. The split-and-tie feature is turned on by default once more, now that
     // the matrix and notation editors both handle strings of adjacent tied
     // notes as though they were a single unit.  This makes more sense when
@@ -289,7 +263,7 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Auto-beam on insert when appropriate"), frame),
          row, 0, 1, 2);
     m_autoBeam = new QCheckBox(frame);
-    connect(m_autoBeam, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_autoBeam, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
     m_autoBeam->setChecked(autoBeam);
     layout->addWidget(m_autoBeam, row, 2, 1, 1);
 
@@ -302,7 +276,7 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
              (tr("Tie notes at barlines automatically"), frame),
              row, 0, 1, 2);
      m_autoTieBarlines = new QCheckBox(frame);
-     connect(m_autoTieBarlines, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+     connect(m_autoTieBarlines, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
      m_autoTieBarlines->setChecked(autoCorrect);
      layout->addWidget(m_autoTieBarlines, row, 2, 1, 1);
 
@@ -316,7 +290,7 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Collapse rests after erase"), frame),
          row, 0, 1, 2);
     m_collapseRests = new QCheckBox(frame);
-    connect(m_collapseRests, SIGNAL(stateChanged(int)), this, SLOT(slotModified()));
+    connect(m_collapseRests, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
     m_collapseRests->setChecked(collapse);
     layout->addWidget(m_collapseRests, row, 2, 1, 1);
     ++row;
@@ -344,6 +318,48 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
 
     m_pasteType->setCurrentIndex(defaultPasteType);
     layout->addWidget(m_pasteType, row, 1, 1, 2);
+    ++row;
+
+    layout->setRowMinimumHeight(row, 20);
+    ++row;
+
+    bool preview = qStrToBool(settings.value("alwayspreview", "true")) ;
+
+    QLabel * previewLabel = new QLabel
+         (tr("Always show note preview"), frame);
+    layout->addWidget(previewLabel, row, 0, 1, 2);
+    m_preview = new QCheckBox(frame);
+    connect(m_preview, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
+    m_preview->setChecked(preview);
+    QString previewTip(tr(
+        "<p>If checked, a preview of the note or rest is always displayed"
+        " when inserting notes or rests with the mouse</p>"));
+    previewLabel->setToolTip(previewTip);
+    m_preview->setToolTip(previewTip);
+   layout->addWidget(m_preview, row, 2, 1, 1);
+    ++row;
+
+    bool quickEdit = qStrToBool(settings.value("quickedit", "true"));
+
+    QLabel * quickEditLabel = new QLabel(
+         tr("Quick mouse entry mode"),
+         frame);
+    layout->addWidget(quickEditLabel, row, 0, 1, 2);
+    m_quickEdit = new QCheckBox(frame);
+    connect(m_quickEdit, &QCheckBox::stateChanged, this, &NotationConfigurationPage::slotModified);
+    m_quickEdit->setChecked(quickEdit);
+    QString quickEditTip(tr(
+        "<p>If checked, the following features are usable while inserting notes"
+        " with the mouse:<ul>"
+        "<li>The mouse wheel selects the note duration</li>"
+        "<li>Shift adds a sharp</li>"
+        "<li>Ctrl adds a flat</li>"
+        "<li>Shift + Ctrl adds a natural</li>"
+        "<li>A mouse mid button click switches between notes and rests</li>"
+        "</ul></p>"));
+    quickEditLabel->setToolTip(quickEditTip);
+    m_quickEdit->setToolTip(quickEditTip);
+    layout->addWidget(m_quickEdit, row, 2, 1, 1);
     ++row;
 
     layout->setRowStretch(row, 10);
@@ -412,22 +428,12 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
     layout = new QGridLayout(frame);
     layout->setSpacing(5);
 
-    m_viewButton = 0;
-
     layout->addWidget(new QLabel(tr("Notation font"), frame), 0, 0);
 
     m_font = new QComboBox(frame);
     connect(m_font, SIGNAL(activated(int)), this, SLOT(slotModified()));
 
-#ifdef HAVE_XFT
-    m_viewButton = new QPushButton(tr("View"), frame);
-    layout->addWidget(m_font, row, 1, 1, 2);
-    layout->addWidget(m_viewButton, row, 3);
-    QObject::connect(m_viewButton, SIGNAL(clicked()),
-                     this, SLOT(slotViewButtonPressed()));
-#else
     layout->addWidget(m_font, row, 1, 1, 3);
-#endif
     m_font->setEditable(false);
     QObject::connect(m_font, SIGNAL(activated(int)),
                      this, SLOT(slotFontComboChanged(int)));
@@ -501,15 +507,12 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
     layout->setRowMinimumHeight(row, 15);
     ++row;
 
-    QFont defaultTextFont(NotePixmapFactory::defaultSerifFontFamily),
-        defaultSansFont(NotePixmapFactory::defaultSansSerifFontFamily),
-        defaultTimeSigFont(NotePixmapFactory::defaultTimeSigFontFamily);
+    QFont defaultTextFont(NotePixmapFactory::defaultSerifFontFamily);
 
     layout->addWidget
         (new QLabel(tr("Text font"), frame), row, 0);
     m_textFont = new FontRequester(frame);
-    m_textFont->setStyleSheet("color: black; background: white");
-    connect(m_textFont, SIGNAL(fontChanged(QFont)), this, SLOT(slotModified()));
+    connect(m_textFont, &FontRequester::fontChanged, this, &NotationConfigurationPage::slotModified);
     QFont textFont = defaultTextFont;
     QVariant fv = settings.value("textfont", textFont);
     if (fv.canConvert(QVariant::Font)) textFont = fv.value<QFont>();
@@ -520,8 +523,7 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
     layout->addWidget
         (new QLabel(tr("Sans-serif font"), frame), row, 0);
     m_sansFont = new FontRequester(frame);
-    m_sansFont->setStyleSheet("color: black; background: white");
-    connect(m_sansFont, SIGNAL(fontChanged(QFont)), this, SLOT(slotModified()));
+    connect(m_sansFont, &FontRequester::fontChanged, this, &NotationConfigurationPage::slotModified);
     QFont sansFont = defaultTextFont;
     fv = settings.value("sansfont", sansFont);
     if (fv.canConvert(QVariant::Font)) sansFont = fv.value<QFont>();
@@ -551,8 +553,8 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Show repeated segments"), frame),
          row, 0, 1, 2);
     m_showRepeated = new QCheckBox(frame);
-    connect(m_showRepeated, SIGNAL(stateChanged(int)),
-            this, SLOT(slotModified()));
+    connect(m_showRepeated, &QCheckBox::stateChanged,
+            this, &NotationConfigurationPage::slotModified);
     bool defaultShowRepeated = qStrToBool(settings.value("showrepeated",
                                                          "true")) ;
     m_showRepeated->setChecked(defaultShowRepeated);
@@ -564,8 +566,8 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Allow direct edition of repeated segments"), frame),
          row, 0, 1, 2);
     m_editRepeated = new QCheckBox(frame);
-    connect(m_editRepeated, SIGNAL(stateChanged(int)),
-            this, SLOT(slotModified()));
+    connect(m_editRepeated, &QCheckBox::stateChanged,
+            this, &NotationConfigurationPage::slotModified);
     bool defaultEditRepeated = qStrToBool(settings.value("editrepeated",
                                                          "false")) ;
     m_editRepeated->setChecked(defaultEditRepeated);
@@ -577,8 +579,8 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Hide redundant clefs and keys"), frame),
          row, 0, 1, 2);
     m_hideRedundantClefKey = new QCheckBox(frame);
-    connect(m_hideRedundantClefKey, SIGNAL(stateChanged(int)),
-            this, SLOT(slotModified()));
+    connect(m_hideRedundantClefKey, &QCheckBox::stateChanged,
+            this, &NotationConfigurationPage::slotModified);
     bool defaultHideRedundantClefKey =
         qStrToBool(settings.value("hideredundantclefkey", "true")) ;
     m_hideRedundantClefKey->setChecked(defaultHideRedundantClefKey);
@@ -590,8 +592,8 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
          (tr("Distribute verses among repeated segments"), frame),
          row, 0, 1, 2);
     m_distributeVerses = new QCheckBox(frame);
-    connect(m_distributeVerses, SIGNAL(stateChanged(int)),
-            this, SLOT(slotModified()));
+    connect(m_distributeVerses, &QCheckBox::stateChanged,
+            this, &NotationConfigurationPage::slotModified);
     bool defaultDistributeVerses =
         qStrToBool(settings.value("distributeverses", "true")) ;
     m_distributeVerses->setChecked(defaultDistributeVerses);
@@ -610,31 +612,6 @@ NotationConfigurationPage::NotationConfigurationPage(QWidget *parent) :
 }
 
 void
-NotationConfigurationPage::slotViewButtonPressed()
-{
-#ifdef HAVE_XFT
-    QString fontName = m_untranslatedFont[m_font->currentIndex()];
-
-    try {
-        NoteFont *noteFont = NoteFontFactory::getFont
-            (fontName, NoteFontFactory::getDefaultSize(fontName));
-        const NoteFontMap &map(noteFont->getNoteFontMap());
-        QStringList systemFontNames(map.getSystemFontNames());
-        if (systemFontNames.count() == 0) {
-            m_viewButton->setEnabled(false); // oops
-        } else {
-            NoteFontViewer *viewer =
-                new NoteFontViewer(0, m_untranslatedFont[m_font->currentIndex()],
-                                   systemFontNames, 24);
-            (void)viewer->exec(); // no return value
-        }
-    } catch (Exception f) {
-        QMessageBox::critical(0, tr("Rosegarden"), tr(f.getMessage().c_str()));
-    }
-#endif
-}
-
-void
 NotationConfigurationPage::slotPopulateFontCombo(bool rescan)
 {
     QSettings settings;
@@ -647,7 +624,7 @@ NotationConfigurationPage::slotPopulateFontCombo(bool rescan)
     try {
         (void)NoteFontFactory::getFont
             (defaultFont, NoteFontFactory::getDefaultSize(defaultFont));
-    } catch (Exception e) {
+    } catch (const Exception &e) {
         defaultFont = NoteFontFactory::getDefaultFontName();
     }
 
@@ -705,11 +682,8 @@ NotationConfigurationPage::slotFontComboChanged(int index)
         } else {
             m_fontTypeLabel->setText(tr("%1 (jaggy)").arg(tr(map.getType().toStdString().c_str())));
         }
-        if (m_viewButton) {
-            m_viewButton->setEnabled(map.getSystemFontNames().count() > 0);
-        }
-    } catch (Exception f) {
-        QMessageBox::critical(0, tr("Rosegarden"), strtoqstr(f.getMessage()));
+    } catch (const Exception &f) {
+        QMessageBox::critical(nullptr, tr("Rosegarden"), strtoqstr(f.getMessage()));
     }
 }
 
@@ -741,8 +715,6 @@ NotationConfigurationPage::apply()
                       m_multiStaffSize->currentText().toUInt());
     settings.setValue("textfont", m_textFont->getFont());
     settings.setValue("sansfont", m_sansFont->getFont());
-    std::vector<int> s = NotationHLayout::getAvailableSpacings();
-    settings.setValue("spacing", s[m_spacing->currentIndex()]);
 
     settings.setValue("layoutmode", m_layoutMode->currentIndex());
     settings.setValue("colourquantize", m_colourQuantize->isChecked());
@@ -758,6 +730,9 @@ NotationConfigurationPage::apply()
     settings.setValue("autotieatbarlines", m_autoTieBarlines->isChecked());
     settings.setValue("collapse", m_collapseRests->isChecked());
     settings.setValue("pastetype", m_pasteType->currentIndex());
+    settings.setValue("alwayspreview", m_preview->isChecked());
+    settings.setValue("quickedit", m_quickEdit->isChecked());
+    
     settings.setValue("accidentaloctavemode", m_accOctavePolicy->currentIndex());
     settings.setValue("accidentalbarmode", m_accBarPolicy->currentIndex());
     settings.setValue("keysigcancelmode", m_keySigCancelMode->currentIndex());
@@ -775,4 +750,3 @@ NotationConfigurationPage::apply()
 }
 
 }
-#include "NotationConfigurationPage.moc"

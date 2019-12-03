@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -16,10 +16,11 @@
 #define RG_RESOURCE_FINDER_H
 
 #include <QString>
+#include <rosegardenprivate_export.h>
 
 namespace Rosegarden {
 	
-class ResourceFinder
+class ROSEGARDENPRIVATE_EXPORT ResourceFinder
 {
 public:
     ResourceFinder() { }
@@ -40,7 +41,7 @@ public:
      * Use this when you know that a particular resource is required
      * and just need to locate it.
      */
-    QString getResourcePath(QString resourceCat, QString fileName);
+    QString getResourcePath(QString resourceCat, const QString &fileName);
 
     /**
      * Return a list of full file paths for files with the given file

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -13,14 +13,16 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[PluginFactory]"
+
 #include "PluginFactory.h"
 #include "PluginIdentifier.h"
 #include "misc/Strings.h"
+#include "misc/Debug.h"
 
 #include "LADSPAPluginFactory.h"
 #include "DSSIPluginFactory.h"
 
-#include <iostream>
 #include <locale.h>
 
 namespace Rosegarden
@@ -28,30 +30,28 @@ namespace Rosegarden
 
 int PluginFactory::m_sampleRate = 48000;
 
-static LADSPAPluginFactory *ladspaInstance = 0;
-static LADSPAPluginFactory *dssiInstance = 0;
+static LADSPAPluginFactory *ladspaInstance = nullptr;
+static LADSPAPluginFactory *dssiInstance = nullptr;
 
 PluginFactory *
 PluginFactory::instance(QString pluginType)
 {
     if (pluginType == "ladspa") {
         if (!ladspaInstance) {
-            std::cerr << "PluginFactory::instance(" << pluginType
-            << "): creating new LADSPAPluginFactory" << std::endl;
+            RG_DEBUG << "PluginFactory::instance(" << pluginType << "): creating new LADSPAPluginFactory";
             ladspaInstance = new LADSPAPluginFactory();
             ladspaInstance->discoverPlugins();
         }
         return ladspaInstance;
     } else if (pluginType == "dssi") {
         if (!dssiInstance) {
-            std::cerr << "PluginFactory::instance(" << pluginType
-            << "): creating new DSSIPluginFactory" << std::endl;
+            RG_DEBUG << "PluginFactory::instance(" << pluginType << "): creating new DSSIPluginFactory";
             dssiInstance = new DSSIPluginFactory();
             dssiInstance->discoverPlugins();
         }
         return dssiInstance;
     } else {
-        return 0;
+        return nullptr;
     }
 }
 
@@ -69,7 +69,7 @@ PluginFactory::enumerateAllPlugins(MappedObjectPropertyList &list)
     PluginFactory *factory;
 
     // Plugins can change the locale, store it for reverting afterwards
-    char *loc = setlocale(LC_ALL, 0);
+    char *loc = setlocale(LC_ALL, nullptr);
 
     // Query DSSI plugins before LADSPA ones.
     // This is to provide for the interesting possibility of plugins
@@ -87,6 +87,10 @@ PluginFactory::enumerateAllPlugins(MappedObjectPropertyList &list)
         factory->enumeratePlugins(list);
 
     setlocale(LC_ALL, loc);
+}
+
+PluginFactory::~PluginFactory()
+{
 }
 
 

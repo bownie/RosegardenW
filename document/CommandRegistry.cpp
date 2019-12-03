@@ -29,12 +29,16 @@
 #include <QFile>
 #include <QAction>
 
-//#include <kglobal.h>
 #include "document/Command.h"
 #include <misc/Strings.h>
 #include "gui/general/IconLoader.h"
+#include <iostream>
 
 namespace Rosegarden {
+
+AbstractCommandBuilder::~AbstractCommandBuilder()
+{
+}
 
 CommandRegistry::CommandRegistry()
 {
@@ -63,7 +67,10 @@ CommandRegistry::slotInvokeCommand()
     invokeCommand(actionName);
 }
 
+CommandArgumentQuerier::~CommandArgumentQuerier()
+{
 }
 
-#include "CommandRegistry.moc"
+}
+
 

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2005
         Toni Arnold         <toni__arnold@bluewin.ch>
@@ -39,8 +39,8 @@ class LircClient : public QObject
 {
     Q_OBJECT
 public:
-    LircClient(void);
-    ~LircClient();
+    LircClient();
+    ~LircClient() override;
     
 public slots:
     void readButton();

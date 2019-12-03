@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -27,7 +27,7 @@ namespace Rosegarden
 {
 
 NoteItem::NoteItem(const NotePixmapParameters &params,
-                   NoteStyle *style,
+                   QSharedPointer<NoteStyle> style,
                    bool selected,
                    bool shaded,
 		   NotePixmapFactory *factory,
@@ -69,7 +69,7 @@ NoteItem::paint(QPainter *painter,
 
     QTransform t = painter->worldTransform();
 
-//    NOTATION_DEBUG << "note: transform " << t << " differs from last transform " << m_lastTransform << ", or is not a small transform" << endl;
+//    NOTATION_DEBUG << "note: transform " << t << " differs from last transform " << m_lastTransform << ", or is not a small transform";
 
     bool tiny = (t.m11() < 0.15 || t.m22() < 0.15);
     if (!tiny) {

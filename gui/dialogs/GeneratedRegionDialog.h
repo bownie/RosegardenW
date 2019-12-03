@@ -44,9 +44,9 @@ class GeneratedRegionDialog : public QDialog
 
   GeneratedRegion getGeneratedRegion() const
   { return m_generatedRegion; }
-  MacroCommand *extractCommand(void) {
+  MacroCommand *extractCommand() {
       MacroCommand *command = m_command;
-      m_command = 0;
+      m_command = nullptr;
       return command;
   }
 private slots:
@@ -54,7 +54,7 @@ private slots:
   void assignFigurationSource(int itemIndex);
     
 protected:
-  void initializeCombos(void);
+  void initializeCombos();
   void initComboToID(QComboBox* comboBox, int id);
   //--------------- Data members ---------------------------------
 

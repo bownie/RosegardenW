@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2002
         Hans Kieserman      <hkieserman@mail.com>
@@ -22,14 +22,21 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[MusicXmlExporter]"
+
 #include "MusicXmlExporter.h"
 
 #include "misc/ConfigGroups.h"
+#include "misc/Debug.h"
 #include "base/StaffExportTypes.h"
 
+#include "rosegarden-version.h"
+
+#include <QProgressDialog>
 #include <QSettings>
 
 #include <sstream>
+#include <iostream>
 
 namespace Rosegarden
 {
@@ -48,7 +55,6 @@ MidiInstrument(Instrument * instrument, int pitch) :
 MusicXmlExporter::MusicXmlExporter(RosegardenMainWindow *parent,
                                    RosegardenDocument *doc,
                                    std::string fileName) :
-        ProgressReporter(parent),
         m_doc(doc),
         m_fileName(fileName)
 {
@@ -63,7 +69,7 @@ MusicXmlExporter::~MusicXmlExporter()
 }
 
 void
-MusicXmlExporter::readConfigVariables(void)
+MusicXmlExporter::readConfigVariables()
 {
     // grab settings info
     QSettings settings;
@@ -155,7 +161,7 @@ MusicXmlExporter::exportTrack(Track *track)
         // no selected segments, skip the track.
         //
         bool selectedSegments = false;
-        if ((m_view != NULL) && (m_view->haveSelection())) {
+        if ((m_view != nullptr) && (m_view->haveSelection())) {
             //
             // Check whether the current segment is in the list of selected segments.
             //
@@ -230,16 +236,19 @@ MusicXmlExporter::initalisePart(timeT compositionEndTime, int curTrackPos,
 {
     TrackVector tracks;
     std::string name;
-    Track *track = 0;
-    Track *curTrack = 0;
+    Track *track = nullptr;
+    Track *curTrack = nullptr;
     bool inMultiStaffGroup = false;
     InstrumentId instrument = 0;
     bool found = false;
     retValue = false;
     exporting = false;
 
+    // For each track
     for (int trackPos = 0;
-         (track = m_composition->getTrackByPosition(trackPos)) != 0; ++trackPos) {
+         (track = m_composition->getTrackByPosition(trackPos)) != nullptr; ++trackPos) {
+        qApp->processEvents();
+
         if (trackPos == curTrackPos) curTrack = track;
         if (!inMultiStaffGroup) {
             if (((m_multiStave == MULTI_STAVE_CURLY) &&
@@ -303,6 +312,11 @@ MusicXmlExporter::initalisePart(timeT compositionEndTime, int curTrackPos,
 MusicXmlExporter::PartsVector
 MusicXmlExporter::writeScorePart(timeT compositionEndTime, std::ostream &str)
 {
+    if (m_progressDialog)
+        m_progressDialog->setLabelText(
+                QCoreApplication::translate(
+                        "MusicXmlExporter", "Writing score part..."));
+
     std::string squareOpen  = "    <part-group type=\"start\" number=\"1\">\n"
                               "      <group-symbol>bracket</group-symbol>\n"
                               "      <group-barline>yes</group-barline>\n"
@@ -322,9 +336,17 @@ MusicXmlExporter::writeScorePart(timeT compositionEndTime, std::ostream &str)
     int writeSquareClose = 0;
     int writeCurlyOpen = 0;
     int writeCurlyClose = 0;
-    Track *track = 0;
+    Track *track = nullptr;
+
+    // For each Track in the Composition
     for (int trackPos = 0;
-         (track = m_composition->getTrackByPosition(trackPos)) != 0; ++trackPos) {
+         (track = m_composition->getTrackByPosition(trackPos)) != nullptr;
+         ++trackPos) {
+        if (m_progressDialog) {
+            m_progressDialog->setValue(
+                    trackPos * 100 / m_composition->getNbTracks());
+        }
+        qApp->processEvents();
 
         bool exporting = false;
         bool inMultiStaffGroup = false;
@@ -389,14 +411,17 @@ MusicXmlExporter::writeScorePart(timeT compositionEndTime, std::ostream &str)
             str << "      <part-name>" << track->getLabel() << "</part-name>" << std::endl;
 
             Instrument *instrument = m_doc->getStudio().getInstrumentFor(track);
-            if (instrument != NULL) {
+            if (instrument != nullptr) {
                 InstrumentMap instruments;
                 if (isPercussionTrack(track)) {
+                    // For each Segment in the Composition
                     for (Composition::iterator s = m_composition->begin();
                          s != m_composition->end(); ++s) {
                         if ((*s)->getTrack() != track->getId()) continue;
+                        // For each Event in the Segment
                         for (Segment::iterator e = (*s)->begin();
                             e != (*s)->end(); ++e) {
+                            qApp->processEvents();
                             if ((*e)->isa(Rosegarden::Note::EventType)) {
                                 int pitch = (*e)->get<Int>(BaseProperties::PITCH);
                                 std::stringstream id;
@@ -467,10 +492,10 @@ MusicXmlExporter::write()
 {
     std::ofstream str(m_fileName.c_str(), std::ios::out);
     if (!str) {
-        std::cerr << "MusicXmlExporter::write() - can't write file " << m_fileName << std::endl;
+        RG_WARNING << "write(): Can't write file" << m_fileName;
         return false;
     }
-    std::cerr << "writing MusicXML to " << m_fileName << std::endl;
+    RG_DEBUG << "write(): Writing MusicXML to" << m_fileName;
     std::string version;
     switch (m_MusicXmlVersion) {
 
@@ -491,12 +516,6 @@ MusicXmlExporter::write()
     timeT compositionStartTime = 0;
     timeT compositionEndTime = 0;
     for ( Composition::iterator i = m_composition->begin(); i != m_composition->end(); ++i) {
-
-        // Allow some oportunities for user to cancel
-        if (isOperationCancelled()) {
-            return false;
-        }
-
         if (compositionStartTime > (*i)->getStartTime()) {
             compositionStartTime = (*i)->getStartTime();
         }
@@ -515,19 +534,29 @@ MusicXmlExporter::write()
 
         // Write the MusicXML header
         writeHeader(str);
+
         PartsVector parts = writeScorePart(compositionEndTime, str);
 //         for (PartsVector::iterator c = parts.begin(); c != parts.end(); c++)
 //             (*c)->printSummary();
 
+        if (m_progressDialog)
+            m_progressDialog->setLabelText(
+                    QCoreApplication::translate(
+                            "MusicXmlExporter", "Exporting MusicXML file..."));
+
+        size_t partIndex = 0;
+
         for (PartsVector::iterator c = parts.begin(); c != parts.end(); ++c) {
+            if (m_progressDialog) {
+                m_progressDialog->setValue(partIndex * 100 / parts.size());
+                ++partIndex;
+            }
+
             str << "  <part id=\"" << (*c)->getPartName() << "\">" << std::endl;
             int bar = pickup ? -1 : 0;
+            // For each bar
             while (m_composition->getBarStart(bar) < compositionEndTime) {
-                // Allow some oportunities for user to cancel
-                if (isOperationCancelled()) {return false;}
-
-                emit setValue(int(double(bar) /
-                              double(m_composition->getNbTracks()) * 100.0));
+                qApp->processEvents();
 
                 str << "    <measure number=\"" << bar+1 << "\"";
                 if (bar < 0) str << " implicit=\"yes\"";
@@ -541,7 +570,7 @@ MusicXmlExporter::write()
         str << "</score-partwise>" << std::endl;
         for (PartsVector::iterator c = parts.begin(); c != parts.end(); ++c)
             delete *c;
-    } else {
+    } else {  // DTD_TIMEWISE
         // XML header information
         str << "<?xml version=\"1.0\"?>" << std::endl;
         str << "<!DOCTYPE score-timewise PUBLIC \"-//Recordare//DTD MusicXML " << version
@@ -550,19 +579,32 @@ MusicXmlExporter::write()
 
         // Write the MusicXML header
         writeHeader(str);
+
         PartsVector parts = writeScorePart(compositionEndTime, str);
 //         for (PartsVector::iterator c = parts.begin(); c != parts.end(); c++)
 //             (*c)->printSummary();
 
+        if (m_progressDialog)
+            m_progressDialog->setLabelText(
+                    QCoreApplication::translate(
+                            "MusicXmlExporter", "Exporting MusicXML file..."));
+
         int bar = 0;
+        // For each bar
         while (m_composition->getBarStart(bar) < compositionEndTime) {
+            if (m_progressDialog) {
+                // ??? Probably a costly call.  Might want to consolidate with
+                //     the call above.
+                timeT barStart = m_composition->getBarStart(bar);
+                int progress = static_cast<int>(
+                        barStart * 100 /
+                        (compositionEndTime - compositionStartTime));
+                m_progressDialog->setValue(progress);
+            }
+
             str << "  <measure number=\"" << bar+1 << "\">" << std::endl;
             for (PartsVector::iterator c = parts.begin(); c != parts.end(); ++c) {
-                // Allow some oportunities for user to cancel
-                if (isOperationCancelled()) {return false;}
-
-                emit setValue(int(double(bar) /
-                              double(m_composition->getNbTracks()) * 100.0));
+                qApp->processEvents();
 
                 str << "    <part id=\"" << (*c)->getPartName() << "\">" << std::endl;
                 (*c)->writeEvents(bar, str);
@@ -570,13 +612,13 @@ MusicXmlExporter::write()
             } // for (int trackPos = 0....
             str << "  </measure>" << std::endl;
             bar++;
-        } // while (m_composition->getBarEnd(bar) < ...
+        }
         str << "</score-timewise>" << std::endl;
         for (PartsVector::iterator c = parts.begin(); c != parts.end(); ++c)
             delete *c;
     }
     str.close();
-    std::cerr << "MusicXML generated.\n";
+    RG_DEBUG << "write(): MusicXML generated.";
     return true;
 }
 

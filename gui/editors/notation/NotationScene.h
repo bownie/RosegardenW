@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,10 +19,12 @@
 #define RG_NOTATION_SCENE_H
 
 #include <QGraphicsScene>
+#include <QSharedPointer>
 
 #include "base/NotationTypes.h"
 #include "base/Composition.h"
 #include "gui/general/SelectionManager.h"
+#include "gui/general/GUIPalette.h"
 #include "StaffLayout.h"
 #include "NotePixmapFactory.h"
 #include "ClefKeyContext.h"
@@ -59,7 +61,7 @@ class NotationScene : public QGraphicsScene,
 
 public:
     NotationScene();
-    ~NotationScene();
+    ~NotationScene() override;
 
     void setNotationWidget(NotationWidget *w);
     void setStaffs(RosegardenDocument *document, std::vector<Segment *> segments);
@@ -109,8 +111,8 @@ public:
     RosegardenDocument *getDocument() { return m_document; }
     NotePixmapFactory *getNotePixmapFactory() { return m_notePixmapFactory; }
 
-    virtual EventSelection *getSelection() const { return m_selection; }
-    virtual void setSelection(EventSelection* s, bool preview);
+    EventSelection *getSelection() const override { return m_selection; }
+    void setSelection(EventSelection* s, bool preview) override;
 
     timeT getInsertionTime() const;
 
@@ -159,7 +161,12 @@ public:
                          int pitch, int height,
                          const Note &note,
                          bool grace,
-                         int velocity = -1);
+                         Accidental accidental = Accidentals::NoAccidental,
+                         bool cautious = false,
+                         QColor color = GUIPalette::SelectionColor,
+                         int velocity = -1,
+                         bool play = true
+                        );
 
     /// Remove any visible preview note
     void clearPreviewNote(NotationStaff *);
@@ -217,12 +224,13 @@ signals:
     void mouseMoved(const NotationMouseEvent *e);
     void mouseReleased(const NotationMouseEvent *e);
     void mouseDoubleClicked(const NotationMouseEvent *e);
+    void wheelTurned(int, const NotationMouseEvent *e);
 
     void sceneNeedsRebuilding();
 
     void eventRemoved(Event *);
 
-    void selectionChanged();
+    //void selectionChanged(); // defined in QGraphicsScene
     void selectionChanged(EventSelection *);
 
     void layoutUpdated(timeT,timeT);
@@ -252,19 +260,23 @@ protected slots:
     void slotCommandExecuted();
 
 protected:
-    void mousePressEvent(QGraphicsSceneMouseEvent *);
-    void mouseMoveEvent(QGraphicsSceneMouseEvent *);
-    void mouseReleaseEvent(QGraphicsSceneMouseEvent *);
-    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *);
+    void mousePressEvent(QGraphicsSceneMouseEvent *) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent *) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent *) override;
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *) override;
+    void wheelEvent(QGraphicsSceneWheelEvent *) override;
+
+    void keyPressEvent(QKeyEvent * keyEvent) override;
+    void keyReleaseEvent(QKeyEvent * keyEvent) override;
 
     // CompositionObserver methods
-    void segmentRemoved(const Composition *, Segment *);
-    void timeSignatureChanged(const Composition *); // CompositionObserver
-    void segmentRepeatChanged(const Composition *, Segment *, bool);
-    void segmentRepeatEndChanged(const Composition *, Segment *, timeT);
-    void segmentStartChanged(const Composition *, Segment *, timeT);
-    void segmentEndMarkerChanged(const Composition *, Segment *, bool);
-    void trackChanged(const Composition *, Track *);
+    void segmentRemoved(const Composition *, Segment *) override;
+    void timeSignatureChanged(const Composition *) override; // CompositionObserver
+    void segmentRepeatChanged(const Composition *, Segment *, bool) override;
+    void segmentRepeatEndChanged(const Composition *, Segment *, timeT) override;
+    void segmentStartChanged(const Composition *, Segment *, timeT) override;
+    void segmentEndMarkerChanged(const Composition *, Segment *, bool) override;
+    void trackChanged(const Composition *, Track *) override;
 
 
 
@@ -273,12 +285,14 @@ private:
     NotationStaff *getNextStaffVertically(int direction, timeT t);
     NotationStaff *getNextStaffHorizontally(int direction, bool cycle);
     NotationStaff *getStaffbyTrackAndTime(const Track *track, timeT targetTime);
-    void initCurrentStaffIndex(void);
+    void initCurrentStaffIndex();
+    void processKeyboardEvent(QKeyEvent * keyEvent);
 
     NotationWidget *m_widget; // I do not own this
 
     RosegardenDocument *m_document; // I do not own this
-    NotationProperties *m_properties; // I own this
+
+    QSharedPointer<NotationProperties> m_properties;
 
     NotePixmapFactory *m_notePixmapFactory; // I own this
     NotePixmapFactory *m_notePixmapFactorySmall; // I own this
@@ -326,6 +340,10 @@ private:
     void getPageMargins(int &left, int &top);
 
     void setupMouseEvent(QGraphicsSceneMouseEvent *, NotationMouseEvent &);
+    void setupMouseEvent(QGraphicsSceneWheelEvent *, NotationMouseEvent &);
+    void setupMouseEvent(QPointF scenePos, Qt::MouseButtons buttons,
+                         Qt::KeyboardModifiers modifiers,
+                         NotationMouseEvent &nme);
 
     void checkUpdate();
     void positionStaffs();

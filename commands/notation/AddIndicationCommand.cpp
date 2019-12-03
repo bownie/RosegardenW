@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -24,6 +24,7 @@
 #include "base/Segment.h"
 #include "base/SegmentNotationHelper.h"
 #include "base/Selection.h"
+#include "base/BaseProperties.h"
 #include "document/BasicCommand.h"
 #include "document/CommandRegistry.h"
 #include "gui/editors/notation/NotationProperties.h"
@@ -99,7 +100,7 @@ AddIndicationCommand::AddIndicationCommand(std::string indicationType,
     m_indicationType(indicationType),
     m_indicationStart(selection.getNotationStartTime()),
     m_indicationDuration(selection.getTotalNotationDuration()),
-    m_lastInsertedEvent(0)
+    m_lastInsertedEvent(nullptr)
 {
     if (!canExecute()) {
         throw CommandFailed
@@ -196,9 +197,29 @@ void
 AddIndicationCommand::modifySegment()
 {
     SegmentNotationHelper helper(getSegment());
+    Segment::iterator i, j;
+    int actualSubordering = Indication::EventSubOrdering;
+
+    helper.segment().getTimeSlice(getStartTime(), i, j);
+    for (Segment::iterator k = i; k != j; ++k) {
+        if ((*k)->has(BaseProperties::IS_GRACE_NOTE)) {
+            // If a grace note is inserted before an indication, the
+            // subordering is minor than Indication::EventSubOrdering,
+            // therefore we have to decrement the subordering to insert
+            // the new indication before the grace note.
+            if ((*k)->getSubOrdering() <= actualSubordering) {
+                actualSubordering = (*k)->getSubOrdering() - 1;
+            }
+        }
+    }
 
     Indication indication(m_indicationType, m_indicationDuration);
-    Event *e = indication.getAsEvent(m_indicationStart);
+    Event *e;
+
+    e = new Event(Indication::EventType, m_indicationStart, m_indicationDuration,
+                  actualSubordering);
+    e->set<String>(Indication::IndicationTypePropertyName, m_indicationType);
+    e->set<Int>("indicationduration", m_indicationDuration);
     helper.segment().insert(e);
     m_lastInsertedEvent = e;
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -41,8 +41,7 @@ class MidiKeyMappingEditor : public NameSetEditor
 
 public:
     MidiKeyMappingEditor(BankEditorDialog *bankEditor,
-                         QWidget *parent,
-                         const char *name = 0);
+                         QWidget *parent);
 
     void clearAll();
     void populate(QTreeWidgetItem *);
@@ -50,8 +49,8 @@ public:
     void reset();
 
 public slots:
-    virtual void slotNameChanged(const QString &);
-    virtual void slotKeyMapButtonPressed();
+    void slotNameChanged(const QString &) override;
+    void slotKeyMapButtonPressed() override;
 
 protected:
     virtual QWidget *makeAdditionalWidget(QWidget *parent);

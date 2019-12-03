@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -75,7 +75,7 @@ protected:
     void clear();
 
     struct CacheRec {
-        CacheRec() : data(0), channels(0), nframes(0), refCount(0) { }
+        CacheRec() : data(nullptr), channels(0), nframes(0), refCount(0) { }
         CacheRec(float **d, size_t c, size_t n) :
             data(d), channels(c), nframes(n), refCount(1) { }
         ~CacheRec();

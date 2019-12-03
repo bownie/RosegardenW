@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
@@ -17,6 +17,8 @@
 #include "Midi.h"
 #include "base/MidiTypes.h"
 #include "base/NotationTypes.h" // for Note::EventType
+#include "misc/Debug.h"
+#include "misc/TempDir.h"
 
 #include <QDir>
 #include <QFile>
@@ -60,7 +62,6 @@ MappedEvent::MappedEvent(InstrumentId id,
         // defaults set.
 
         if (e.isa(Note::EventType)) {
-            m_type = MidiNoteOneShot;
             long v = MidiMaxValue;
             e.get<Int>(BaseProperties::VELOCITY, v);
             m_data2 = v;
@@ -118,44 +119,28 @@ MappedEvent::MappedEvent(InstrumentId id,
         } else {
             m_type = InvalidMappedEvent;
         }
-    } catch (MIDIValueOutOfRange r) {
+    } catch (const MIDIValueOutOfRange &r) {
 
 #ifdef DEBUG_MAPPEDEVENT
-        std::cerr << "MIDI value out of range in MappedEvent ctor"
-        << std::endl;
-#else
-
-        ;
+        RG_WARNING << "MIDI value out of range in MappedEvent ctor";
 #endif
 
-    } catch (Event::NoData d) {
+    } catch (const Event::NoData &d) {
 
 #ifdef DEBUG_MAPPEDEVENT
-        std::cerr << "Caught Event::NoData in MappedEvent ctor, message is:"
-        << std::endl << d.getMessage() << std::endl;
-#else
-
-        ;
+        RG_WARNING << "Caught Event::NoData in MappedEvent ctor, message is:\n" << d.getMessage();
 #endif
 
-    } catch (Event::BadType b) {
+    } catch (const Event::BadType &b) {
 
 #ifdef DEBUG_MAPPEDEVENT
-        std::cerr << "Caught Event::BadType in MappedEvent ctor, message is:"
-        << std::endl << b.getMessage() << std::endl;
-#else
-
-        ;
+        RG_WARNING << "Caught Event::BadType in MappedEvent ctor, message is:\n" << b.getMessage();
 #endif
 
-    } catch (SystemExclusive::BadEncoding e) {
+    } catch (const SystemExclusive::BadEncoding &e) {
 
 #ifdef DEBUG_MAPPEDEVENT
-        std::cerr << "Caught bad SysEx encoding in MappedEvent ctor"
-        << std::endl;
-#else
-
-        ;
+        RG_WARNING << "Caught bad SysEx encoding in MappedEvent ctor";
 #endif
 
     }
@@ -205,6 +190,141 @@ MappedEvent::addDataString(const std::string& data)
         setDataBlockForEvent(this, data, true);
 }
 
+QDebug &
+operator<<(QDebug &dbg, const MappedEvent &mE)
+{
+    dbg << "MappedEvent" << endl;
+
+    dbg << "  Track ID:";
+
+    if (mE.m_trackId != NO_TRACK)
+        dbg << static_cast<int>(mE.m_trackId);
+    else
+        dbg << "NO_TRACK";
+
+    dbg << endl;
+
+    dbg << "  Instrument ID:" << mE.m_instrument << endl;
+
+    QString type;
+
+    // ToString(MappedEventType)?
+    switch(mE.m_type)
+    {
+    case MappedEvent::InvalidMappedEvent:
+        type = "InvalidMappedEvent";
+        break;
+    case MappedEvent::MidiNote:
+        type = "MidiNote";
+        break;
+    case MappedEvent::MidiNoteOneShot:
+        type = "MidiNoteOneShot";
+        break;
+    case MappedEvent::MidiProgramChange:
+        type = "MidiProgramChange";
+        break;
+    case MappedEvent::MidiKeyPressure:
+        type = "MidiKeyPressure";
+        break;
+    case MappedEvent::MidiChannelPressure:
+        type = "MidiChannelPressure";
+        break;
+    case MappedEvent::MidiPitchBend:
+        type = "MidiPitchBend";
+        break;
+    case MappedEvent::MidiController:
+        type = "MidiController";
+        break;
+    case MappedEvent::MidiSystemMessage:
+        type = "MidiSystemMessage";
+        break;
+    case MappedEvent::Audio:
+        type = "Audio";
+        break;
+    case MappedEvent::AudioCancel:
+        type = "AudioCancel";
+        break;
+    case MappedEvent::AudioLevel:
+        type = "AudioLevel";
+        break;
+    case MappedEvent::AudioStopped:
+        type = "AudioStopped";
+        break;
+    case MappedEvent::AudioGeneratePreview:
+        type = "AudioGeneratePreview";
+        break;
+    case MappedEvent::SystemUpdateInstruments:
+        type = "SystemUpdateInstruments";
+        break;
+    case MappedEvent::SystemJackTransport:
+        type = "SystemJackTransport";
+        break;
+    case MappedEvent::SystemMMCTransport:
+        type = "SystemMMCTransport";
+        break;
+    case MappedEvent::SystemMIDIClock:
+        type = "SystemMIDIClock";
+        break;
+    case MappedEvent::SystemMetronomeDevice:
+        type = "SystemMetronomeDevice";
+        break;
+    case MappedEvent::SystemAudioPortCounts:
+        type = "SystemAudioPortCounts";
+        break;
+    case MappedEvent::SystemAudioPorts:
+        type = "SystemAudioPorts";
+        break;
+    case MappedEvent::SystemFailure:
+        type = "SystemFailure";
+        break;
+    case MappedEvent::TimeSignature:
+        type = "TimeSignature";
+        break;
+    case MappedEvent::Tempo:
+        type = "Tempo";
+        break;
+    case MappedEvent::Panic:
+        type = "Panic";
+        break;
+    case MappedEvent::SystemMTCTransport:
+        type = "SystemMTCTransport";
+        break;
+    case MappedEvent::SystemMIDISyncAuto:
+        type = "SystemMIDISyncAuto";
+        break;
+    case MappedEvent::SystemAudioFileFormat:
+        type = "SystemAudioFileFormat";
+        break;
+    case MappedEvent::Marker:
+        type = "Marker";
+        break;
+    case MappedEvent::Text:
+        type = "Text";
+        break;
+    default:
+        // ??? This is a bitmask, so this might happen with perfectly
+        //     legitimate values.
+        type = "*** Unexpected";
+        break;
+    }
+
+    dbg << "  Type:" << type << endl;
+
+    dbg << "  Data 1:" << mE.m_data1 << endl;
+    dbg << "  Data 2:" << mE.m_data2 << endl;
+    dbg << "  Event Time:" << mE.m_eventTime << endl;
+    dbg << "  Duration:" << mE.m_duration << endl;
+    dbg << "  Audio Start Marker:" << mE.m_audioStartMarker << endl;
+    dbg << "  Runtime Segment ID:" << mE.m_runtimeSegmentId << endl;
+    dbg << "  Auto Fade:" << mE.m_autoFade << endl;
+    dbg << "  Fade In Time:" << mE.m_fadeInTime << endl;
+    dbg << "  Fade Out Time:" << mE.m_fadeOutTime << endl;
+    dbg << "  Recorded Channel:" << mE.m_recordedChannel << endl;
+    dbg << "  Recorded Device:" << mE.m_recordedDevice << endl;
+
+    return dbg;
+}
+
 //--------------------------------------------------
 
 class DataBlockFile
@@ -240,7 +360,7 @@ protected:
 };
 
 DataBlockFile::DataBlockFile(DataBlockRepository::blockid id)
-    : m_fileName(QDir::tempPath() + QString("/rosegarden_datablock_%1").arg(id)),
+    : m_fileName(TempDir::path() + QString("/rosegarden_datablock_%1").arg(id)),
       m_file(m_fileName),
       m_cleared(false)
 {
@@ -360,15 +480,13 @@ void DataBlockRepository::setDataBlockForEvent(MappedEvent* e,
     blockid id = e->getDataBlockId();
     if (id == 0) {
 #ifdef DEBUG_MAPPEDEVENT
-        std::cerr << "Creating new datablock for event"
-                  << std::endl;
+        RG_DEBUG << "Creating new datablock for event";
 #endif
         getInstance()->registerDataBlockForEvent(s, e);
     } else {
 #ifdef DEBUG_MAPPEDEVENT
-        std::cerr << "Writing " << s.length()
-                  << " chars to file for datablock " << id
-                  << std::endl;
+        RG_DEBUG << "Writing" << s.length()
+                  << "chars to file for datablock" << id;
 #endif
         DataBlockFile dataBlockFile(id);
         if (extend)
@@ -386,9 +504,9 @@ bool DataBlockRepository::hasDataBlock(DataBlockRepository::blockid id)
 DataBlockRepository::blockid DataBlockRepository::registerDataBlock(const std::string& s)
 {
     blockid id = 0;
-    while (id == 0 || DataBlockFile(id).exists())
-        id = (blockid)rand();
-
+  /*  while (id == 0 || DataBlockFile(id).exists())
+        id = (blockid)random();
+*/
  //   std::cerr << "DataBlockRepository::registerDataBlock: " << s.length() << " chars, id is " << id << std::endl;
 
     DataBlockFile dataBlockFile(id);
@@ -421,19 +539,19 @@ DataBlockRepository::DataBlockRepository()
 void DataBlockRepository::clear()
 {
 #ifdef DEBUG_MAPPEDEVENT
-    std::cerr << "DataBlockRepository::clear()\n";
+    RG_DEBUG << "DataBlockRepository::clear()";
 #endif
 
     // Erase all 'datablock_*' files
     //
-    QString tmpPath = QDir::tempPath();
+    QString tmpPath = TempDir::path();
 
     QDir segmentsDir(tmpPath, "rosegarden_datablock_*");
 
     if (segmentsDir.count() > 2000) {
-        std::cerr << "DataBlockRepository::clear(): A rather large number of rosegarden_datablock_*\n" <<
+        RG_DEBUG << "DataBlockRepository::clear(): A rather large number of rosegarden_datablock_*\n" <<
                      "  files (" << segmentsDir.count() << " of them) have been found in " << tmpPath.toStdString() << ".\n" <<
-                     "  It may take a while to delete them all.  Working...\n";
+                     "  It may take a while to delete them all.  Working...";
     }
 
     for (unsigned int i = 0; i < segmentsDir.count(); ++i) {
@@ -454,6 +572,7 @@ void DataBlockRepository::addDataByteForEvent(MidiByte byte, MappedEvent* e)
 // setDataBlockForEvent does what addDataStringForEvent used to do.
 
 
-DataBlockRepository* DataBlockRepository::m_instance = 0;
+DataBlockRepository* DataBlockRepository::m_instance = nullptr;
+
 
 }

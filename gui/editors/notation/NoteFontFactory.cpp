@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -34,27 +34,29 @@
 #include <QString>
 #include <QStringList>
 #include <algorithm>
-#include <QMutex>
 
 namespace Rosegarden
 {
 
-static QMutex *
-mutex()
+// this class is used as a friend of NoteFontFactory so that the ctor can be private
+class NoteFontFactoryStatic
 {
-    static QMutex m;
-    return &m;
-}
+public:
+    NoteFontFactory m_instance;
+};
+Q_GLOBAL_STATIC(NoteFontFactoryStatic, s_staticInstance)
+static NoteFontFactory &instance() { return s_staticInstance()->m_instance; }
 
 std::set<QString>
 NoteFontFactory::getFontNames(bool forceRescan)
 {
-    NOTATION_DEBUG << "NoteFontFactory::getFontNames: forceRescan = " << forceRescan << endl;
+    NOTATION_DEBUG << "NoteFontFactory::getFontNames: forceRescan = " << forceRescan;
 
-    QMutexLocker locker(mutex());
+    NoteFontFactory &that = instance();
+    QMutexLocker locker(&that.m_mutex);
 
-    if (forceRescan) m_fontNames.clear();
-    if (!m_fontNames.empty()) return m_fontNames;
+    if (forceRescan) that.m_fontNames.clear();
+    if (!that.m_fontNames.empty()) return that.m_fontNames;
 
     QSettings settings;
     settings.beginGroup(NotationViewConfigGroup);
@@ -65,7 +67,7 @@ NoteFontFactory::getFontNames(bool forceRescan)
     }
     settings.endGroup();
 
-    NOTATION_DEBUG << "NoteFontFactory::getFontNames: read from cache: " << fontNameList << endl;
+    NOTATION_DEBUG << "NoteFontFactory::getFontNames: read from cache: " << fontNameList;
 
     //QStringList names = QStringList::split(",", fontNameList);
     QStringList names = fontNameList.split(",", QString::SkipEmptyParts);
@@ -74,7 +76,7 @@ NoteFontFactory::getFontNames(bool forceRescan)
 
     if (names.empty()) {
 
-        NOTATION_DEBUG << "NoteFontFactory::getFontNames: No names available, rescanning..." << endl;
+        NOTATION_DEBUG << "NoteFontFactory::getFontNames: No names available, rescanning...";
 
         QStringList files = rf.getResourceFiles("fonts/mappings", "xml");
 
@@ -86,19 +88,19 @@ NoteFontFactory::getFontNames(bool forceRescan)
             try {
                 NoteFontMap map(name);
                 if (map.ok()) names.append(map.getName());
-            } catch (Exception e) {
+            } catch (const Exception &e) {
                 StartupLogo::hideIfStillThere();
-                QMessageBox::critical(0, tr("Rosegarden"), strtoqstr(e.getMessage()));
+                QMessageBox::critical(nullptr, tr("Rosegarden"), strtoqstr(e.getMessage()));
                 throw;
             }
         }
     }
 
-    QString savedNames = "";
+    QString savedNames;
 
-    for (QStringList::Iterator i = names.begin(); i != names.end(); ++i) {
-        m_fontNames.insert(*i);
-        if (i != names.begin()) savedNames += ",";
+    for (QStringList::const_iterator i = names.constBegin(); i != names.constEnd(); ++i) {
+        that.m_fontNames.insert(*i);
+        if (i != names.constBegin()) savedNames += ",";
         savedNames += *i;
     }
 
@@ -106,11 +108,11 @@ NoteFontFactory::getFontNames(bool forceRescan)
     settings.setValue("notefontlist", savedNames);
     settings.endGroup();
 
-    return m_fontNames;
+    return that.m_fontNames;
 }
 
 std::vector<int>
-NoteFontFactory::getAllSizes(QString fontName)
+NoteFontFactory::getAllSizes(const QString &fontName)
 {
     NoteFont *font = getFont(fontName, 0);
     if (!font) return std::vector<int>();
@@ -126,7 +128,7 @@ NoteFontFactory::getAllSizes(QString fontName)
 }
 
 std::vector<int>
-NoteFontFactory::getScreenSizes(QString fontName)
+NoteFontFactory::getScreenSizes(const QString &fontName)
 {
     NoteFont *font = getFont(fontName, 0);
     if (!font) return std::vector<int>();
@@ -141,21 +143,22 @@ NoteFontFactory::getScreenSizes(QString fontName)
 }
 
 NoteFont *
-NoteFontFactory::getFont(QString fontName, int size)
+NoteFontFactory::getFont(const QString &fontName, int size)
 {
-    QMutexLocker locker(mutex());
+    NoteFontFactory &that = instance();
+    QMutexLocker locker(&that.m_mutex);
 
     std::map<std::pair<QString, int>, NoteFont *>::iterator i =
-        m_fonts.find(std::pair<QString, int>(fontName, size));
+        that.m_fonts.find(std::pair<QString, int>(fontName, size));
 
-    if (i == m_fonts.end()) {
+    if (i == that.m_fonts.end()) {
         try {
             NoteFont *font = new NoteFont(fontName, size);
-            m_fonts[std::pair<QString, int>(fontName, size)] = font;
+            that.m_fonts[std::pair<QString, int>(fontName, size)] = font;
             return font;
-        } catch (Exception e) {
+        } catch (const Exception &e) {
             StartupLogo::hideIfStillThere();
-            QMessageBox::critical(0, tr("Rosegarden"), strtoqstr(e.getMessage()));
+            QMessageBox::critical(nullptr, tr("Rosegarden"), strtoqstr(e.getMessage()));
             throw;
         }
     } else {
@@ -166,8 +169,8 @@ NoteFontFactory::getFont(QString fontName, int size)
 QString
 NoteFontFactory::getDefaultFontName()
 {
-    static QString defaultFont = "";
-    if (defaultFont != "") return defaultFont;
+    static QString defaultFont;
+    if (!defaultFont.isEmpty()) return defaultFont;
 
     std::set<QString> fontNames = getFontNames();
 
@@ -182,7 +185,7 @@ NoteFontFactory::getDefaultFontName()
         } else {
             QString message = tr("Can't obtain a default font -- no fonts found");
             StartupLogo::hideIfStillThere();
-            QMessageBox::critical(0, tr("Rosegarden"), message);
+            QMessageBox::critical(nullptr, tr("Rosegarden"), message);
             throw NoFontsAvailable(qstrtostr(message));
         }
     }
@@ -191,7 +194,7 @@ NoteFontFactory::getDefaultFontName()
 }
 
 int
-NoteFontFactory::getDefaultSize(QString fontName)
+NoteFontFactory::getDefaultSize(const QString &fontName)
 {
     // always return 8 if it's supported!
     std::vector<int> sizes(getScreenSizes(fontName));
@@ -202,7 +205,7 @@ NoteFontFactory::getDefaultSize(QString fontName)
 }
 
 int
-NoteFontFactory::getDefaultMultiSize(QString fontName)
+NoteFontFactory::getDefaultMultiSize(const QString &fontName)
 {
     // always return 6 if it's supported!
     std::vector<int> sizes(getScreenSizes(fontName));
@@ -213,7 +216,7 @@ NoteFontFactory::getDefaultMultiSize(QString fontName)
 }
 
 bool
-NoteFontFactory::isAvailableInSize(QString fontName, int size)
+NoteFontFactory::isAvailableInSize(const QString &fontName, int size)
 {
     std::vector<int> sizes(getAllSizes(fontName));
     for (unsigned int i = 0; i < sizes.size(); ++i) {
@@ -221,8 +224,5 @@ NoteFontFactory::isAvailableInSize(QString fontName, int size)
     }
     return false;
 }
-
-std::set<QString> NoteFontFactory::m_fontNames;
-std::map<std::pair<QString, int>, NoteFont *> NoteFontFactory::m_fonts;
 
 }

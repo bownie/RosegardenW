@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -78,7 +78,7 @@ public:
                        timeT pasteEndTime,
                        PasteType pasteType);
 
-    virtual ~PasteEventsCommand();
+    ~PasteEventsCommand() override;
 
     EventSelection getPastedEvents();
 
@@ -87,10 +87,10 @@ public:
     /// Determine whether this paste will succeed (without executing it yet)
     bool isPossible();
 
-    virtual timeT getRelayoutEndTime();
+    timeT getRelayoutEndTime() override;
 
 protected:
-    virtual void modifySegment();
+    void modifySegment() override;
     timeT getEffectiveEndTime(Segment &,
                                           Clipboard *,
                                           timeT);

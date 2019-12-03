@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,11 +23,10 @@
 
 #include "gui/general/BaseTool.h"
 #include "gui/general/ActionFileClient.h"
+#include "gui/general/AutoScroller.h"  // For FollowMode
 
 class QMenu;
 class QAction;
-
-
 
 namespace Rosegarden
 {
@@ -65,25 +64,19 @@ class NotationTool : public BaseTool, public ActionFileClient
     friend class NotationToolBox;
 
 public:
-    virtual ~NotationTool();
+    ~NotationTool() override;
 
     /**
      * Is called by the view when the tool is set as current.
      * Add any setup here
      */
-    virtual void ready();
+    void ready() override;
 
     /**
      * Is called by the view when the tool is put away.
      * Add any cleanup here
      */
-    virtual void stow();
-
-    enum FollowMode {
-        NoFollow = 0x0,
-        FollowHorizontal = 0x1,
-        FollowVertical = 0x2
-    };
+    void stow() override;
 
     virtual void handleLeftButtonPress(const NotationMouseEvent *);
     virtual void handleMidButtonPress(const NotationMouseEvent *);
@@ -91,8 +84,11 @@ public:
     virtual void handleMouseRelease(const NotationMouseEvent *);
     virtual void handleMouseDoubleClick(const NotationMouseEvent *);
     virtual FollowMode handleMouseMove(const NotationMouseEvent *);
-    
+    virtual void handleWheelTurned(int, const NotationMouseEvent *);
+
+
     virtual const QString getToolName() = 0;
+    virtual bool needsWheelEvents() = 0;
 
 
 protected:
@@ -109,8 +105,8 @@ protected:
      */
     NotationTool(NotationWidget *);
 
-    virtual void createMenu();
-    virtual bool hasMenu() { return m_menuName != ""; }
+    void createMenu() override;
+    bool hasMenu() override { return m_menuName != ""; }
 
     void setScene(NotationScene *scene) { m_scene = scene; }
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -34,6 +34,7 @@
 #include <QFrame>
 #include <QLabel>
 #include <QRadioButton>
+#include <QPushButton>
 #include <QString>
 #include <QWidget>
 #include <QVBoxLayout>
@@ -83,7 +84,7 @@ TempoDialog::TempoDialog(QWidget *parent, RosegardenDocument *doc,
 
     m_tempoTap= new QPushButton(tr("Tap"), frame);
     layout->addWidget(m_tempoTap, 0, 3);
-    connect(m_tempoTap, SIGNAL(clicked()), SLOT(slotTapClicked()));
+    connect(m_tempoTap, &QAbstractButton::clicked, this, &TempoDialog::slotTapClicked);
 
 
     m_tempoConstant = new QRadioButton(tr("Tempo is fixed until the following tempo change"), frame);
@@ -108,12 +109,12 @@ TempoDialog::TempoDialog(QWidget *parent, RosegardenDocument *doc,
 
     //    connect(m_tempoTargetCheckBox, SIGNAL(clicked()),
     //            SLOT(slotTargetCheckBoxClicked()));
-    connect(m_tempoConstant, SIGNAL(clicked()),
-            SLOT(slotTempoConstantClicked()));
-    connect(m_tempoRampToNext, SIGNAL(clicked()),
-            SLOT(slotTempoRampToNextClicked()));
-    connect(m_tempoRampToTarget, SIGNAL(clicked()),
-            SLOT(slotTempoRampToTargetClicked()));
+    connect(m_tempoConstant, &QAbstractButton::clicked,
+            this, &TempoDialog::slotTempoConstantClicked);
+    connect(m_tempoRampToNext, &QAbstractButton::clicked,
+            this, &TempoDialog::slotTempoRampToNextClicked);
+    connect(m_tempoRampToTarget, &QAbstractButton::clicked,
+            this, &TempoDialog::slotTempoRampToTargetClicked);
     connect(m_tempoTargetSpinBox, SIGNAL(valueChanged(double)),
             SLOT(slotTargetChanged(double)));
 
@@ -128,7 +129,7 @@ TempoDialog::TempoDialog(QWidget *parent, RosegardenDocument *doc,
 
     frame->setLayout(layout);
 
-    m_timeEditor = 0;
+    m_timeEditor = nullptr;
 
     if (timeEditable) {
 
@@ -205,14 +206,14 @@ TempoDialog::TempoDialog(QWidget *parent, RosegardenDocument *doc,
         optionHBox->setLayout(optionHBoxLayout);
         optionHBoxLayout->setStretchFactor(spare, 20);
 
-        connect(m_tempoChangeHere, SIGNAL(clicked()),
-                SLOT(slotActionChanged()));
-        connect(m_tempoChangeBefore, SIGNAL(clicked()),
-                SLOT(slotActionChanged()));
-        connect(m_tempoChangeStartOfBar, SIGNAL(clicked()),
-                SLOT(slotActionChanged()));
-        connect(m_tempoChangeGlobal, SIGNAL(clicked()),
-                SLOT(slotActionChanged()));
+        connect(m_tempoChangeHere, &QAbstractButton::clicked,
+                this, &TempoDialog::slotActionChanged);
+        connect(m_tempoChangeBefore, &QAbstractButton::clicked,
+                this, &TempoDialog::slotActionChanged);
+        connect(m_tempoChangeStartOfBar, &QAbstractButton::clicked,
+                this, &TempoDialog::slotActionChanged);
+        connect(m_tempoChangeGlobal, &QAbstractButton::clicked,
+                this, &TempoDialog::slotActionChanged);
 
         m_tempoChangeBefore->setChecked(true);
 
@@ -224,8 +225,8 @@ TempoDialog::TempoDialog(QWidget *parent, RosegardenDocument *doc,
     vboxLayout->addWidget(buttonBox);
     
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(slotHelpRequested()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &TempoDialog::slotHelpRequested);
 
     populateTempo();    
 }
@@ -433,7 +434,7 @@ void
 TempoDialog::accept()
 {
     tempoT tempo = Composition::getTempoForQpm(m_tempoValueSpinBox->value());
-    RG_DEBUG << "Tempo is " << tempo << endl;
+    RG_DEBUG << "Tempo is " << tempo;
 
     tempoT target = -1;
     if (m_tempoRampToNext->isChecked()) {
@@ -442,7 +443,7 @@ TempoDialog::accept()
         target = Composition::getTempoForQpm(m_tempoTargetSpinBox->value());
     }
 
-    RG_DEBUG << "Target is " << target << endl;
+    RG_DEBUG << "Target is " << target;
 
     if (m_timeEditor) {
 
@@ -519,4 +520,3 @@ TempoDialog::slotHelpRequested()
 }
 }
 
-#include "TempoDialog.moc"

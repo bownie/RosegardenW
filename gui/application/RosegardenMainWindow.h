@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -27,9 +27,7 @@
 #include "sound/AudioFile.h"
 #include "sound/Midi.h"
 #include "gui/general/ActionFileClient.h"
-#include "gui/studio/DeviceManagerDialogUi.h"
 
-#include <QDockWidget>
 #include <QString>
 #include <QVector>
 #include <QMainWindow>
@@ -38,9 +36,12 @@
 #include <QAction>
 #include <QToolBar>
 #include <QPointer>
+#include <QSharedPointer>
 
 #include <map>
 #include <set>
+
+#include <rosegardenprivate_export.h>
 
 class QWidget;
 class QTimer;
@@ -48,7 +49,6 @@ class QTextCodec;
 class QShowEvent;
 class QObject;
 class QLabel;
-class QCursor;
 class QShortcut;
 class QTemporaryFile;
 class QProcess;
@@ -86,11 +86,14 @@ class BankEditorDialog;
 class AudioPluginOSCGUIManager;
 class AudioPluginManager;
 class AudioPluginDialog;
-class AudioMixerWindow;
+class AudioMixerWindow2;
 class AudioManagerDialog;
+class EditTempoController;
 class SequencerThread;
 class TranzportClient;
 class WarningWidget;
+class DocumentConfigureDialog;
+class ConfigureDialog;
 
 /// The main Rosegarden application window.
 /**
@@ -112,7 +115,7 @@ class WarningWidget;
   *     contains the TrackEditor.
   *   * getTransport() returns the TransportDialog instance.
   */
-class RosegardenMainWindow : public QMainWindow, public ActionFileClient
+class ROSEGARDENPRIVATE_EXPORT RosegardenMainWindow : public QMainWindow, public ActionFileClient
 {
     Q_OBJECT
     
@@ -126,19 +129,10 @@ public:
      * \arg useSequencer : if true, the sequencer is launched
      * @see initMenuBar initToolBar
      */
-    RosegardenMainWindow(bool useSequencer = true,
-                         QObject *startupStatusMessageReceiver = 0);
+    RosegardenMainWindow(bool enableSound = true,
+                         QObject *startupStatusMessageReceiver = nullptr);
 
-    virtual ~RosegardenMainWindow();
-
-    /** For some unfathomable reason, connections to the instrument parameter
-     * box have to be made outside the ctor, or they don't work.  It took me
-     * ages to figure this one out, due to the combination of having noticed
-     * Chris Fryer having a similar problem elsewhere, and observing that the
-     * working connections from the audio mixer were done outside the ctor.  I
-     * finally had a eureka moment on that, but not possibly soon enough.  Ugh.
-     */
-    void connectOutsideCtorHack();
+    ~RosegardenMainWindow() override;
 
     /** Qt generates a QCloseEvent when the user clicks the close button on the
      * title bar.  We also get a close event when slotQuit() calls close().
@@ -148,7 +142,7 @@ public:
      * close event.  Otherwise we ignore it, the closing breaks, and we keep
      * running.
      */
-    void closeEvent(QCloseEvent *event);
+    void closeEvent(QCloseEvent *event) override;
 
     /// Global access to the single instance of this class.
     static RosegardenMainWindow *self() { return m_myself; }
@@ -167,7 +161,15 @@ public:
 
     TransportDialog* getTransport();
 
-    enum ImportType { ImportRG4, ImportMIDI, ImportRG21, ImportHydrogen, ImportMusicXML, ImportCheckType };
+    enum ImportType {
+        ImportRG4,
+        ImportMIDI,
+        ImportRG21,
+        //ImportHydrogen,
+        ImportMusicXML,
+        ImportCheckType,
+        ImportRGD
+    };
 
     /**
      * open a Rosegarden file
@@ -294,11 +296,9 @@ public:
 
 
     /**
-     * Returns whether we're using a sequencer.
-     * false if the '--nosequencer' option was given
+     * Returns whether sound is enabled.
+     * false if the '--nosound' option was given
      * true otherwise.
-     * This doesn't give the state of the sequencer
-     * @see #isSequencerRunning
      */
     bool isUsingSequencer();
 
@@ -343,14 +343,6 @@ public:
      */
     void plugShortcuts(QWidget *widget, QShortcut *shortcut);
 
-    /**
-     * Override from QWidget
-     * Toolbars and docks need special treatment
-     */
-    virtual void setCursor(const QCursor&);
-
-    bool isTrackEditorPlayTracking() const;
-
     /** Query the AudioFileManager to see if the audio path exists, is readable,
      * writable, etc., and offer to dump the user in the document properties
      * editor if some problem is found.  This is older code that simply tests
@@ -367,6 +359,8 @@ public:
 
 protected:
 
+    RosegardenDocument* newDocument(bool skipAutoload = false);
+
     /**** File handling code that we don't want the outside world to use ****/
     /**/
     /**/
@@ -374,14 +368,14 @@ protected:
     /**
      * Create document from a file
      */
-    RosegardenDocument* createDocument(QString filePath, ImportType type = ImportRG4);
-    
-    
+    RosegardenDocument* createDocument(
+            QString filePath, ImportType type = ImportRG4, bool lock = true);
     
     /**
      * Create a document from RG file
      */
-    RosegardenDocument* createDocumentFromRGFile(QString filePath);
+    RosegardenDocument* createDocumentFromRGFile(
+            const QString &filePath, bool lock = true);
 
     /**
      * Create document from MIDI file
@@ -407,16 +401,10 @@ protected:
     /**/
     /***********************************************************************/
 
-    /**
-     * Set the 'Rewind' and 'Fast Forward' buttons in the transport
-     * toolbar to AutoRepeat
-     */
-    void setRewFFwdToAutoRepeat();
-
     static const void* SequencerExternal;
 
     /// Raise the transport along
-    virtual void showEvent(QShowEvent*);
+    void showEvent(QShowEvent*) override;
 
     /**
      * read general Options again and initialize all variables like
@@ -451,7 +439,7 @@ protected:
      * This is part of a legacy KDE mechanism, but has been left in place for
      * convenience
      */
-    virtual bool queryClose();
+    bool queryClose();
 
 
  //!!! I left the following code here, but this is related to KDE session
@@ -475,7 +463,7 @@ protected:
      *
      * @see KTMainWindow#readProperties
      */
-    virtual void readGlobalProperties();
+    //virtual void readGlobalProperties();
 ///////////////////////////////////////////////////////////////////////
 
     QString getAudioFilePath();
@@ -526,6 +514,29 @@ protected:
 
     void createAndSetupTransport();
 
+    /**
+     * Open a file dialog pointing to directory, if target is empty, this opens
+     * a generic file open dialog at the last location the user used
+     */
+    void openFileDialogAt(QString target);
+
+    /**
+     * Returns a suitable location for storing user data, typically
+     * ~/.local/share/ 
+     */
+    QString getDataLocation();
+
+    /**
+     * Override (non-virtual) ActionFileClient's version to allow for more
+     * complex enable/disable behavior.
+     */
+    void enterActionState(QString stateName);
+    /**
+     * Override (non-virtual) ActionFileClient's version to allow for more
+     * complex enable/disable behavior.
+     */
+    void leaveActionState(QString stateName);
+
 signals:
     void startupStatusMessage(QString message);
 
@@ -540,9 +551,6 @@ signals:
 
     /// emitted when the composition state (selected track, solo, etc...) changes
     void compositionStateUpdate();
-
-    /// emitted when instrument percussion set changes (relayed from InstrumentParameterBox)
-    void instrumentPercussionSetChanged(Instrument *);
 
     /// emitted when a plugin dialog selects a plugin
     void pluginSelected(InstrumentId, int, int);
@@ -571,12 +579,6 @@ public slots:
     virtual void slotOpenAudioPathSettings();
 
     /**
-     * open a new application window by creating a new instance of
-     * RosegardenMainWindow
-     */
-    void slotFileNewWindow();
-
-    /**
      * clears the document in the actual view to reuse it as the new
      * document
      */
@@ -586,6 +588,16 @@ public slots:
      * open a file and load it into the document
      */
     void slotFileOpen();
+
+    /**
+     * open a file dialog on the examples directory
+     */
+    void slotFileOpenExample();
+
+    /**
+     * open a file dialog on the templates directory
+     */
+    void slotFileOpenTemplate();
 
     /**
      * opens a file from the recent files menu (according to action name)
@@ -832,6 +844,12 @@ public slots:
     void slotSplitSelectionAtTime();
 
     /**
+     * Split the selected segments by drum, ie. each discrete pitch goes into a
+     * separate segment of its own
+     */
+    void slotSplitSelectionByDrum();
+
+    /**
      * Produce a harmony segment from the selected segments
      */
     void slotHarmonizeSelection();
@@ -865,7 +883,7 @@ public slots:
     /**
      * Update existing figurations
      */
-    void slotUpdateFigurations(void);
+    void slotUpdateFigurations();
     
     /**
      * Tempo to Segment length
@@ -946,6 +964,16 @@ public slots:
      * open a dialog for document properties
      */
     void slotEditDocumentProperties();
+    
+    /**
+     * Reset m_configDlg when the configuration dialog is closing.
+     */
+    void slotResetConfigDlg(); 
+    
+    /**
+     * Reset m_docConfigDlg when the document properties dialog is closing.
+     */
+    void slotResetDocConfigDlg(); 
 
     /**
      * Manage MIDI Devices
@@ -1271,23 +1299,12 @@ public slots:
     /**
      * Re-dock the parameters box to its initial position
      */
-    void slotDockParametersBack();
-
-    /**
-     * The parameters box was closed
-     */
-    void slotParametersClosed();
+    void slotHideShowParameterArea();
 
     /**
      * The parameters box was hidden
      */
     void slotParameterAreaHidden();
-
-    /**
-     * The parameters box was docked back
-     */
-//    void slotParametersDockedBack(QDockWidget*, QDockWidget::DockPosition);    //&&& restore DockPosition
-    void slotParametersDockedBack(QDockWidget*, int );    
 
     /**
      * Display tip-of-day dialog on demand
@@ -1311,17 +1328,6 @@ public slots:
     void slotConfigure();
 
     /**
-     * Show the key mappings
-     *
-     */
-    void slotEditKeys();
-
-    /**
-     * Edit toolbars
-     */
-    void slotEditToolbars();
-
-    /**
      * Update the toolbars after edition
      */
     void slotUpdateToolbars();
@@ -1333,25 +1339,6 @@ public slots:
 
     void slotZoomIn();
     void slotZoomOut();
-
-    /**
-     * Modify tempo
-     */
-    void slotChangeTempo(timeT time,
-                         tempoT value,      
-                         tempoT target,
-                         TempoDialog::TempoDialogAction action);
-
-    /**
-     * Move a tempo change
-     */
-    void slotMoveTempo(timeT oldTime,
-                       timeT newTime);
-
-    /**
-     * Remove a tempo change
-     */
-    void slotDeleteTempo(timeT time);
 
     /**
      * Add marker
@@ -1374,12 +1361,7 @@ public slots:
 
     /**
      * This slot is here to be connected to RosegardenMainViewWidget's
-     * stateChange signal. We use a bool for the 2nd arg rather than a
-     * KXMLGUIClient::ReverseStateChange to spare the include of
-     * kxmlguiclient.h just for one typedef.
-     *
-     * Hopefully we'll be able to get rid of this eventually,
-     * I should slip this in KMainWindow for KDE 4.
+     * stateChange signal.
      */
     void slotStateChanged(QString, bool noReverse);
 
@@ -1463,10 +1445,6 @@ public slots:
     //
     void slotUpdateAutoSaveInterval(unsigned int interval);
 
-    // Update the side-bar when the configuration page changes its style.
-    //
-    void slotUpdateSidebarStyle(unsigned int style);
-
     /**
      * called when the PlayList is being closed
      */
@@ -1485,7 +1463,6 @@ public slots:
     /**
      * called when the Mixer is being closed
      */
-    void slotAudioMixerClosed();
     void slotMidiMixerClosed();
 
     /**
@@ -1581,18 +1558,6 @@ public slots:
     
     void slotDebugDump();
 
-    /**
-     * Enable or disable the internal MIDI Thru routing. 
-     * 
-     * This policy is implemented at the sequencer side, controlled 
-     * by this flag and also by the MIDI Thru filters.
-     * 
-     * @see ControlBlock::isMidiRoutingEnabled()
-     * @see RosegardenSequencerApp::processAsynchronousEvents()
-     * @see RosegardenSequencerApp::processRecordedEvents()
-     */
-    void slotEnableMIDIThruRouting();
-
     void slotShowToolHelp(const QString &);
 
     void slotNewerVersionAvailable(QString);
@@ -1609,7 +1574,6 @@ protected slots:
     void setupRecentFilesMenu();
 
 private:
-
     /** Use QTemporaryFile to obtain a tmp filename that is guaranteed to be
      * unique
      */
@@ -1626,16 +1590,23 @@ private:
      */
     void checkAudioPath();
 
+    /**
+     * "save modified" - asks the user for saving if the document is
+     * modified
+     */
+    bool saveIfModified();
+
     //--------------- Data members ---------------------------------
 
-    bool m_alwaysUseDefaultStudio;
     bool m_actionsSetup;
 
-    RosegardenMainViewWidget* m_view;
+    // Action States
+    bool m_notPlaying;
+    bool m_haveSelection;
+    bool m_haveRange;
+    void updateActions();
 
-    QDockWidget *m_mainDockWidget;
-    QDockWidget* m_dockLeft;
-    
+    RosegardenMainViewWidget* m_view;
 
     /**
      * doc represents your actual document and is created only
@@ -1657,10 +1628,10 @@ private:
     QProcess* m_jackProcess;
 #endif // HAVE_LIBJACK
 
-    /** This is the ProgressBar used for the CPU meter in the main window status
-     * bar.  This is NOT a general-purpose progress indicator.  You want to use
-     * ProgressDialog for that, and let it manage its own ProgressBar, which is
-     * now private.
+    /// CPU meter in the main window status bar.
+    /**
+     * This is NOT a general-purpose progress indicator.  You want to use
+     * QProgressDialog for that.
      */
     ProgressBar *m_cpuBar;
     
@@ -1691,9 +1662,8 @@ private:
     timeT m_storedLoopEnd;
 
     bool m_useSequencer;
-    bool m_dockVisible;
 
-    AudioPluginManager *m_pluginManager;
+    QSharedPointer<AudioPluginManager> m_pluginManager;
 
     QTimer* m_autoSaveTimer;
 
@@ -1705,12 +1675,14 @@ private:
 
     PlayListDialog        *m_playList;
     SynthPluginManagerDialog *m_synthManager;
-    AudioMixerWindow      *m_audioMixer;
+    QPointer<AudioMixerWindow2> m_audioMixerWindow2;
     MidiMixerWindow       *m_midiMixer;
     BankEditorDialog      *m_bankEditor;
     MarkerEditor          *m_markerEditor;
     TempoView             *m_tempoView;
     TriggerSegmentManager *m_triggerSegmentManager;
+    ConfigureDialog       *m_configDlg;
+    DocumentConfigureDialog *m_docConfigDlg;
     std::set<ControlEditorDialog *> m_controlEditors;
     /// List of plugin dialogs to make sure we don't launch more than one.
     std::map<int, AudioPluginDialog*> m_pluginDialogs;
@@ -1722,6 +1694,8 @@ private:
 
     QTimer *m_updateUITimer;
     QTimer *m_inputTimer;
+
+    EditTempoController *m_editTempoController;
 
     StartupTester *m_startupTester;
 
@@ -1751,6 +1725,8 @@ private:
     void processRecordedEvents();
 
     void muteAllTracks(bool mute = true);
+
+    void updateTitle();
 
 private slots:
     void signalAction(int);

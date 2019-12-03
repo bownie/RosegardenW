@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -122,14 +122,14 @@ ControlParameterEditDialog::ControlParameterEditDialog(
 
     frame->setLayout(layout);
 
-    connect(m_nameEdit, SIGNAL(textChanged(const QString&)),
-            SLOT(slotNameChanged(const QString&)));
+    connect(m_nameEdit, &QLineEdit::textChanged,
+            this, &ControlParameterEditDialog::slotNameChanged);
 
     connect(m_typeCombo, SIGNAL(activated(int)),
             SLOT(slotTypeChanged(int)));
 
-    connect(m_description, SIGNAL(textChanged(const QString&)),
-            SLOT(slotDescriptionChanged(const QString &)));
+    connect(m_description, &QLineEdit::textChanged,
+            this, &ControlParameterEditDialog::slotDescriptionChanged);
 
     connect(m_controllerBox, SIGNAL(valueChanged(int)),
             SLOT(slotControllerChanged(int)));
@@ -212,8 +212,8 @@ ControlParameterEditDialog::ControlParameterEditDialog(
     QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
-    connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 }
 
 void
@@ -278,14 +278,14 @@ ControlParameterEditDialog::populate()
 void
 ControlParameterEditDialog::slotNameChanged(const QString &str)
 {
-    RG_DEBUG << "ControlParameterEditDialog::slotNameChanged" << endl;
+    RG_DEBUG << "ControlParameterEditDialog::slotNameChanged";
     m_dialogControl.setName(qstrtostr(str));
 }
 
 void
 ControlParameterEditDialog::slotTypeChanged(int value)
 {
-    RG_DEBUG << "ControlParameterEditDialog::slotTypeChanged" << endl;
+    RG_DEBUG << "ControlParameterEditDialog::slotTypeChanged";
     m_dialogControl.setType(qstrtostr(m_typeCombo->itemText(value)));
 
     populate();
@@ -294,14 +294,14 @@ ControlParameterEditDialog::slotTypeChanged(int value)
 void
 ControlParameterEditDialog::slotDescriptionChanged(const QString &str)
 {
-    RG_DEBUG << "ControlParameterEditDialog::slotDescriptionChanged" << endl;
+    RG_DEBUG << "ControlParameterEditDialog::slotDescriptionChanged";
     m_dialogControl.setDescription(qstrtostr(str));
 }
 
 void
 ControlParameterEditDialog::slotControllerChanged(int value)
 {
-    RG_DEBUG << "ControlParameterEditDialog::slotControllerChanged" << endl;
+    RG_DEBUG << "ControlParameterEditDialog::slotControllerChanged";
     m_dialogControl.setControllerValue(value);
 
     // set hex value
@@ -313,37 +313,36 @@ ControlParameterEditDialog::slotControllerChanged(int value)
 void
 ControlParameterEditDialog::slotMinChanged(int value)
 {
-    RG_DEBUG << "ControlParameterEditDialog::slotMinChanged" << endl;
+    RG_DEBUG << "ControlParameterEditDialog::slotMinChanged";
     m_dialogControl.setMin(value);
 }
 
 void
 ControlParameterEditDialog::slotMaxChanged(int value)
 {
-    RG_DEBUG << "ControlParameterEditDialog::slotMaxChanged" << endl;
+    RG_DEBUG << "ControlParameterEditDialog::slotMaxChanged";
     m_dialogControl.setMax(value);
 }
 
 void
 ControlParameterEditDialog::slotDefaultChanged(int value)
 {
-    RG_DEBUG << "ControlParameterEditDialog::slotDefaultChanged" << endl;
+    RG_DEBUG << "ControlParameterEditDialog::slotDefaultChanged";
     m_dialogControl.setDefault(value);
 }
 
 void
 ControlParameterEditDialog::slotColourChanged(int value)
 {
-    RG_DEBUG << "ControlParameterEditDialog::slotColourChanged" << endl;
+    RG_DEBUG << "ControlParameterEditDialog::slotColourChanged";
     m_dialogControl.setColourIndex(value);
 }
 
 void
 ControlParameterEditDialog::slotIPBPositionChanged(int value)
 {
-    RG_DEBUG << "ControlParameterEditDialog::slotIPBPositionChanged" << endl;
+    RG_DEBUG << "ControlParameterEditDialog::slotIPBPositionChanged";
     m_dialogControl.setIPBPosition(value - 1);
 }
 
 }
-#include "ControlParameterEditDialog.moc"

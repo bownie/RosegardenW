@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,8 +15,11 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[WheelyButton]"
 
 #include "WheelyButton.h"
+
+#include "misc/Debug.h"
 
 #include <QPushButton>
 #include <QWidget>
@@ -25,6 +28,8 @@
 
 namespace Rosegarden
 {
+
+
     // These things are only used by AudioRouteMenu, and it uses these to
     // provide the compact version of its interface, which is only used by the
     // audio mixer window.  This ctor is implemented to force the buttons to use
@@ -39,5 +44,17 @@ namespace Rosegarden
         font.setPointSize(6);
         setFont(font);
     }
+
+    void WheelyButton::wheelEvent(QWheelEvent *e)
+    {
+        // We'll handle this.  Don't pass to parent.
+        e->accept();
+
+        if (e->angleDelta().y() > 0)
+            emit wheel(true);
+        else if (e->angleDelta().y() < 0)
+            emit wheel(false);
+    }
+
+
 }
-#include "WheelyButton.moc"

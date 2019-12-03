@@ -1,3 +1,20 @@
+/* -*- c-basic-offset: 4 indent-tabs-mode: nil -*- vi:set ts=8 sts=4 sw=4: */
+
+/*
+    Rosegarden
+    A MIDI and audio sequencer and musical notation editor.
+    Copyright 2000-2018 the Rosegarden development team.
+ 
+    Other copyrights also apply to some parts of this work.  Please
+    see the AUTHORS file and individual file headers for details.
+ 
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License as
+    published by the Free Software Foundation; either version 2 of the
+    License, or (at your option) any later version.  See the file
+    COPYING included with this distribution for more information.
+*/
+
 /*
  * CheckForParallelsDialog.cpp
  *
@@ -23,7 +40,6 @@
 #include <QPushButton>
 #include <QDebug>
 #include <QCheckBox>
-#include <QFileDialog>
 #include <QSettings>
 
 #include <iterator>
@@ -38,7 +54,6 @@ namespace Rosegarden
 {
 
 //bool CheckForParallelsDialog::checkForUnisons = false;
-QString CheckForParallelsDialog::lastExportDirectory = QString("");
 
 CheckForParallelsDialog::CheckForParallelsDialog(NotationView *p, RosegardenDocument *doc, NotationScene *ns, Composition *comp) :
         QDialog(p)
@@ -55,9 +70,13 @@ CheckForParallelsDialog::CheckForParallelsDialog(NotationView *p, RosegardenDocu
 
     textBrowser = new QTextBrowser(this);
 
-    textBrowser->setStyleSheet("* { background-color: rgb(200, 200, 200); }");
+    // background-color: rgb(200, 200, 200);
+    QPalette pal;
+    pal.setColor(QPalette::Base, QColor(0xc8, 0xc8, 0xc8));
+    pal.setColor(QPalette::Text, Qt::black);
+    textBrowser->setPalette(pal);
 
-    connect(textBrowser, SIGNAL(cursorPositionChanged()), this, SLOT(onTextBrowserclicked()));
+    connect(textBrowser, &QTextEdit::cursorPositionChanged, this, &CheckForParallelsDialog::onTextBrowserclicked);
 
     ignoreCursor = true;
 
@@ -75,7 +94,7 @@ CheckForParallelsDialog::CheckForParallelsDialog(NotationView *p, RosegardenDocu
     vboxLayout->addWidget(checkForUnisonsCheckBox);
     checkForUnisonsCheckBox->setChecked( checkForUnisons );
 
-    connect(checkForUnisonsCheckBox, SIGNAL(clicked()), this, SLOT(checkForUnisonsClicked()));
+    connect(checkForUnisonsCheckBox, &QAbstractButton::clicked, this, &CheckForParallelsDialog::checkForUnisonsClicked);
 
     // we make the check for hidden parallels optional
     //
@@ -86,7 +105,7 @@ CheckForParallelsDialog::CheckForParallelsDialog(NotationView *p, RosegardenDocu
     vboxLayout->addWidget(checkForHiddenParallelsCheckBox);
     checkForHiddenParallelsCheckBox->setChecked( checkForHiddenParallels );
 
-    connect(checkForHiddenParallelsCheckBox, SIGNAL(clicked()), this, SLOT(checkForHiddenParallelsClicked()));
+    connect(checkForHiddenParallelsCheckBox, &QAbstractButton::clicked, this, &CheckForParallelsDialog::checkForHiddenParallelsClicked);
 
     // buttons
 
@@ -113,10 +132,10 @@ CheckForParallelsDialog::CheckForParallelsDialog(NotationView *p, RosegardenDocu
     settings.endGroup();
 
 
-    connect(startButton, SIGNAL(clicked()), this, SLOT(startCheck()));
-    connect(clearButton, SIGNAL(clicked()), this, SLOT(clear()));
-    connect(exportButton, SIGNAL(clicked()), this, SLOT(exportText()));
-    connect(okButton, SIGNAL(clicked()), this, SLOT(cleanUpAndLeave()));
+    connect(startButton, &QAbstractButton::clicked, this, &CheckForParallelsDialog::startCheck);
+    connect(clearButton, &QAbstractButton::clicked, this, &CheckForParallelsDialog::clear);
+    connect(exportButton, &QAbstractButton::clicked, this, &CheckForParallelsDialog::exportText);
+    connect(okButton, &QAbstractButton::clicked, this, &CheckForParallelsDialog::cleanUpAndLeave);
 
     transitionList.clear();
 }
@@ -156,9 +175,11 @@ CheckForParallelsDialog::exportText()
 {
     QString label = "Export Parallels";
 
+    // last directory we exported the parallels list to
+    static QString lastExportDirectory;
     QString name = FileDialog::getSaveFileName(
             this, label, lastExportDirectory,
-            QString(""), "*.txt", 0,
+            QString(""), "*.txt", nullptr,
             FileDialog::DontConfirmOverwrite);
 
     if (name == "")
@@ -388,7 +409,7 @@ CheckForParallelsDialog::startCheck()
     int currentTrackPosition;
     QString currentTrackLabel;
 
-    NotationStaff *currentStaff;
+    NotationStaff *currentStaff = nullptr;
 
     parallelList.clear();
 
@@ -406,7 +427,7 @@ CheckForParallelsDialog::startCheck()
     parallelLocation pl;
 
     pl.time = -1;
-    pl.staff = 0;
+    pl.staff = nullptr;
 
     locationForLine.push_back(pl);
     locationForLine.push_back(pl);
@@ -474,7 +495,7 @@ CheckForParallelsDialog::startCheck()
                     // the line numbers for the real parallels in the text browser are correct
 
                     pl.time = -1;
-                    pl.staff = 0;
+                    pl.staff = nullptr;
 
                     if ( predecessorEnd > currentTime ) {
                         int bar;
@@ -752,17 +773,18 @@ CheckForParallelsDialog::hasParallels(std::vector<Transition> &tSet, std::vector
             // pitch2End shall be the upper voice
             // we need this later when testing for hidden parallels
 
-            if (pitch1End>pitch2End) {
-                int h = pitch2End;
-                pitch2End = pitch1End;
-                pitch1End = h;
-            }
-
             int pitch1Begin = QString::fromUtf8((*(tSet[i].predecessor))->getAsString("pitch").c_str()).toInt();
             int pitch2Begin = QString::fromUtf8((*(tSet[j].predecessor))->getAsString("pitch").c_str()).toInt();
 
-            if (pitch1Begin>pitch2Begin) {
-                int h = pitch2Begin;
+            if (pitch1End>pitch2End) {
+
+            	// we need to switch the voices
+
+                int h = pitch2End;
+                pitch2End = pitch1End;
+                pitch1End = h;
+
+                h = pitch2Begin;
                 pitch2Begin = pitch1Begin;
                 pitch1Begin = h;
             }
@@ -880,7 +902,9 @@ CheckForParallelsDialog::hasParallels(std::vector<Transition> &tSet, std::vector
 void
 CheckForParallelsDialog::addText(QString text)
 {
-    textBrowser->setCursor(QTextCursor::End);
+    QTextCursor cursor = textBrowser->textCursor();
+    cursor.movePosition(QTextCursor::End);
+    textBrowser->setTextCursor(cursor);
     textBrowser->setTextColor(QColor("black"));
     textBrowser->insertPlainText(text);
 
@@ -890,4 +914,3 @@ CheckForParallelsDialog::addText(QString text)
 
 }
 
-#include "CheckForParallelsDialog.moc"

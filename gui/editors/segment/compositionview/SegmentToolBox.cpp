@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -43,42 +43,42 @@ SegmentToolBox::SegmentToolBox(CompositionView* parent, RosegardenDocument* doc)
 
 SegmentTool* SegmentToolBox::createTool(QString toolName)
 {
-    SegmentTool* tool = 0;
+    SegmentTool* tool = nullptr;
 
     QString toolNamelc = toolName.toLower();
     
-    if (toolNamelc == SegmentPencil::ToolName)
+    if (toolNamelc == SegmentPencil::ToolName())
 
         tool = new SegmentPencil(m_canvas, m_doc);
 
-    else if (toolNamelc == SegmentEraser::ToolName)
+    else if (toolNamelc == SegmentEraser::ToolName())
 
         tool = new SegmentEraser(m_canvas, m_doc);
 
-    else if (toolNamelc == SegmentMover::ToolName)
+    else if (toolNamelc == SegmentMover::ToolName())
 
         tool = new SegmentMover(m_canvas, m_doc);
 
-    else if (toolNamelc == SegmentResizer::ToolName)
+    else if (toolNamelc == SegmentResizer::ToolName())
 
         tool = new SegmentResizer(m_canvas, m_doc);
 
-    else if (toolNamelc == SegmentSelector::ToolName)
+    else if (toolNamelc == SegmentSelector::ToolName())
 
         tool = new SegmentSelector(m_canvas, m_doc);
 
-    else if (toolNamelc == SegmentSplitter::ToolName)
+    else if (toolNamelc == SegmentSplitter::ToolName())
 
         tool = new SegmentSplitter(m_canvas, m_doc);
 
-    else if (toolNamelc == SegmentJoiner::ToolName)
+    else if (toolNamelc == SegmentJoiner::ToolName())
 
         tool = new SegmentJoiner(m_canvas, m_doc);
 
     else {
-        QMessageBox::critical(0, tr("Rosegarden"), QString("SegmentToolBox::createTool : unrecognised toolname %1 (%2)")
+        QMessageBox::critical(nullptr, tr("Rosegarden"), QString("SegmentToolBox::createTool : unrecognised toolname %1 (%2)")
                            .arg(toolName).arg(toolNamelc));
-        return 0;
+        return nullptr;
     }
 
     m_tools.insert(toolName, tool);
@@ -92,4 +92,3 @@ SegmentTool* SegmentToolBox::getTool(QString toolName)
 }
 
 }
-#include "SegmentToolBox.moc"

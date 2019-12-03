@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -72,7 +72,7 @@ ExpandFigurationCommand::initialise(SegmentSelection selection)
     int figSourceID = -1;
     bool gotFigSource = false;
 
-    RG_DEBUG << "Initializing ExpandFigurationCommand" << endl;
+    RG_DEBUG << "Initializing ExpandFigurationCommand";
 
     // Update, because if we need new IDs they mustn't duplicate old
     // IDs, so we must be up to date on what IDs are there.

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -51,17 +51,17 @@ class NotationSelector : public NotationTool
 
 public:
 
-    ~NotationSelector();
+    ~NotationSelector() override;
 
-    virtual void handleLeftButtonPress(const NotationMouseEvent *);
+    void handleLeftButtonPress(const NotationMouseEvent *) override;
 
-    virtual void handleRightButtonPress(const NotationMouseEvent *);
+    void handleRightButtonPress(const NotationMouseEvent *) override;
 
-    virtual FollowMode handleMouseMove(const NotationMouseEvent *);
+    FollowMode handleMouseMove(const NotationMouseEvent *) override;
 
-    virtual void handleMouseRelease(const NotationMouseEvent *);
+    void handleMouseRelease(const NotationMouseEvent *) override;
 
-    virtual void handleMouseDoubleClick(const NotationMouseEvent *);
+    void handleMouseDoubleClick(const NotationMouseEvent *) override;
 
     virtual void handleMouseTripleClick(const NotationMouseEvent *);
 
@@ -73,12 +73,12 @@ public:
      * deleted, so we can't delete the selection rect in
      * ~NotationSelector because that leads to double deletion.
      */
-    virtual void ready();
+    void ready() override;
 
     /**
      * Delete the selection rect.
      */
-    virtual void stow();
+    void stow() override;
 
     /**
      * Respond to an event being deleted -- it may be the one the tool
@@ -89,9 +89,11 @@ public:
     /**
      * Useful to get the tool name from a NotationTool object
      */ 
-    virtual const QString getToolName() { return ToolName; }
+    const QString getToolName() override { return ToolName(); }
 
-    static const QString ToolName;
+    bool needsWheelEvents() override { return false; }
+
+    static QString ToolName();
 
 signals:
     void editElement(NotationStaff *, NotationElement *, bool advanced);
@@ -164,7 +166,7 @@ class NotationSelectorNoTies : public NotationSelector
 {
     friend class NotationToolBox;
  public:
-    static const QString ToolName;
+    static QString ToolName();
 
  private:
  NotationSelectorNoTies(NotationWidget *widget) :

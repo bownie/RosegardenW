@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -14,6 +14,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[ActionCommandRegistry]"
 
 #include "ActionCommandRegistry.h"
 #include "ActionFileClient.h"
@@ -29,6 +31,7 @@
 #include <QWidget>
 
 #include "misc/Strings.h"
+#include "misc/Debug.h"
 
 #include <QCoreApplication>
 
@@ -57,7 +60,7 @@ class ActionCommandArgumentQuerier : public CommandArgumentQuerier
 
 public:
     ActionCommandArgumentQuerier(QWidget *widget) : m_widget(widget) { }
-    QString getText(QString message, bool *ok) {
+    QString getText(QString message, bool *ok) override {
         if (!m_widget) return "";
         return InputDialog::getText(m_widget,
                                     tr("Rosegarden - Query"),
@@ -71,25 +74,24 @@ protected:
 void
 ActionCommandRegistry::invokeCommand(QString actionName)
 {
-    EventSelection *selection = 0;
+    EventSelection *selection = nullptr;
 
     SelectionManager *sm = dynamic_cast<SelectionManager *>(m_client);
 
     if (sm) {
         selection = sm->getSelection();
     } else {
-        std::cerr << "ActionCommandRegistry::slotInvokeCommand: Action file client is not a SelectionManager" << std::endl;
+        RG_WARNING << "ActionCommandRegistry::slotInvokeCommand: Action file client is not a SelectionManager";
     }
 
     if (!selection) {
-        std::cerr << "ActionCommandRegistry::slotInvokeCommand: No selection"
-                  << std::endl;
+        RG_WARNING << "ActionCommandRegistry::slotInvokeCommand: No selection";
         return;
     }
 
     QWidget *widget = dynamic_cast<QWidget *>(m_client);
     if (!widget) {
-        std::cerr << "ActionCommandRegistry::slotInvokeCommand: Action file client is not a widget" << std::endl;
+        RG_WARNING << "ActionCommandRegistry::slotInvokeCommand: Action file client is not a widget";
     }
 
     try {
@@ -108,8 +110,8 @@ ActionCommandRegistry::invokeCommand(QString actionName)
             sm->setSelection(subsequentSelection, false);
         }
 
-    } catch (CommandCancelled) {
-    } catch (CommandFailed f) {
+    } catch (const CommandCancelled &) {
+    } catch (const CommandFailed &f) {
 
         QMessageBox::warning(widget,
                              tr("Rosegarden - Warning"),

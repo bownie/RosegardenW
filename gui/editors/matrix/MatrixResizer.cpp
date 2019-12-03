@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -41,8 +41,8 @@ namespace Rosegarden
 
 MatrixResizer::MatrixResizer(MatrixWidget *parent) :
     MatrixTool("matrixresizer.rc", "MatrixResizer", parent),
-    m_currentElement(0),
-    m_currentViewSegment(0)
+    m_currentElement(nullptr),
+    m_currentViewSegment(nullptr)
 {
     createAction("select", SLOT(slotSelectSelected()));
     createAction("draw", SLOT(slotDrawSelected()));
@@ -56,7 +56,7 @@ void
 MatrixResizer::handleEventRemoved(Event *event)
 {
     if (m_currentElement && m_currentElement->event() == event) {
-        m_currentElement = 0;
+        m_currentElement = nullptr;
     }
 }
 
@@ -97,14 +97,14 @@ MatrixResizer::handleLeftButtonPress(const MatrixMouseEvent *e)
     }
 }
 
-MatrixResizer::FollowMode
+FollowMode
 MatrixResizer::handleMouseMove(const MatrixMouseEvent *e)
 {
-    if (!e) return NoFollow;
+    if (!e) return NO_FOLLOW;
 
     setBasicContextHelp();
 
-    if (!m_currentElement || !m_currentViewSegment) return NoFollow;
+    if (!m_currentElement || !m_currentViewSegment) return NO_FOLLOW;
 
     if (getSnapGrid()->getSnapSetting() != SnapGrid::NoSnap) {
         setContextHelp(tr("Hold Shift to avoid snapping to beat grid"));
@@ -122,14 +122,14 @@ MatrixResizer::handleMouseMove(const MatrixMouseEvent *e)
     timeT durationDiff = newDuration - m_currentElement->getViewDuration();
 
     EventSelection* selection = m_scene->getSelection();
-    if (!selection || selection->getAddedEvents() == 0) return NoFollow;
+    if (!selection || selection->getAddedEvents() == 0) return NO_FOLLOW;
 
     EventSelection::eventcontainer::iterator it =
         selection->getSegmentEvents().begin();
 
     for (; it != selection->getSegmentEvents().end(); ++it) {
 
-        MatrixElement *element = 0;
+        MatrixElement *element = nullptr;
         ViewElementList::iterator vi = m_currentViewSegment->findEvent(*it);
         if (vi != m_currentViewSegment->getViewElementList()->end()) {
             element = static_cast<MatrixElement *>(*vi);
@@ -153,7 +153,7 @@ MatrixResizer::handleMouseMove(const MatrixMouseEvent *e)
     }
 
 //    m_mParentView->canvas()->update();
-    return FollowHorizontal;
+    return FOLLOW_HORIZONTAL;
 }
 
 void
@@ -231,12 +231,12 @@ MatrixResizer::handleMouseRelease(const MatrixMouseEvent *e)
                                                 normalizeStart,
                                                 normalizeEnd));
 
-    m_scene->setSelection(0, false);
+    m_scene->setSelection(nullptr, false);
     CommandHistory::getInstance()->addCommand(macro);
     m_scene->setSelection(newSelection, false);
 
 //    m_mParentView->update();
-    m_currentElement = 0;
+    m_currentElement = nullptr;
     setBasicContextHelp();
 }
 
@@ -280,9 +280,8 @@ void MatrixResizer::setBasicContextHelp()
     }
 }
 
-const QString MatrixResizer::ToolName   = "resizer";
+QString MatrixResizer::ToolName() { return "resizer"; }
 
 }
 
-#include "MatrixResizer.moc"
 

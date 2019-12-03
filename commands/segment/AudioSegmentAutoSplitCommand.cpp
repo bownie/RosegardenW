@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -92,16 +92,15 @@ AudioSegmentAutoSplitCommand::execute()
                                m_segment->getAudioEndTime(),
                                m_threshold,
                                RealTime(0, 200000000));
-        } catch (AudioFileManager::BadAudioPathException e) {
-            std::cerr << "ERROR: AudioSegmentAutoSplitCommand: Bad audio path: " << e.getMessage() << std::endl;
-        } catch (PeakFileManager::BadPeakFileException e) {
-            std::cerr << "ERROR: AudioSegmentAutoSplitCommand: Bad peak file: " << e.getMessage() << std::endl;
+        } catch (const AudioFileManager::BadAudioPathException &e) {
+            RG_WARNING << "ERROR: AudioSegmentAutoSplitCommand: Bad audio path: " << e.getMessage();
+        } catch (const PeakFileManager::BadPeakFileException &e) {
+            RG_WARNING << "ERROR: AudioSegmentAutoSplitCommand: Bad peak file: " << e.getMessage();
         }
 
         std::vector<SplitPointPair>::iterator it;
         timeT absStartTime, absEndTime;
 
-        char splitNumber[10];
         int splitCount = 0;
 
         timeT origStartTime = m_segment->getStartTime();
@@ -114,7 +113,7 @@ AudioSegmentAutoSplitCommand::execute()
             // into as an offset from the original segment's start
             // time
 
-            RG_DEBUG << "AudioSegmentAutoSplitCommand::execute: range " << it->first << " -> " << it->second << endl;
+            RG_DEBUG << "AudioSegmentAutoSplitCommand::execute: range " << it->first << " -> " << it->second;
 
             absStartTime = m_composition->getElapsedTimeForRealTime
                            (origStartRT - audioStart + it->first);
@@ -137,7 +136,7 @@ AudioSegmentAutoSplitCommand::execute()
             newSegment->setEndMarkerTime(absEndTime);
 
             // label
-            sprintf(splitNumber, "%d", splitCount++);
+            ++splitCount;
             std::string label = m_segment->getLabel();
             newSegment->setLabel(appendLabel(label, qstrtostr(
                     tr("(part %1)").arg(splitCount))));
@@ -157,7 +156,7 @@ AudioSegmentAutoSplitCommand::execute()
         }
     }
 
-    RG_DEBUG << "AudioSegmentAutoSplitCommand::execute: have " << m_newSegments.size() << " new segments" << endl;
+    RG_DEBUG << "AudioSegmentAutoSplitCommand::execute: have " << m_newSegments.size() << " new segments";
 
     for (size_t i = 0; i < m_newSegments.size(); ++i) {
         m_composition->addSegment(m_newSegments[i]);

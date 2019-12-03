@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -29,11 +29,11 @@
 
 class QWidget;
 class QSignalMapper;
-class QLabel;
 class QGridLayout;
 class QFrame;
 class QCheckBox;
 class QComboBox;
+class QLabel;
 
 namespace Rosegarden
 {
@@ -54,22 +54,7 @@ class MIDIInstrumentParameterPanel : public InstrumentParameterPanel
 
 public:
 
-    MIDIInstrumentParameterPanel(RosegardenDocument *doc, QWidget *parent);
-
-    /// Display a potentially different Instrument.
-    /**
-     * This is called whenever a different Instrument needs to be displayed.
-     * E.g. when the user selects a different track.
-     */
-    void displayInstrument(Instrument *);
-
-    /// Uncheck the Receive External checkbox.
-    /**
-     * Called by RosegardenMainViewWidget::slotUpdateInstrumentParameterBox()
-     * to clear the "Receive External" checkbox when the user selects a
-     * different track.
-     */
-    void clearReceiveExternal();
+    MIDIInstrumentParameterPanel(QWidget *parent);
 
 public slots:
 
@@ -83,28 +68,29 @@ public slots:
      * the comboboxes.
      *
      * This slot is connected in RosegardenMainWindow's ctor to
-     * SequenceManager::signalSelectProgramNoSend().
+     * SequenceManager::sigProgramChange().
      *
-     * Note: This function's parameters are in reverse order.  They should be:
-     *       slotExternalProgramChange(bankMSB, bankLSB, programChange)
-     *       This would require changing
-     *       SequenceManager::signalSelectProgramNoSend() as well.
-     *
-     * parameters:
-     * programChange : the program to select (triggered by Program
-     *                 Change message)
-     * bankLSB : the bank to select (-1 if no LSB Bank Select occurred)
-     *           (triggered by LSB Bank Select message)
-     * bankMSB : the bank to select (-1 if no MSB Bank Select occurred)
-     *           (triggered by MSB Bank Select message)
+     * @param [in] bankMSB The bank to select (-1 if no MSB Bank Select occurred)
+     *                     (triggered by MSB Bank Select message).
+     * @param [in] bankLSB The bank to select (-1 if no LSB Bank Select occurred)
+     *                     (triggered by LSB Bank Select message).
+     * @param [in] programChange The program to select (triggered by Program
+     *                           Change message).
      */
     void slotExternalProgramChange(
-            int programChange, int bankLSB, int bankMSB);
+            int bankMSB, int bankLSB, int programChange);
 
 private slots:
 
-    /// Handle InstrumentStaticSignals::changed()
-    void slotInstrumentChanged(Instrument *);
+    /// Called when a new document is loaded.
+    void slotNewDocument(RosegardenDocument *);
+    /// Called when the document is modified in some way.
+    void slotDocumentModified(bool);
+
+    /// Handle InstrumentStaticSignals::controlChange().
+    void slotControlChange(Instrument *instrument, int cc);
+
+    // Widgets
 
     /// Handle m_percussionCheckBox clicked()
     void slotPercussionClicked(bool checked);
@@ -132,46 +118,43 @@ private slots:
 
 private:
 
-    QGridLayout        *m_mainGrid;
-
     // m_instrumentLabel is inherited from InstrumentParameterPanel.
 
-    SqueezedLabel      *m_connectionLabel;
+    SqueezedLabel *m_connectionLabel;
 
-    QCheckBox          *m_percussionCheckBox;
+    QCheckBox *m_percussionCheckBox;
 
     // Bank
-    QLabel             *m_bankLabel;
-    QCheckBox          *m_bankCheckBox;
-    QComboBox          *m_bankComboBox;
-    BankList            m_banks;
+    QLabel *m_bankLabel;
+    QCheckBox *m_bankCheckBox;
+    QComboBox *m_bankComboBox;
+    BankList m_banks;
     void showBank(bool show);
     /// From the selected instrument.
     void updateBankComboBox();
 
     // Program
-    QLabel             *m_programLabel;
-    QCheckBox          *m_programCheckBox;
-    QComboBox          *m_programComboBox;
-    ProgramList         m_programs;
+    QLabel *m_programLabel;
+    QCheckBox *m_programCheckBox;
+    QComboBox *m_programComboBox;
+    ProgramList m_programs;
     /// From the selected instrument.
     void updateProgramComboBox();
     static bool hasNoName(const MidiProgram &p);
 
     // Variation
-    QLabel             *m_variationLabel;
-    QCheckBox          *m_variationCheckBox;
-    QComboBox          *m_variationComboBox;
-    ProgramList         m_variations;
+    QLabel *m_variationLabel;
+    QCheckBox *m_variationCheckBox;
+    QComboBox *m_variationComboBox;
+    ProgramList m_variations;
     void showVariation(bool show);
     /// From the selected instrument.
     void updateVariationComboBox();
 
     // Channel: auto/fixed
-    QComboBox          *m_channelValue;
+    QComboBox *m_channelValue;
 
-    QLabel             *m_receiveExternalLabel;
-    QCheckBox          *m_receiveExternalCheckBox;
+    QCheckBox *m_receiveExternalCheckBox;
 
     // Rotaries
 
@@ -197,8 +180,6 @@ private:
 
     /// Update all widgets from the selected Instrument.
     void updateWidgets();
-
-    QSharedPointer<InstrumentStaticSignals> m_instrumentStaticSignals;
 };
 
 

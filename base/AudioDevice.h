@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -18,30 +18,29 @@
 #include "Device.h"
 #include "Instrument.h"
 
-// An AudioDevice defines Instruments where we can play our
-// audio Segments.
-//
-//
-//
 #ifndef RG_AUDIODEVICE_H
 #define RG_AUDIODEVICE_H
 
 namespace Rosegarden
 {
 
+/// An AudioDevice defines Instruments where we can play our audio Segments.
 class AudioDevice : public Device
 {
 
 public:
     AudioDevice();
     AudioDevice(DeviceId id, const std::string &name);
-    virtual ~AudioDevice();
+    ~AudioDevice() override;
 
     // Copy constructor
     //
     AudioDevice(const AudioDevice &);
 
-    virtual void addInstrument(Instrument*);
+    bool isOutput() const  override { return true; }
+    bool isInput() const  override { return false; }
+
+    void addInstrument(Instrument*) override;
 
     // An untainted Instrument we can use for playing previews
     //
@@ -49,16 +48,15 @@ public:
 
     // Turn into XML string
     //
-    virtual std::string toXmlString(); 
+    std::string toXmlString() const override;
 
-    virtual InstrumentList getAllInstruments() const { return m_instruments; }
-    virtual InstrumentList getPresentationInstruments() const
+    InstrumentList getAllInstruments() const override { return m_instruments; }
+    InstrumentList getPresentationInstruments() const override
         { return m_instruments; }
-    virtual void refreshForConnection(void);
 
 private:
     void createInstruments();
-    void renameInstruments();
+    void renameInstruments() override;
 };
 
 }

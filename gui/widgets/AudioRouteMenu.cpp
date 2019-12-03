@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,16 +15,19 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[AudioRouteMenu]"
 
 #include "AudioRouteMenu.h"
-#include "WheelyButton.h"
 
+#include "gui/application/RosegardenMainWindow.h"
+#include "document/RosegardenDocument.h"
+#include "gui/widgets/WheelyButton.h"
 #include "base/Instrument.h"
 #include "base/Studio.h"
 #include "gui/studio/StudioControl.h"
-#include "gui/widgets/RosegardenPopupMenu.h"
-#include "sound/MappedCommon.h"
-#include "sound/MappedStudio.h"
+#include "sound/MappedCommon.h"  // MappedObjectId, MappedObjectValue
+#include "sound/MappedStudio.h"  // MappedAudioFader
+#include "misc/Debug.h"
 
 #include <QComboBox>
 #include <QCursor>
@@ -33,48 +36,45 @@
 #include <QString>
 #include <QWidget>
 #include <QAction>
+#include <QMenu>
 
 
 namespace Rosegarden
 {
 
-AudioRouteMenu::AudioRouteMenu(QWidget *par,
+
+AudioRouteMenu::AudioRouteMenu(QWidget *parent,
                                Direction direction,
                                Format format,
-                               Studio *studio,
-                               Instrument *instrument) :
-        QObject(par),
-        m_studio(studio),
-        m_instrument(instrument),
+                               InstrumentId instrumentId) :
+        QObject(parent),
+        m_instrumentId(instrumentId),
         m_direction(direction),
         m_format(format)
 {
-    if (instrument) {
-        // Make instrument tell us if it gets destroyed.
-        connect(instrument, SIGNAL(destroyed()),
-                this, SLOT(slotInstrumentGone()));
-    }
-    
     switch (format) {
 
     case Compact: {
-            m_combo = 0;
-            m_button = new WheelyButton(par);
-            connect(m_button, SIGNAL(wheel(bool)), this, SLOT(slotWheel(bool)));
-            connect(m_button, SIGNAL(clicked()), this, SLOT(slotShowMenu()));
+            m_combo = nullptr;
+            m_button = new WheelyButton(parent);
+            connect(m_button, &WheelyButton::wheel,
+                    this, &AudioRouteMenu::slotWheel);
+            connect(m_button, &QAbstractButton::clicked,
+                    this, &AudioRouteMenu::slotShowMenu);
             break;
         }
 
     case Regular: {
-            m_button = 0;
-            m_combo = new QComboBox(par);
-            connect(m_combo, SIGNAL(activated(int)), this, SLOT(slotEntrySelected(int)));
+            m_button = nullptr;
+            m_combo = new QComboBox(parent);
+            connect(m_combo, SIGNAL(activated(int)),
+                    SLOT(slotEntrySelected(int)));
             break;
         }
 
     }
 
-    slotRepopulate();
+    updateWidget();
 }
 
 QWidget *
@@ -87,7 +87,7 @@ AudioRouteMenu::getWidget()
 }
 
 void
-AudioRouteMenu::slotRepopulate()
+AudioRouteMenu::updateWidget()
 {
     switch (m_format) {
 
@@ -106,24 +106,19 @@ AudioRouteMenu::slotRepopulate()
 }
 
 void
-AudioRouteMenu::slotSetInstrument(Studio *studio,
-                                  Instrument *instrument)
+AudioRouteMenu::setInstrument(InstrumentId instrumentId)
 {
-    m_studio = studio;
-    m_instrument = instrument;
-    slotRepopulate();
-    if (instrument) {
-        // Make instrument tell us if it gets destroyed.
-        connect(instrument, SIGNAL(destroyed()),
-                this, SLOT(slotInstrumentGone()));
-    }
+    m_instrumentId = instrumentId;
+
+    updateWidget();
 }
 
 void
 AudioRouteMenu::slotWheel(bool up)
 {
     int current = getCurrentEntry();
-    if (up) { // actually moves down the list
+
+    if (up) {
         if (current > 0)
             slotEntrySelected(current - 1);
     } else {
@@ -135,44 +130,65 @@ AudioRouteMenu::slotWheel(bool up)
 void
 AudioRouteMenu::slotShowMenu()
 {
+    // No entries to show?  Bail.
     if (getNumEntries() == 0)
-        return ;
+        return;
 
-    RosegardenPopupMenu *menu = new RosegardenPopupMenu((QWidget *)parent());
+    QMenu *menu = new QMenu(qobject_cast<QWidget *>(parent()));
 
+    // Populate the menu.
     for (int i = 0; i < getNumEntries(); ++i) {
-
         QAction *a = menu->addAction(getEntryText(i));
+        // Used by slotEntrySelected() to figure out what was selected.
         a->setObjectName(QString("%1").arg(i));
     }
 
-    connect(menu, SIGNAL(triggered(QAction *)), this, SLOT(slotEntrySelected(QAction *)));
+    connect(menu, SIGNAL(triggered(QAction *)),
+            SLOT(slotEntrySelected(QAction *)));
 
-    int itemHeight = menu->actionGeometry(menu->actions().value(0)).height() + 2;
+    // Compute the position for the pop-up menu.
+
+    // QMenu::popup() can do this for us, but it doesn't place the
+    // cursor over top of the current selection.
+
+    // Get the QRect for the current entry.
+    QRect actionRect =
+            menu->actionGeometry(menu->actions().value(getCurrentEntry()));
+
     QPoint pos = QCursor::pos();
-
     pos.rx() -= 10;
-    pos.ry() -= (itemHeight / 2 + getCurrentEntry() * itemHeight);
+    pos.ry() -= actionRect.top() + actionRect.height() / 2;
 
+    // Display the menu.
     menu->popup(pos);
 }
 
 int
 AudioRouteMenu::getNumEntries()
 {
-    if (!m_instrument)
+    if (m_instrumentId == NoInstrument)
         return 0;
+
+    RosegardenDocument *doc = RosegardenMainWindow::self()->getDocument();
+    Studio &studio = doc->getStudio();
 
     switch (m_direction) {
 
     case In: {
             int stereoIns =
-                m_studio->getRecordIns().size() +
-                m_studio->getBusses().size();
+                studio.getRecordIns().size() +
+                studio.getBusses().size();
 
-            if (m_instrument->getAudioChannels() > 1) {
+            Instrument *instrument = studio.getInstrumentById(m_instrumentId);
+            if (!instrument)
+                return 0;
+
+            // If this is a stereo instrument
+            if (instrument->getAudioChannels() > 1) {
                 return stereoIns;
-            } else {
+            } else {  // this is a mono instrument
+                // We'll have separate "L" and "R" entries for each input,
+                // so double it.
                 return stereoIns * 2;
             }
 
@@ -180,7 +196,7 @@ AudioRouteMenu::getNumEntries()
         }
 
     case Out:
-        return m_studio->getBusses().size();
+        return studio.getBusses().size();
     }
 
     return 0;
@@ -189,29 +205,42 @@ AudioRouteMenu::getNumEntries()
 int
 AudioRouteMenu::getCurrentEntry()
 {
-    if (!m_instrument)
+    if (m_instrumentId == NoInstrument)
+        return 0;
+
+    RosegardenDocument *doc = RosegardenMainWindow::self()->getDocument();
+    Studio &studio = doc->getStudio();
+    Instrument *instrument = studio.getInstrumentById(m_instrumentId);
+    if (!instrument)
         return 0;
 
     switch (m_direction) {
 
     case In: {
-            bool stereo = (m_instrument->getAudioChannels() > 1);
+            bool stereo = (instrument->getAudioChannels() > 1);
 
             bool isBuss;
             int channel;
-            int input = m_instrument->getAudioInput(isBuss, channel);
+            int input = instrument->getAudioInput(isBuss, channel);
 
+            // If a buss is currently selected
             if (isBuss) {
-                int recordIns = m_studio->getRecordIns().size();
+                // We need to skip over the record ins to get to the
+                // buss entries.
+                int recordIns = studio.getRecordIns().size();
                 if (stereo) {
                     return recordIns + input;
                 } else {
+                    // In mono we multiply by two since each stereo channel
+                    // expands into an "L" and an "R" entry.
                     return recordIns * 2 + input * 2 + channel;
                 }
             } else {
                 if (stereo) {
                     return input;
                 } else {
+                    // In mono we multiply by two since each stereo channel
+                    // expands into an "L" and an "R" entry.
                     return input * 2 + channel;
                 }
             }
@@ -220,7 +249,7 @@ AudioRouteMenu::getCurrentEntry()
         }
 
     case Out:
-        return m_instrument->getAudioOutput();
+        return instrument->getAudioOutput();
     }
 
     return 0;
@@ -229,35 +258,46 @@ AudioRouteMenu::getCurrentEntry()
 QString
 AudioRouteMenu::getEntryText(int entry)
 {
-    if (!m_instrument)
-        { return tr("none");}
+    if (m_instrumentId == NoInstrument)
+        return tr("none");
 
     switch (m_direction) {
 
     case In: {
-            bool stereo = (m_instrument->getAudioChannels() > 1);
-            int recordIns = m_studio->getRecordIns().size();
+            RosegardenDocument *doc =
+                    RosegardenMainWindow::self()->getDocument();
+            Studio &studio = doc->getStudio();
+            Instrument *instrument = studio.getInstrumentById(m_instrumentId);
+            if (!instrument)
+                return nullptr;
+
+            bool stereo = (instrument->getAudioChannels() > 1);
+            int recordIns = studio.getRecordIns().size();
 
             if (stereo) {
+                // If we have a record input
                 if (entry < recordIns) {
                     return tr("In %1").arg(entry + 1);
-                } else if (entry == recordIns) {
+                } else if (entry == recordIns) {  // master
                     return tr("Master");
-                } else {
+                } else {  // submaster
                     return tr("Sub %1").arg(entry - recordIns);
                 }
             } else {
+                // 0 == left, 1 == right
                 int channel = entry % 2;
-                entry /= 2;
-                if (entry < recordIns) {
+                int input = entry / 2;
+
+                // If we have a record input
+                if (input < recordIns) {
                     return (channel ? tr("In %1 R") :
-                            tr("In %1 L")).arg(entry + 1);
-                } else if (entry == recordIns) {
+                            tr("In %1 L")).arg(input + 1);
+                } else if (input == recordIns) {  // master
                     return (channel ? tr("Master R") :
                             tr("Master L"));
-                } else {
+                } else {  // submaster
                     return (channel ? tr("Sub %1 R") :
-                            tr("Sub %1 L")).arg(entry - recordIns);
+                            tr("Sub %1 L")).arg(input - recordIns);
                 }
             }
             break;
@@ -276,29 +316,54 @@ AudioRouteMenu::getEntryText(int entry)
 void
 AudioRouteMenu::slotEntrySelected(QAction *a)
 {
+    // Extract the entry number from the action's object name.
     slotEntrySelected(a->objectName().toInt());
 }
 
 void
 AudioRouteMenu::slotEntrySelected(int i)
 {
-    if (!m_instrument)
-        { return; }
-    
+    if (m_instrumentId == NoInstrument)
+        return;
+
+    RosegardenDocument *doc =
+            RosegardenMainWindow::self()->getDocument();
+    Studio &studio = doc->getStudio();
+    Instrument *instrument = studio.getInstrumentById(m_instrumentId);
+    if (!instrument)
+        return;
+
     switch (m_direction) {
 
     case In: {
-            bool stereo = (m_instrument->getAudioChannels() > 1);
-
             bool oldIsBuss;
+            // 0 == left, 1 == right, mono only
             int oldChannel;
-            int oldInput = m_instrument->getAudioInput(oldIsBuss, oldChannel);
+            int oldInput = instrument->getAudioInput(oldIsBuss, oldChannel);
+
+            // Compute old mapped ID
+
+            MappedObjectId oldMappedId = 0;
+
+            if (oldIsBuss) {
+                Buss *buss = studio.getBussById(oldInput);
+                if (buss)
+                    oldMappedId = buss->getMappedId();
+            } else {
+                RecordIn *in = studio.getRecordIn(oldInput);
+                if (in)
+                    oldMappedId = in->getMappedId();
+            }
+
+            // Compute selected (new) entry's input and channel.
+
+            bool stereo = (instrument->getAudioChannels() > 1);
+            int recordIns = studio.getRecordIns().size();
 
             bool newIsBuss;
+            // 0 == left, 1 == right, mono only
             int newChannel = 0;
             int newInput;
-
-            int recordIns = m_studio->getRecordIns().size();
 
             if (stereo) {
                 newIsBuss = (i >= recordIns);
@@ -317,94 +382,89 @@ AudioRouteMenu::slotEntrySelected(int i)
                 }
             }
 
-            MappedObjectId oldMappedId = 0, newMappedId = 0;
+            // Compute new mapped ID
 
-            if (oldIsBuss) {
-                Buss *buss = m_studio->getBussById(oldInput);
-                if (buss)
-                    oldMappedId = buss->getMappedId();
-            } else {
-                RecordIn *in = m_studio->getRecordIn(oldInput);
-                if (in)
-                    oldMappedId = in->getMappedId();
-            }
+            MappedObjectId newMappedId = 0;
 
             if (newIsBuss) {
-                Buss *buss = m_studio->getBussById(newInput);
+                Buss *buss = studio.getBussById(newInput);
                 if (!buss)
-                    return ;
+                    return;
                 newMappedId = buss->getMappedId();
             } else {
-                RecordIn *in = m_studio->getRecordIn(newInput);
+                RecordIn *in = studio.getRecordIn(newInput);
                 if (!in)
-                    return ;
+                    return;
                 newMappedId = in->getMappedId();
             }
 
+            // Update the Studio
+
             if (oldMappedId != 0) {
-                StudioControl::disconnectStudioObjects
-                (oldMappedId, m_instrument->getMappedId());
+                StudioControl::disconnectStudioObjects(
+                        oldMappedId, instrument->getMappedId());
             } else {
-                StudioControl::disconnectStudioObject
-                (m_instrument->getMappedId());
+                StudioControl::disconnectStudioObject(
+                        instrument->getMappedId());
             }
 
-            StudioControl::setStudioObjectProperty
-            (m_instrument->getMappedId(),
-             MappedAudioFader::InputChannel,
-             MappedObjectValue(newChannel));
+            StudioControl::setStudioObjectProperty(
+                    instrument->getMappedId(),
+                    MappedAudioFader::InputChannel,
+                    MappedObjectValue(newChannel));
 
             if (newMappedId != 0) {
-                StudioControl::connectStudioObjects
-                (newMappedId, m_instrument->getMappedId());
+                // Connect the input to the instrument.
+                StudioControl::connectStudioObjects(
+                        newMappedId, instrument->getMappedId());
             }
+
+            // Update the Instrument
 
             if (newIsBuss) {
-                m_instrument->setAudioInputToBuss(newInput, newChannel);
+                instrument->setAudioInputToBuss(newInput, newChannel);
             } else {
-                m_instrument->setAudioInputToRecord(newInput, newChannel);
+                instrument->setAudioInputToRecord(newInput, newChannel);
             }
 
-            m_instrument->changed();
+            doc->slotDocumentModified();
 
             break;
         }
 
     case Out: {
-            BussId bussId = m_instrument->getAudioOutput();
-            Buss *oldBuss = m_studio->getBussById(bussId);
-            Buss *newBuss = m_studio->getBussById(i);
+            BussId bussId = instrument->getAudioOutput();
+            Buss *oldBuss = studio.getBussById(bussId);
+
+            Buss *newBuss = studio.getBussById(i);
             if (!newBuss)
-                return ;
+                return;
+
+            // Update the Studio
 
             if (oldBuss) {
-                StudioControl::disconnectStudioObjects
-                (m_instrument->getMappedId(), oldBuss->getMappedId());
+                StudioControl::disconnectStudioObjects(
+                        instrument->getMappedId(), oldBuss->getMappedId());
             } else {
-                StudioControl::disconnectStudioObject
-                (m_instrument->getMappedId());
+                StudioControl::disconnectStudioObject(
+                        instrument->getMappedId());
             }
 
-            StudioControl::connectStudioObjects
-            (m_instrument->getMappedId(), newBuss->getMappedId());
+            StudioControl::connectStudioObjects(
+                    instrument->getMappedId(), newBuss->getMappedId());
 
-            m_instrument->setAudioOutput(i);
-            m_instrument->changed();
+            // Update the Instrument
+
+            instrument->setAudioOutput(i);
+
+            doc->slotDocumentModified();
 
             break;
         }
     }
 
-    slotRepopulate();
-    emit changed();
+    updateWidget();
 }
 
-void
-AudioRouteMenu::
-slotInstrumentGone(void)
-{
-    m_instrument = 0;
-}
 
 }
-#include "AudioRouteMenu.moc"

@@ -2,7 +2,7 @@
 /*
   Rosegarden
   A sequencer and musical notation editor.
-  Copyright 2000-2014 the Rosegarden development team.
+  Copyright 2000-2018 the Rosegarden development team.
  
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -11,10 +11,11 @@
   COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[SoundFile]"
 
 #include "SoundFile.h"
 #include "base/Profiler.h"
-
+#include "misc/Debug.h"
 
 //#define DEBUG_SOUNDFILE 1
 
@@ -26,8 +27,8 @@ SoundFile::SoundFile(const QString &fileName):
         m_fileName(fileName),
         m_readChunkPtr( -1),
         m_readChunkSize(4096),  // 4k blocks
-        m_inFile(0),
-        m_outFile(0),
+        m_inFile(nullptr),
+        m_outFile(nullptr),
         m_loseBuffer(false),
         m_fileSize(0)
 {}
@@ -63,7 +64,7 @@ SoundFile::getBytes(std::ifstream *file, unsigned int numberOfBytes)
     }
 
     if (!(*file)) {
-        std::cerr << "SoundFile::getBytes() -  stream is not well";
+        RG_WARNING << "SoundFile::getBytes() -  stream is not well";
     }
 
 
@@ -79,9 +80,8 @@ SoundFile::getBytes(std::ifstream *file, unsigned int numberOfBytes)
     // complain but return
     //
     if (rS.length() < numberOfBytes)
-        std::cerr << "SoundFile::getBytes() - couldn't get all bytes ("
-        << rS.length() << " from " << numberOfBytes << ")"
-        << std::endl;
+        RG_WARNING << "SoundFile::getBytes() - couldn't get all bytes ("
+        << rS.length() << " from " << numberOfBytes << ")";
 #endif
 
     // clear down
@@ -96,7 +96,7 @@ size_t
 SoundFile::getBytes(std::ifstream *file, char *buf, size_t n)
 {
     if (!(*file)) {
-        std::cerr << "SoundFile::getBytes() -  stream is not well";
+        RG_WARNING << "SoundFile::getBytes() -  stream is not well";
         return 0;
     }
 
@@ -114,7 +114,7 @@ SoundFile::getBytes(std::ifstream *file, char *buf, size_t n)
 std::string
 SoundFile::getBytes(unsigned int numberOfBytes)
 {
-    if (m_inFile == 0)
+    if (m_inFile == nullptr)
         throw(BadSoundFileException(m_fileName, "SoundFile::getBytes - no open file handle"));
 
     if (m_inFile->eof()) {
@@ -193,9 +193,8 @@ SoundFile::getBytes(unsigned int numberOfBytes)
     // complain but return
     //
     if (rS.length() < numberOfBytes)
-        std::cerr << "SoundFile::getBytes() buffered - couldn't get all bytes ("
-        << rS.length() << " from " << numberOfBytes << ")"
-        << std::endl;
+        RG_WARNING << "SoundFile::getBytes() buffered - couldn't get all bytes ("
+        << rS.length() << " from " << numberOfBytes << ")";
 #endif
 
     delete [] fileBytes;
@@ -215,8 +214,13 @@ void
 SoundFile::putBytes(std::ofstream *file,
                     const std::string oS)
 {
-    for (size_t i = 0; i < oS.length(); i++)
+    for (size_t i = 0; i < oS.length(); i++) {
         *file << (FileByte) oS[i];
+
+        // Every 1024 bytes, kick the event loop.
+        if (i % 1024 == 0)
+            qApp->processEvents();
+    }
 }
 
 void

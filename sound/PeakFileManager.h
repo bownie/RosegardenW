@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -14,45 +14,37 @@
 */
 
 
-// Accepts an AudioFIle and turns the sample data into peak data for
-// storage in a peak file or a BWF format peak chunk.  Pixmaps or
-// sample data is returned to callers on demand using these cached
-// values.
-//
-//
-
 #ifndef RG_PEAKFILEMANAGER_H
 #define RG_PEAKFILEMANAGER_H
 
-#include <string>
-#include <iostream>
-#include <fstream>
 #include <vector>
 
 #include <QObject>
+#include <QString>
+#include <QPointer>
 
+class QProgressDialog;
 
-#include "PeakFile.h"
-#include "misc/Strings.h"
+#include "sound/SoundFile.h"
+#include "PeakFile.h"  // for SplitPointPair
 
 namespace Rosegarden
 {
 
 class AudioFile;
+class PeakFile;
 class RealTime;
 
+/**
+ * Accepts an AudioFIle and turns the sample data into peak data for
+ * storage in a peak file or a BWF format peak chunk.
+ */
 class PeakFileManager : public QObject
 {
     Q_OBJECT
 public:
-    // updatePercentage tells this object how often to throw a
-    // percentage complete message - active between 0-100 only
-    // if it's set to 5 then we send an update exception every
-    // five percent.  The percentage complete is sent with 
-    // each exception.
-    //
     PeakFileManager();
-    virtual ~PeakFileManager();
+    ~PeakFileManager() override;
     
     class BadPeakFileException : public Exception
     {
@@ -64,7 +56,7 @@ public:
         BadPeakFileException(const SoundFile::BadSoundFileException &e) :
             Exception(QObject::tr("Bad peak file (malformed audio?) ") + e.getPath()), m_path(e.getPath()) { }
 
-        ~BadPeakFileException() throw() { }
+        ~BadPeakFileException() throw() override { }
 
         QString getPath() const { return m_path; }
 
@@ -77,40 +69,40 @@ private:
     PeakFileManager& operator=(const PeakFileManager &);
 
 public:
-    // Check that a given audio file has a valid and up to date
-    // peak file or peak chunk.
-    //
+    /**
+     * Check that a given audio file has a valid and up to date
+     * peak file or peak chunk.
+     *
+     * throws BadSoundFileException, BadPeakFileException
+     */
     bool hasValidPeaks(AudioFile *audioFile);
-    // throw BadSoundFileException, BadPeakFileException
 
-    // Generate a peak file from file details - if the peak file already
-    // exists _and_ it's up to date then we don't do anything.  For BWF
-    // files we generate an internal peak chunk.
-    //
-    //
-    void generatePeaks(AudioFile *audioFile,
-                       unsigned short updatePercentage);
-    // throw BadSoundFileException, BadPeakFileException
+    /// For callers of generatePeaks().
+    void setProgressDialog(QPointer<QProgressDialog> progressDialog)
+            { m_progressDialog = progressDialog; }
 
-    // Get a vector of floats as the preview
-    //
+    /// Generate a peak file from file details.
+    /**
+     * if the peak file already exists _and_ it's up to date then we don't
+     * do anything.  For BWF files we generate an internal peak chunk.
+     *
+     * throw BadSoundFileException, BadPeakFileException
+     */
+    void generatePeaks(AudioFile *audioFile);
+
+    /**
+     * throws BadSoundFileException, BadPeakFileException
+     */
     std::vector<float> getPreview(AudioFile *audioFile,
                                   const RealTime &startTime,
                                   const RealTime &endTime,
                                   int   width,
                                   bool  showMinima);
-    // throw BadSoundFileException, BadPeakFileException
-    
-    // Remove cache for a single audio file (if audio file to be deleted etc)
-    // 
+    /// Removes peak file from PeakFileManager - doesn't affect audioFile
     bool removeAudioFile(AudioFile *audioFile);
 
-    // Clear down
-    //
     void clear();
                     
-    // Get split points for a peak file
-    //
     std::vector<SplitPointPair> 
         getSplitPoints(AudioFile *audioFile,
                        const RealTime &startTime,
@@ -118,34 +110,21 @@ public:
                        int threshold,
                        const RealTime &minTime);
 
-    std::vector<PeakFile*>::const_iterator begin() const
+    std::vector<PeakFile *>::const_iterator begin() const
                 { return m_peakFiles.begin(); }
 
-    std::vector<PeakFile*>::const_iterator end() const
+    std::vector<PeakFile *>::const_iterator end() const
                 { return m_peakFiles.end(); }
 
-    // Stop a preview during its build
-    //
-    void stopPreview();
-
-signals:
-    void setValue(int);
-
 protected:
-
-    // Add and remove from our PeakFile cache
-    //
+    /// Insert PeakFile based on AudioFile if it doesn't already exist.
     bool insertAudioFile(AudioFile *audioFile);
-    PeakFile* getPeakFile(AudioFile *audioFile);
+    /// Auto-inserts PeakFile into manager if it doesn't already exist.
+    PeakFile *getPeakFile(AudioFile *audioFile);
 
-    std::vector<PeakFile*> m_peakFiles;
-    unsigned short m_updatePercentage;  // how often we send updates 
+    std::vector<PeakFile *> m_peakFiles;
 
-    // Whilst processing - the current PeakFile
-    //
-    PeakFile              *m_currentPeakFile;
-
-
+    QPointer<QProgressDialog> m_progressDialog;
 };
 
 
@@ -153,5 +132,3 @@ protected:
 
 
 #endif // RG_PEAKFILEMANAGER_H
-
-

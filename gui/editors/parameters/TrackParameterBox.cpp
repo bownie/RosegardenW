@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2006
         Pedro Lopez-Cabanillas <plcl@users.sourceforge.net>
@@ -23,225 +23,213 @@
 
 #include "TrackParameterBox.h"
 
-#include "gui/widgets/SqueezedLabel.h"
-#include "misc/Debug.h"
-#include "misc/Strings.h"
-#include "gui/general/ClefIndex.h"
-#include "misc/ConfigGroups.h"
 #include "base/AudioPluginInstance.h"
+#include "gui/general/ClefIndex.h"  // Clef enum
+#include "gui/widgets/CollapsingFrame.h"
 #include "base/Colour.h"
 #include "base/ColourMap.h"
 #include "base/Composition.h"
+#include "misc/ConfigGroups.h"
+#include "misc/Debug.h"
 #include "base/Device.h"
 #include "base/Exception.h"
+#include "gui/general/GUIPalette.h"
+#include "gui/widgets/ColorCombo.h"
+#include "gui/widgets/InputDialog.h"
 #include "base/Instrument.h"
 #include "base/InstrumentStaticSignals.h"
+#include "gui/widgets/LineEdit.h"
 #include "base/MidiDevice.h"
-#include "base/MidiProgram.h"
-#include "base/NotationTypes.h"
+#include "gui/dialogs/PitchPickerDialog.h"
+#include "sound/PluginIdentifier.h"
+#include "gui/general/PresetHandlerDialog.h"
+#include "document/RosegardenDocument.h"
+#include "gui/application/RosegardenMainWindow.h"
+#include "gui/application/RosegardenMainViewWidget.h"
+#include "RosegardenParameterBox.h"
+#include "commands/segment/SegmentSyncCommand.h"
+#include "base/StaffExportTypes.h"  // StaffTypes, Brackets
 #include "base/Studio.h"
 #include "base/Track.h"
-#include "base/StaffExportTypes.h"
-#include "gui/widgets/TmpStatusMsg.h"
-#include "commands/segment/SegmentSyncCommand.h"
-#include "document/RosegardenDocument.h"
-#include "gui/dialogs/PitchPickerDialog.h"
-#include "gui/general/GUIPalette.h"
-#include "gui/general/PresetHandlerDialog.h"
-#include "gui/widgets/CollapsingFrame.h"
-#include "gui/widgets/ColourTable.h"
-#include "gui/general/GUIPalette.h"
-#include "RosegardenParameterArea.h"
-#include "RosegardenParameterBox.h"
-#include "sound/PluginIdentifier.h"
-#include "gui/widgets/LineEdit.h"
-#include "gui/widgets/InputDialog.h"
-#include "misc/Debug.h"
-#include "sequencer/RosegardenSequencer.h"
 
-#include <QColorDialog>
-#include <QLayout>
-#include <QApplication>
-#include <QComboBox>
-#include <QSettings>
-#include <QMessageBox>
-#include <QTabWidget>
+#include <QCheckBox>
 #include <QColor>
+#include <QColorDialog>
+#include <QComboBox>
 #include <QDialog>
-#include <QFont>
 #include <QFontMetrics>
 #include <QFrame>
+#include <QGridLayout>
 #include <QLabel>
+#include <QMessageBox>
 #include <QPixmap>
 #include <QPushButton>
-#include <QRegExp>
-#include <QScrollArea>
+#include <QSettings>
 #include <QString>
-#include <QToolTip>
 #include <QWidget>
-#include <QVBoxLayout>
-#include <QStackedWidget>
-#include <QCheckBox>
 
 
 namespace Rosegarden
 {
 
-TrackParameterBox::TrackParameterBox(RosegardenDocument *doc,
-                                     QWidget *parent)
-        : RosegardenParameterBox(tr("Track"),
-                                 tr("Track Parameters"),
-                                 parent),
-          m_doc(doc),
-          m_highestPlayable(127),
-          m_lowestPlayable(0),
-          m_selectedTrackId((int)NO_TRACK),
-          m_lastInstrumentType(-1)
+
+TrackParameterBox::TrackParameterBox(QWidget *parent) :
+    RosegardenParameterBox(tr("Track Parameters"), parent),
+    m_doc(nullptr),
+    m_selectedTrackId(NO_TRACK),
+    m_lastInstrumentType(Instrument::InvalidInstrument)
 {
     setObjectName("Track Parameter Box");
 
-    QFont font(m_font);
-    QFont title_font(m_font);
-    QFontMetrics metrics(font);
-    int width11 = metrics.width("12345678901");
-    int width20 = metrics.width("12345678901234567890");
-    int width22 = metrics.width("1234567890123456789012");
-    int width25 = metrics.width("1234567890123456789012345");
-    title_font.setBold(true);
+    QFontMetrics metrics(m_font);
+    const int width11 = metrics.width("12345678901");
+    const int width20 = metrics.width("12345678901234567890");
+    const int width22 = metrics.width("1234567890123456789012");
+    const int width25 = metrics.width("1234567890123456789012345");
 
-    // Set up default expansions for the collapsing elements.  These
-    // CollapsingFrame objects keep track of their own settings per object name
-    // internally.  We have this delightful bit of nonsense looking code to
-    // "initialize" all of this from the outside.  It's impressively ghastly,
-    // but having realized its purpose, I've decided to leave well enough alone.
-    //
-    QSettings settings;
-    settings.beginGroup(CollapsingFrameConfigGroup);
+    // Widgets
 
-    bool expanded = qStrToBool(settings.value("trackparametersplayback", "true")) ;
-    settings.setValue("trackparametersplayback", expanded);
-    expanded = qStrToBool(settings.value("trackparametersrecord", "false")) ;
-    settings.setValue("trackparametersrecord", expanded);
-    expanded = qStrToBool(settings.value("trackparametersdefaults", "false")) ;
-    settings.setValue("trackparametersdefaults", expanded);
-    expanded = qStrToBool(settings.value("trackstaffgroup", "false")) ;
-    settings.setValue("trackstaffgroup", expanded);
-
-    settings.endGroup();
-
-    setContentsMargins(2, 2, 2, 2);
-    QGridLayout *mainLayout = new QGridLayout(this);
-    mainLayout->setMargin(0);
-    mainLayout->setSpacing(1);
-
-    int row = 0;
-
-    // track label
-    //
-    m_trackLabel = new SqueezedLabel (tr("<untitled>"), this);
+    // Label
+    m_trackLabel = new SqueezedLabel(tr("<untitled>"), this);
     m_trackLabel->setAlignment(Qt::AlignCenter);
     m_trackLabel->setFont(m_font);
-    mainLayout->addWidget(m_trackLabel, 0, 0);
 
-    // playback group
-    //
-    CollapsingFrame *cframe = new CollapsingFrame(tr("Playback parameters"),
-                              this, "trackparametersplayback");
-    m_playbackGroup = new QFrame(cframe);
-    cframe->setWidget(m_playbackGroup);
-    m_playbackGroup->setContentsMargins(3, 3, 3, 3);
-    QGridLayout *groupLayout = new QGridLayout(m_playbackGroup);
-    groupLayout->setMargin(0);
-    groupLayout->setSpacing(2);
+    // Playback parameters
 
-    // playback group title
-    //
-    row = 0;
+    // Outer collapsing frame
+    CollapsingFrame *playbackParametersFrame = new CollapsingFrame(
+            tr("Playback parameters"), this, "trackparametersplayback", true);
 
-    // playback device
-    //
-    //    row++;
-    QLabel *devLabel = new QLabel(tr("Device"), m_playbackGroup);
-    devLabel->setFont(m_font);
-    groupLayout->addWidget(devLabel, row, 0);
-    m_playDevice = new QComboBox(m_playbackGroup);
-    m_playDevice->setToolTip(tr("<qt><p>Choose the device this track will use for playback.</p><p>Click <img src=\":pixmaps/toolbar/manage-midi-devices.xpm\"> to connect this device to a useful output if you do not hear sound</p></qt>"));
-    m_playDevice->setMinimumWidth(width25);
-    m_playDevice->setFont(m_font);
-    groupLayout->addWidget(m_playDevice, row, 1, row- row+1, 2);
+    // Inner fixed widget
+    // We need an inner widget so that we can have a layout.  The outer
+    // CollapsingFrame already has its own layout.
+    QWidget *playbackParameters = new QWidget(playbackParametersFrame);
+    playbackParametersFrame->setWidget(playbackParameters);
+    playbackParameters->setContentsMargins(3, 3, 3, 3);
 
-    // playback instrument
-    //
-    row++;
-    QLabel *insLabel = new QLabel(tr("Instrument"), m_playbackGroup);
-    insLabel->setFont(m_font);
-    groupLayout->addWidget(insLabel, row, 0, row- row+1, 1- 0+1);
-    m_instrument = new QComboBox(m_playbackGroup);
+    // Device
+    QLabel *playbackDeviceLabel = new QLabel(tr("Device"), playbackParameters);
+    playbackDeviceLabel->setFont(m_font);
+    m_playbackDevice = new QComboBox(playbackParameters);
+    m_playbackDevice->setToolTip(tr("<qt><p>Choose the device this track will use for playback.</p><p>Click <img src=\":pixmaps/toolbar/manage-midi-devices.xpm\"> to connect this device to a useful output if you do not hear sound</p></qt>"));
+    m_playbackDevice->setMinimumWidth(width25);
+    m_playbackDevice->setFont(m_font);
+    connect(m_playbackDevice, SIGNAL(activated(int)),
+            this, SLOT(slotPlaybackDeviceChanged(int)));
+
+    // Instrument
+    QLabel *instrumentLabel = new QLabel(tr("Instrument"), playbackParameters);
+    instrumentLabel->setFont(m_font);
+    m_instrument = new QComboBox(playbackParameters);
     m_instrument->setFont(m_font);
     m_instrument->setToolTip(tr("<qt><p>Choose the instrument this track will use for playback. (Configure the instrument in <b>Instrument Parameters</b>).</p></qt>"));
     m_instrument->setMaxVisibleItems(16);
     m_instrument->setMinimumWidth(width22);
-    groupLayout->addWidget(m_instrument, row, 2);
+    connect(m_instrument, SIGNAL(activated(int)),
+            this, SLOT(slotInstrumentChanged(int)));
 
-    groupLayout->setColumnStretch(groupLayout->columnCount() - 1, 1);
+    // Archive
+    QLabel *archiveLabel = new QLabel(tr("Archive"), playbackParameters);
+    archiveLabel->setFont(m_font);
+    m_archive = new QCheckBox(playbackParameters);
+    m_archive->setFont(m_font);
+    m_archive->setToolTip(tr("<qt><p>Check this to archive a track.  Archived tracks will not make sound.</p></qt>"));
+    connect(m_archive, &QAbstractButton::clicked,
+            this, &TrackParameterBox::slotArchiveChanged);
 
-    mainLayout->addWidget(cframe, 1, 0);
+    // Playback parameters layout
 
-    // record group
-    //
-    cframe = new CollapsingFrame(tr("Recording filters"), this,
-                                 "trackparametersrecord");
-    m_recordGroup = new QFrame(cframe);
-    cframe->setWidget(m_recordGroup);
-    m_recordGroup->setContentsMargins(3, 3, 3, 3);
-    groupLayout = new QGridLayout(m_recordGroup);
-    groupLayout->setMargin(0);
-    groupLayout->setSpacing(2);
-
-    // recording group title
-    //
-    row = 0;
-
-    // recording device
-    QLabel *label = new QLabel(tr("Device"), m_recordGroup);
-    label->setFont(m_font);
-    groupLayout->addWidget(label, row, 0);
-    m_recDevice = new QComboBox(m_recordGroup);
-    m_recDevice->setFont(m_font);
-    m_recDevice->setToolTip(tr("<qt><p>This track will only record Audio/MIDI from the selected device, filtering anything else out</p></qt>"));
-    m_recDevice->setMinimumWidth(width25);
-    groupLayout->addWidget(m_recDevice, row, 1, row- row+1, 2);
-
-    // recording channel
-    //
-    row++;
-    label = new QLabel(tr("Channel"), m_recordGroup);
-    label->setFont(font);
-    groupLayout->addWidget(label, row, 0, 1, 2);
-    m_recChannel = new QComboBox(m_recordGroup);
-    m_recChannel->setFont(m_font);
-    m_recChannel->setToolTip(tr("<qt><p>This track will only record Audio/MIDI from the selected channel, filtering anything else out</p></qt>"));
-    m_recChannel->setMaxVisibleItems(17);
-    m_recChannel->setMinimumWidth(width11);
-    groupLayout->addWidget(m_recChannel, row, 2);
-
-    groupLayout->setColumnStretch(groupLayout->columnCount() - 1, 1);
-
-    mainLayout->addWidget(cframe, 2, 0);
-
-    // staff group
-    //
-    cframe = new CollapsingFrame(tr("Staff export options"), this,
-                                 "staffoptions");
-    m_staffGroup = new QFrame(cframe);
-    cframe->setWidget(m_staffGroup);
-    m_staffGroup->setContentsMargins(2, 2, 2, 2);
-    groupLayout = new QGridLayout(m_staffGroup);
-    groupLayout->setSpacing(2);
-    groupLayout->setMargin(0);
+    // This automagically becomes playbackParameters's layout.
+    QGridLayout *groupLayout = new QGridLayout(playbackParameters);
+    groupLayout->setContentsMargins(5,0,0,5);
+    groupLayout->setVerticalSpacing(2);
+    groupLayout->setHorizontalSpacing(5);
+    // Row 0: Device
+    groupLayout->addWidget(playbackDeviceLabel, 0, 0);
+    groupLayout->addWidget(m_playbackDevice, 0, 1);
+    // Row 1: Instrument
+    groupLayout->addWidget(instrumentLabel, 1, 0);
+    groupLayout->addWidget(m_instrument, 1, 1);
+    // Row 2: Archive
+    groupLayout->addWidget(archiveLabel, 2, 0);
+    groupLayout->addWidget(m_archive, 2, 1);
+    // Let column 1 fill the rest of the space.
     groupLayout->setColumnStretch(1, 1);
 
-    row = 0;
+    // Recording filters
+
+    m_recordingFiltersFrame = new CollapsingFrame(
+            tr("Recording filters"), this, "trackparametersrecord", false);
+
+    QWidget *recordingFilters = new QWidget(m_recordingFiltersFrame);
+    m_recordingFiltersFrame->setWidget(recordingFilters);
+    recordingFilters->setContentsMargins(3, 3, 3, 3);
+
+    // Device
+    QLabel *recordDeviceLabel = new QLabel(tr("Device"), recordingFilters);
+    recordDeviceLabel->setFont(m_font);
+    m_recordingDevice = new QComboBox(recordingFilters);
+    m_recordingDevice->setFont(m_font);
+    m_recordingDevice->setToolTip(tr("<qt><p>This track will only record Audio/MIDI from the selected device, filtering anything else out</p></qt>"));
+    m_recordingDevice->setMinimumWidth(width25);
+    connect(m_recordingDevice, SIGNAL(activated(int)),
+            this, SLOT(slotRecordingDeviceChanged(int)));
+
+    // Channel
+    QLabel *channelLabel = new QLabel(tr("Channel"), recordingFilters);
+    channelLabel->setFont(m_font);
+    m_recordingChannel = new QComboBox(recordingFilters);
+    m_recordingChannel->setFont(m_font);
+    m_recordingChannel->setToolTip(tr("<qt><p>This track will only record Audio/MIDI from the selected channel, filtering anything else out</p></qt>"));
+    m_recordingChannel->setMaxVisibleItems(17);
+    m_recordingChannel->setMinimumWidth(width11);
+    m_recordingChannel->addItem(tr("All"));
+    for (int i = 1; i < 17; ++i) {
+        m_recordingChannel->addItem(QString::number(i));
+    }
+    connect(m_recordingChannel, SIGNAL(activated(int)),
+            this, SLOT(slotRecordingChannelChanged(int)));
+
+    // Thru Routing
+    QLabel *thruLabel = new QLabel(tr("Thru Routing"), recordingFilters);
+    thruLabel->setFont(m_font);
+    m_thruRouting = new QComboBox(recordingFilters);
+    m_thruRouting->setFont(m_font);
+    //m_thruRouting->setToolTip(tr("<qt><p>Routing from the input device and channel to the instrument.</p></qt>"));
+    m_thruRouting->setMinimumWidth(width11);
+    m_thruRouting->addItem(tr("Auto"), Track::Auto);
+    m_thruRouting->addItem(tr("On"), Track::On);
+    m_thruRouting->addItem(tr("Off"), Track::Off);
+    m_thruRouting->addItem(tr("When Armed"), Track::WhenArmed);
+    connect(m_thruRouting, SIGNAL(activated(int)),
+            this, SLOT(slotThruRoutingChanged(int)));
+
+    // Recording filters layout
+
+    groupLayout = new QGridLayout(recordingFilters);
+    groupLayout->setContentsMargins(5,0,0,5);
+    groupLayout->setVerticalSpacing(2);
+    groupLayout->setHorizontalSpacing(5);
+    // Row 0: Device
+    groupLayout->addWidget(recordDeviceLabel, 0, 0);
+    groupLayout->addWidget(m_recordingDevice, 0, 1);
+    // Row 1: Channel
+    groupLayout->addWidget(channelLabel, 1, 0);
+    groupLayout->addWidget(m_recordingChannel, 1, 1);
+    // Row 2: Thru Routing
+    groupLayout->addWidget(thruLabel, 2, 0);
+    groupLayout->addWidget(m_thruRouting, 2, 1);
+    // Let column 1 fill the rest of the space.
+    groupLayout->setColumnStretch(1, 1);
+
+    // Staff export options
+
+    m_staffExportOptionsFrame = new CollapsingFrame(
+            tr("Staff export options"), this, "trackstaffgroup", false);
+
+    QWidget *staffExportOptions = new QWidget(m_staffExportOptionsFrame);
+    m_staffExportOptionsFrame->setWidget(staffExportOptions);
+    staffExportOptions->setContentsMargins(2, 2, 2, 2);
 
     // Notation size (export only)
     //
@@ -250,486 +238,249 @@ TrackParameterBox::TrackParameterBox(RosegardenDocument *doc,
     // per-staff (rather than per-score) basis is something the author of the
     // LilyPond documentation has no idea how to do, so we settle for this,
     // which is not as nice, but actually a lot easier to implement.
-    m_staffGrpLbl = new QLabel(tr("Notation size:"), m_staffGroup);
-    m_staffGrpLbl->setFont(m_font);
-    groupLayout->addWidget(m_staffGrpLbl, row, 0, Qt::AlignLeft);
-    m_staffSizeCombo = new QComboBox(m_staffGroup);
-    m_staffSizeCombo->setFont(m_font);
-    m_staffSizeCombo->setToolTip(tr("<qt><p>Choose normal, \\small or \\tiny font size for notation elements on this (normal-sized) staff when exporting to LilyPond.</p><p>This is as close as we get to enabling you to print parts in cue size</p></qt>"));
-    m_staffSizeCombo->setMinimumWidth(width11);
-    m_staffSizeCombo->addItem(tr("Normal"), StaffTypes::Normal);
-    m_staffSizeCombo->addItem(tr("Small"), StaffTypes::Small);
-    m_staffSizeCombo->addItem(tr("Tiny"), StaffTypes::Tiny);
+    QLabel *notationSizeLabel = new QLabel(tr("Notation size:"), staffExportOptions);
+    notationSizeLabel->setFont(m_font);
+    m_notationSize = new QComboBox(staffExportOptions);
+    m_notationSize->setFont(m_font);
+    m_notationSize->setToolTip(tr("<qt><p>Choose normal, \\small or \\tiny font size for notation elements on this (normal-sized) staff when exporting to LilyPond.</p><p>This is as close as we get to enabling you to print parts in cue size</p></qt>"));
+    m_notationSize->setMinimumWidth(width11);
+    m_notationSize->addItem(tr("Normal"), StaffTypes::Normal);
+    m_notationSize->addItem(tr("Small"), StaffTypes::Small);
+    m_notationSize->addItem(tr("Tiny"), StaffTypes::Tiny);
+    connect(m_notationSize, SIGNAL(activated(int)),
+            this, SLOT(slotNotationSizeChanged(int)));
 
-    groupLayout->addWidget(m_staffSizeCombo, row, 1, row- row+1, 2);
-
+    // Bracket type
     // Staff bracketing (export only at the moment, but using this for GUI
     // rendering would be nice in the future!) //!!! 
-    row++;
-    m_grandStaffLbl = new QLabel(tr("Bracket type:"), m_staffGroup);
-    m_grandStaffLbl->setFont(m_font);
-    groupLayout->addWidget(m_grandStaffLbl, row, 0, Qt::AlignLeft);
-    m_staffBracketCombo = new QComboBox(m_staffGroup);
-    m_staffBracketCombo->setFont(m_font);
-    m_staffBracketCombo->setToolTip(tr("<qt><p>Bracket staffs in LilyPond<br>(fragile, use with caution)</p><qt>"));
-    m_staffBracketCombo->setMinimumWidth(width11);
-    m_staffBracketCombo->addItem(tr("-----"), Brackets::None);
-    m_staffBracketCombo->addItem(tr("[----"), Brackets::SquareOn);
-    m_staffBracketCombo->addItem(tr("----]"), Brackets::SquareOff);
-    m_staffBracketCombo->addItem(tr("[---]"), Brackets::SquareOnOff);
-    m_staffBracketCombo->addItem(tr("{----"), Brackets::CurlyOn);
-    m_staffBracketCombo->addItem(tr("----}"), Brackets::CurlyOff);
-    m_staffBracketCombo->addItem(tr("{[---"), Brackets::CurlySquareOn);
-    m_staffBracketCombo->addItem(tr("---]}"), Brackets::CurlySquareOff);
+    QLabel *bracketTypeLabel = new QLabel(tr("Bracket type:"), staffExportOptions);
+    bracketTypeLabel->setFont(m_font);
+    m_bracketType = new QComboBox(staffExportOptions);
+    m_bracketType->setFont(m_font);
+    m_bracketType->setToolTip(tr("<qt><p>Bracket staffs in LilyPond<br>(fragile, use with caution)</p><qt>"));
+    m_bracketType->setMinimumWidth(width11);
+    m_bracketType->addItem(tr("-----"), Brackets::None);
+    m_bracketType->addItem(tr("[----"), Brackets::SquareOn);
+    m_bracketType->addItem(tr("----]"), Brackets::SquareOff);
+    m_bracketType->addItem(tr("[---]"), Brackets::SquareOnOff);
+    m_bracketType->addItem(tr("{----"), Brackets::CurlyOn);
+    m_bracketType->addItem(tr("----}"), Brackets::CurlyOff);
+    m_bracketType->addItem(tr("{[---"), Brackets::CurlySquareOn);
+    m_bracketType->addItem(tr("---]}"), Brackets::CurlySquareOff);
+    connect(m_bracketType, SIGNAL(activated(int)),
+            this, SLOT(slotBracketTypeChanged(int)));
 
-    groupLayout->addWidget(m_staffBracketCombo, row, 1, row- row+1, 2);
+    // Staff export options layout
 
-    mainLayout->addWidget(cframe, 3, 0);
-
-
-    // default segment group
-    //
-    cframe = new CollapsingFrame(tr("Create segments with"), this,
-                                 "trackparametersdefaults");
-    m_defaultsGroup = new QFrame(cframe);
-    cframe->setWidget(m_defaultsGroup);
-    m_defaultsGroup->setContentsMargins(3, 3, 3, 3);
-    groupLayout = new QGridLayout(m_defaultsGroup);
-    groupLayout->setSpacing(2);
-    groupLayout->setMargin(0);
+    groupLayout = new QGridLayout(staffExportOptions);
+    groupLayout->setContentsMargins(5,0,0,5);
+    groupLayout->setVerticalSpacing(2);
+    groupLayout->setHorizontalSpacing(5);
     groupLayout->setColumnStretch(1, 1);
+    // Row 0: Notation size
+    groupLayout->addWidget(notationSizeLabel, 0, 0, Qt::AlignLeft);
+    groupLayout->addWidget(m_notationSize, 0, 1, 1, 2);
+    // Row 1: Bracket type
+    groupLayout->addWidget(bracketTypeLabel, 1, 0, Qt::AlignLeft);
+    groupLayout->addWidget(m_bracketType, 1, 1, 1, 2);
 
-    row = 0;
+    // Create segments with
 
-    // preset picker
-    m_psetLbl = new QLabel(tr("Preset"), m_defaultsGroup);
-    m_psetLbl->setFont(m_font);
-    groupLayout->addWidget(m_psetLbl, row, 0, Qt::AlignLeft);
+    m_createSegmentsWithFrame = new CollapsingFrame(
+            tr("Create segments with"), this, "trackparametersdefaults", false);
 
-    m_presetLbl = new QLabel(tr("<none>"), m_defaultsGroup);
-    m_presetLbl->setFont(m_font);
-    m_presetLbl->setObjectName("SPECIAL_LABEL");
-    m_presetLbl->setFrameStyle(QFrame::Panel | QFrame::Sunken);
-    m_presetLbl->setMinimumWidth(width20);
-    groupLayout->addWidget(m_presetLbl, row, 1, 1, 3);
+    QWidget *createSegmentsWith = new QWidget(m_createSegmentsWithFrame);
+    m_createSegmentsWithFrame->setWidget(createSegmentsWith);
+    createSegmentsWith->setContentsMargins(3, 3, 3, 3);
 
-    m_presetButton = new QPushButton(tr("Load"), m_defaultsGroup);
-    m_presetButton->setFont(m_font);
-    m_presetButton->setToolTip(tr("<qt><p>Load a segment parameters preset from our comprehensive database of real-world instruments.</p><p>When you create new segments, they will have these parameters at the moment of creation.  To use these parameters on existing segments (eg. to convert an existing part in concert pitch for playback on a Bb trumpet) use <b>Segments -> Convert notation for</b> in the notation editor.</p></qt>"));
-    groupLayout->addWidget(m_presetButton, row, 4, 1, 2);
+    // Preset
+    m_presetLabel = new QLabel(tr("Preset"), createSegmentsWith);
+    m_presetLabel->setFont(m_font);
 
-    // default clef
-    //
-    row++;
-    m_clefLbl = new QLabel(tr("Clef"), m_defaultsGroup);
-    m_clefLbl->setFont(m_font);
-    groupLayout->addWidget(m_clefLbl, row, 0, Qt::AlignLeft);
-    m_defClef = new QComboBox(m_defaultsGroup);
-    m_defClef->setFont(m_font);
-    m_defClef->setToolTip(tr("<qt><p>New segments will be created with this clef inserted at the beginning</p></qt>"));
-    m_defClef->setMinimumWidth(width11);
-    m_defClef->addItem(tr("treble"), TrebleClef);
-    m_defClef->addItem(tr("bass"), BassClef);
-    m_defClef->addItem(tr("crotales"), CrotalesClef);
-    m_defClef->addItem(tr("xylophone"), XylophoneClef);
-    m_defClef->addItem(tr("guitar"), GuitarClef);
-    m_defClef->addItem(tr("contrabass"), ContrabassClef);
-    m_defClef->addItem(tr("celesta"), CelestaClef);
-    m_defClef->addItem(tr("old celesta"), OldCelestaClef);
-    m_defClef->addItem(tr("french"), FrenchClef);
-    m_defClef->addItem(tr("soprano"), SopranoClef);
-    m_defClef->addItem(tr("mezzosoprano"), MezzosopranoClef);
-    m_defClef->addItem(tr("alto"), AltoClef);
-    m_defClef->addItem(tr("tenor"), TenorClef);
-    m_defClef->addItem(tr("baritone"), BaritoneClef);
-    m_defClef->addItem(tr("varbaritone"), VarbaritoneClef);
-    m_defClef->addItem(tr("subbass"), SubbassClef);
-    /*  clef types in the datbase that are not yet supported must be ignored for
-     *  now:
-        m_defClef->addItem(tr("two bar"), TwoBarClef); */
-    groupLayout->addWidget(m_defClef, row, 1, 1, 2);
+    m_preset = new QLabel(tr("<none>"), createSegmentsWith);
+    m_preset->setFont(m_font);
+    m_preset->setObjectName("SPECIAL_LABEL");
+    m_preset->setFrameStyle(QFrame::Panel | QFrame::Sunken);
+    m_preset->setMinimumWidth(width20);
 
-    // default transpose
-    //
-    m_transpLbl = new QLabel(tr("Transpose"), m_defaultsGroup);
-    m_transpLbl->setFont(m_font);
-    groupLayout->addWidget(m_transpLbl, row, 3, 1, 2, Qt::AlignRight);
-    m_defTranspose = new QComboBox(m_defaultsGroup);
-    m_defTranspose->setFont(m_font);
-    m_defTranspose->setToolTip(tr("<qt><p>New segments will be created with this transpose property set</p></qt>"));
-    connect(m_defTranspose, SIGNAL(activated(int)),
-            SLOT(slotTransposeIndexChanged(int)));
+    m_load = new QPushButton(tr("Load"), createSegmentsWith);
+    m_load->setFont(m_font);
+    m_load->setToolTip(tr("<qt><p>Load a segment parameters preset from our comprehensive database of real-world instruments.</p><p>When you create new segments, they will have these parameters at the moment of creation.  To use these parameters on existing segments (eg. to convert an existing part in concert pitch for playback on a Bb trumpet) use <b>Segments -> Convert notation for</b> in the notation editor.</p></qt>"));
+    connect(m_load, &QAbstractButton::released,
+            this, &TrackParameterBox::slotLoadPressed);
+
+    // Clef
+    m_clefLabel = new QLabel(tr("Clef"), createSegmentsWith);
+    m_clefLabel->setFont(m_font);
+    m_clef = new QComboBox(createSegmentsWith);
+    m_clef->setFont(m_font);
+    m_clef->setToolTip(tr("<qt><p>New segments will be created with this clef inserted at the beginning</p></qt>"));
+    m_clef->setMinimumWidth(width11);
+    m_clef->addItem(tr("treble", "Clef name"), TrebleClef);
+    m_clef->addItem(tr("bass", "Clef name"), BassClef);
+    m_clef->addItem(tr("crotales", "Clef name"), CrotalesClef);
+    m_clef->addItem(tr("xylophone", "Clef name"), XylophoneClef);
+    m_clef->addItem(tr("guitar", "Clef name"), GuitarClef);
+    m_clef->addItem(tr("contrabass", "Clef name"), ContrabassClef);
+    m_clef->addItem(tr("celesta", "Clef name"), CelestaClef);
+    m_clef->addItem(tr("old celesta", "Clef name"), OldCelestaClef);
+    m_clef->addItem(tr("french", "Clef name"), FrenchClef);
+    m_clef->addItem(tr("soprano", "Clef name"), SopranoClef);
+    m_clef->addItem(tr("mezzosoprano", "Clef name"), MezzosopranoClef);
+    m_clef->addItem(tr("alto", "Clef name"), AltoClef);
+    m_clef->addItem(tr("tenor", "Clef name"), TenorClef);
+    m_clef->addItem(tr("baritone", "Clef name"), BaritoneClef);
+    m_clef->addItem(tr("varbaritone", "Clef name"), VarbaritoneClef);
+    m_clef->addItem(tr("subbass", "Clef name"), SubbassClef);
+    m_clef->addItem(tr("twobar", "Clef name"), TwoBarClef);
+    connect(m_clef, SIGNAL(activated(int)),
+            this, SLOT(slotClefChanged(int)));
+
+    // Transpose
+    m_transposeLabel = new QLabel(tr("Transpose"), createSegmentsWith);
+    m_transposeLabel->setFont(m_font);
+    m_transpose = new QComboBox(createSegmentsWith);
+    m_transpose->setFont(m_font);
+    m_transpose->setToolTip(tr("<qt><p>New segments will be created with this transpose property set</p></qt>"));
+    connect(m_transpose, SIGNAL(activated(int)),
+            SLOT(slotTransposeChanged(int)));
 
     int transposeRange = 48;
     for (int i = -transposeRange; i < transposeRange + 1; i++) {
-        m_defTranspose->addItem(QString("%1").arg(i));
+        m_transpose->addItem(QString("%1").arg(i));
         if (i == 0)
-            m_defTranspose->setCurrentIndex(m_defTranspose->count() - 1);
+            m_transpose->setCurrentIndex(m_transpose->count() - 1);
     }
 
-    groupLayout->addWidget(m_defTranspose, row, 5, 1, 1);
+    // Pitch
+    m_pitchLabel = new QLabel(tr("Pitch"), createSegmentsWith);
+    m_pitchLabel->setFont(m_font);
 
-    // highest/lowest playable note
-    //
-    row++;
-    m_rangeLbl = new QLabel(tr("Pitch"), m_defaultsGroup);
-    m_rangeLbl->setFont(m_font);
-    groupLayout->addWidget(m_rangeLbl, row, 0, Qt::AlignLeft);
+    // Lowest playable note
+    m_lowestLabel = new QLabel(tr("Lowest"), createSegmentsWith);
+    m_lowestLabel->setFont(m_font);
 
-    label = new QLabel(tr("Lowest"), m_defaultsGroup);
-    label->setFont(m_font);
-    groupLayout->addWidget(label, row, 1, Qt::AlignRight);
+    m_lowest = new QPushButton(tr("---"), createSegmentsWith);
+    m_lowest->setFont(m_font);
+    m_lowest->setToolTip(tr("<qt><p>Choose the lowest suggested playable note, using a staff</p></qt>"));
+    connect(m_lowest, &QAbstractButton::released,
+            this, &TrackParameterBox::slotLowestPressed);
 
-    m_lowButton = new QPushButton(tr("---"), m_defaultsGroup);
-    m_lowButton->setFont(m_font);
-    m_lowButton->setToolTip(tr("<qt><p>Choose the lowest suggested playable note, using a staff</p></qt>"));
-    groupLayout->addWidget(m_lowButton, row, 2, 1, 1);
-    groupLayout->setColumnStretch(2, 2);
+    // Highest playable note
+    m_highestLabel = new QLabel(tr("Highest"), createSegmentsWith);
+    m_highestLabel->setFont(m_font);
 
-    label = new QLabel(tr("Highest"), m_defaultsGroup);
-    label->setFont(m_font);
-    groupLayout->addWidget(label, row, 3, Qt::AlignRight);
+    m_highest = new QPushButton(tr("---"), createSegmentsWith);
+    m_highest->setFont(m_font);
+    m_highest->setToolTip(tr("<qt><p>Choose the highest suggested playable note, using a staff</p></qt>"));
+    connect(m_highest, &QAbstractButton::released,
+            this, &TrackParameterBox::slotHighestPressed);
 
-    m_highButton = new QPushButton(tr("---"), m_defaultsGroup);
-    m_highButton->setFont(m_font);
-    m_highButton->setToolTip(tr("<qt><p>Choose the highest suggested playable note, using a staff</p></qt>"));
-    groupLayout->addWidget(m_highButton, row, 4, 1, 2);
+    // Color
+    QLabel *colorLabel = new QLabel(tr("Color"), createSegmentsWith);
+    colorLabel->setFont(m_font);
 
-//    m_lowButton->setMaximumWidth(width11);
-//    m_highButton->setMaximumWidth(width11);
-
-    updateHighLow();
-
-    // default color
-    //
-    row++;
-    m_colorLbl = new QLabel(tr("Color"), m_defaultsGroup);
-    m_colorLbl->setFont(m_font);
-    groupLayout->addWidget(m_colorLbl, row, 0, Qt::AlignLeft);
-    m_defColor = new QComboBox(m_defaultsGroup);
-    m_defColor->setFont(m_font);
-    m_defColor->setToolTip(tr("<qt><p>New segments will be created using this color</p></qt>"));
-    m_defColor->setEditable(false);
-    m_defColor->setMaxVisibleItems(20);
-    groupLayout->addWidget(m_defColor, row, 1, 1, 5);
-
-    // populate combo from doc colors
-    slotDocColoursChanged();
-    
-    // Force a popluation of Record / Playback Devices (Playback was not populating).
-    slotPopulateDeviceLists();
-
-    mainLayout->addWidget(cframe, 4, 0);
-
-
-    // Configure the empty final row to accomodate any extra vertical space.
-    //
-//    mainLayout->setRowStretch(mainLayout->rowCount() - 1, 1);
-
-    // Connections
-    connect(m_playDevice, SIGNAL(activated(int)),
-             this, SLOT(slotPlaybackDeviceChanged(int)));
-
-    connect(m_instrument, SIGNAL(activated(int)),
-             this, SLOT(slotInstrumentChanged(int)));
-
-    connect(m_recDevice, SIGNAL(activated(int)),
-             this, SLOT(slotRecordingDeviceChanged(int)));
-
-    connect(m_recChannel, SIGNAL(activated(int)),
-             this, SLOT(slotRecordingChannelChanged(int)));
-
-    connect(m_defClef, SIGNAL(activated(int)),
-             this, SLOT(slotClefChanged(int)));
-
-    // Detect when the document colours are updated
-    connect(m_doc, SIGNAL(docColoursChanged()),
-            this, SLOT(slotDocColoursChanged()));
-
-    // handle colour combo changes
-    connect(m_defColor, SIGNAL(activated(int)),
+    m_color = new ColorCombo(createSegmentsWith);
+    m_color->setFont(m_font);
+    m_color->setToolTip(tr("<qt><p>New segments will be created using this color</p></qt>"));
+    connect(m_color, SIGNAL(activated(int)),
             SLOT(slotColorChanged(int)));
 
-    connect(m_highButton, SIGNAL(released()),
-            SLOT(slotHighestPressed()));
+    // Reset to Defaults
+    m_resetToDefaults = new QPushButton(
+            tr("Reset to Defaults"), createSegmentsWith);
+    m_resetToDefaults->setFont(m_font);
+    connect(m_resetToDefaults, &QAbstractButton::released,
+            this, &TrackParameterBox::slotResetToDefaultsPressed);
 
-    connect(m_lowButton, SIGNAL(released()),
-            SLOT(slotLowestPressed()));
+    // "Create segments with" layout
 
-    connect(m_presetButton, SIGNAL(released()),
-            SLOT(slotPresetPressed()));
+    groupLayout = new QGridLayout(createSegmentsWith);
+    groupLayout->setContentsMargins(5,0,0,5);
+    groupLayout->setVerticalSpacing(2);
+    groupLayout->setHorizontalSpacing(5);
+    // Row 0: Preset/Load
+    groupLayout->addWidget(m_presetLabel, 0, 0, Qt::AlignLeft);
+    groupLayout->addWidget(m_preset, 0, 1, 1, 3);
+    groupLayout->addWidget(m_load, 0, 4, 1, 2);
+    // Row 1: Clef/Transpose
+    groupLayout->addWidget(m_clefLabel, 1, 0, Qt::AlignLeft);
+    groupLayout->addWidget(m_clef, 1, 1, 1, 2);
+    groupLayout->addWidget(m_transposeLabel, 1, 3, 1, 2, Qt::AlignRight);
+    groupLayout->addWidget(m_transpose, 1, 5, 1, 1);
+    // Row 2: Pitch/Lowest/Highest
+    groupLayout->addWidget(m_pitchLabel, 2, 0, Qt::AlignLeft);
+    groupLayout->addWidget(m_lowestLabel, 2, 1, Qt::AlignRight);
+    groupLayout->addWidget(m_lowest, 2, 2, 1, 1);
+    groupLayout->addWidget(m_highestLabel, 2, 3, Qt::AlignRight);
+    groupLayout->addWidget(m_highest, 2, 4, 1, 2);
+    // Row 3: Color
+    groupLayout->addWidget(colorLabel, 3, 0, Qt::AlignLeft);
+    groupLayout->addWidget(m_color, 3, 1, 1, 5);
+    // Row 4: Reset to Defaults
+    groupLayout->addWidget(m_resetToDefaults, 4, 1, 1, 2);
 
-    connect(m_staffSizeCombo, SIGNAL(activated(int)),
-            this, SLOT(slotStaffSizeChanged(int)));
+    groupLayout->setColumnStretch(1, 1);
+    groupLayout->setColumnStretch(2, 2);
 
-    connect(m_staffBracketCombo, SIGNAL(activated(int)),
-            this, SLOT(slotStaffBracketChanged(int)));
+    // Connections
+
+    connect(RosegardenMainWindow::self(),
+                &RosegardenMainWindow::documentChanged,
+            this, &TrackParameterBox::slotNewDocument);
+
+    // Layout
+
+    QGridLayout *mainLayout = new QGridLayout(this);
+    mainLayout->setMargin(0);
+    mainLayout->setSpacing(1);
+    mainLayout->addWidget(m_trackLabel, 0, 0);
+    mainLayout->addWidget(playbackParametersFrame, 1, 0);
+    mainLayout->addWidget(m_recordingFiltersFrame, 2, 0);
+    mainLayout->addWidget(m_staffExportOptionsFrame, 3, 0);
+    mainLayout->addWidget(m_createSegmentsWithFrame, 4, 0);
+
+    // Box
+
+    setContentsMargins(2, 7, 2, 2);
+
+    updateWidgets2();
+}
+
+void
+TrackParameterBox::setDocument(RosegardenDocument *doc)
+{
+    // No change?  Bail.
+    if (m_doc == doc)
+        return;
+
+    m_doc = doc;
 
     m_doc->getComposition().addObserver(this);
 
-    // Hold on to this to make sure it stays around as long as we do.
-    m_instrumentStaticSignals = Instrument::getStaticSignals();
+    // Populate color combo from the document colors.
+    // ??? Now that we actually load these from the new document, we can
+    //     see what's actually in .rg files.  Older ones have almost no
+    //     colors at all (e.g. the Vivaldi op44 example file).  Since we
+    //     don't allow editing of the colors, we should probably just
+    //     always put the standard color list into a document when it is
+    //     loaded.  Or would that mess up the segment colors since the
+    //     indexes might point to the wrong colors?
+    slotDocColoursChanged();
 
-    connect(m_instrumentStaticSignals.data(),
-            SIGNAL(changed(Instrument *)),
-            this,
-            SLOT(slotInstrumentChanged(Instrument *)));
+    // Detect when the document colours are updated.
+    // Document colors can never be updated.  See explanation in
+    // slotDocColoursChanged().
+    //connect(m_doc, SIGNAL(docColoursChanged()),
+    //        this, SLOT(slotDocColoursChanged()));
 
-    slotUpdateControls(-1);
-}
-
-TrackParameterBox::~TrackParameterBox()
-{
-}
-
-void
-
-TrackParameterBox::setDocument(RosegardenDocument *doc)
-{
-    if (m_doc != doc) {
-        RG_DEBUG << "TrackParameterBox::setDocument\n";
-        m_doc = doc;
-        m_doc->getComposition().addObserver(this);
-        slotPopulateDeviceLists();
-    }
+    updateWidgets2();
 }
 
 void
-TrackParameterBox::slotPopulateDeviceLists()
+TrackParameterBox::devicesChanged()
 {
-    RG_DEBUG << "TrackParameterBox::slotPopulateDeviceLists()\n";
-    populatePlaybackDeviceList();
-    m_lastInstrumentType = -1;  // Attempt to force initial record device populate
-    populateRecordingDeviceList();
-    slotUpdateControls(-1);
-}
-
-void
-TrackParameterBox::populatePlaybackDeviceList()
-{
-    RG_DEBUG << "TrackParameterBox::populatePlaybackDeviceList()\n";
-    m_playDevice->clear();
-    m_playDeviceIds.clear();
-    m_instrument->clear();
-    m_instrumentIds.clear();
-    m_instrumentNames.clear();
-
-    Studio &studio = m_doc->getStudio();
-
-    // Get the list
-    InstrumentList list = studio.getPresentationInstruments();
-    InstrumentList::iterator it;
-    int currentDevId = -1;
-
-    for (it = list.begin(); it != list.end(); ++it) {
-
-        if (! (*it))
-            continue; // sanity check
-
-        QString iname(QObject::tr((*it)->getName().c_str()));
-        QString pname(QObject::tr((*it)->getProgramName().c_str()));
-        Device *device = (*it)->getDevice();
-        DeviceId devId = device->getId();
-
-        if ((*it)->getType() == Instrument::SoftSynth) {
-            iname.replace(QObject::tr("Synth plugin"), "");
-            pname = "";
-            AudioPluginInstance *plugin = (*it)->getPlugin
-                                          (Instrument::SYNTH_PLUGIN_POSITION);
-            if (plugin) {
-                pname = strtoqstr(plugin->getProgram());
-                QString identifier = strtoqstr(plugin->getIdentifier());
-                if (identifier != "") {
-                    QString type, soName, label;
-                    PluginIdentifier::parseIdentifier
-                    (identifier, type, soName, label);
-                    if (pname == "") {
-                        pname = strtoqstr(plugin->getDistinctiveConfigurationText());
-                    }
-                    if (pname != "") {
-                        pname = QString("%1: %2").arg(label).arg(pname);
-                    } else {
-                        pname = label;
-                    }
-                }
-            }
-        }
-
-        if (devId != (DeviceId)(currentDevId)) {
-            currentDevId = int(devId);
-            QString deviceName = QObject::tr(device->getName().c_str());
-            m_playDevice->addItem(deviceName);
-            m_playDeviceIds.push_back(currentDevId);
-        }
-
-        if (pname != "") iname += " (" + pname + ")";
-        // cut off the redundant eg. "General MIDI Device" that appears in the
-        // combo right above here anyway
-        iname = iname.mid(iname.indexOf("#"), iname.length());
-        m_instrumentIds[currentDevId].push_back((*it)->getId());
-        m_instrumentNames[currentDevId].append(iname);
-
-    }
-
-    m_playDevice->setCurrentIndex(-1);
-    m_instrument->setCurrentIndex(-1);
-}
-
-void
-TrackParameterBox::populateRecordingDeviceList()
-{
-    RG_DEBUG << "TrackParameterBox::populateRecordingDeviceList()\n";
-
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
-        return;
-    }
-
-    Track *trk = comp.getTrackById(m_selectedTrackId);
-    Instrument *inst = m_doc->getStudio().getInstrumentFor(trk);
-    if (!inst)
-        return ;
-
-    if (m_lastInstrumentType != (char)inst->getInstrumentType()) {
-        m_lastInstrumentType = (char)inst->getInstrumentType();
-
-        m_recDevice->clear();
-        m_recDeviceIds.clear();
-        m_recChannel->clear();
-
-        if (inst->getInstrumentType() == Instrument::Audio) {
-
-            m_recDeviceIds.push_back(Device::NO_DEVICE);
-            m_recDevice->addItem(tr("Audio"));
-            m_recChannel->addItem(tr("Audio"));
-
-            m_recDevice->setEnabled(false);
-            m_recChannel->setEnabled(false);
-
-            // hide these for audio instruments
-            m_defaultsGroup->parentWidget()->setVisible(false);
-
-        } else { // InstrumentType::Midi and InstrumentType::SoftSynth
-
-            // show these if not audio instrument
-            m_defaultsGroup->parentWidget()->setVisible(true);
-
-            m_recDeviceIds.push_back(Device::ALL_DEVICES);
-            m_recDevice->addItem(tr("All"));
-
-            DeviceList *devices = m_doc->getStudio().getDevices();
-            DeviceListConstIterator it;
-            for (it = devices->begin(); it != devices->end(); it++) {
-                MidiDevice *dev =
-                    dynamic_cast<MidiDevice*>(*it);
-                if (dev) {
-                    if (dev->getDirection() == MidiDevice::Record
-                        && dev->isRecording()) {
-                        QString deviceName = QObject::tr(dev->getName().c_str());
-                        m_recDevice->addItem(deviceName);
-                        m_recDeviceIds.push_back(dev->getId());
-                    }
-                }
-            }
-
-            m_recChannel->addItem(tr("All"));
-            for (int i = 1; i < 17; ++i) {
-                m_recChannel->addItem(QString::number(i));
-            }
-
-            m_recDevice->setEnabled(true);
-            m_recChannel->setEnabled(true);
-        }
-    }
-
-    if (inst->getInstrumentType() == Instrument::Audio) {
-        m_recDevice->setCurrentIndex(0);
-        m_recChannel->setCurrentIndex(0);
-    } else {
-        m_recDevice->setCurrentIndex(0);
-        m_recChannel->setCurrentIndex((int)trk->getMidiInputChannel() + 1);
-        for (unsigned int i = 0; i < m_recDeviceIds.size(); ++i) {
-            if (m_recDeviceIds[i] == trk->getMidiInputDevice()) {
-                m_recDevice->setCurrentIndex(i);
-                break;
-            }
-        }
-    }
-}
-
-void
-TrackParameterBox::updateHighLow()
-{
-    Composition &comp = m_doc->getComposition();
-    Track *trk = comp.getTrackById(comp.getSelectedTrack());
-    if (!trk)
-        return ;
-
-    trk->setHighestPlayable(m_highestPlayable);
-    trk->setLowestPlayable(m_lowestPlayable);
-
-    Accidental accidental = Accidentals::NoAccidental;
-
-    Pitch highest(m_highestPlayable, accidental);
-    Pitch lowest(m_lowestPlayable, accidental);
-
-    QSettings settings;
-    settings.beginGroup(GeneralOptionsConfigGroup);
-
-    int base = settings.value("midipitchoctave", -2).toInt() ;
-    settings.endGroup();
-
-    bool includeOctave = false;
-
-    // NOTE: this now uses a new, overloaded version of Pitch::getAsString()
-    // that explicitly works with the key of C major, and does not allow the
-    // calling code to specify how the accidentals should be written out.
-    //
-    // Separate the note letter from the octave to avoid undue burden on
-    // translators having to retranslate the same thing but for a number
-    // difference
-    QString tmp = QObject::tr(highest.getAsString(includeOctave, base).c_str(), "note name");
-    tmp += tr(" %1").arg(highest.getOctave(base));
-    m_highButton->setText(tmp);
-
-    tmp = QObject::tr(lowest.getAsString(includeOctave, base).c_str(), "note name");
-    tmp += tr(" %1").arg(lowest.getOctave(base));
-    m_lowButton->setText(tmp);
-
-    m_presetLbl->setEnabled(false);
-}
-
-void
-TrackParameterBox::slotUpdateControls(int /*dummy*/)
-{
-    RG_DEBUG << "TrackParameterBox::slotUpdateControls()\n";
-
-    slotPlaybackDeviceChanged(-1);
-    slotInstrumentChanged(-1);
-
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
-        return;
-    }
-
-    Track *trk = comp.getTrackById(m_selectedTrackId);
-
-    m_defClef->setCurrentIndex(trk->getClef());
-    m_defTranspose->setCurrentIndex(m_defTranspose->findText(QString("%1").arg(trk->getTranspose())));
-    m_defColor->setCurrentIndex(trk->getColor());
-    m_highestPlayable = trk->getHighestPlayable();
-    m_lowestPlayable = trk->getLowestPlayable();
-    updateHighLow();
-    // set this down here because updateHighLow just disabled the label
-    m_presetLbl->setText(strtoqstr(trk->getPresetLabel()));
-    m_presetLbl->setEnabled(true);
-
-    m_staffSizeCombo->setCurrentIndex(trk->getStaffSize());
-    m_staffBracketCombo->setCurrentIndex(trk->getStaffBracket());
+    updateWidgets2();
 }
 
 void
@@ -738,359 +489,262 @@ TrackParameterBox::trackChanged(const Composition *, Track *track)
     if (!track)
         return;
 
-    if (track->getId() != (unsigned)m_selectedTrackId)
+    if (track->getId() != m_selectedTrackId)
         return;
 
-    // Update the track name in case it has changed.
-    selectedTrackNameChanged();
+    updateWidgets2();
 }
 
 void
-TrackParameterBox::tracksDeleted(const Composition *, std::vector<TrackId> &trackIds)
+TrackParameterBox::trackSelectionChanged(const Composition *, TrackId newTrackId)
 {
-    //RG_DEBUG << "TrackParameterBox::tracksDeleted(), selected is " << m_selectedTrackId;
-
-    // For each deleted track
-    for (unsigned i = 0; i < trackIds.size(); ++i) {
-        // If this is the selected track
-        if ((int)trackIds[i] == m_selectedTrackId) {
-            slotSelectedTrackChanged();
-            return;
-        }
-    }
-}
-
-void
-TrackParameterBox::trackSelectionChanged(const Composition *, TrackId)
-{
-    slotSelectedTrackChanged();
-}
-
-void
-TrackParameterBox::slotSelectedTrackChanged()
-{
-    RG_DEBUG << "TrackParameterBox::slotSelectedTrackChanged()";
-
-    Composition &comp = m_doc->getComposition();
-    TrackId newTrack = comp.getSelectedTrack();
-    if ((int)newTrack != m_selectedTrackId) {
-        m_presetLbl->setEnabled(true);
-        m_selectedTrackId = newTrack;
-        selectedTrackNameChanged();
-        slotUpdateControls(-1);
-    }
-}
-
-void
-TrackParameterBox::selectedTrackNameChanged()
-{
-    RG_DEBUG << "TrackParameterBox::selectedTrackNameChanged()";
-
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-
-    Composition &comp = m_doc->getComposition();
-
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
+    // No change?  Bail.
+    if (newTrackId == m_selectedTrackId)
         return;
-    }
 
-    Track *trk = comp.getTrackById(m_selectedTrackId);
-    QString trackName = strtoqstr(trk->getLabel());
-    if (trackName.isEmpty())
-        trackName = tr("<untitled>");
-    else
-        trackName.truncate(20);
-    int trackNum = trk->getPosition() + 1;
-    m_trackLabel->setText(tr("[ Track %1 - %2 ]").arg(trackNum).arg(trackName));
+    m_preset->setEnabled(true);
+
+    m_selectedTrackId = newTrackId;
+
+    updateWidgets2();
 }
 
 void
 TrackParameterBox::slotPlaybackDeviceChanged(int index)
 {
-    RG_DEBUG << "TrackParameterBox::slotPlaybackDeviceChanged(" << index << ")\n";
-    DeviceId devId;
-    if (index == -1) {
-        if (m_selectedTrackId == (int)NO_TRACK) return ;
-        Composition &comp = m_doc->getComposition();
-        Track *trk = comp.getTrackById(m_selectedTrackId);
-        if (!trk)
-            return ;
-        Instrument *inst = m_doc->getStudio().getInstrumentFor(trk);
-        if (!inst)
-            return ;
-        devId = inst->getDevice()->getId();
-        int pos = -1;
-        IdsVector::const_iterator it;
-        // this works because we don't have a usable index, and we're having to
-        // figure out what to set to.  the external change was to 10001, so we
-        // hunt through our mangled data structure to find that.  this jibes
-        // with the notion that our own representation of what's what does not
-        // remotely match the TB menu representation.  Our data is the same, but
-        // in a completely different and utterly nonsensical order, so we can
-        // find it accurately if we know what we're hunting for, otherwise,
-        // we're fucked
-        for (it = m_playDeviceIds.begin(); it != m_playDeviceIds.end(); ++it) {
-            pos++;
-            if ((*it) == devId) break;
-        }
+    //RG_DEBUG << "slotPlaybackDeviceChanged(" << index << ")";
 
-        m_playDevice->setCurrentIndex(pos);
-    } else {
-        devId = m_playDeviceIds[index];
-    }
+    // If nothing is selected, bail.
+    if (index < 0)
+        return;
 
-    // used to be "General MIDI Device #7" now we change to "QSynth Device" and
-    // we want to remember the #7 bit
-    int previousIndex = m_instrument->currentIndex();
+    // Out of range?  Bail.
+    if (index >= static_cast<int>(m_playbackDeviceIds2.size()))
+        return;
 
-    // clear the instrument combo and re-populate it from the new device
-    m_instrument->clear();
-    m_instrument->addItems(m_instrumentNames[devId]);
+    Track *track = getTrack();
+    if (!track)
+        return;
 
-    // try to keep the same index (the #7 bit) as was in use previously, unless
-    // the new instrument has fewer indices available than the previous one did,
-    // in which case we just go with the highest valid index available
-    if (previousIndex > m_instrument->count()) previousIndex = m_instrument->count();
+    // Switch the Track to the same instrument # on this new Device.
 
-    populateRecordingDeviceList();
+    DeviceId deviceId = m_playbackDeviceIds2[index];
 
-    if (index != -1) {
-        m_instrument->setCurrentIndex(previousIndex);
-        slotInstrumentChanged(previousIndex);
-    }
+    Device *device = m_doc->getStudio().getDevice(deviceId);
+    if (!device)
+        return;
+
+    // Query the Studio to get an Instrument for this Device.
+    InstrumentList instrumentList = device->getPresentationInstruments();
+
+    // Try to preserve the Instrument number (channel) if possible.
+    int instrumentIndex = m_instrument->currentIndex();
+    if (instrumentIndex >= static_cast<int>(instrumentList.size()))
+        instrumentIndex = 0;
+
+    // Set the Track's Instrument to the new Instrument.
+    // This also sends out a CompositionObserver::trackChanged()
+    // notification which will trigger a call to updateWidgets2().
+    track->setInstrument(instrumentList[instrumentIndex]->getId());
+
+    m_doc->slotDocumentModified();
+
+    // ??? The following needs to go away.  See comments in
+    //     TrackButtons::selectInstrument().
+    RosegardenMainWindow::self()->getView()->getTrackEditor()->
+            getTrackButtons()->selectInstrument(
+                    track, instrumentList[instrumentIndex]);
 }
 
 void
 TrackParameterBox::slotInstrumentChanged(int index)
 {
-    RG_DEBUG << "TrackParameterBox::slotInstrumentChanged(" << index << ")\n";
-    DeviceId devId;
-    Instrument *inst;
-    if (index == -1) {
-        Composition &comp = m_doc->getComposition();
-        Track *trk = comp.getTrackById(comp.getSelectedTrack());
-        if (!trk)
-            return ;
-        inst = m_doc->getStudio().getInstrumentFor(trk);
-        if (!inst)
-            return ;
-        devId = inst->getDevice()->getId();
+    //RG_DEBUG << "slotInstrumentChanged(" << index << ")";
 
-        int pos = -1;
-        IdsVector::const_iterator it;
-        for (it = m_instrumentIds[devId].begin(); it != m_instrumentIds[devId].end(); ++it) {
-            pos++;
-            if ((*it) == trk->getInstrument()) break;
-        }
-        m_instrument->setCurrentIndex(pos);
-    } else {
-        devId = m_playDeviceIds[m_playDevice->currentIndex()];
+    // If nothing is selected, bail.
+    if (index < 0)
+        return;
 
-        // Calculate an index to use in Studio::getInstrumentFromList() which
-        // gets emitted to TrackButtons, and TrackButtons actually does the work
-        // of assigning the track to the instrument, for some bizarre reason.
-        //
-        // This new method for calculating the index works by:
-        //
-        // 1. for every play device combo index between 0 and its current index, 
-        //
-        // 2. get the device that corresponds with that combo box index, and
-        //
-        // 3. figure out how many instruments that device contains, then
-        //
-        // 4. Add it all up.  That's how many slots we have to jump over to get
-        //    to the point where the instrument combo box index we're working
-        //    with here will target the correct instrument in the studio list.
-        //
-        // I'm sure this whole architecture seemed clever once, but it's an
-        // unmaintainable pain in the ass is what it is.  We changed one
-        // assumption somewhere, and the whole thing fell on its head,
-        // swallowing two entire days of my life to put back with the following
-        // magic lines of code:
-        int prepend = 0;
-        for (int n = 0; n < m_playDevice->currentIndex(); n++) {
-            DeviceId id = m_playDeviceIds[n];
-            Device *dev = m_doc->getStudio().getDevice(id);
+    // Out of range?  Bail.
+    if (index >= static_cast<int>(m_instrumentIds2.size()))
+        return;
 
-            // get the number of instruments belonging to the device (not the
-            // studio)
-            InstrumentList il = dev->getPresentationInstruments();
-            prepend += il.size();
-        }
+    Track *track = getTrack();
+    if (!track)
+        return;
 
-        index += prepend;
+    // Set the Track's Instrument to the new Instrument.
+    // This also sends out a CompositionObserver::trackChanged()
+    // notification which will trigger a call to updateWidgets2().
+    track->setInstrument(m_instrumentIds2[index]);
+    m_doc->slotDocumentModified();
 
-        // emit the index we've calculated, relative to the studio list
-        RG_DEBUG << "TrackParameterBox::slotInstrumentChanged() index = " << index << "\n";
-        if (m_doc->getComposition().haveTrack(m_selectedTrackId)) {
-            emit instrumentSelected(m_selectedTrackId, index);
-        }
-    }
+    // ??? The following needs to go away.  See comments in
+    //     TrackButtons::selectInstrument().
+    Instrument *instrument =
+            m_doc->getStudio().getInstrumentById(m_instrumentIds2[index]);
+    if (!instrument)
+        return;
+    RosegardenMainWindow::self()->getView()->getTrackEditor()->
+            getTrackButtons()->selectInstrument(
+                    track, instrument);
+}
+
+void
+TrackParameterBox::slotArchiveChanged(bool checked)
+{
+    //RG_DEBUG << "slotArchiveChanged(" << checked << ")";
+
+    Track *track = getTrack();
+
+    if (!track)
+        return;
+
+    track->setArchived(checked);
+    m_doc->slotDocumentModified();
+
+    // Notify observers
+    // This will trigger a call to updateWidgets2().
+    Composition &comp = m_doc->getComposition();
+    comp.notifyTrackChanged(track);
 }
 
 void
 TrackParameterBox::slotRecordingDeviceChanged(int index)
 {
-    RG_DEBUG << "TrackParameterBox::slotRecordingDeviceChanged(" << index << ")" << endl;
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
+    //RG_DEBUG << "slotRecordingDeviceChanged(" << index << ")";
+
+    Track *track = getTrack();
+    if (!track)
         return;
-    }
 
-    Track *trk = comp.getTrackById(m_selectedTrackId);
+    // This also sends out a CompositionObserver::trackChanged()
+    // notification which will trigger a call to updateWidgets2().
+    track->setMidiInputDevice(m_recordingDeviceIds2[index]);
 
-    Instrument *inst = m_doc->getStudio().getInstrumentFor(trk);
-    if (!inst) return ;
-    if (inst->getInstrumentType() == Instrument::Audio) {
-        //Not implemented yet
-    } else {
-        trk->setMidiInputDevice(m_recDeviceIds[index]);
-    }
+    m_doc->slotDocumentModified();
 }
 
 void
 TrackParameterBox::slotRecordingChannelChanged(int index)
 {
-    RG_DEBUG << "TrackParameterBox::slotRecordingChannelChanged(" << index << ")" << endl;
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
+    //RG_DEBUG << "slotRecordingChannelChanged(" << index << ")";
+
+    Track *track = getTrack();
+    if (!track)
         return;
-    }
 
-    Track *trk = comp.getTrackById(m_selectedTrackId);
+    // This also sends out a CompositionObserver::trackChanged()
+    // notification which will trigger a call to updateWidgets2().
+    track->setMidiInputChannel(index - 1);
 
-    Instrument *inst = m_doc->getStudio().getInstrumentFor(trk);
-    if (!inst) return ;
-    if (inst->getInstrumentType() == Instrument::Audio) {
-        //Not implemented yet
-    } else {
-        trk->setMidiInputChannel(index - 1);
-    }
+    m_doc->slotDocumentModified();
 }
 
 void
-TrackParameterBox::slotInstrumentChanged(Instrument * /*instrument*/)
+TrackParameterBox::slotThruRoutingChanged(int index)
 {
-    //RG_DEBUG << "TrackParameterBox::slotInstrumentChanged()";
-    populatePlaybackDeviceList();
-    slotUpdateControls(-1);
-}
+    Track *track = getTrack();
+    if (!track)
+        return;
 
-void
-TrackParameterBox::showAdditionalControls(bool)
-{
-    // No longer needed.  Remove when we strip the last of the classic vs.
-    // tabbed garbage out of the other parameter boxes
+    // This also sends out a CompositionObserver::trackChanged()
+    // notification which will trigger a call to updateWidgets2().
+    track->setThruRouting(static_cast<Track::ThruRouting>(index));
+
+    m_doc->slotDocumentModified();
 }
 
 void
 TrackParameterBox::slotClefChanged(int clef)
 {
-    RG_DEBUG << "TrackParameterBox::slotClefChanged(" << clef << ")" << endl;
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
+    //RG_DEBUG << "slotClefChanged(" << clef << ")";
+
+    Track *track = getTrack();
+    if (!track)
         return;
-    }
-    Track *trk = comp.getTrackById(m_selectedTrackId);
-    trk->setClef(clef);
-    m_presetLbl->setEnabled(false);
-}
 
-void
-TrackParameterBox::slotTransposeChanged(int transpose)
-{
-    RG_DEBUG << "TrackParameterBox::slotTransposeChanged(" << transpose << ")" << endl;
-    if (m_selectedTrackId == (int)NO_TRACK) return;
+    track->setClef(clef);
+    m_doc->slotDocumentModified();
+
+    // Notify observers
+    // This will trigger a call to updateWidgets2().
     Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
+    comp.notifyTrackChanged(track);
+
+    m_preset->setEnabled(false);
+}
+
+void
+TrackParameterBox::slotTransposeChanged(int index)
+{
+    const QString text = m_transpose->itemText(index);
+
+    if (text.isEmpty())
         return;
-    }
-    Track *trk = comp.getTrackById(m_selectedTrackId);
-    trk->setTranspose(transpose);
-    m_presetLbl->setEnabled(false);
-}
 
-void
-TrackParameterBox::slotTransposeIndexChanged(int index)
-{
-    slotTransposeTextChanged(m_defTranspose->itemText(index));
-}
+    const int transpose = text.toInt();
 
-void
-TrackParameterBox::slotTransposeTextChanged(QString text)
-{
-    if (text.isEmpty()) return;
-    int value = text.toInt();
-    slotTransposeChanged(value);
+    Track *track = getTrack();
+    if (!track)
+        return;
+
+    track->setTranspose(transpose);
+    m_doc->slotDocumentModified();
+
+    // Notify observers
+    // This will trigger a call to updateWidgets2().
+    Composition &comp = m_doc->getComposition();
+    comp.notifyTrackChanged(track);
+
+    m_preset->setEnabled(false);
 }
 
 void
 TrackParameterBox::slotDocColoursChanged()
 {
-    RG_DEBUG << "TrackParameterBox::slotDocColoursChanged()" << endl;
+    // The color combobox is handled differently from the others.  Since
+    // there are 420 strings of up to 25 chars in here, it would be
+    // expensive to detect changes by comparing vectors of strings.
 
-    m_defColor->clear();
-    m_colourList.clear();
-    // Populate it from composition.m_segmentColourMap
-    ColourMap temp = m_doc->getComposition().getSegmentColourMap();
+    // For now, we'll handle the document colors changed notification
+    // and reload the combobox then.
 
-    unsigned int i = 0;
+    // See the comments on RosegardenDocument::docColoursChanged()
+    // in RosegardenDocument.h.
 
-    for (RCMap::const_iterator it = temp.begin(); it != temp.end(); ++it) {
-        QString qtrunc(QObject::tr(it->second.second.c_str()));
-        QPixmap colour(15, 15);
-        colour.fill(GUIPalette::convertColour(it->second.first));
-        if (qtrunc == "") {
-            m_defColor->addItem(colour, tr("Default"), i);
-        } else {
-            // truncate name to 25 characters to avoid the combo forcing the
-            // whole kit and kaboodle too wide (This expands from 15 because the
-            // translators wrote books instead of copying the style of
-            // TheShortEnglishNames, and because we have that much room to
-            // spare.)
-            if (qtrunc.length() > 25)
-                qtrunc = qtrunc.left(22) + "...";
-            m_defColor->addItem(colour, qtrunc, i);
-        }
-        m_colourList[it->first] = i; // maps colour number to menu index
-        ++i;
-    }
+    // Note that as of this writing (August 2016) there is no way
+    // to modify the document colors.  See ColourConfigurationPage
+    // which was probably meant to be used by DocumentConfigureDialog.
+    // See SegmentParameterBox::slotDocColoursChanged().
 
-    m_addColourPos = i;
-    m_defColor->addItem(tr("Add New Color"), m_addColourPos);
+    m_color->updateColors();
 
-    // remove the item we just inserted; this leaves the translation alone, but
-    // eliminates the useless option
-    //
-    //!!! fix after release
-    m_defColor->removeItem(m_addColourPos);
+    const Track *track = getTrack();
 
-    m_defColor->setCurrentIndex(0);
+    if (track)
+        m_color->setCurrentIndex(track->getColor());
 }
 
 void
 TrackParameterBox::slotColorChanged(int index)
 {
-    RG_DEBUG << "TrackParameterBox::slotColorChanged(" << index << ")" << endl;
+    //RG_DEBUG << "slotColorChanged(" << index << ")";
 
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
+    Track *track = getTrack();
+    if (!track)
         return;
-    }
-    Track *trk = comp.getTrackById(m_selectedTrackId);
 
-    trk->setColor(index);
+    track->setColor(index);
+    m_doc->slotDocumentModified();
 
+    // Notify observers
+    // This will trigger a call to updateWidgets2().
+    Composition &comp = m_doc->getComposition();
+    comp.notifyTrackChanged(track);
+
+#if 0
+// This will never happen since the "Add Color" option is never added.
     if (index == m_addColourPos) {
         ColourMap newMap = m_doc->getComposition().getSegmentColourMap();
         QColor newColour;
@@ -1112,156 +766,584 @@ TrackParameterBox::slotColorChanged(int index)
             if (newColor.isValid()) {
                 Colour newRColour = GUIPalette::convertColour(newColour);
                 newMap.addItem(newRColour, qstrtostr(newName));
+                SegmentColourMapCommand *command =
+                        new SegmentColourMapCommand(m_doc, newMap);
+                CommandHistory::getInstance()->addCommand(command);
                 slotDocColoursChanged();
             }
         }
         // Else we don't do anything as they either didn't give a name
         // or didn't give a colour
     }
+#endif
 }
 
 void
 TrackParameterBox::slotHighestPressed()
 {
-    RG_DEBUG << "TrackParameterBox::slotHighestPressed()" << endl;
-
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
+    Track *track = getTrack();
+    if (!track)
         return;
-    }
 
-    PitchPickerDialog dialog(0, m_highestPlayable, tr("Highest playable note"));
+    PitchPickerDialog dialog(
+            nullptr, track->getHighestPlayable(), tr("Highest playable note"));
 
+    // Launch the PitchPickerDialog.  If the user clicks OK...
     if (dialog.exec() == QDialog::Accepted) {
-        m_highestPlayable = dialog.getPitch();
-        updateHighLow();
-    }
+        track->setHighestPlayable(dialog.getPitch());
 
-    m_presetLbl->setEnabled(false);
+        m_doc->slotDocumentModified();
+
+        // Notify observers
+        // This will trigger a call to updateWidgets2().
+        Composition &comp = m_doc->getComposition();
+        comp.notifyTrackChanged(track);
+
+        m_preset->setEnabled(false);
+    }
 }
 
 void
 TrackParameterBox::slotLowestPressed()
 {
-    RG_DEBUG << "TrackParameterBox::slotLowestPressed()" << endl;
-
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
+    Track *track = getTrack();
+    if (!track)
         return;
-    }
 
-    PitchPickerDialog dialog(0, m_lowestPlayable, tr("Lowest playable note"));
+    PitchPickerDialog dialog(
+            nullptr, track->getLowestPlayable(), tr("Lowest playable note"));
 
+    // Launch the PitchPickerDialog.  If the user clicks OK...
     if (dialog.exec() == QDialog::Accepted) {
-        m_lowestPlayable = dialog.getPitch();
-        updateHighLow();
-    }
+        track->setLowestPlayable(dialog.getPitch());
 
-    m_presetLbl->setEnabled(false);
+        m_doc->slotDocumentModified();
+
+        // Notify observers
+        // This will trigger a call to updateWidgets2().
+        Composition &comp = m_doc->getComposition();
+        comp.notifyTrackChanged(track);
+
+        m_preset->setEnabled(false);
+    }
 }
 
 void
-TrackParameterBox::slotPresetPressed()
+TrackParameterBox::slotLoadPressed()
 {
-    RG_DEBUG << "TrackParameterBox::slotPresetPressed()" << endl;
-
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
-        return;
-    }
-
+    // Inherits style.  Centers on main window.
     //PresetHandlerDialog dialog(this);
-    PresetHandlerDialog dialog(0); // no parent means no style from group box parent, but what about popup location?
+    // Does not inherit style?  Centers on monitor #1?
+    PresetHandlerDialog dialog(nullptr);
 
-    Track *trk = comp.getTrackById(m_selectedTrackId);
+    Track *track = getTrack();
+    if (!track)
+        return;
+
     try {
+        // Launch the PresetHandlerDialog.  If the user selects OK...
         if (dialog.exec() == QDialog::Accepted) {
-            m_presetLbl->setText(dialog.getName());
-            trk->setPresetLabel(qstrtostr(dialog.getName()));
+            // Update the Track.
+            track->setPresetLabel(qstrtostr(dialog.getName()));
+            track->setClef(dialog.getClef());
+            track->setTranspose(dialog.getTranspose());
+            track->setHighestPlayable(dialog.getHighRange());
+            track->setLowestPlayable(dialog.getLowRange());
+
+            // Enable this until it is subsequently re-disabled by the
+            // user overriding the preset, calling one of the other slots
+            // in the normal course.
+            // ??? This is too subtle.  We should probably just clear it
+            //     when modifications are made.  After all, it's no longer
+            //     the selected preset.  Or add "(modified)"?  Or change
+            //     color?  Or allow the user to edit it and save it to the
+            //     .rg file as part of the Track.
+            //     See discussion on devel list 2016-07-13 "TPB Preset Field".
+            m_preset->setEnabled(true);
+
+            // If we need to convert the track's segments
             if (dialog.getConvertAllSegments()) {
+                Composition &comp = m_doc->getComposition();
                 SegmentSyncCommand* command = new SegmentSyncCommand(
                         comp.getSegments(), m_selectedTrackId,
-                        dialog.getTranspose(), dialog.getLowRange(), 
+                        dialog.getTranspose(), dialog.getLowRange(),
                         dialog.getHighRange(),
                         clefIndexToClef(dialog.getClef()));
                 CommandHistory::getInstance()->addCommand(command);
             }
-            m_defClef->setCurrentIndex(dialog.getClef());
-                     
-            m_defTranspose->setCurrentIndex(m_defTranspose->findText(QString("%1").arg(dialog.getTranspose())));
 
-            m_highestPlayable = dialog.getHighRange();
-            m_lowestPlayable = dialog.getLowRange();
-            updateHighLow();
-            slotClefChanged(dialog.getClef());
-            slotTransposeChanged(dialog.getTranspose());
+            m_doc->slotDocumentModified();
 
-            // the preceding slots will have set this disabled, so we
-            // re-enable it until it is subsequently re-disabled by the
-            // user overriding the preset, calling one of the above slots
-            // in the normal course
-            m_presetLbl->setEnabled(true);
+            // Notify observers
+            // This will trigger a call to updateWidgets2().
+            Composition &comp = m_doc->getComposition();
+            comp.notifyTrackChanged(track);
         }
-    } catch (Exception e) {
-        //!!! This should be a more verbose error to pass along the
-        // row/column of the corruption, but I can't be bothered to work
-        // that out just at the moment.  Hopefully this code will never
-        // execute anyway.
-        QMessageBox::warning(0, tr("Rosegarden"), tr("The instrument preset database is corrupt.  Check your installation."));
+    } catch (Exception &e) {  // from PresetHandlerDialog
+        // !!! This should be a more verbose error to pass along the
+        //     row/column of the corruption.
+        QMessageBox::warning(nullptr, tr("Rosegarden"),
+                tr("The instrument preset database is corrupt.  Check your installation."));
     }
-
 }
 
 void
-TrackParameterBox::slotStaffSizeChanged(int index) 
+TrackParameterBox::slotResetToDefaultsPressed()
 {
-    RG_DEBUG << "TrackParameterBox::sotStaffSizeChanged()" << endl;
-
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
+    Track *track = getTrack();
+    if (!track)
         return;
-    }
 
-    Track *trk = comp.getTrackById(m_selectedTrackId);
+    track->setPresetLabel("");
+    track->setClef(0);
+    track->setTranspose(0);
+    track->setLowestPlayable(0);
+    track->setHighestPlayable(127);
+    track->setColor(0);
 
-    trk->setStaffSize(index);
+    m_doc->slotDocumentModified();
+
+    // Notify observers
+    // This will trigger a call to updateWidgets2().
+    Composition &comp = m_doc->getComposition();
+    comp.notifyTrackChanged(track);
 }
-
 
 void
-TrackParameterBox::slotStaffBracketChanged(int index)
+TrackParameterBox::slotNotationSizeChanged(int index)
 {
-    RG_DEBUG << "TrackParameterBox::sotStaffBracketChanged()" << endl;
-
-    if (m_selectedTrackId == (int)NO_TRACK) return;
-    Composition &comp = m_doc->getComposition();
-    if (!comp.haveTrack(m_selectedTrackId)) {
-        m_selectedTrackId = (int)NO_TRACK;
+    Track *track = getTrack();
+    if (!track)
         return;
-    }
 
-    Track *trk = comp.getTrackById(m_selectedTrackId);
+    track->setStaffSize(index);
+    m_doc->slotDocumentModified();
 
-    trk->setStaffBracket(index);
+    // Notify observers
+    // This will trigger a call to updateWidgets2().
+    Composition &comp = m_doc->getComposition();
+    comp.notifyTrackChanged(track);
 }
 
-QString
-TrackParameterBox::getPreviousBox(RosegardenParameterArea::Arrangement arrangement) const
+void
+TrackParameterBox::slotBracketTypeChanged(int index)
 {
-    if (arrangement == RosegardenParameterArea::CLASSIC_STYLE) {
-        return tr("Segment");
-    } else {
-        return "";
-    }
+    Track *track = getTrack();
+    if (!track)
+        return;
+
+    track->setStaffBracket(index);
+    m_doc->slotDocumentModified();
+
+    // Notify observers
+    // This will trigger a call to updateWidgets2().
+    Composition &comp = m_doc->getComposition();
+    comp.notifyTrackChanged(track);
 }
 
+Track *
+TrackParameterBox::getTrack()
+{
+    if (m_selectedTrackId == NO_TRACK)
+        return nullptr;
+
+    if (!m_doc)
+        return nullptr;
+
+    Composition &comp = m_doc->getComposition();
+
+    // If the track is gone, bail.
+    if (!comp.haveTrack(m_selectedTrackId)) {
+        m_selectedTrackId = NO_TRACK;
+        return nullptr;
+    }
+
+    return comp.getTrackById(m_selectedTrackId);
 }
-#include "TrackParameterBox.moc"
+
+void
+TrackParameterBox::updatePlaybackDevice(DeviceId deviceId)
+{
+    const DeviceList &deviceList = *(m_doc->getStudio().getDevices());
+
+    // Generate local device name and ID lists to compare against the members.
+
+    std::vector<DeviceId> deviceIds;
+    QStringList deviceNames;
+
+    // For each Device
+    for (size_t deviceIndex = 0;
+         deviceIndex < deviceList.size();
+         ++deviceIndex) {
+
+        const Device &device = *(deviceList[deviceIndex]);
+
+        // If this is an input device, skip it.
+        if (device.isInput())
+            continue;
+
+        // Audio record devices are not in the device list.  So there's
+        // no need to check for them and skip.
+
+        deviceIds.push_back(device.getId());
+        deviceNames.push_back(QObject::tr(device.getName().c_str()));
+    }
+
+    // If there has been an actual change
+    if (deviceIds != m_playbackDeviceIds2  ||
+        deviceNames != m_playbackDeviceNames) {
+
+        // Update the cache.
+        m_playbackDeviceIds2 = deviceIds;
+        m_playbackDeviceNames = deviceNames;
+
+        // Reload the combobox
+        m_playbackDevice->clear();
+        m_playbackDevice->addItems(m_playbackDeviceNames);
+    }
+
+    // Find the current device in the device ID list.
+
+    // Assume not found.
+    int currentIndex = -1;
+
+    // For each Device
+    for (size_t deviceIndex = 0;
+         deviceIndex < m_playbackDeviceIds2.size();
+         ++deviceIndex) {
+        // If this is the selected device
+        if (m_playbackDeviceIds2[deviceIndex] == deviceId) {
+            currentIndex = deviceIndex;
+            break;
+        }
+    }
+
+    // Set the index.
+    m_playbackDevice->setCurrentIndex(currentIndex);
+}
+
+void
+TrackParameterBox::updateInstrument(const Instrument *instrument)
+{
+    // As with the Device field above, this will rarely change and it is
+    // expensive to clear and reload.  So, we should cache enough info to
+    // detect a real change.  This would be Instrument names and IDs.
+
+    const DeviceId deviceId = instrument->getDevice()->getId();
+    const Device &device = *(m_doc->getStudio().getDevice(deviceId));
+
+    const InstrumentList instrumentList = device.getPresentationInstruments();
+
+    // Generate local instrument name and ID lists to compare against the
+    // members.
+
+    std::vector<InstrumentId> instrumentIds;
+    QStringList instrumentNames;
+
+    // For each instrument
+    for (size_t instrumentIndex = 0;
+         instrumentIndex < instrumentList.size();
+         ++instrumentIndex) {
+        const Instrument &loopInstrument = *(instrumentList[instrumentIndex]);
+
+        instrumentIds.push_back(loopInstrument.getId());
+
+        QString instrumentName(QObject::tr(loopInstrument.getName().c_str()));
+        QString programName(
+                QObject::tr(loopInstrument.getProgramName().c_str()));
+
+        if (loopInstrument.getType() == Instrument::SoftSynth) {
+
+            instrumentName.replace(QObject::tr("Synth plugin"), "");
+
+            programName = "";
+
+            AudioPluginInstance *plugin =
+                    instrument->getPlugin(Instrument::SYNTH_PLUGIN_POSITION);
+            if (plugin)
+                programName = strtoqstr(plugin->getDisplayName());
+        }
+
+        if (programName != "")
+            instrumentName += " (" + programName + ")";
+
+        // cut off the redundant eg. "General MIDI Device" that appears in the
+        // combo right above here anyway
+        instrumentName = instrumentName.mid(
+                instrumentName.indexOf("#"), instrumentName.length());
+
+        instrumentNames.push_back(instrumentName);
+    }
+
+    // If there has been an actual change
+    if (instrumentIds != m_instrumentIds2  ||
+        instrumentNames != m_instrumentNames2) {
+
+        // Update the cache.
+        m_instrumentIds2 = instrumentIds;
+        m_instrumentNames2 = instrumentNames;
+
+        // Reload the combobox
+        m_instrument->clear();
+        m_instrument->addItems(m_instrumentNames2);
+    }
+
+    // Find the current instrument in the instrument ID list.
+
+    const InstrumentId instrumentId = instrument->getId();
+
+    // Assume not found.
+    int currentIndex = -1;
+
+    // For each Instrument
+    for (size_t instrumentIndex = 0;
+         instrumentIndex < m_instrumentIds2.size();
+         ++instrumentIndex) {
+        // If this is the selected Instrument
+        if (m_instrumentIds2[instrumentIndex] == instrumentId) {
+            currentIndex = instrumentIndex;
+            break;
+        }
+    }
+
+    // Set the index.
+    m_instrument->setCurrentIndex(currentIndex);
+}
+
+void
+TrackParameterBox::updateRecordingDevice(DeviceId deviceId)
+{
+    // As with playback devices, the list of record devices will rarely
+    // change and it is expensive to clear and reload.  Handle like the
+    // others.  Cache names and IDs and only reload if a real change is
+    // detected.
+
+    const DeviceList &deviceList = *(m_doc->getStudio().getDevices());
+
+    // Generate local recording device name and ID lists to compare against
+    // the members.
+
+    std::vector<DeviceId> recordingDeviceIds;
+    QStringList recordingDeviceNames;
+
+    recordingDeviceIds.push_back(Device::ALL_DEVICES);
+    recordingDeviceNames.push_back(tr("All"));
+
+    // For each Device
+    for (size_t deviceIndex = 0;
+         deviceIndex < deviceList.size();
+         ++deviceIndex) {
+
+        const MidiDevice *midiDevice =
+                dynamic_cast<const MidiDevice *>(deviceList[deviceIndex]);
+
+        // If this isn't a MIDI device, try the next.
+        if (!midiDevice)
+            continue;
+
+        // Playback device?  Skip.
+        if (midiDevice->isOutput())
+            continue;
+
+        // Add it to the recording device lists.
+        recordingDeviceIds.push_back(midiDevice->getId());
+        recordingDeviceNames.push_back(
+                QObject::tr(midiDevice->getName().c_str()));
+    }
+
+    // If there has been an actual change
+    if (recordingDeviceIds != m_recordingDeviceIds2  ||
+        recordingDeviceNames != m_recordingDeviceNames) {
+
+        // Update the cache
+        m_recordingDeviceIds2 = recordingDeviceIds;
+        m_recordingDeviceNames = recordingDeviceNames;
+
+        // Reload the combobox
+        m_recordingDevice->clear();
+        m_recordingDevice->addItems(m_recordingDeviceNames);
+    }
+
+    // Find the current record device in the record device ID list.
+
+    // Assume not found.
+    int currentIndex = -1;
+
+    // For each ID
+    for (size_t deviceIndex = 0;
+         deviceIndex < m_recordingDeviceIds2.size();
+         ++deviceIndex) {
+        // If this is the selected device
+        if (m_recordingDeviceIds2[deviceIndex] == deviceId) {
+            currentIndex = deviceIndex;
+            break;
+        }
+    }
+
+    // Set the index.
+    m_recordingDevice->setCurrentIndex(currentIndex);
+}
+
+void
+TrackParameterBox::updateWidgets2()
+{
+    Track *track = getTrack();
+    if (!track)
+        return;
+
+    Instrument *instrument = m_doc->getStudio().getInstrumentFor(track);
+    if (!instrument)
+        return;
+
+    // *** Track Label
+
+    QString trackName = strtoqstr(track->getLabel());
+    if (trackName.isEmpty())
+        trackName = tr("<untitled>");
+    else
+        trackName.truncate(20);
+
+    const int trackNum = track->getPosition() + 1;
+
+    m_trackLabel->setText(tr("[ Track %1 - %2 ]").arg(trackNum).arg(trackName));
+
+    // *** Playback parameters
+
+    // Device
+    updatePlaybackDevice(instrument->getDevice()->getId());
+
+    // Instrument
+    updateInstrument(instrument);
+
+    // Archive
+    m_archive->setChecked(track->isArchived());
+
+    // If the current Instrument is an Audio Instrument...
+    if (instrument->getInstrumentType() == Instrument::Audio) {
+
+        // Hide irrelevant portions.
+
+        m_recordingFiltersFrame->setVisible(false);
+        m_staffExportOptionsFrame->setVisible(false);
+
+        // In the Create segments with... frame, only the color combo is
+        // useful for an Audio track.
+        m_presetLabel->setVisible(false);
+        m_preset->setVisible(false);
+        m_load->setVisible(false);
+        m_clefLabel->setVisible(false);
+        m_clef->setVisible(false);
+        m_transposeLabel->setVisible(false);
+        m_transpose->setVisible(false);
+        m_pitchLabel->setVisible(false);
+        m_lowestLabel->setVisible(false);
+        m_lowest->setVisible(false);
+        m_highestLabel->setVisible(false);
+        m_highest->setVisible(false);
+        m_resetToDefaults->setVisible(false);
+
+    } else {  // MIDI or soft synth
+
+        // Show everything.
+
+        m_recordingFiltersFrame->setVisible(true);
+        m_staffExportOptionsFrame->setVisible(true);
+
+        // Create segments with... frame
+        m_presetLabel->setVisible(true);
+        m_preset->setVisible(true);
+        m_load->setVisible(true);
+        m_clefLabel->setVisible(true);
+        m_clef->setVisible(true);
+        m_transposeLabel->setVisible(true);
+        m_transpose->setVisible(true);
+        m_pitchLabel->setVisible(true);
+        m_lowestLabel->setVisible(true);
+        m_lowest->setVisible(true);
+        m_highestLabel->setVisible(true);
+        m_highest->setVisible(true);
+        m_resetToDefaults->setVisible(true);
+    }
+
+    // *** Recording filters
+
+    // Device
+    updateRecordingDevice(track->getMidiInputDevice());
+
+    // Channel
+    m_recordingChannel->setCurrentIndex((int)track->getMidiInputChannel() + 1);
+
+    // Thru Routing
+    m_thruRouting->setCurrentIndex((int)track->getThruRouting());
+
+    // *** Staff export options
+
+    // Notation size
+    m_notationSize->setCurrentIndex(track->getStaffSize());
+
+    // Bracket type
+    m_bracketType->setCurrentIndex(track->getStaffBracket());
+
+    // *** Create segments with
+
+    // Preset (Label)
+    m_preset->setText(strtoqstr(track->getPresetLabel()));
+
+    // Clef
+    m_clef->setCurrentIndex(track->getClef());
+
+    // Transpose
+    m_transpose->setCurrentIndex(
+            m_transpose->findText(QString("%1").arg(track->getTranspose())));
+
+    // Pitch Lowest
+
+    QSettings settings;
+    settings.beginGroup(GeneralOptionsConfigGroup);
+    const int octaveBase = settings.value("midipitchoctave", -2).toInt() ;
+    settings.endGroup();
+
+    const bool includeOctave = false;
+
+    const Pitch lowest(track->getLowestPlayable(), Accidentals::NoAccidental);
+
+    // NOTE: this now uses a new, overloaded version of Pitch::getAsString()
+    // that explicitly works with the key of C major, and does not allow the
+    // calling code to specify how the accidentals should be written out.
+    //
+    // Separate the note letter from the octave to avoid undue burden on
+    // translators having to retranslate the same thing but for a number
+    // difference
+    QString tmp = QObject::tr(lowest.getAsString(includeOctave, octaveBase).c_str(), "note name");
+    tmp += tr(" %1").arg(lowest.getOctave(octaveBase));
+    m_lowest->setText(tmp);
+
+    // Pitch Highest
+
+    const Pitch highest(track->getHighestPlayable(), Accidentals::NoAccidental);
+
+    tmp = QObject::tr(highest.getAsString(includeOctave, octaveBase).c_str(), "note name");
+    tmp += tr(" %1").arg(highest.getOctave(octaveBase));
+    m_highest->setText(tmp);
+
+    // Color
+    // Note: We only update the combobox contents if there is an actual
+    //       change to the document's colors.  See slotDocColoursChanged().
+    m_color->setCurrentIndex(track->getColor());
+}
+
+void
+TrackParameterBox::slotNewDocument(RosegardenDocument *doc)
+{
+    connect(doc, &RosegardenDocument::documentModified,
+            this, &TrackParameterBox::slotDocumentModified);
+}
+
+void
+TrackParameterBox::slotDocumentModified(bool)
+{
+    updateWidgets2();
+}
+
+
+}

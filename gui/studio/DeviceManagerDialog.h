@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,7 +19,7 @@
 #ifndef DEVICESMANAGERNEW_H
 #define DEVICESMANAGERNEW_H
 
-#include "DeviceManagerDialogUi.h"
+#include "ui_DeviceManagerDialogUi.h"
 
 #include "base/Device.h"
 #include "base/MidiDevice.h"
@@ -40,8 +40,8 @@ typedef std::vector<MidiDevice *> MidiDeviceList;
 class RosegardenDocument;
 class Studio;
 
-/** Creates a device manager dialog
- *
+/// The Manage MIDI Devices dialog
+/**
  * \author Emanuel Rumpf
  */
 class DeviceManagerDialog : public QMainWindow, public Ui::DeviceManagerDialogUi
@@ -51,7 +51,7 @@ class DeviceManagerDialog : public QMainWindow, public Ui::DeviceManagerDialogUi
 public:
     
     DeviceManagerDialog (QWidget* parent, RosegardenDocument* doc);
-    ~DeviceManagerDialog();
+    ~DeviceManagerDialog() override;
     
     /**
     *    Clear all lists

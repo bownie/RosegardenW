@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -52,7 +52,7 @@ namespace Rosegarden
 ImportDeviceDialog::ImportDeviceDialog(QWidget *parent, QUrl url) :
     QDialog(parent),
     m_url(url),
-    m_device(0)
+    m_device(nullptr)
 {}
 
 ImportDeviceDialog::~ImportDeviceDialog()
@@ -137,11 +137,11 @@ ImportDeviceDialog::doImport()
     bool showRenameOption = false;
 
     if (m_devices.size() > 1) {
-        m_deviceLabel = 0;
+        m_deviceLabel = nullptr;
         m_deviceCombo = new QComboBox( deviceBox );
         deviceBoxLayout->addWidget(m_deviceCombo);
     } else {
-        m_deviceCombo = 0;
+        m_deviceCombo = nullptr;
         m_deviceLabel = new QLabel( deviceBox );
         deviceBoxLayout->addWidget(m_deviceLabel);
     }
@@ -183,7 +183,7 @@ ImportDeviceDialog::doImport()
         m_rename = new QCheckBox(tr("Import device name"), gb);
         gbLayout->addWidget(m_rename);
     } else {
-        m_rename = 0;
+        m_rename = nullptr;
     }
 
     QGroupBox *buttonGroupBox = new QGroupBox(tr("Bank import behavior"));
@@ -230,7 +230,7 @@ ImportDeviceDialog::doImport()
     metagrid->addWidget(buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(slotCancel()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &ImportDeviceDialog::slotCancel);
 
     return true;
 }
@@ -341,7 +341,7 @@ bool
 ImportDeviceDialog::importFromRG(QString fileName)
 {
     bool skipAutoload = true, clearCommandHistory = false;
-    RosegardenDocument fileDoc(RosegardenMainWindow::self(), 0, 
+    RosegardenDocument fileDoc(RosegardenMainWindow::self(), {},
                                skipAutoload, clearCommandHistory);
 
     if (!fileDoc.openDocument(fileName, false)) {
@@ -481,4 +481,3 @@ ImportDeviceDialog::importFromLSCP(QString filename)
 }
 
 }
-#include "ImportDeviceDialog.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -176,8 +176,8 @@ ManageMetronomeDialog::ManageMetronomeDialog(QWidget *parent,
     m_metronomePitch = new PitchChooser(tr("Pitch"), vbox , 60);
     m_metronomePitch->setToolTip(tr("<qt>It is typical to use a percussion instrument for the metronome, so the pitch normally controls which sort of drum will sound for each tick.  You may configure a different pitch for each of the bar, beat, and sub-beat ticks.</qt>"));
     vboxLayout->addWidget(m_metronomePitch);
-    connect(m_metronomePitch, SIGNAL(pitchChanged(int)), this, SLOT(slotPitchChanged(int)));
-    connect(m_metronomePitch, SIGNAL(preview(int)), this, SLOT(slotPreviewPitch(int)));
+    connect(m_metronomePitch, &PitchChooser::pitchChanged, this, &ManageMetronomeDialog::slotPitchChanged);
+    connect(m_metronomePitch, &PitchChooser::preview, this, &ManageMetronomeDialog::slotPreviewPitch);
 
     m_metronomePitchSelector = new QComboBox();
     m_metronomePitchSelector->addItem(tr("for Bar"));
@@ -193,8 +193,8 @@ ManageMetronomeDialog::ManageMetronomeDialog(QWidget *parent,
     enableBoxLayout->addWidget(m_playEnabled);
     m_recordEnabled = new QCheckBox(tr("Recording"), enableBox);
     enableBoxLayout->addWidget(m_recordEnabled);
-    connect(m_playEnabled, SIGNAL(clicked()), this, SLOT(slotSetModified()));
-    connect(m_recordEnabled, SIGNAL(clicked()), this, SLOT(slotSetModified()));
+    connect(m_playEnabled, &QAbstractButton::clicked, this, &ManageMetronomeDialog::slotSetModified);
+    connect(m_recordEnabled, &QAbstractButton::clicked, this, &ManageMetronomeDialog::slotSetModified);
     enableBox->setLayout(enableBoxLayout);
 
     vbox->setLayout(vboxLayout);
@@ -212,7 +212,7 @@ ManageMetronomeDialog::ManageMetronomeDialog(QWidget *parent,
     metagrid->addWidget(m_buttonBox, 1, 0);
     metagrid->setRowStretch(0, 10);
     connect(m_buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(m_buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
+    connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     setModified(false);
 }
@@ -233,7 +233,7 @@ ManageMetronomeDialog::populate(int deviceIndex)
     DeviceList *devices = m_doc->getStudio().getDevices();
     DeviceListConstIterator it;
     int count = 0;
-    Device *dev = 0;
+    Device *dev = nullptr;
 
     for (it = devices->begin(); it != devices->end(); it++) {
 
@@ -245,7 +245,7 @@ ManageMetronomeDialog::populate(int deviceIndex)
     }
 
     // sanity
-    if (count < 0 || dev == 0 || !isSuitable(dev)) {
+    if (count < 0 || dev == nullptr || !isSuitable(dev)) {
         return ;
     }
 
@@ -256,7 +256,7 @@ ManageMetronomeDialog::populate(int deviceIndex)
     const MidiMetronome *metronome = getMetronome(dev);
 
     // if we've got no metronome against this device then create one
-    if (metronome == 0) {
+    if (metronome == nullptr) {
         InstrumentId id = SystemInstrumentBase;
 
         for (iit = list.begin(); iit != list.end(); ++iit) {
@@ -280,42 +280,27 @@ ManageMetronomeDialog::populate(int deviceIndex)
 
             QString iname(QObject::tr((*iit)->getName().c_str()));
             QString ipname((*iit)->getLocalizedPresentationName());
-            QString pname(QObject::tr((*iit)->getProgramName().c_str()));
+            QString programName(QObject::tr((*iit)->getProgramName().c_str()));
 
             QString text;
 
             if ((*iit)->getType() == Instrument::SoftSynth) {
 
                 iname.replace(QObject::tr("Synth plugin "), "");
-                pname = "";
+                programName = "";
 
                 AudioPluginInstance *plugin = (*iit)->getPlugin
                     (Instrument::SYNTH_PLUGIN_POSITION);
-                if (plugin) {
-                    pname = strtoqstr(plugin->getProgram());
-                    QString identifier = strtoqstr(plugin->getIdentifier());
-                    if (identifier != "") {
-                        QString type, soName, label;
-                        PluginIdentifier::parseIdentifier
-                            (identifier, type, soName, label);
-                        if (pname == "") {
-                            pname = strtoqstr(plugin->getDistinctiveConfigurationText());
-                        }
-                        if (pname != "") {
-                            pname = QString("%1: %2").arg(label).arg(pname);
-                        } else {
-                            pname = label;
-                        }
-                    }
-                }
+                if (plugin)
+                    programName = strtoqstr(plugin->getDisplayName());
 
             } else {
 
                 iname = ipname;
             }
 
-            if (pname != "") {
-                text = tr("%1 (%2)").arg(iname).arg(pname);
+            if (programName != "") {
+                text = tr("%1 (%2)").arg(iname).arg(programName);
             } else {
                 text = iname;
             }
@@ -373,7 +358,7 @@ ManageMetronomeDialog::slotApply()
     DeviceList *devices = m_doc->getStudio().getDevices();
     DeviceListConstIterator it;
     int count = 0;
-    Device *dev = 0;
+    Device *dev = nullptr;
 
     for (it = devices->begin(); it != devices->end(); it++) {
 
@@ -385,15 +370,15 @@ ManageMetronomeDialog::slotApply()
     }
 
     if (!dev || !isSuitable(dev)) {
-        std::cerr << "Warning: ManageMetronomeDialog::slotApply: no " << m_metronomeDevice->currentIndex() << "th device" << std::endl;
+        RG_WARNING << "Warning: ManageMetronomeDialog::slotApply: no " << m_metronomeDevice->currentIndex() << "th device";
         return ;
     }
 
     DeviceId deviceId = dev->getId();
     studio.setMetronomeDevice(deviceId);
 
-    if (getMetronome(dev) == 0) {
-        std::cerr << "Warning: ManageMetronomeDialog::slotApply: unable to extract metronome from device " << deviceId << std::endl;
+    if (getMetronome(dev) == nullptr) {
+        RG_WARNING << "Warning: ManageMetronomeDialog::slotApply: unable to extract metronome from device " << deviceId;
         return ;
     }
     MidiMetronome metronome(*getMetronome(dev));
@@ -437,12 +422,12 @@ ManageMetronomeDialog::slotApply()
 void
 ManageMetronomeDialog::slotPreviewPitch(int pitch)
 {
-    RG_DEBUG << "ManageMetronomeDialog::slotPreviewPitch" << endl;
+    RG_DEBUG << "ManageMetronomeDialog::slotPreviewPitch";
 
     DeviceList *devices = m_doc->getStudio().getDevices();
     DeviceListConstIterator it;
     int count = 0;
-    Device *dev = 0;
+    Device *dev = nullptr;
 
     for (it = devices->begin(); it != devices->end(); it++) {
 
@@ -456,13 +441,13 @@ ManageMetronomeDialog::slotPreviewPitch(int pitch)
     if (!dev || !isSuitable(dev)) return;
 
     const MidiMetronome *metronome = getMetronome(dev);
-    if (metronome == 0) return;
+    if (metronome == nullptr) return;
 
     InstrumentList list = dev->getPresentationInstruments();
 
     Instrument *inst =
         list[m_metronomeInstrument->currentIndex()];
-    StudioControl::playPreviewNote(inst, pitch, MidiMaxValue, 10000000);
+    StudioControl::playPreviewNote(inst, pitch, MidiMaxValue, RealTime(0, 10000000));
 }
 
 void
@@ -544,9 +529,8 @@ ManageMetronomeDialog::getMetronome(Device *dev)
     if (ssd) {
         return ssd->getMetronome();
     }
-    return 0;
+    return nullptr;
 }
 
 
 }
-#include "ManageMetronomeDialog.moc"

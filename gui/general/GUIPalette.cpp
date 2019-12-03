@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,42 +28,25 @@
 namespace Rosegarden
 {
 
+
+const QColor GUIPalette::SelectionColor = QColor(0, 54, 232);
+const QColor GUIPalette::PreviewColor = Qt::darkGreen;
+const QColor GUIPalette::OutRangeColor = Qt::red;
+
+
 QColor GUIPalette::getColour(const char* const colourName)
 {
-    QSettings config;
+    QSettings config; // should probably become a member var for performance reasons
     config.beginGroup(ColoursConfigGroup);
 
-    //@@@ I'm not really sure what this used to do.  It doesn't make sense.
-    //
-    // First we getInstance() (of what?  I'm a linguist, not a programmer)
-    // m_defaultsMap[colourName] and then we use this QColor as a key in
-    // KConfig::readColorEntry() which used to be (3.5 API)
-    //
-    // QColor KConfigBase::readColorEntry (const QString &pKey,
-    //                                     const QColor *pDefault = 0L)
-    //
-    // where pKey   The key to search for.
-    //   pDefault   A default value (null QColor by default) returned if the key
-    //              was not found or if the value cannot be interpreted.
-    //
-    // So how did that old code work?  It doesn't make sense.  I don't
-    // understand what res being set to getInstance()->m_defaultsMap[colourName]
-    // was supposed to accomplish at all.
-    //
-    // Anyway, I grabbed an example of how to use QSettings to retrieve a
-    // color, and since colourName is already coming in here as a const char*,
-    // which we need to pass to QSettings as a search key, I'm hoping this
-    // modified pasted example code will do the same job as the old,
-    // incomprehensible code did.  If not, that's what this honking huge comment
-    // is for!
-//    QColor res = getInstance()->m_defaultsMap[colourName];
-//    config.readColorEntry(colourName, &res);
+    // First determine the default colour (see the GUIPalette constructor)
+    QColor defaultColour = getInstance()->m_defaultsMap[colourName];
 
-    // cc -- try half of the old and half of the new:
-    QColor res = getInstance()->m_defaultsMap[colourName];
-    QColor color = config.value(colourName, res).value<QColor>();
+    // Then read the user configuration, and if it doesn't have any setting
+    // then use the above default colour as fallback.
+    QColor color = config.value(colourName, defaultColour).value<QColor>();
+
     config.endGroup();
-
     return color;
 }
 
@@ -164,7 +147,7 @@ GUIPalette::GUIPalette()
     m_defaultsMap[MovementGuide] = QColor(62, 161, 194);
     //m_defaultsMap[MovementGuide] = QColor(255, 189, 89);
     m_defaultsMap[SelectionRectangle] = QColor(103, 128, 211);
-    m_defaultsMap[SelectedElement] = QColor(0, 54, 232);
+    m_defaultsMap[SelectedElement] = SelectionColor;
     m_defaultsMap[ControlItem] = QColor(210, 202, 138);
 
     //@@@  I decided to shut up these compiler warnings about unused variables.
@@ -212,6 +195,7 @@ GUIPalette::GUIPalette()
 
     //    m_defaultsMap[MuteTrackLED] = QColor(218, 190, 230, QColor::Hsv);
     m_defaultsMap[MuteTrackLED] = QColor::fromHsv(211, 194, 238);
+    m_defaultsMap[SoloTrackLED] = QColor::fromHsv(120, 250, 144);
     m_defaultsMap[RecordMIDITrackLED] = QColor::fromHsv(45, 250, 225);
     m_defaultsMap[RecordAudioTrackLED] = QColor::fromHsv(0, 250, 225);
     m_defaultsMap[RecordSoftSynthTrackLED] = QColor(255, 120, 0);
@@ -229,6 +213,9 @@ GUIPalette* GUIPalette::getInstance()
     if (!m_instance) m_instance = new GUIPalette();
     return m_instance;
 }
+
+
+
 
 const char* const GUIPalette::ActiveRecordTrack = "activerecordtrack";
 
@@ -343,6 +330,7 @@ const char* const GUIPalette::MarkerBackground = "markerbackground";
 const char* const GUIPalette::QuickMarker = "quickmarker";
 
 const char* const GUIPalette::MuteTrackLED = "mutetrackled";
+const char* const GUIPalette::SoloTrackLED = "solotrackled";
 const char* const GUIPalette::RecordMIDITrackLED = "recordmiditrackled";
 const char* const GUIPalette::RecordAudioTrackLED = "recordaudiotrackled";
 const char* const GUIPalette::RecordSoftSynthTrackLED = "recordsoftsynthtrackled";
@@ -352,7 +340,7 @@ const char* const GUIPalette::RecordFaderOutline = "recordfaderoutline";
 
 const char* const GUIPalette::PannerOverlay = "panneroverlay";
 
-GUIPalette* GUIPalette::m_instance = 0;
+GUIPalette* GUIPalette::m_instance = nullptr;
 
 // defines which index in the document's colourmap should be used as the color
 // when creating new audio segments from recordings, or inserting from the

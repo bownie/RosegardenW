@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -41,17 +41,16 @@ class SegmentEraser : public SegmentTool
 
 public:
 
-    virtual void ready();
+    void ready() override;
 
-    virtual void mousePressEvent(QMouseEvent *);
-    virtual int mouseMoveEvent(QMouseEvent *);
-    virtual void mouseReleaseEvent(QMouseEvent *);
+    void mousePressEvent(QMouseEvent *) override;
+    int mouseMoveEvent(QMouseEvent *) override;
+    void mouseReleaseEvent(QMouseEvent *) override;
 
-    static const QString ToolName;
+    static QString ToolName();
 
 protected:
     SegmentEraser(CompositionView*, RosegardenDocument*);
-    void setBasicContextHelp();
 };
 
 

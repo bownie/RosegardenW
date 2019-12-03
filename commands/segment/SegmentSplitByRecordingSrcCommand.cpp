@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -36,7 +36,7 @@ SegmentSplitByRecordingSrcCommand::SegmentSplitByRecordingSrcCommand (
         NamedCommand(tr("Split by Recording Source")),
         m_composition(segment->getComposition()),
         m_segment(segment),
-        m_newSegmentA(0),
+        m_newSegmentA(nullptr),
         m_channel(channel),
         m_device(device),
         m_executed(false)

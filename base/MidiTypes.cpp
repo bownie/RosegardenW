@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -303,7 +303,7 @@ SystemExclusive::isHex(std::string rh)
     // arf
     try {
 	std::string r = toRaw(rh);
-    } catch (BadEncoding) {
+    } catch (const BadEncoding &) {
 	return false;
     }
     return true;

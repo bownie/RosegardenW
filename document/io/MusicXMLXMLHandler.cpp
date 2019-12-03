@@ -118,6 +118,8 @@ MusicXMLXMLHandler::startElement(const QString& /*namespaceURI*/,
                                  const QString& qName,
                                  const QXmlAttributes& atts)
 {
+    qApp->processEvents();
+
     // If m_ignored is not an empty string it contains the name of an element
     // which will be ignored, including all it children.
     if (m_ignored != "") return true;
@@ -295,7 +297,7 @@ MusicXMLXMLHandler::characters(const QString& chars)
 bool
 MusicXMLXMLHandler::endDocument()
 {
-    RG_DEBUG << "MusicXMLXMLHandler::endDocument" << endl;
+    RG_DEBUG << "MusicXMLXMLHandler::endDocument";
     return true;
 }
 
@@ -1535,30 +1537,30 @@ MusicXMLXMLHandler::checkFloat(const QString &element, float &value)
 void
 MusicXMLXMLHandler::cerrInfo(const QString &message)
 {
-    std::cerr << "**** At line " << m_locator->lineNumber() << "/"
-              << m_locator->columnNumber() << " *** : " << message << std::endl;
+    RG_DEBUG << "**** At line " << m_locator->lineNumber() << "/"
+             << m_locator->columnNumber() << " *** : " << message;
 }
 
 void
 MusicXMLXMLHandler::cerrWarning(const QString &message)
 {
-    std::cerr << "Warning at line " << m_locator->lineNumber() << "/"
-              << m_locator->columnNumber() << " : " << message << std::endl;
+    RG_WARNING << "Warning at line " << m_locator->lineNumber() << "/"
+               << m_locator->columnNumber() << " : " << message;
 }
 
 void
 MusicXMLXMLHandler::cerrError(const QString &message)
 {
-    std::cerr << "Error at line " << m_locator->lineNumber() << "/"
-              << m_locator->columnNumber() << " : " << message << std::endl;
+    RG_WARNING << "Error at line " << m_locator->lineNumber() << "/"
+               << m_locator->columnNumber() << " : " << message;
 }
 
 void
 MusicXMLXMLHandler::cerrElementNotSupported(const QString &element)
 {
-    std::cerr << "Warning at line " << m_locator->lineNumber() << "/"
-              << m_locator->columnNumber() << " : Element \"" << element
-              << "\" not supported, ignored." << std::endl;
+    RG_WARNING << "Warning at line " << m_locator->lineNumber() << "/"
+               << m_locator->columnNumber() << " : Element \"" << element
+               << "\" not supported, ignored.";
 }
 
 bool

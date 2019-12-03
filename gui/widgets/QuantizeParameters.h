@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,86 +19,93 @@
 #ifndef RG_QUANTIZEPARAMETERS_H
 #define RG_QUANTIZEPARAMETERS_H
 
+#include "base/Event.h"  // For timeT
+
 #include <QFrame>
-#include <QString>
-#include <vector>
-#include "base/Event.h"
 #include <QGroupBox>
+#include <QSettings>
 
-
-class QWidget;
-class QPushButton;
-class QLabel;
-class QVBoxLayout;
 class QCheckBox;
 class QComboBox;
+class QLabel;
+class QPushButton;
+class QVBoxLayout;
+class QWidget;
+
+#include <vector>
 
 
 namespace Rosegarden
 {
 
+
+class LineEdit;
 class Quantizer;
 
 
 class QuantizeParameters : public QFrame
 {
     Q_OBJECT
+
 public:
     enum QuantizerType { Grid, Legato, Notation };
 
     QuantizeParameters(QWidget *parent,
                        QuantizerType defaultQuantizer,
-                       bool showNotationOption,
-                       QString configCategory);
+                       bool showNotationOption);
     
-    /**
-     * Returned quantizer object is on heap -- caller must delete.
-     * Also writes values to KConfig if so requested in constructor.
-     */
-    Quantizer *getQuantizer() const;
+    /// Call on "accept" to save the values for next time.
+    void saveSettings();
 
-    QWidget *getAdvancedWidget() { return m_postProcessingBox; }
+    /// Returned quantizer object is on heap -- caller must delete.
+    Quantizer *getQuantizer();
 
-    bool shouldRebeam() const { return m_rebeam; }
-    bool shouldDeCounterpoint() const { return m_deCounterpoint; }
-    bool shouldMakeViable() const { return m_makeViable; }
-
-
-public slots:
+private slots:
     void slotTypeChanged(int);
+    void gridUnitChanged(int index);
 
-protected:
-    QString m_configCategory;
-
+private:
     std::vector<timeT> m_standardQuantizations;
+    /// Init a base grid unit combobox from settings.
+    void initBaseGridUnit(QString settingsKey, QComboBox *comboBox);
+
+    QSettings m_settings;
 
     QVBoxLayout *m_mainLayout;
 
-    QComboBox *m_typeCombo;
+    QComboBox *m_quantizerType;
+    // ??? Hidden widget that is never shown.
+    QCheckBox *m_quantizeNotation;
 
+    // Grid Parameters
     QGroupBox *m_gridBox;
-    QCheckBox *m_durationCheckBox;
-    QComboBox *m_gridUnitCombo;
-    QLabel    *m_swingLabel;
-    QComboBox *m_swingCombo;
-    QLabel    *m_iterativeLabel;
-    QComboBox *m_iterativeCombo;
+    QComboBox *m_gridBaseGridUnit;
+    /// Index into m_gridBaseGridUnit for "Arbitrary gird unit".
+    int m_arbitraryGridUnitIndex;
+    QLabel *m_arbitraryGridUnitLabel;
+    LineEdit *m_arbitraryGridUnit;
+    /// Get the selected grid unit from m_gridBaseGridUnit and m_arbitraryGridUnit.
+    timeT getGridUnit() const;
+    QLabel *m_swingLabel;
+    QComboBox *m_swing;
+    QLabel *m_iterativeAmountLabel;
+    QComboBox *m_iterativeAmount;
+    QCheckBox *m_quantizeDurations;
 
+    // Notation Parameters
     QGroupBox *m_notationBox;
-    QCheckBox *m_notationTarget;
-    QComboBox *m_notationUnitCombo;
-    QComboBox *m_simplicityCombo;
-    QComboBox *m_maxTuplet;
-    QCheckBox *m_counterpoint;
+    QComboBox *m_complexity;
+    QComboBox *m_notationBaseGridUnit;
+    QComboBox *m_tupletLevel;
+    QCheckBox *m_permitCounterpoint;
 
-    QPushButton *m_advancedButton;
-    QGroupBox *m_postProcessingBox;
-    QCheckBox *m_articulate;
-    QCheckBox *m_makeViable;
-    QCheckBox *m_deCounterpoint;
+    // After quantization
     QCheckBox *m_rebeam;
-};
+    QCheckBox *m_addArticulations;
+    QCheckBox *m_tieNotesAtBarlines;
+    QCheckBox *m_splitAndTie;
 
+};
 
 
 }

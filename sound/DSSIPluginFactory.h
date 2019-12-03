@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2010 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -13,8 +13,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef _DSSI_PLUGIN_FACTORY_H_
-#define _DSSI_PLUGIN_FACTORY_H_
+#ifndef RG_DSSI_PLUGIN_FACTORY_H
+#define RG_DSSI_PLUGIN_FACTORY_H
 
 #include "LADSPAPluginFactory.h"
 //#include <dssi.h>
@@ -27,30 +27,30 @@ class DSSIPluginInstance;
 class DSSIPluginFactory : public LADSPAPluginFactory
 {
 public:
-    virtual ~DSSIPluginFactory();
+    ~DSSIPluginFactory() override;
 
-    virtual void enumeratePlugins(MappedObjectPropertyList &list);
+    void enumeratePlugins(MappedObjectPropertyList &list) override;
 
-    virtual void populatePluginSlot(QString identifier, MappedPluginSlot &slot);
+    void populatePluginSlot(QString identifier, MappedPluginSlot &slot) override;
 
-    virtual RunnablePluginInstance *instantiatePlugin(QString identifier,
+    RunnablePluginInstance *instantiatePlugin(QString identifier,
                                                       int instrumentId,
                                                       int position,
                                                       unsigned int sampleRate,
                                                       unsigned int blockSize,
-                                                      unsigned int channels);
+                                                      unsigned int channels) override;
 
 protected:
     DSSIPluginFactory();
     friend class PluginFactory;
 
-    virtual std::vector<QString> getPluginPath();
+    std::vector<QString> getPluginPath() override;
 
-    virtual std::vector<QString> getLRDFPath(QString &baseUri);
+    std::vector<QString> getLRDFPath(QString &baseUri) override;
 
-    virtual void discoverPlugins(QString soName);
+    void discoverPlugin(const QString &soName) override;
 
-   // virtual const LADSPA_Descriptor *getLADSPADescriptor(QString identifier);
+    //const LADSPA_Descriptor *getLADSPADescriptor(QString identifier) override;
     //virtual const DSSI_Descriptor *getDSSIDescriptor(QString identifier);
 };
 

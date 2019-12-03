@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -48,7 +48,7 @@ namespace Rosegarden
 
 PresetHandlerDialog::PresetHandlerDialog(QWidget *parent,
                                          bool fromNotation)
-        : QDialog(parent, 0),
+        : QDialog(parent, nullptr),
         m_fromNotation(fromNotation)
 {
     m_presets = new PresetGroup();
@@ -61,7 +61,7 @@ PresetHandlerDialog::PresetHandlerDialog(QWidget *parent,
 PresetHandlerDialog::~PresetHandlerDialog()
 {
     // delete m_presets
-    if (m_presets != NULL) {
+    if (m_presets != nullptr) {
         delete m_presets;
     }
 }
@@ -69,7 +69,7 @@ PresetHandlerDialog::~PresetHandlerDialog()
 void
 PresetHandlerDialog::initDialog()
 {
-    RG_DEBUG << "PresetHandlerDialog::initDialog()" << endl;
+    RG_DEBUG << "PresetHandlerDialog::initDialog()";
 
     setModal(true);
     setWindowTitle(tr("Load track parameters preset"));
@@ -157,7 +157,7 @@ PresetHandlerDialog::initDialog()
         m_convertAllSegments->setChecked(qStrToBool(settings.value("convert_all_segments", "0")));
     }
     else {
-    	m_convertSegments->setChecked(qStrToBool(settings.value("convert_segments", "0")));
+        m_convertSegments->setChecked(qStrToBool(settings.value("convert_segments", "0")));
     }
     
     connect(m_categoryCombo, SIGNAL(activated(int)),
@@ -170,8 +170,8 @@ PresetHandlerDialog::initDialog()
     vboxLayout->addWidget(buttonBox);
 
     connect(buttonBox, SIGNAL(accepted()), this, SLOT(accept()));
-    connect(buttonBox, SIGNAL(rejected()), this, SLOT(reject()));
-    connect(buttonBox, SIGNAL(helpRequested()), this, SLOT(help()));
+    connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(buttonBox, &QDialogButtonBox::helpRequested, this, &PresetHandlerDialog::help);
 }
 
 void
@@ -263,13 +263,13 @@ PresetHandlerDialog::getConvertOnlySelectedSegments()
 void
 PresetHandlerDialog::populateCategoryCombo()
 {
-    RG_DEBUG << "PresetHandlerDialog::populateCategoryCombo()" << endl;
+    RG_DEBUG << "PresetHandlerDialog::populateCategoryCombo()";
 
     for (CategoriesContainer::iterator i = m_categories.begin();
             i != m_categories.end(); ++i) {
 
 #ifdef DEBUG_CATEGORIES
-        RG_DEBUG << "    adding category: " << (*i).getName() << endl;
+        RG_DEBUG << "    adding category: " << (*i).getName();
 #endif
 
         m_categoryCombo->addItem(QObject::tr((*i).getName().toStdString().c_str()));
@@ -279,7 +279,7 @@ PresetHandlerDialog::populateCategoryCombo()
 void
 PresetHandlerDialog::slotCategoryIndexChanged(int index)
 {
-    RG_DEBUG << "PresetHandlerDialog::slotCategoryIndexChanged(" << index << ")" << endl;
+    RG_DEBUG << "PresetHandlerDialog::slotCategoryIndexChanged(" << index << ")";
 
     CategoryElement e = m_categories[index];
     ElementContainer c = e.getPresets();
@@ -290,7 +290,7 @@ PresetHandlerDialog::slotCategoryIndexChanged(int index)
             i != c.end(); ++i) {
 
 #ifdef DEBUG_CATEGORIES
-        RG_DEBUG << "    adding instrument: " << (*i).getName() << endl;
+        RG_DEBUG << "    adding instrument: " << (*i).getName();
 #endif
 
         m_instrumentCombo->addItem(QObject::tr((*i).getName().toStdString().c_str()));
@@ -301,7 +301,7 @@ PresetHandlerDialog::slotCategoryIndexChanged(int index)
 void
 PresetHandlerDialog::accept()
 {
-    RG_DEBUG << "PresetHandlerDialog::accept()" << endl;
+    RG_DEBUG << "PresetHandlerDialog::accept()";
 
     QSettings settings;
     settings.beginGroup( PresetDialogConfigGroup );
@@ -323,4 +323,3 @@ PresetHandlerDialog::accept()
 }
 
 }
-#include "PresetHandlerDialog.moc"

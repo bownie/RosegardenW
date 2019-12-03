@@ -38,16 +38,16 @@ public:
                         NotationView &view,
                         Segment *segment,
                         bool into = true);
-    virtual ~AdoptSegmentCommand();
+    ~AdoptSegmentCommand() override;
 
 protected:
-    virtual void execute(void);
-    virtual void unexecute(void);
-    void adopt(void);
-    void unadopt(void);
+    void execute() override;
+    void unexecute() override;
+    void adopt();
+    void unadopt();
 
 protected slots:
-    void slotViewdestroyed(void);
+    void slotViewdestroyed();
     
  private:
     NotationView &m_view;

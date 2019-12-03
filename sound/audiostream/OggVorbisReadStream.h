@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     This file is Copyright 2005-2011 Chris Cannam.
 
@@ -20,17 +20,21 @@
 
 #include "AudioReadStream.h"
 
+#include <rosegardenprivate_export.h>
+
 #ifdef HAVE_OGGZ
 #ifdef HAVE_FISHSOUND
 
 namespace Rosegarden
 {
     
-class OggVorbisReadStream : public AudioReadStream
+class ROSEGARDENPRIVATE_EXPORT OggVorbisReadStream : public AudioReadStream
 {
 public:
     OggVorbisReadStream(QString path);
     virtual ~OggVorbisReadStream();
+    
+    static void initStaticObjects();
 
     virtual QString getError() const { return m_error; }
 

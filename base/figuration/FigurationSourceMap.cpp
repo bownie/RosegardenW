@@ -56,8 +56,8 @@ public:
         RelativeEvent(e, startTime),
         m_index(i)
     {};
-    virtual Event   *getAsEvent(timeT baseTime, const Key key,
-                                const FigChord *notes);
+    Event   *getAsEvent(timeT baseTime, const Key key,
+                                const FigChord *notes) override;
     virtual pitchT getResultPitch(const Key key, const Pitch & basePitch)=0;
 private:
     int              m_index;
@@ -81,7 +81,7 @@ public:
         setScore(-penalty);
     };
     static pitchT addChromaticInterval(const Pitch & basePitch, int interval);
-    virtual pitchT getResultPitch(const Key key, const Pitch & basePitch);
+    pitchT getResultPitch(const Key key, const Pitch & basePitch) override;
 private:
     int  m_interval;
 };
@@ -97,7 +97,7 @@ public:
     static pitchT addDiatonicInterval(const Key key,
                                       const Pitch & basePitch,
                                       int interval);
-    virtual pitchT getResultPitch(const Key key, const Pitch & basePitch);
+    pitchT getResultPitch(const Key key, const Pitch & basePitch) override;
 private:
     int  m_interval;
 };
@@ -135,7 +135,7 @@ class ProximityNote : public RelativeEvent
             sort(m_originalTones.begin(), m_originalTones.end());
         }
         // Unused now.
-        PitchNoOctave getPitch(void) { return m_pitch; }
+        PitchNoOctave getPitch() { return m_pitch; }
         int getPenalty(PitchNoOctave pitch)
         {
             // Direction of subtraction here isn't important since
@@ -220,9 +220,9 @@ class ProximityNote : public RelativeEvent
     typedef std::vector<TonePressure> TonePressureVector;
     class SharedData {
     public:
-        SharedData(void) :
-            m_oldFigChord(0),
-            m_pitchDeltas(0)
+        SharedData() :
+            m_oldFigChord(nullptr),
+            m_pitchDeltas(nullptr)
             {}
 
         void init(PitchNoOctaveVector &unorderedPitches)
@@ -306,7 +306,7 @@ class ProximityNote : public RelativeEvent
                        "the chord has no notes");
 
             if (m_pitchDeltas) { delete m_pitchDeltas; }
-            m_pitchDeltas = 0;
+            m_pitchDeltas = nullptr;
             m_oldFigChord = notes;
 
             TonePressureVector tones = getTonePressureVector(notes);
@@ -321,7 +321,7 @@ class ProximityNote : public RelativeEvent
 
                 // Find the closest chord tone (modulo octaves)
                 int leastPenalty = 1000000;
-                TonePressure *bestTonePressure = 0;
+                TonePressure *bestTonePressure = nullptr;
                 for (TonePressureVector::iterator j = tones.begin();
                      j != tones.end();
                      ++j
@@ -656,8 +656,8 @@ public:
         m_index(index),
         m_sharedData(sharedData)
     { setScore(0); };
-    virtual Event   *getAsEvent(timeT baseTime, const Key key,
-                                const FigChord *notes);
+    Event   *getAsEvent(timeT baseTime, const Key key,
+                                const FigChord *notes) override;
 private:
     int m_index;
     SharedData *m_sharedData;
@@ -672,8 +672,8 @@ public:
     RelativeNonnote(Event *e, timeT startTime) :
         RelativeEvent(e, startTime)
     {};
-    virtual Event   *getAsEvent(timeT baseTime, const Key key,
-                                const FigChord *notes);
+    Event   *getAsEvent(timeT baseTime, const Key key,
+                                const FigChord *notes) override;
 };
 
 /***** Internal types to add complete collections of notes *****/
@@ -685,7 +685,7 @@ protected:
 
 public:
     virtual UnsolvedNote add(Event *e)=0;
-    virtual ~BaseRelativeEventAdder(void) {};
+    virtual ~BaseRelativeEventAdder() {};
 
 protected:
     BaseRelativeEventAdder(timeT startTime) :
@@ -714,7 +714,7 @@ public:
         {}
 
     // This shoudl actually become getPossibleRelations.
-    virtual UnsolvedNote add(Event *e)
+    UnsolvedNote add(Event *e) override
     {
         if (e->isa(Note::EventType)) {
             return FigurationSourceMap::getPossibleRelations(e,
@@ -737,7 +737,7 @@ public:
         m_sharedData(new ProximityNote::SharedData)
         {}
         
-    virtual ~UnparamaterizedRelativeEventAdder(void)
+    ~UnparamaterizedRelativeEventAdder() override
     {
         // Destroying the adder triggers setting up the shared data,
         // using what we collected during the adder's lifetime.
@@ -767,7 +767,7 @@ private:
         }
     }
         
-    virtual UnsolvedNote add(Event *e)
+    UnsolvedNote add(Event *e) override
         {
             if (e->isa(Note::EventType)) {
                 int index = getPitchIndex(e->get<Int>(BaseProperties::PITCH));
@@ -802,7 +802,7 @@ typedef std::vector<RelativeEvent *> RelativeEventVec;
 int higherPitch(Event *a, Event* b)
 {
     if (!a->has(BaseProperties::PITCH) ||
-        !a->has(BaseProperties::PITCH)) {
+        !b->has(BaseProperties::PITCH)) {
         throw Exception("Shouldn't get a note that has no pitch.");
     }
 
@@ -1061,7 +1061,7 @@ getFigurations(Segment *s)
     Q_CHECK_PTR(s);
 
     FigurationVector figs;
-    FigChord  *parameterChord = 0;
+    FigChord  *parameterChord = nullptr;
     for (Segment::iterator i = s->begin();
          i != s->end();
          ++i) {
@@ -1153,7 +1153,7 @@ getFigurations(Segment *s)
                     // NB, we are emptying hs and deleting all its
                     // members except the one relation that we keep.
                     UnsolvedNote hs = (*j);
-                    RelativeEvent * bestRelation = 0;
+                    RelativeEvent * bestRelation = nullptr;
                     int bestScore = -1000000;
                     for (UnsolvedNote::iterator k = hs.begin();
                          k != hs.end();
@@ -1208,8 +1208,8 @@ findMatch(FigurationVector& figVector,
             return &fig;
         }
     }
-    // If we never found a match, signal that with NULL
-    return 0;
+    // If we never found a match, signal that with nullptr
+    return nullptr;
 }
 
 }

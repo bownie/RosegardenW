@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -37,15 +37,13 @@ class WheelyButton : public QPushButton
 
 public:
     WheelyButton(QWidget *w);
-    virtual ~WheelyButton() { }
+    ~WheelyButton() override { }
 
 signals:
     void wheel(bool up);
 
 protected:
-    void wheelEvent(QWheelEvent *e) {
-        emit wheel(e->delta() > 0);
-    }
+    void wheelEvent(QWheelEvent *e) override;
 };
 
 

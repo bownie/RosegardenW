@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -42,12 +42,12 @@ class ControllerSearchValue
     m_value(value),
         m_when(when)
         {};
- ControllerSearchValue(void) :
+ ControllerSearchValue() :
     m_value(0),
         m_when(0)
             {};    
-    int value(void) { return m_value; }
-    int time(void)  { return m_when; }
+    int value() { return m_value; }
+    int time()  { return m_when; }
  private:
     // Type is long so that ControllerEventAdapter can work.
     long              m_value; 
@@ -66,7 +66,7 @@ class ControllerSearch
                      int controllerId);
     
     // Search Segments A and B for the latest controller value.  B may
-    // be NULL but A must exist. 
+    // be nullptr but A must exist. 
     Maybe
         doubleSearch(Segment *a, Segment *b, timeT noLaterThan) const;
 
@@ -90,7 +90,7 @@ struct ControllerContextMap
     typedef std::map< int, ControllerSearchValue>  Cache;
     typedef std::pair<int, ControllerSearchValue>  CacheEntry;
  public:
- ControllerContextMap(void) :
+ ControllerContextMap() :
     m_PitchBendLatestValue(Maybe(false,ControllerSearchValue()))
     {};
 
@@ -99,7 +99,7 @@ struct ControllerContextMap
 
     // Return the respective controller value at searchTime.  Segment
     // A is primary and governs timing and repitition.  Segment
-    // B, if non-NULL, will be searched too.  In any case the latest event
+    // B, if non-nullptr, will be searched too.  In any case the latest event
     // takes priority.  Defaults from Instrument will be used if
     // neccessary. 
     int getControllerValue(Instrument *instrument,
@@ -108,7 +108,7 @@ struct ControllerContextMap
                            int controllerId);
 
     void storeLatestValue(Event *e);
-    void clear(void);
+    void clear();
 
  private:
     int makeAbsolute(const ControlParameter * controlParameter,
@@ -151,10 +151,10 @@ private:
   timeT                     m_triggerTime;
   Instrument               *m_instrument;
   Segment                  *m_a;
-  // May be NULL
+  // May be nullptr
   Segment                  *m_b;
   ControllerContextMap     &m_controllerContext;
-  // May be NULL
+  // May be nullptr
   ControllerContextParams  *m_parentContext;
 };
 }

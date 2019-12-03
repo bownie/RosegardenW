@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -25,6 +25,7 @@
 #include "NotationStaff.h"
 #include "NotationScene.h"
 #include "NotationMouseEvent.h"
+#include "gui/widgets/Panned.h"
 
 #include "document/CommandHistory.h"
 
@@ -63,6 +64,9 @@ SymbolInserter::ready()
 {
     m_widget->setCanvasCursor(Qt::CrossCursor);
 //!!!    m_nParentView->setHeightTracking(false);
+
+    // The symbol tool doesn't use the wheel.
+    m_widget->getView()->setWheelZoomPan(true);
 }
 
 void
@@ -89,10 +93,9 @@ SymbolInserter::handleLeftButtonPress(const NotationMouseEvent *e)
     }
 }
 
-const QString SymbolInserter::ToolName = "symbolinserter";
+QString SymbolInserter::ToolName() { return "symbolinserter"; }
 
 }
 
-#include "SymbolInserter.moc"
 
 

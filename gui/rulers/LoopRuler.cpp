@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,7 +23,6 @@
 #include "base/RulerScale.h"
 #include "base/SnapGrid.h"
 #include "gui/general/GUIPalette.h"
-#include "gui/general/HZoomable.h"
 #include "gui/general/RosegardenScrollView.h"
 #include "document/RosegardenDocument.h"
 
@@ -45,13 +44,11 @@ namespace Rosegarden
 LoopRuler::LoopRuler(RosegardenDocument *doc,
                      RulerScale *rulerScale,
                      int height,
-                     double xorigin,
                      bool invert,
                      bool isForMainWindow,
                      QWidget *parent) :
     QWidget(parent),
     m_height(height),
-    m_xorigin(xorigin),
     m_invert(invert),
     m_isForMainWindow(isForMainWindow),
     m_currentXOffset(0),
@@ -66,11 +63,6 @@ LoopRuler::LoopRuler(RosegardenDocument *doc,
     m_loopingMode(false),
     m_startLoop(0), m_endLoop(0)
 {
-    //setAutoFillBackground(true);
-    //setBackgroundColor(GUIPalette::getColour(GUIPalette::LoopRulerBackground));
-//    QString localStyle=("background: #787878; color: #FFFFFF;");
-//    setStyleSheet(localStyle);
-
     // Always snap loop extents to beats; by default apply no snap to
     // pointer position
     //
@@ -89,7 +81,7 @@ void
 LoopRuler::setSnapGrid(const SnapGrid *grid)
 {
     delete m_loopGrid;
-    if (grid == 0) {
+    if (grid == nullptr) {
         m_grid = &m_defaultGrid;
         m_loopGrid = new SnapGrid(m_defaultGrid);
     } else {
@@ -104,11 +96,7 @@ void LoopRuler::scrollHoriz(int x)
     // int w = width(); //, h = height();
     // int dx = x - ( -m_currentXOffset);
 
-    if (getHScaleFactor() != 1.0) {
-        m_currentXOffset = static_cast<int>( -x / getHScaleFactor());
-    } else {
-        m_currentXOffset = -x;
-    }
+    m_currentXOffset = -x;
 
 //    if (dx > w*3 / 4 || dx < -w*3 / 4) {
 //        update();
@@ -116,7 +104,7 @@ void LoopRuler::scrollHoriz(int x)
 //    }
 
 /*### These bitBlts are not working
-    RG_DEBUG << "LoopRuler::scrollHoriz > Dodgy bitBlt start?" << endl;
+    RG_DEBUG << "LoopRuler::scrollHoriz > Dodgy bitBlt start?";
     if (dx > 0) { // moving right, so the existing stuff moves left
         bitBlt(this, 0, 0, this, dx, 0, w - dx, h);
         repaint(w - dx, 0, dx, h);
@@ -124,7 +112,7 @@ void LoopRuler::scrollHoriz(int x)
         bitBlt(this, -dx, 0, this, 0, 0, w + dx, h);
         repaint(0, 0, -dx, h);
     }
-    RG_DEBUG << "LoopRuler::scrollHoriz > Dodgy bitBlt end?" << endl;
+    RG_DEBUG << "LoopRuler::scrollHoriz > Dodgy bitBlt end?";
 */
     update();
 }
@@ -133,8 +121,7 @@ QSize LoopRuler::sizeHint() const
 {
     double width =
         m_rulerScale->getBarPosition(m_rulerScale->getLastVisibleBar()) +
-        m_rulerScale->getBarWidth(m_rulerScale->getLastVisibleBar()) +
-        m_xorigin;
+        m_rulerScale->getBarWidth(m_rulerScale->getLastVisibleBar());
 
     QSize res(std::max(int(width), m_width), m_height);
 
@@ -143,7 +130,7 @@ QSize LoopRuler::sizeHint() const
 
 QSize LoopRuler::minimumSizeHint() const
 {
-    double firstBarWidth = m_rulerScale->getBarWidth(0) + m_xorigin;
+    double firstBarWidth = m_rulerScale->getBarWidth(0);
 
     QSize res = QSize(int(firstBarWidth), m_height);
 
@@ -152,12 +139,9 @@ QSize LoopRuler::minimumSizeHint() const
 
 void LoopRuler::paintEvent(QPaintEvent* e)
 {
-//    RG_DEBUG << "LoopRuler::paintEvent" << endl;
+//    RG_DEBUG << "LoopRuler::paintEvent";
 
     QPainter paint(this);
-
-    if (getHScaleFactor() != 1.0)
-        paint.scale(getHScaleFactor(), 1.0);
 
     paint.setClipRegion(e->region());
     paint.setClipRect(e->rect().normalized());
@@ -177,7 +161,7 @@ void LoopRuler::paintEvent(QPaintEvent* e)
         if (tQM >= 0) {
             // draw quick marker
             double xQM = m_rulerScale->getXForTime(tQM)
-                       + m_xorigin + m_currentXOffset;
+                       + m_currentXOffset;
             
             paint.setPen(m_quickMarkerPen);
             
@@ -195,8 +179,7 @@ void LoopRuler::drawBarSections(QPainter* paint)
     QRect clipRect = paint->clipRegion().boundingRect();
 
     int firstBar = m_rulerScale->getBarForX(clipRect.x() -
-                                            m_currentXOffset -
-                                            m_xorigin);
+                                            m_currentXOffset);
     int lastBar = m_rulerScale->getLastVisibleBar();
     if (firstBar < m_rulerScale->getFirstVisibleBar()) {
         firstBar = m_rulerScale->getFirstVisibleBar();
@@ -206,8 +189,8 @@ void LoopRuler::drawBarSections(QPainter* paint)
 
     for (int i = firstBar; i < lastBar; ++i) {
 
-        double x = m_rulerScale->getBarPosition(i) + m_currentXOffset + m_xorigin;
-        if ((x * getHScaleFactor()) > clipRect.x() + clipRect.width())
+        double x = m_rulerScale->getBarPosition(i) + m_currentXOffset;
+        if (x > clipRect.x() + clipRect.width())
             break;
 
         double width = m_rulerScale->getBarWidth(i);
@@ -252,8 +235,8 @@ LoopRuler::drawLoopMarker(QPainter* paint)
         x1 = tmp;
     }
 
-    x1 += m_currentXOffset + m_xorigin;
-    x2 += m_currentXOffset + m_xorigin;
+    x1 += m_currentXOffset;
+    x2 += m_currentXOffset;
 
     paint->save();
     paint->setBrush(GUIPalette::getColour(GUIPalette::LoopHighlight));
@@ -266,15 +249,14 @@ LoopRuler::drawLoopMarker(QPainter* paint)
 double
 LoopRuler::mouseEventToSceneX(QMouseEvent *mE)
 {
-    double x = mE->pos().x() / getHScaleFactor()
-               - m_currentXOffset - m_xorigin;
+    double x = mE->pos().x() - m_currentXOffset;
     return x;
 }
 
 void
 LoopRuler::mousePressEvent(QMouseEvent *mE)
 {
-    RG_DEBUG << "LoopRuler::mousePressEvent: x = " << mE->x() << endl;
+    RG_DEBUG << "LoopRuler::mousePressEvent: x = " << mE->x();
 
     setLoopingMode((mE->modifiers() & Qt::ShiftModifier) != 0);
 
@@ -311,7 +293,13 @@ LoopRuler::mousePressEvent(QMouseEvent *mE)
         }
 
         m_activeMousePress = true;
-        emit startMouseMove(RosegardenScrollView::FollowHorizontal);
+
+        // ??? This signal is never emitted with any other argument.
+        //     Remove the parameter.  This gets a little tricky because
+        //     some clients need this and share slots with other signal
+        //     sources.  It would probably be best to connect this signal
+        //     to a slot in the client that is specific to LoopRuler.
+        emit startMouseMove(FOLLOW_HORIZONTAL);
     }
 }
 
@@ -358,7 +346,7 @@ LoopRuler::mouseDoubleClickEvent(QMouseEvent *mE)
     if (x < 0)
         x = 0;
 
-    RG_DEBUG << "LoopRuler::mouseDoubleClickEvent: x = " << x << ", looping = " << m_loopingMode << endl;
+    RG_DEBUG << "LoopRuler::mouseDoubleClickEvent: x = " << x << ", looping = " << m_loopingMode;
 
 	if (mE->button() == Qt::LeftButton && !m_loopingMode)
         emit setPlayPosition(m_grid->snapX(x));
@@ -407,4 +395,3 @@ void LoopRuler::slotSetLoopMarker(timeT startLoop,
 }
 
 }
-#include "LoopRuler.moc"

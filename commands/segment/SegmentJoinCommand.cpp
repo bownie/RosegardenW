@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,7 +38,7 @@ namespace Rosegarden
 
 SegmentJoinCommand::SegmentJoinCommand(SegmentSelection &segments) :
         NamedCommand(getGlobalName()),
-        m_newSegment(0),
+        m_newSegment(nullptr),
         m_detached(false) // true if the old segments are detached, not the new
 {
     for (SegmentSelection::iterator i = segments.begin();
@@ -65,7 +65,7 @@ SegmentJoinCommand::~SegmentJoinCommand()
 Segment *
 SegmentJoinCommand::makeSegment(SegmentVec oldSegments)
 {
-    // We can proceed even if composition is NULL, just normalize
+    // We can proceed even if composition is nullptr, just normalize
     // rests will do less.
     Composition *composition = oldSegments[0]->getComposition();
 
@@ -183,7 +183,7 @@ SegmentJoinCommand::makeSegment(SegmentVec oldSegments)
         /// than ideal without it;
         newSegment->setComposition(composition);
         newSegment->normalizeRests(overlapStart, overlapEnd);
-        newSegment->setComposition(0);        
+        newSegment->setComposition(nullptr);        
     }
 
     return newSegment;

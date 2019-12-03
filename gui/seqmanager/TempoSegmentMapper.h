@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -29,20 +29,21 @@ class RealTime;
 
 class TempoSegmentMapper : public SpecialSegmentMapper
 {
-    friend class SegmentMapperFactory;
-
-protected:
+public:
     TempoSegmentMapper(RosegardenDocument *doc) :
-        SpecialSegmentMapper(doc) {
+        SpecialSegmentMapper(doc)
+    {
+        init();
     }
 
+protected:
     // overrides from SegmentMapper
-    virtual int calculateSize();
+    int calculateSize() override;
 
     // override from SegmentMapper
-    virtual void fillBuffer();
+    void fillBuffer() override;
 
-    virtual bool shouldPlay(MappedEvent *evt, RealTime /*startTime*/);
+    bool shouldPlay(MappedEvent *evt, RealTime /*startTime*/) override;
 
     // Map one tempo event
     void mapATempo(RealTime eventTime, tempoT tempo, bool ramping);

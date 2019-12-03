@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file originally from Sonic Visualiser, copyright 2007 Queen
     Mary, University of London.
@@ -31,8 +31,8 @@ class Thumbwheel : public QWidget
     Q_OBJECT
 
 public:
-    Thumbwheel(Qt::Orientation orientation, bool useRed = false, QWidget *parent = 0);
-    virtual ~Thumbwheel();
+    Thumbwheel(Qt::Orientation orientation, bool useRed = false, QWidget *parent = nullptr);
+    ~Thumbwheel() override;
 
     int getMinimumValue() const;
     int getMaximumValue() const;
@@ -45,7 +45,7 @@ public:
 
     void setShowToolTip(bool show);
 
-    QSize sizeHint() const;
+    QSize sizeHint() const override;
 
 signals:
     void valueChanged(int);
@@ -65,14 +65,14 @@ public slots:
     void resetToDefault();
 
 protected:
-    virtual void mousePressEvent(QMouseEvent *e);
-    virtual void mouseDoubleClickEvent(QMouseEvent *e);
-    virtual void mouseMoveEvent(QMouseEvent *e);
-    virtual void mouseReleaseEvent(QMouseEvent *e);
-    virtual void wheelEvent(QWheelEvent *e);
-    virtual void paintEvent(QPaintEvent *e);
-    virtual void enterEvent(QEvent *);
-    virtual void leaveEvent(QEvent *);
+    void mousePressEvent(QMouseEvent *e) override;
+    void mouseDoubleClickEvent(QMouseEvent *e) override;
+    void mouseMoveEvent(QMouseEvent *e) override;
+    void mouseReleaseEvent(QMouseEvent *e) override;
+    void wheelEvent(QWheelEvent *e) override;
+    void paintEvent(QPaintEvent *e) override;
+    void enterEvent(QEvent *) override;
+    void leaveEvent(QEvent *) override;
 
     int m_min;
     int m_max;
@@ -89,7 +89,6 @@ protected:
     float m_clickRotation;
     bool m_showTooltip;
     QImage m_cache;
-    bool m_Thorn;
     bool m_bright;
 
     // I wanted a red wheel for the segment changer.  It would be much nicer to

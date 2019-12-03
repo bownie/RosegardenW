@@ -4,10 +4,10 @@
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
     Copyright 2000-2015 the Rosegarden development team.
- 
+
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
- 
+
     This program is free software; you can redistribute it and/or
     modify it under the terms of the GNU General Public License as
     published by the Free Software Foundation; either version 2 of the
@@ -32,12 +32,14 @@ OSCMessage::~OSCMessage()
 void
 OSCMessage::clearArgs()
 {
+    /*
     while (!m_args.empty()) {
         free(m_args[0].second);
         m_args.erase(m_args.begin());
-    }
+    }*/
 }
 
+/*
 void
 OSCMessage::addArg(char type, lo_arg *arg)
 {
@@ -58,20 +60,19 @@ OSCMessage::addArg(char type, lo_arg *arg)
     }
 
     m_args.push_back(OSCArg(type, newarg));
-}
+}*/
 
 size_t
 OSCMessage::getArgCount() const
 {
-    return m_args.size();
+    return 0; //m_args.size();
 }
-
+/*
 const lo_arg *
 OSCMessage::getArg(size_t i, char &type) const
 {
     type = m_args[i].first;
     return m_args[i].second;
 }
-
+*/
 }
-

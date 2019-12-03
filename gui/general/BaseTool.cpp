@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -33,16 +33,12 @@ namespace Rosegarden
 BaseTool::BaseTool(const QString& menuName, QObject* parent)
         : QObject(parent),
         m_menuName(menuName),
-        m_menu(0)
+        m_menu(nullptr)
 {}
 
 BaseTool::~BaseTool()
 {
-    RG_DEBUG << "BaseTool::~BaseTool()\n";
-
-    //     delete m_menu;
-    //     m_parentView->factory()->removeClient(this);
-    //    m_instance = 0;
+    RG_DEBUG << "BaseTool::~BaseTool()";
 }
 
 void BaseTool::ready()
@@ -54,7 +50,7 @@ void BaseTool::stow()
 void BaseTool::showMenu()
 {
     if (!hasMenu())
-        return ;
+        return;
 
     if (!m_menu)
         createMenu();
@@ -62,7 +58,7 @@ void BaseTool::showMenu()
     if (m_menu)
         m_menu->exec(QCursor::pos());
     else
-        RG_DEBUG << "BaseTool::showMenu() : no menu to show\n";
+        RG_DEBUG << "BaseTool::showMenu() : no menu to show";
 }
 
 QString BaseTool::getCurrentContextHelp() const
@@ -78,5 +74,4 @@ void BaseTool::setContextHelp(const QString &help)
 
 }
 
-#include "BaseTool.moc"
 

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -81,6 +81,9 @@ public:
 //    ElementAdapter* getElementAdapter() { return m_elementAdapter; }
     virtual Event* getEvent() { return m_event; }
 
+    void setData(long data) { m_data = data; }
+    long getData() { return m_data; }
+
 protected:
     virtual void reconfigure();
     
@@ -93,6 +96,9 @@ protected:
     float m_y;
     bool m_handlingMouseMove;
     bool m_selected;
+
+    long m_data;  // Currently only used with velocity items
+                  // (Matrix velocity tool store initial velocity here)
 
     ControlRuler* m_controlRuler;
     Event* m_event;

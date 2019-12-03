@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -17,11 +17,6 @@
 #include "base/RealTime.h"
 
 #include <sstream>
-
-using std::cout;
-using std::cerr;
-using std::endl;
-
 
 namespace Rosegarden
 {
@@ -75,7 +70,7 @@ BWFAudioFile::open()
 
     try {
         parseHeader();
-    } catch (BadSoundFileException s) {
+    } catch (const BadSoundFileException &s) {
         //throw(s);
         return false;
     }
@@ -113,7 +108,7 @@ BWFAudioFile::write()
 void
 BWFAudioFile::close()
 {
-    if (m_outFile == 0)
+    if (m_outFile == nullptr)
         return ;
 
     m_outFile->seekp(0, std::ios::end);
@@ -134,7 +129,7 @@ BWFAudioFile::close()
     m_outFile->close();
 
     delete m_outFile;
-    m_outFile = 0;
+    m_outFile = nullptr;
 }
 
 // Set the AudioFile meta data according to WAV file format specification.

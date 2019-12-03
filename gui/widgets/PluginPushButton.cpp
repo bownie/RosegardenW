@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,6 +35,12 @@ PluginPushButton::setState(State state)
     // I'll save reworking and tidying all of this for some future release, and
     // just continue in the same haphazard fashion that got us this far for now.
     
+    // No change?  Bail.  The call to setStyleSheet() is *very* expensive.
+    if (state == m_currentState)
+        return;
+
+    m_currentState = state;
+
     QString tipStyle(" QToolTip {color: black;}");
 
     QString localStyle;
@@ -59,4 +65,3 @@ PluginPushButton::~PluginPushButton()
 }
 
 }
-#include "PluginPushButton.moc"

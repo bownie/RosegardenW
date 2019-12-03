@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -29,6 +29,7 @@
 #include "MidiProgram.h"
 
 #include <QColor>
+#include <QSharedPointer>
 
 namespace Rosegarden
 {
@@ -61,8 +62,12 @@ class BasicCommand;
  * EventContainer is a precursor to Segment, used in code that needs
  * to store events but doesn't need all the ancillary data and
  * behaviors that Segment provides.
- **/
-class EventContainer : public std::multiset<Event*, Event::EventCmp>
+ *
+ * ??? The STL container classes are not intended to be derived from.
+ *     They provide no virtual dtor.  EventContainer should instead
+ *     have a std::multiset member object.
+ */
+class ROSEGARDENPRIVATE_EXPORT EventContainer : public std::multiset<Event*, Event::EventCmp>
 {
  public:
     iterator findEventOfType(iterator i, const std::string &type);
@@ -87,7 +92,7 @@ class EventContainer : public std::multiset<Event*, Event::EventCmp>
  *
  * The Segment owns the Events its items are pointing at.
  */
-class Segment : public QObject, public EventContainer
+class ROSEGARDENPRIVATE_EXPORT Segment : public QObject, public EventContainer
 {
   Q_OBJECT
 
@@ -142,7 +147,7 @@ protected:
     Segment(const Segment&);
 
 public:
-    virtual ~Segment();
+    ~Segment() override;
 
 
     //////
@@ -194,7 +199,7 @@ public:
     void setParticipation(Participation participation)
     { m_participation = participation; }
 
-    Participation getParticipation(void)
+    Participation getParticipation()
     { return m_participation; }
 
     // label
@@ -239,7 +244,6 @@ public:
      * Set the highest suggested playable note for this segment
      */
     void setLowestPlayable(int pitch) { m_lowestPlayable = pitch; }
-
 
 
     //////
@@ -387,7 +391,8 @@ public:
     /**
      * Get the quantizer currently in (or not in) use.
      */
-    const BasicQuantizer *getQuantizer() const;
+    QSharedPointer<const BasicQuantizer> getQuantizer() const
+        { return m_quantizer; }
 
 
 
@@ -623,15 +628,16 @@ public:
     void setTranspose(int transpose);
 
     /**
-     * Return the number of verses in the lyrics
-     * (call countVerses() when needed)
+     * Return the number of verses in the lyrics.
      */
     int getVerseCount();
-    
+
     /**
-     * (Re)compute the internally remembered verse count
+     * Ask to recompute the number of verses the next time getVerseCount()
+     * will be running.
+     * This method must be called each time verses are added or removed.
      */
-    void countVerses();
+    void invalidateVerseCount() { m_verseCount = -1; }
 
     /**
      * Return the verse index of lyrics associated with the segment if
@@ -737,7 +743,7 @@ public:
     typedef std::multiset<Segment *, Segment::SegmentCmp> SegmentMultiSet;
 
     // Get the segments in the current composition.
-    static SegmentMultiSet& getCompositionSegments(void);
+    static SegmentMultiSet& getCompositionSegments();
     
     void  addObserver(SegmentObserver *obs) { m_observers.push_back(obs); }
     void removeObserver(SegmentObserver *obs) { m_observers.remove(obs); }
@@ -789,7 +795,7 @@ public:
     * Return true if the segment is connected to a SegmentLinker.
     * This doesn't always mean that the segment is really linked : 
     *    - The segment may be the only one referenced by the SegmentLinker.
-    *      (Probaly this should not be, but nevertheless is not impossible.)
+    *      (Probably this should not be, but nevertheless is not impossible.)
     *    - The segment is a repeating one opened in the notation editor.
     *      It is a linked segment, but linked with temporary segments which
     *      composition doesn't know.
@@ -859,7 +865,7 @@ public:
      * Set the segment to display as greyed out, a visual indication
      * that it is temporary or read-only.
      **/
-    void setGreyOut(void);
+    void setGreyOut();
     
     /**
      * Set the current segment as the reference of the linked segment group and
@@ -886,6 +892,12 @@ public:
 
 private:
     void checkInsertAsClefKey(Event *e) const;
+
+    /**
+     * (Re)compute the internally remembered verse count.
+     * Used by getVerseCount().
+     */
+    void countVerses();
     
     Composition *m_composition; // owns me, if it exists
 
@@ -911,7 +923,7 @@ private:
 
     bool m_repeating;           // is this segment repeating?
 
-    BasicQuantizer *const m_quantizer;
+    QSharedPointer<BasicQuantizer> m_quantizer;
     bool m_quantize;
 
     int m_transpose;            // all Events tranpose
@@ -920,6 +932,8 @@ private:
 
     int m_highestPlayable;      // suggestion for highest playable note (notation)
     int m_lowestPlayable;       // suggestion for lowest playable note (notation)
+
+    int m_percussionPitch;      // pitch at which note events will display
 
     RefreshStatusArray<SegmentRefreshStatus> m_refreshStatusArray;
 
@@ -1002,7 +1016,7 @@ typedef Segment::SegmentMultiSet SegmentMultiSet;
 /**
  * See Segment::addObserver() and Segment::m_observers.
  */
-class SegmentObserver
+class ROSEGARDENPRIVATE_EXPORT SegmentObserver
 {
 public:
     virtual ~SegmentObserver() {}

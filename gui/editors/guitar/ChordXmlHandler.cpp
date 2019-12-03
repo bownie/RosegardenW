@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
  
     This program is free software; you can redistribute it and/or
@@ -20,8 +20,7 @@ namespace Rosegarden
 {
 
 ChordXmlHandler::ChordXmlHandler(Guitar::ChordMap& map)
-    : ProgressReporter(0),
-      m_chordMap(map)
+    : m_chordMap(map)
 {
 }
 
@@ -78,7 +77,7 @@ bool ChordXmlHandler::endElement(const QString& /* namespaceURI */,
 
         m_inFingering = false;
         m_chordMap.insert(m_currentChord);
-        NOTATION_DEBUG << "ChordXmlHandler::endElement (fingering) : adding chord " << m_currentChord << endl;            
+        NOTATION_DEBUG << "ChordXmlHandler::endElement (fingering) : adding chord " << m_currentChord;            
 
     } else if (lcName == "chord") {
         
@@ -119,7 +118,7 @@ bool ChordXmlHandler::parseFingering(const QString& ch) {
     Guitar::Fingering fingering = Guitar::Fingering::parseFingering(ch, errString);
     
     if (m_errorString.isEmpty()) {
-        NOTATION_DEBUG << "ChordXmlHandler::parseFingering : fingering " << ch << endl;
+        NOTATION_DEBUG << "ChordXmlHandler::parseFingering : fingering " << ch;
         m_currentChord.setFingering(fingering);
         return true;    
     } else {

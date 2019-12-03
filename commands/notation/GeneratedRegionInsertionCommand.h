@@ -40,13 +40,13 @@ public:
     GeneratedRegionInsertionCommand(Segment &segment,
 				    timeT time,
 				    GeneratedRegion generatedRegion);
-    virtual ~GeneratedRegionInsertionCommand();
+    ~GeneratedRegionInsertionCommand() override;
 
-    virtual EventSelection *getSubsequentSelection();
+    EventSelection *getSubsequentSelection() override;
     Event *getLastInsertedEvent() { return m_lastInsertedEvent; }
 
 protected:
-    virtual void modifySegment();
+    void modifySegment() override;
 
     GeneratedRegion m_generatedRegion;
     Event *m_lastInsertedEvent;

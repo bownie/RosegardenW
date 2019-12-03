@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -43,8 +43,8 @@ SegmentSplitByPitchCommand::SegmentSplitByPitchCommand(Segment *segment,
         NamedCommand(tr("Split by Pitch")),
         m_composition(segment->getComposition()),
         m_segment(segment),
-        m_newSegmentA(0),
-        m_newSegmentB(0),
+        m_newSegmentA(nullptr),
+        m_newSegmentB(nullptr),
         m_splitPitch(p),
         m_splitStrategy(splitStrategy),
         // Ctor initializes m_toneIndex to an invalid value.  If using

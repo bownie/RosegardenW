@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,16 +35,15 @@ namespace Rosegarden
 {
 
 
-const QString SegmentJoiner::ToolName = "segmentjoiner";
+QString SegmentJoiner::ToolName() { return "segmentjoiner"; }
 
 SegmentJoiner::SegmentJoiner(CompositionView *c, RosegardenDocument *d)
         : SegmentTool(c, d)
 {
-    RG_DEBUG << "SegmentJoiner() - not implemented\n";
+    RG_DEBUG << "SegmentJoiner() - not implemented";
 }
 
-SegmentJoiner::~SegmentJoiner()
-{}
+#if 0
 
 void
 SegmentJoiner::mousePressEvent(QMouseEvent *e)
@@ -89,13 +88,14 @@ SegmentJoiner::mouseMoveEvent(QMouseEvent *e)
 
     // ??? not implemented
 
-    return RosegardenScrollView::NoFollow;
+    return NO_FOLLOW;
 }
 
 void
 SegmentJoiner::contentsMouseDoubleClickEvent(QMouseEvent*)
-{}
+{
+}
 
+#endif
 
 }
-#include "SegmentJoiner.moc"

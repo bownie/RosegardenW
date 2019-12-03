@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -136,7 +136,7 @@ public:
      */
     SimpleRulerScale(Composition *composition,
                      double origin, double unitsPerPixel);
-    virtual ~SimpleRulerScale();
+    ~SimpleRulerScale() override;
 
     double getOrigin() const { return m_origin; }
     void   setOrigin(double origin) { m_origin = origin; }
@@ -144,12 +144,12 @@ public:
     double getUnitsPerPixel() const { return m_ratio; }
     void   setUnitsPerPixel(double ratio) { m_ratio = ratio; }
 
-    virtual double getBarPosition(int n) const;
-    virtual double getBarWidth(int n) const;
-    virtual double getBeatWidth(int n) const;
-    virtual int getBarForX(double x) const;
-    virtual timeT getTimeForX(double x) const;
-    virtual double getXForTime(timeT time) const;
+    double getBarPosition(int n) const override;
+    double getBarWidth(int n) const override;
+    double getBeatWidth(int n) const override;
+    int getBarForX(double x) const override;
+    timeT getTimeForX(double x) const override;
+    double getXForTime(timeT time) const override;
 
 protected:
     double m_origin;
@@ -175,7 +175,7 @@ public:
      */
     SegmentsRulerScale(Composition *composition, SegmentSelection segments,
                        double origin, double unitsPerPixel);
-    virtual ~SegmentsRulerScale();
+    ~SegmentsRulerScale() override;
 
     double getOrigin() const { return m_origin; }
     void   setOrigin(double origin) { m_origin = origin; }
@@ -183,9 +183,9 @@ public:
     double getUnitsPerPixel() const { return m_ratio; }
     void   setUnitsPerPixel(double ratio) { m_ratio = ratio; }
 
-    virtual int getFirstVisibleBar() const;
-    virtual int getLastVisibleBar() const;
-    virtual double getBarPosition(int n) const;
+    int getFirstVisibleBar() const override;
+    int getLastVisibleBar() const override;
+    double getBarPosition(int n) const override;
 
     void addSegment(Segment *s);
 
@@ -193,7 +193,7 @@ protected:
     double m_origin;
     double m_ratio;
 
-    void segmentDeleted(const Segment *); // from SegmentObserver
+    void segmentDeleted(const Segment *) override; // from SegmentObserver
 
     SegmentSelection m_segments;
 
@@ -220,16 +220,16 @@ public:
      * deleted).
      */
     ZoomableRulerScale(const RulerScale *reference);
-    virtual ~ZoomableRulerScale();
+    ~ZoomableRulerScale() override;
 
-    virtual double getBarPosition(int n) const;
-    virtual double getBarWidth(int n) const;
-    virtual double getBeatWidth(int n) const;
-    virtual int getBarForX(double x) const;
-    virtual timeT getTimeForX(double x) const;
-    virtual double getXForTime(timeT time) const;
-    virtual int getFirstVisibleBar() const;
-    virtual int getLastVisibleBar() const;
+    double getBarPosition(int n) const override;
+    double getBarWidth(int n) const override;
+    double getBeatWidth(int n) const override;
+    int getBarForX(double x) const override;
+    timeT getTimeForX(double x) const override;
+    double getXForTime(timeT time) const override;
+    int getFirstVisibleBar() const override;
+    int getLastVisibleBar() const override;
 
     void setXZoomFactor(double f) { m_xfactor = f; }
     double getXZoomFactor() const { return m_xfactor; }

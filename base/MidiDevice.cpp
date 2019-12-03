@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -12,6 +12,8 @@
     License, or (at your option) any later version.  See the file
     COPYING included with this distribution for more information.
 */
+
+#define RG_MODULE_STRING "[MidiDevice]"
 
 #include "MidiDevice.h"
 #include "sound/Midi.h"
@@ -33,6 +35,7 @@
 namespace Rosegarden
 {
 
+#if 0
 MidiDevice::MidiDevice():
     Device(0, "Default Midi Device", Device::Midi),
     m_metronome(0),
@@ -49,13 +52,14 @@ MidiDevice::MidiDevice():
     // create a default Metronome
     m_metronome = new MidiMetronome(MidiInstrumentBase + 9);
 }
+#endif
 
 MidiDevice::MidiDevice(DeviceId id,
                        InstrumentId ibase,
                        const std::string &name,
                        DeviceDirection dir):
     Device(id, name, Device::Midi),
-    m_metronome(0),
+    m_metronome(nullptr),
     m_direction(dir),
     m_variationType(NoVariations),
     m_librarian(std::pair<std::string, std::string>("<none>", "<none>")),
@@ -70,6 +74,7 @@ MidiDevice::MidiDevice(DeviceId id,
     m_metronome = new MidiMetronome(MidiInstrumentBase + 9);
 }
 
+#if 0
 MidiDevice::MidiDevice(DeviceId id,
                        InstrumentId ibase,
                        const MidiDevice &dev) :
@@ -101,6 +106,7 @@ MidiDevice::MidiDevice(DeviceId id,
 
     generatePresentationList();
 }
+#endif
 
 MidiDevice::MidiDevice(const MidiDevice &dev) :
     Device(dev.getId(), dev.getName(), dev.getType()),
@@ -109,7 +115,7 @@ MidiDevice::MidiDevice(const MidiDevice &dev) :
     m_bankList(dev.m_bankList),
     m_controlList(dev.m_controlList),
     m_keyMappingList(dev.m_keyMappingList),
-    m_metronome(0),
+    m_metronome(nullptr),
     m_direction(dev.getDirection()),
     m_variationType(dev.getVariationType()),
     m_librarian(dev.getLibrarian()),
@@ -137,7 +143,7 @@ MidiDevice::MidiDevice(const MidiDevice &dev) :
     generatePresentationList();
 }
 
-
+#if 0
 MidiDevice &
 MidiDevice::operator=(const MidiDevice &dev)
 {
@@ -191,6 +197,7 @@ MidiDevice::operator=(const MidiDevice &dev)
 
     return (*this);
 }
+#endif
 
 MidiDevice::~MidiDevice()
 {
@@ -201,7 +208,7 @@ MidiDevice::~MidiDevice()
 }
 
 AllocateChannels *
-MidiDevice::getAllocator(void)
+MidiDevice::getAllocator()
 { return m_allocator; }
 
 void
@@ -211,6 +218,9 @@ MidiDevice::createInstruments(InstrumentId base)
         Instrument *instrument = new Instrument
             (base + i, Instrument::Midi, "", i, this);
         instrument->setFixedChannel();
+        // ??? Since we don't have a connection yet, this makes
+        //     little sense.
+        //instrument->sendChannelSetup();
         addInstrument(instrument);
     }
     renameInstruments();
@@ -337,7 +347,7 @@ MidiDevice::addProgram(const MidiProgram &prog)
     // Refuse duplicates
     for (ProgramList::const_iterator it = m_programList.begin();
          it != m_programList.end(); ++it) {
-        if (*it == prog) return;
+        if (it->partialCompare(prog)) return;
     }
 
     m_programList.push_back(prog);
@@ -404,7 +414,7 @@ MidiDevice::getBankByName(const std::string &name) const
          i != m_bankList.end(); ++i) {
         if (i->getName() == name) return &(*i);
     }
-    return 0;
+    return nullptr;
 }
 
 MidiByteList
@@ -452,7 +462,7 @@ MidiDevice::getPrograms(const MidiBank &bank) const
 
     for (ProgramList::const_iterator it = m_programList.begin();
          it != m_programList.end(); ++it) {
-        if (it->getBank() == bank) programs.push_back(*it);
+        if (it->getBank().partialCompare(bank)) programs.push_back(*it);
     }
 
     return programs;
@@ -486,7 +496,7 @@ MidiDevice::getBankName(const MidiBank &bank) const
 {
     for (BankList::const_iterator it = m_bankList.begin();
          it != m_bankList.end(); ++it) {
-        if (*it == bank) return it->getName();
+        if ((*it).partialCompare(bank)) return it->getName();
     }
     return "";
 }
@@ -505,7 +515,7 @@ MidiDevice::getKeyMappingByName(const std::string &name) const
          i != m_keyMappingList.end(); ++i) {
         if (i->getName() == name) return &(*i);
     }
-    return 0;
+    return nullptr;
 }
 
 const MidiKeyMapping *
@@ -514,14 +524,14 @@ MidiDevice::getKeyMappingForProgram(const MidiProgram &program) const
     ProgramList::const_iterator it;
 
     for (it = m_programList.begin(); it != m_programList.end(); ++it) {
-        if (*it == program) {
+        if (it->partialCompare(program)) {
             std::string kmn = it->getKeyMapping();
-            if (kmn == "") return 0;
+            if (kmn == "") return nullptr;
             return getKeyMappingByName(kmn);
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 void
@@ -531,7 +541,7 @@ MidiDevice::setKeyMappingForProgram(const MidiProgram &program,
     ProgramList::iterator it;
 
     for (it = m_programList.begin(); it != m_programList.end(); ++it) {
-        if (*it == program) {
+        if (it->partialCompare(program)) {
             it->setKeyMapping(mapping);
         }
     }
@@ -539,7 +549,7 @@ MidiDevice::setKeyMappingForProgram(const MidiProgram &program,
     
 
 std::string
-MidiDevice::toXmlString()
+MidiDevice::toXmlString() const
 {
     std::stringstream midiDevice;
 
@@ -578,9 +588,9 @@ MidiDevice::toXmlString()
 
     // and now bank information
     //
-    BankList::iterator it;
-    InstrumentList::iterator iit;
-    ProgramList::iterator pt;
+    BankList::const_iterator it;
+    InstrumentList::const_iterator iit;
+    ProgramList::const_iterator pt;
 
     for (it = m_bankList.begin(); it != m_bankList.end(); ++it)
     {
@@ -595,7 +605,7 @@ MidiDevice::toXmlString()
         //
         for (pt = m_programList.begin(); pt != m_programList.end(); ++pt)
         {
-            if (pt->getBank() == *it)
+            if (pt->getBank().partialCompare(*it))
             {
                 midiDevice << "            <program "
                            << "id=\"" << (int)pt->getProgram() << "\" "
@@ -615,7 +625,7 @@ MidiDevice::toXmlString()
     // Controller colours)
     //
     midiDevice << "        <controls>" << std::endl;
-    ControlList::iterator cIt;
+    ControlList::const_iterator cIt;
     for (cIt = m_controlList.begin(); cIt != m_controlList.end() ; ++cIt)
         midiDevice << cIt->toXmlString();
     midiDevice << "        </controls>" << std::endl << std::endl;
@@ -625,7 +635,7 @@ MidiDevice::toXmlString()
     for (iit = m_instruments.begin(); iit != m_instruments.end(); ++iit)
         midiDevice << (*iit)->toXmlString();
 
-    KeyMappingList::iterator kit;
+    KeyMappingList::const_iterator kit;
 
     for (kit = m_keyMappingList.begin(); kit != m_keyMappingList.end(); ++kit)
     {
@@ -644,18 +654,6 @@ MidiDevice::toXmlString()
     midiDevice << "    </device>" << std::endl;
 
     return midiDevice.str();
-}
-
-void
-MidiDevice::
-refreshForConnection(void)
-{
-    // !!! We cheat here: instead of checking beforehand which
-    // Instrument controllers have default values and changing them to
-    // the new defaults, we assume afterwards that zero values are
-    // probably leftover old defaults.
-    generateDefaultControllers();
-    conformInstrumentControllers();
 }
 
 // Only copy across non System instruments
@@ -705,7 +703,7 @@ MidiDevice::getProgramName(const MidiProgram &program) const
 
     for (it = m_programList.begin(); it != m_programList.end(); ++it)
     {
-        if (*it == program) return it->getName();
+        if (it->partialCompare(program)) return it->getName();
     }
 
     return std::string("");
@@ -743,7 +741,7 @@ MidiDevice::mergeBankList(const BankList &bankList)
     {
         for (oIt = m_bankList.begin(); oIt != m_bankList.end(); ++oIt)
         {
-            if (*it == *oIt)
+            if ((*it).partialCompare(*oIt))
             {
                 clash = true;
                 break;
@@ -769,7 +767,7 @@ MidiDevice::mergeProgramList(const ProgramList &programList)
     {
         for (oIt = m_programList.begin(); oIt != m_programList.end(); ++oIt)
         {
-            if (*it == *oIt)
+            if (it->partialCompare(*oIt))
             {
                 clash = true;
                 break;
@@ -906,6 +904,7 @@ MidiDevice::replaceControlParameters(const ControlList &con)
     }
 }
 
+#if 0
 // Conform instrument controllers to a new setup.
 void
 MidiDevice::
@@ -944,6 +943,7 @@ conformInstrumentControllers(void)
         }
     }
 }
+#endif
 
 // Check to see if passed ControlParameter is unique.  Either the
 // type must be unique or in the case of Controller::EventType the
@@ -956,7 +956,7 @@ bool
 MidiDevice::isUniqueControlParameter(const ControlParameter &con) const
 {
     return
-        findControlParameter(con.getType(), con.getControllerValue()) == 0;
+        findControlParameter(con.getType(), con.getControllerValue()) == nullptr;
 }
 
 const ControlParameter *
@@ -975,7 +975,7 @@ findControlParameter(std::string type, MidiByte conNumber) const
             return &*it;
         }
     }
-    return 0;
+    return nullptr;
 }
 
 bool 
@@ -1038,7 +1038,7 @@ MidiDevice::getControlParameter(int index)
     if (index >= 0 && ((unsigned int)index) < (unsigned int)m_controlList.size())
         return &m_controlList[index];
 
-    return 0;
+    return nullptr;
 }
 
 const ControlParameter *
@@ -1068,7 +1068,7 @@ MidiDevice::getControlParameter(const std::string &type, Rosegarden::MidiByte co
         }
     }
 
-    return 0;
+    return nullptr;
 }
 
 const ControlParameter *

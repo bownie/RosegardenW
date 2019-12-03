@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -16,9 +16,11 @@
 #ifndef RG_INSTRUMENT_H
 #define RG_INSTRUMENT_H
 
+#include <climits>  // UINT_MAX
 #include <string>
 #include <vector>
 
+#include "InstrumentStaticSignals.h"
 #include "XmlExportable.h"
 #include "MidiProgram.h"
 
@@ -41,11 +43,14 @@ namespace Rosegarden
 // plugins
 class AudioPluginInstance;
 typedef std::vector<AudioPluginInstance*>::iterator PluginInstanceIterator;
+typedef std::vector<AudioPluginInstance*>::const_iterator PluginInstanceConstIterator;
 
 typedef std::vector<std::pair<MidiByte, MidiByte> > StaticControllers;
 typedef std::vector<std::pair<MidiByte, MidiByte> >::iterator StaticControllerIterator;
 typedef std::vector<std::pair<MidiByte, MidiByte> >::const_iterator StaticControllerConstIterator;
 
+typedef unsigned int InstrumentId;
+const InstrumentId NoInstrument = UINT_MAX;
 
 // Instrument number groups
 //
@@ -67,8 +72,6 @@ typedef unsigned int BussId;
 //
 class Device;
 
-class InstrumentStaticSignals;
-
 class PluginContainer
 {
 public:
@@ -86,7 +89,7 @@ public:
 
     // Get a plugin for this container
     //
-    AudioPluginInstance* getPlugin(unsigned int position);
+    AudioPluginInstance *getPlugin(unsigned int position) const;
 
     virtual unsigned int getId() const = 0;
     virtual std::string getName() const = 0;
@@ -107,7 +110,7 @@ class Instrument : public QObject, public XmlExportable, public PluginContainer
 public:
     static const unsigned int SYNTH_PLUGIN_POSITION;
 
-    enum InstrumentType { Midi, Audio, SoftSynth };
+    enum InstrumentType { Midi, Audio, SoftSynth, InvalidInstrument = -1 };
 
     Instrument(InstrumentId id,
                InstrumentType it,
@@ -124,10 +127,10 @@ public:
     //
     Instrument(const Instrument &);
 
-    ~Instrument();
+    ~Instrument() override;
 
-    virtual std::string getName() const { return m_name; }
-    virtual std::string getPresentationName() const;
+    std::string getName() const override { return m_name; }
+    std::string getPresentationName() const override;
 
     /** Returns a translated QString suitable for presentation to the user */
     virtual QString getLocalizedPresentationName() const;
@@ -138,10 +141,10 @@ public:
      */
     virtual unsigned int getPresentationNumber() const;
 
-    virtual std::string getAlias() const;
+    std::string getAlias() const override;
 
     void setId(InstrumentId id) { m_id = id; }
-    InstrumentId getId() const { return m_id; }
+    InstrumentId getId() const override { return m_id; }
 
     void setName(const std::string &name) { m_name = name; }
     void setAlias(const std::string &alias) { m_alias = alias; }
@@ -153,10 +156,10 @@ public:
 
     // ---------------- Fixed channels -----------------
 
-    void setFixedChannel(void);
+    void setFixedChannel();
     // Release this instrument's fixed channel, if any.
-    void releaseFixedChannel(void);
-    bool hasFixedChannel(void) const { return m_fixed; }
+    void releaseFixedChannel();
+    bool hasFixedChannel() const { return m_fixed; }
 
     //void setMidiInputChannel(char ic) { m_input_channel = ic; }
     //char getMidiInputChannel() const { return m_input_channel; }
@@ -217,6 +220,7 @@ public:
 
     void setControllerValue(MidiByte controller, MidiByte value);
     MidiByte getControllerValue(MidiByte controller) const;
+    void sendController(MidiByte controller, MidiByte value);
 
     // This is retrieved from the reference MidiProgram in the Device
     const MidiKeyMapping *getKeyMapping() const;
@@ -260,7 +264,7 @@ public:
 
     // Implementation of virtual function
     //
-    virtual std::string toXmlString();
+    std::string toXmlString() const override;
 
     // Get and set the parent device
     //
@@ -278,7 +282,12 @@ public:
     int getMappedId() const { return m_mappedId; }
     void setMappedId(int id) { m_mappedId = id; }
 
-    StaticControllers& getStaticControllers() { return m_staticControllers; }
+    /// Get CCs at time 0 for this Instrument.
+    /**
+     * ??? This returns a copy.  Consider taking in a reference instead to
+     *     avoid the copy.
+     */
+    StaticControllers &getStaticControllers() { return m_staticControllers; }
 
     // Clears down the instruments controls.
     //
@@ -288,7 +297,7 @@ public:
     //
     void removeStaticController(MidiByte controller);
 
-    void sendWholeDeviceDestroyed(void)
+    void sendWholeDeviceDestroyed()
     { emit wholeDeviceDestroyed(); }
 
     /// Send out program changes, etc..., for fixed channels.
@@ -304,24 +313,26 @@ public:
      * instance is still around when your object is destroyed.
      */
     static QSharedPointer<InstrumentStaticSignals> getStaticSignals();
-    /// Emit InstrumentStaticSignals::changed().
-    void changed();
+
+    /// Emit InstrumentStaticSignals::controlChange().
+    static void emitControlChange(Instrument *instrument, int cc)
+        { getStaticSignals()->emitControlChange(instrument, cc); }
 
  signals:
     // Like QObject::destroyed, but implies that the whole device is
     // being destroyed so we needn't bother freeing channels on it.
-    void wholeDeviceDestroyed(void);
+    void wholeDeviceDestroyed();
 
     // Emitted when we change how we set up the MIDI channel.
     // Notifies ChannelManagers that use the instrument to refresh
     // channel
-    void changedChannelSetup(void);
+    void changedChannelSetup();
 
     // Emitted when we lose/gain a fixed MIDI channel.  Notifies
     // ChannelManagers that use the instrument to modify their channel
     // allocation accordingly.
-    void channelBecomesFixed(void);
-    void channelBecomesUnfixed(void);
+    void channelBecomesFixed();
+    void channelBecomesUnfixed();
 
 private:
     // ??? Hiding because, fortunately, this is never used.
@@ -396,10 +407,10 @@ class Buss : public XmlExportable, public PluginContainer
 {
 public:
     Buss(BussId id);
-    ~Buss();
+    ~Buss() override;
 
     void setId(BussId id) { m_id = id; }
-    BussId getId() const { return m_id; }
+    BussId getId() const override { return m_id; }
 
     void setLevel(float dB) { m_level = dB; }
     float getLevel() const { return m_level; }
@@ -410,10 +421,10 @@ public:
     int getMappedId() const { return m_mappedId; }
     void setMappedId(int id) { m_mappedId = id; }
 
-    virtual std::string toXmlString();
-    virtual std::string getName() const;
-    virtual std::string getPresentationName() const;
-    virtual std::string getAlias() const;
+    std::string toXmlString() const override;
+    std::string getName() const override;
+    std::string getPresentationName() const override;
+    std::string getAlias() const override;
 
 private:
     BussId m_id;
@@ -429,12 +440,12 @@ class RecordIn : public XmlExportable
 {
 public:
     RecordIn();
-    ~RecordIn();
+    ~RecordIn() override;
 
     int getMappedId() const { return m_mappedId; }
     void setMappedId(int id) { m_mappedId = id; }
 
-    virtual std::string toXmlString();
+    std::string toXmlString() const override;
 
 private:
     int m_mappedId;

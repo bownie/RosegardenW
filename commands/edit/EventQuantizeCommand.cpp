@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,11 +28,13 @@
 #include "base/SegmentNotationHelper.h"
 #include "base/Selection.h"
 #include "document/BasicCommand.h"
+#include "document/CommandRegistry.h"
 #include "misc/Strings.h"
 #include "base/BaseProperties.h"
 #include "gui/application/RosegardenApplication.h"
 
 #include <QApplication>
+#include <QProgressDialog>
 #include <QSettings>
 #include <QString>
 
@@ -49,7 +51,7 @@ EventQuantizeCommand::EventQuantizeCommand(Segment &segment,
     BasicCommand(getGlobalName(quantizer), segment, startTime, endTime,
                  true),  // bruteForceRedo
     m_quantizer(quantizer),
-    m_selection(0)
+    m_selection(nullptr)
 {
     // nothing else
 }
@@ -75,7 +77,7 @@ EventQuantizeCommand::EventQuantizeCommand(Segment &segment,
     BasicCommand(getGlobalName(makeQuantizer(settingsGroup, scope)),
                  segment, startTime, endTime,
                  true),  // bruteForceRedo
-    m_selection(0),
+    m_selection(nullptr),
     m_settingsGroup(settingsGroup)
 {
     // nothing else -- m_quantizer set by makeQuantizer
@@ -119,6 +121,9 @@ EventQuantizeCommand::modifySegment()
 {
     Profiler profiler("EventQuantizeCommand::modifySegment", true);
 
+    // Kick the event loop.
+    qApp->processEvents();
+
     Segment &segment = getSegment();
     SegmentNotationHelper helper(segment);
 
@@ -137,6 +142,8 @@ EventQuantizeCommand::modifySegment()
         settings.endGroup();
     }
 
+    timeT endTime = segment.getEndTime();
+
     if (m_selection) {
         m_quantizer->quantize(m_selection);
 
@@ -146,13 +153,21 @@ EventQuantizeCommand::modifySegment()
                               segment.findTime(getEndTime()));
     }
 
+    // Kick the event loop.
+    qApp->processEvents();
+
+    if (segment.getEndTime() < endTime) {
+        segment.setEndTime(endTime);
+    }
+
     if (m_progressTotal > 0) {
         if (rebeam || makeviable || decounterpoint) {
-            emit setValue(m_progressTotal + m_progressPerCall / 2);
-            rosegardenApplication->refreshGUI(50);
+            if (m_progressDialog)
+                m_progressDialog->setValue(
+                        m_progressTotal + m_progressPerCall / 2);
         } else {
-            emit setValue(m_progressTotal + m_progressPerCall);
-            rosegardenApplication->refreshGUI(50);
+            if (m_progressDialog)
+                m_progressDialog->setValue(m_progressTotal + m_progressPerCall);
         }
     }
 
@@ -163,41 +178,56 @@ EventQuantizeCommand::modifySegment()
             if (makeviable) {
                 helper.makeNotesViable(i->first, i->second, true);
             }
+            // Kick the event loop.
+            qApp->processEvents();
             if (decounterpoint) {
                 helper.deCounterpoint(i->first, i->second);
             }
+            // Kick the event loop.
+            qApp->processEvents();
             if (rebeam) {
                 helper.autoBeam(i->first, i->second, GROUP_TYPE_BEAMED);
                 helper.autoSlur(i->first, i->second, true);
             }
+            // Kick the event loop.
+            qApp->processEvents();
         }
     } else {
         if (makeviable) {
             helper.makeNotesViable(getStartTime(), getEndTime(), true);
         }
+        // Kick the event loop.
+        qApp->processEvents();
         if (decounterpoint) {
             helper.deCounterpoint(getStartTime(), getEndTime());
         }
+        // Kick the event loop.
+        qApp->processEvents();
         if (rebeam) {
             helper.autoBeam(getStartTime(), getEndTime(), GROUP_TYPE_BEAMED);
             helper.autoSlur(getStartTime(), getEndTime(), true);
         }
+        // Kick the event loop.
+        qApp->processEvents();
     }
 
     if (m_progressTotal > 0) {
         if (rebeam || makeviable || decounterpoint) {
-            emit setValue(m_progressTotal  + m_progressPerCall / 2);
-            rosegardenApplication->refreshGUI(50);
+            if (m_progressDialog)
+                m_progressDialog->setValue(
+                        m_progressTotal  + m_progressPerCall / 2);
         }
     }
+
+    if (m_progressDialog  &&  m_progressDialog->wasCanceled())
+        throw CommandCancelled();
 }
 
 Quantizer *
 EventQuantizeCommand::makeQuantizer(QString settingsGroup,
                                     QuantizeScope scope)
 {
-    //!!! Excessive duplication with
-    // QuantizeParameters::getQuantizer in widgets.cpp
+    // See QuantizeParameters::getQuantizer() which is quite similar.
 
     QSettings settings;
     settings.beginGroup(settingsGroup);
@@ -229,7 +259,7 @@ EventQuantizeCommand::makeQuantizer(QString settingsGroup,
 
     settings.endGroup();
 
-    m_quantizer = 0;
+    m_quantizer = nullptr;
 
     if (type == 0) {
         if (notateOnly) {
@@ -278,4 +308,3 @@ EventQuantizeCommand::makeQuantizer(QString settingsGroup,
 }
 
 }
-#include "EventQuantizeCommand.moc"

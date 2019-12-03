@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -73,15 +73,15 @@ AudioDevice::renameInstruments()
 }
 
 std::string
-AudioDevice::toXmlString()
+AudioDevice::toXmlString() const
 {
     std::stringstream audioDevice;
-    InstrumentList::iterator iit;
 
     audioDevice << "    <device id=\""  << m_id
                 << "\" name=\""         << m_name
                 << "\" type=\"audio\">" << std::endl;
 
+    InstrumentList::const_iterator iit;
     for (iit = m_instruments.begin(); iit != m_instruments.end(); ++iit)
         audioDevice << (*iit)->toXmlString();
 
@@ -108,10 +108,5 @@ AudioDevice::getPreviewInstrument()
     return AudioInstrumentBase;
 }
 
-// !!! It appears to me that this doesn't need to do anything.
-void
-AudioDevice::
-refreshForConnection(void) {}
+
 }
-
-

@@ -51,9 +51,9 @@ public:
     static const int defaultGraphHeight;    /**< Max excursion in cents */
     static const bool defaultIgnore8ve;     /**< Ignore octave errors */
 
-    PitchTrackerConfigurationPage(QWidget *parent = 0);
+    PitchTrackerConfigurationPage(QWidget *parent = nullptr);
 
-    virtual void apply();
+    void apply() override;
 
     static QString iconLabel() {
         return tr("Pitch Tracker");

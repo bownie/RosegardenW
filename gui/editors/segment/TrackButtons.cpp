@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -46,6 +46,7 @@
 #include "sound/PluginIdentifier.h"
 #include "sequencer/RosegardenSequencer.h"
 
+#include <QApplication>
 #include <QLayout>
 #include <QMessageBox>
 #include <QCursor>
@@ -85,6 +86,7 @@ TrackButtons::TrackButtons(RosegardenDocument* doc,
         m_layout(new QVBoxLayout(this)),
         m_recordSigMapper(new QSignalMapper(this)),
         m_muteSigMapper(new QSignalMapper(this)),
+        m_soloSigMapper(new QSignalMapper(this)),
         m_clickedSigMapper(new QSignalMapper(this)),
         m_instListSigMapper(new QSignalMapper(this)),
         m_tracks(doc->getComposition().getNbTracks()),
@@ -94,8 +96,12 @@ TrackButtons::TrackButtons(RosegardenDocument* doc,
         m_popupTrackPos(0),
         m_lastSelected(-1)
 {
-    m_layout->setMargin(0);
     setFrameStyle(Plain);
+
+    QPalette pal = palette();
+    pal.setColor(backgroundRole(), QColor(0xDD, 0xDD, 0xDD));
+    pal.setColor(foregroundRole(), Qt::black);
+    setPalette(pal);
 
     // when we create the widget, what are we looking at?
     if (showTrackLabels) {
@@ -104,8 +110,8 @@ TrackButtons::TrackButtons(RosegardenDocument* doc,
         m_labelDisplayMode = TrackLabel::ShowInstrument;
     }
 
+    m_layout->setMargin(0);
     // Set the spacing between vertical elements
-    //
     m_layout->setSpacing(m_borderGap);
 
     // Now draw the buttons and labels and meters
@@ -120,6 +126,9 @@ TrackButtons::TrackButtons(RosegardenDocument* doc,
     connect(m_muteSigMapper, SIGNAL(mapped(int)),
             this, SLOT(slotToggleMute(int)));
 
+    connect(m_soloSigMapper, SIGNAL(mapped(int)),
+            this, SLOT(slotToggleSolo(int)));
+
     // connect signal mappers
     connect(m_instListSigMapper, SIGNAL(mapped(int)),
             this, SLOT(slotInstrumentMenu(int)));
@@ -133,13 +142,12 @@ TrackButtons::TrackButtons(RosegardenDocument* doc,
 
     m_doc->getComposition().addObserver(this);
 
-    // Hold on to this to make sure it stays around as long as we do.
-    m_instrumentStaticSignals = Instrument::getStaticSignals();
-
-    connect(m_instrumentStaticSignals.data(),
-            SIGNAL(changed(Instrument *)),
-            this,
-            SLOT(slotInstrumentChanged(Instrument *)));
+    // We do not care about documentChanged() because if the
+    // document is changing, we are going away.  A new TrackButtons
+    // is created for each new document.
+    //connect(RosegardenMainWindow::self(),
+    //            SIGNAL(documentChanged(RosegardenDocument *)),
+    //        SLOT(slotNewDocument(RosegardenDocument *)));
 }
 
 TrackButtons::~TrackButtons() {
@@ -159,6 +167,23 @@ TrackButtons::updateUI(Track *track)
 
     if (pos < 0  ||  pos >= m_tracks)
         return;
+
+
+    // *** Archive Background
+
+    QFrame *hbox = m_trackHBoxes.at(pos);
+    if (track->isArchived()) {
+        // Go with the dark gray background.
+        QPalette palette = hbox->palette();
+        palette.setColor(hbox->backgroundRole(), QColor(0x88, 0x88, 0x88));
+        hbox->setPalette(palette);
+    } else {
+        // Go with the parent's background color.
+        QColor parentBackground = palette().color(backgroundRole());
+        QPalette palette = hbox->palette();
+        palette.setColor(hbox->backgroundRole(), parentBackground);
+        hbox->setPalette(palette);
+    }
 
 
     // *** Mute LED
@@ -182,6 +207,12 @@ TrackButtons::updateUI(Track *track)
     bool recording =
         m_doc->getComposition().isTrackRecording(track->getId());
     setRecordButton(pos, recording);
+
+
+    // *** Solo LED
+
+    // ??? An Led::setState(bool) would be handy.
+    m_soloLeds[pos]->setState(track->isSolo() ? Led::On : Led::Off);
 
 
     // *** Track Label
@@ -217,6 +248,8 @@ TrackButtons::makeButtons()
 {
     if (!m_doc)
         return;
+
+    //RG_DEBUG << "makeButtons()";
 
     // Create a horizontal box filled with widgets for each track
 
@@ -268,7 +301,7 @@ TrackButtons::initInstrumentNames(Instrument *ins, TrackLabel *label)
 void
 TrackButtons::populateButtons()
 {
-    //RG_DEBUG << "TrackButtons::populateButtons()";
+    //RG_DEBUG << "populateButtons()";
 
     // For each track, copy info from Track object to the widgets
     for (int i = 0; i < m_tracks; ++i) {
@@ -307,6 +340,71 @@ TrackButtons::slotToggleMute(int pos)
     m_doc->slotDocumentModified();
 }
 
+void TrackButtons::toggleSolo()
+{
+    if (!m_doc)
+        return;
+
+    Composition &comp = m_doc->getComposition();
+    int pos = comp.getTrackPositionById(comp.getSelectedTrack());
+
+    if (pos == -1)
+        return;
+
+    slotToggleSolo(pos);
+}
+
+void
+TrackButtons::slotToggleSolo(int pos)
+{
+    //RG_DEBUG << "slotToggleSolo( position =" << pos << ")";
+
+    if (!m_doc)
+        return;
+
+    if (pos < 0  ||  pos >= m_tracks)
+        return;
+
+    Composition &comp = m_doc->getComposition();
+    Track *track = comp.getTrackByPosition(pos);
+
+    if (!track)
+        return;
+
+    bool state = !track->isSolo();
+
+    // If we're setting solo on this track and shift isn't being held down,
+    // clear solo on all tracks (canceling mode).  If shift is being held
+    // down, multiple tracks can be put into solo (latching mode).
+    if (state  &&
+        QApplication::keyboardModifiers() != Qt::ShiftModifier) {
+        // For each track
+        for (int i = 0; i < m_tracks; ++i) {
+            // Except the one that is being toggled.
+            if (i == pos)
+                continue;
+
+            Track *track2 = comp.getTrackByPosition(i);
+
+            if (!track2)
+                continue;
+
+            if (track2->isSolo()) {
+                // Clear solo
+                track2->setSolo(false);
+                comp.notifyTrackChanged(track2);
+            }
+        }
+    }
+
+    // Toggle the solo state
+    track->setSolo(state);
+
+    // Notify observers
+    comp.notifyTrackChanged(track);
+    m_doc->slotDocumentModified();
+}
+
 void
 TrackButtons::removeButtons(int position)
 {
@@ -333,9 +431,11 @@ TrackButtons::removeButtons(int position)
     mit += position;
     m_recordLeds.erase(mit);
 
+    m_soloLeds.erase(m_soloLeds.begin() + position);
+
     // Delete all child widgets (button, led, label...)
     delete m_trackHBoxes[position];
-    m_trackHBoxes[position] = NULL;
+    m_trackHBoxes[position] = nullptr;
 
     std::vector<QFrame*>::iterator it = m_trackHBoxes.begin();
     it += position;
@@ -346,8 +446,9 @@ TrackButtons::removeButtons(int position)
 void
 TrackButtons::slotUpdateTracks()
 {
+    //RG_DEBUG << "slotUpdateTracks()";
+
 #if 0
-    RG_DEBUG << "TrackButtons::slotUpdateTracks()";
     static QTime t;
     RG_DEBUG << "  elapsed: " << t.restart();
 #endif
@@ -357,6 +458,11 @@ TrackButtons::slotUpdateTracks()
 
     Composition &comp = m_doc->getComposition();
     const int newNbTracks = comp.getNbTracks();
+
+    if (newNbTracks < 0) {
+        RG_WARNING << "slotUpdateTracks(): WARNING: New number of tracks was negative:" << newNbTracks;
+        return;
+    }
 
     //RG_DEBUG << "TrackButtons::slotUpdateTracks > newNbTracks = " << newNbTracks;
 
@@ -380,7 +486,7 @@ TrackButtons::slotUpdateTracks()
                     m_trackHBoxes.push_back(trackHBox);
                 }
             } else
-                RG_DEBUG << "TrackButtons::slotUpdateTracks - can't find TrackId for position " << i << endl;
+                RG_DEBUG << "TrackButtons::slotUpdateTracks - can't find TrackId for position " << i;
         }
     }
 
@@ -546,9 +652,9 @@ TrackButtons::slotInstrumentMenu(int trackId)
     const int position = comp.getTrackById(trackId)->getPosition();
     Track *track = comp.getTrackByPosition(position);
 
-    Instrument *instrument = 0;
+    Instrument *instrument = nullptr;
 
-    if (track != 0) {
+    if (track != nullptr) {
         instrument = m_doc->getStudio().getInstrumentById(
                 track->getInstrument());
     }
@@ -615,7 +721,7 @@ TrackButtons::populateInstrumentPopup(Instrument *thisTrackInstr, QMenu* instrum
     // clear the popup
     instrumentPopup->clear();
 
-    QMenu *currentSubMenu = 0;
+    QMenu *currentSubMenu = nullptr;
 
     // position index
     int count = 0;
@@ -638,13 +744,13 @@ TrackButtons::populateInstrumentPopup(Instrument *thisTrackInstr, QMenu* instrum
         // translate the program name
         //
         // Note we are converting the string from std to Q back to std then to
-        // C.  This is obviously ridiculous, but the fact that we have pname
+        // C.  This is obviously ridiculous, but the fact that we have programName
         // here at all makes me think it exists as some kind of necessary hack
         // to coax tr() into behaving nicely.  I decided to change it as little
         // as possible to get it to compile, and not refactor this down to the
         // simplest way to call tr() on a C string.
-        QString pname(strtoqstr((*it)->getProgramName()));
-        pname = QObject::tr(pname.toStdString().c_str());
+        QString programName(strtoqstr((*it)->getProgramName()));
+        programName = QObject::tr(programName.toStdString().c_str());
 
         Device *device = (*it)->getDevice();
         DeviceId devId = device->getId();
@@ -653,30 +759,13 @@ TrackButtons::populateInstrumentPopup(Instrument *thisTrackInstr, QMenu* instrum
         // Determine the proper program name and whether it is connected
 
         if ((*it)->getType() == Instrument::SoftSynth) {
-            pname = "";
+            programName = "";
             AudioPluginInstance *plugin =
                     (*it)->getPlugin(Instrument::SYNTH_PLUGIN_POSITION);
             if (plugin) {
                 // we don't translate any plugin program names or other texts
-                pname = strtoqstr(plugin->getProgram());
-                QString identifier = strtoqstr(plugin->getIdentifier());
-                if (identifier != "") {
-                    connectedIcon = true;
-                    QString type, soName, label;
-                    PluginIdentifier::parseIdentifier(
-                            identifier, type, soName, label);
-                    if (pname == "") {
-                        pname = strtoqstr(
-                                plugin->getDistinctiveConfigurationText());
-                    }
-                    if (pname != "") {
-                        pname = QString("%1: %2").arg(label).arg(pname);
-                    } else {
-                        pname = label;
-                    }
-                } else {
-                    connectedIcon = false;
-                }
+                programName = strtoqstr(plugin->getDisplayName());
+                connectedIcon = (plugin->getIdentifier() != "");
             }
         } else if ((*it)->getType() == Instrument::Audio) {
             connectedIcon = true;
@@ -788,7 +877,7 @@ TrackButtons::populateInstrumentPopup(Instrument *thisTrackInstr, QMenu* instrum
         //action->setIconVisibleInMenu(true);
 
         // Action text
-        if (pname != "") iname += " (" + pname + ")";
+        if (programName != "") iname += " (" + programName + ")";
         action->setText(iname);
 
         // Item index used to find the proper instrument once the user makes
@@ -815,65 +904,116 @@ TrackButtons::slotInstrumentSelected(QAction* action)
 }
 
 void
+TrackButtons::selectInstrument(Track *track, Instrument *instrument)
+{
+    // Inform the rest of the system of the instrument change.
+
+    // ??? This routine needs to go for two reasons:
+    //
+    //     1. TrackParameterBox calls this.  UI to UI connections should be
+    //        avoided.  It would be better to copy/paste this over to TPB
+    //        to avoid the connection.  But then we have double-maintenance.
+    //        See reason 2.
+    //
+    //     2. The UI shouldn't know so much about the other objects in the
+    //        system.  The following updates should be done by their
+    //        respective objects.
+    //
+    //     A "TrackStaticSignals::instrumentChanged(Track *, Instrument *)"
+    //     notification is probably the best way to get rid of this routine.
+    //     It could be emitted from Track::setInstrument().  Normally emitting
+    //     from setters is bad, but in this case, it is necessary.  We need
+    //     to know about every single change when it occurs.
+    //     Then ControlBlockSignalHandler (new class to avoid deriving
+    //     ControlBlock from QObject), InstrumentSignalHandler (new class to
+    //     handle signals for all Instrument instances), and
+    //     SequenceManager (already derives from QObject, might want to
+    //     consider a new SequenceManagerSignalHandler to avoid additional
+    //     dependency on QObject) can connect and do what needs to be done in
+    //     response.  Rationale for this over doc modified is that we
+    //     can't simply refresh everything (Instrument::sendChannelSetup()
+    //     sends out data), and it is expensive to detect what has actually
+    //     changed (we would have to cache the Track->Instrument mapping and
+    //     check it for changes).
+
+    const TrackId trackId = track->getId();
+
+    // *** ControlBlock
+
+    ControlBlock::getInstance()->
+            setInstrumentForTrack(trackId, instrument->getId());
+
+    // *** Send out BS/PC
+
+    // Make sure the Device is in sync with the Instrument's settings.
+    instrument->sendChannelSetup();
+
+    // *** SequenceManager
+
+    // In case the sequencer is currently playing, we need to regenerate
+    // all the events with the new channel number.
+
+    Composition &comp = m_doc->getComposition();
+    SequenceManager *sequenceManager = m_doc->getSequenceManager();
+
+    // For each segment in the composition
+    for (Composition::iterator i = comp.begin();
+         i != comp.end();
+         ++i) {
+
+        Segment *segment = (*i);
+
+        // If this Segment is on this Track, let SequenceManager know
+        // that the Instrument has changed.
+        // Segments on this track are now playing on a new
+        // instrument, so they're no longer ready (making them
+        // ready is done just-in-time elsewhere), nor is thru
+        // channel ready.
+        if (segment->getTrack() == trackId)
+            sequenceManager->segmentInstrumentChanged(segment);
+
+    }
+}
+
+void
 TrackButtons::slotInstrumentSelected(int instrumentIndex)
 {
-    //RG_DEBUG << "TrackButtons::slotInstrumentSelected()  instrumentIndex =" << instrumentIndex;
+    //RG_DEBUG << "slotInstrumentSelected(): instrumentIndex =" << instrumentIndex;
 
-    Instrument *inst = m_doc->getStudio().getInstrumentFromList(instrumentIndex);
+    Instrument *instrument =
+            m_doc->getStudio().getInstrumentFromList(instrumentIndex);
 
-    // debug dump
-//    for (int n = 0; n < 100; n++) {
-//        inst = studio.getInstrumentFromList(n);
-//        RG_DEBUG << "Studio returned instrument \"" << inst->getPresentationName() << "\" for index " << n;
-//    }
+    //RG_DEBUG << "slotInstrumentSelected(): instrument " << inst;
 
-    //RG_DEBUG << "TrackButtons::slotInstrumentSelected: instrument " << inst;
-
-    if (inst != 0) {
-        Composition &comp = m_doc->getComposition();
-        Track *track =
-                comp.getTrackByPosition(m_popupTrackPos);
-
-        if (track != 0) {
-            // Select the new instrument for the track.  Seems like we
-            // need to do all 3 ways:
-            // For Track.cpp
-            track->setInstrument(inst->getId());
-            // For TrackParameterBox
-            emit instrumentSelected((int)inst->getId());
-            // For ControlBlock's representation of track.
-            ControlBlock::getInstance()->
-                setInstrumentForTrack(m_popupTrackPos, inst->getId());
-
-            // Update the instrument names
-            initInstrumentNames(inst, m_trackLabels[m_popupTrackPos]);
-            m_trackLabels[m_popupTrackPos]->updateLabel();
-
-            // Udpate the LED color
-            m_recordLeds[m_popupTrackPos]->setColor(getRecordLedColour(inst));
-
-            SequenceManager *sM =
-                m_doc->getSequenceManager();
-
-            // Segments on this track are now playing on a new
-            // instrument, so they're no longer ready (making them
-            // ready is done just-in-time elsewhere), nor is thru
-            // channel ready.
-            for (Composition::iterator i =
-                     comp.begin();
-                 i != comp.end(); ++i) {
-                if (((int)(*i)->getTrack()) == m_popupTrackPos) {
-                    sM->segmentInstrumentChanged(*i);
-                }
-            }    
-        } else {
-            RG_DEBUG << "slotInstrumentSelected() - can't find track!\n";
-        }
-
-    } else {
-        RG_DEBUG << "slotInstrumentSelected() - can't find item!\n";
+    if (!instrument) {
+        RG_WARNING << "slotInstrumentSelected(): WARNING: Can't find Instrument";
+        return;
     }
 
+    Composition &comp = m_doc->getComposition();
+    Track *track = comp.getTrackByPosition(m_popupTrackPos);
+
+    if (!track) {
+        RG_WARNING << "slotInstrumentSelected(): WARNING: Can't find Track";
+        return;
+    }
+
+    // No change?  Bail.
+    if (instrument->getId() == track->getInstrument())
+        return;
+
+    // Select the new instrument for the track.
+
+    // ??? This sends a trackChanged() notification.  It shouldn't.  We should
+    //     send one here.
+    track->setInstrument(instrument->getId());
+    // ??? This is what we should do.
+    //comp.notifyTrackChanged(track);
+
+    m_doc->slotDocumentModified();
+
+    // Notify IPB, ControlBlock, and SequenceManager.
+    selectInstrument(track, instrument);
 }
 
 void
@@ -890,64 +1030,9 @@ TrackButtons::changeLabelDisplayMode(TrackLabel::DisplayMode mode)
 }
 
 void
-TrackButtons::slotInstrumentChanged(Instrument *instrument)
-{
-    Composition &comp = m_doc->getComposition();
-
-    // For each track, search for the one with this instrument ID.
-    // This is essentially a Composition::getTrackByInstrumentId().
-    for (int i = 0; i < m_tracks; i++) {
-        Track *track = comp.getTrackByPosition(i);
-
-        if (track  &&  track->getInstrument() == instrument->getId()) {
-
-            // Set the program change name and update the UI.
-
-            // For a SoftSynth, use the plugin's name.
-            if (instrument->getType() == Instrument::SoftSynth) {
-
-                // ??? This code is in at least four places.  Twice here, once
-                //     in TrackParameterBox, once in ManageMetronomeDialog, ...
-                //     Search on "strtoqstr(plugin->getIdentifier())" to find
-                //     them.
-                //     Probably should factor out into an AudioPluginInstance
-                //     member.  getDisplayName()?
-
-                AudioPluginInstance *plugin =
-                        instrument->getPlugin(Instrument::SYNTH_PLUGIN_POSITION);
-                if (plugin) {
-                    // we don't translate any plugin program names or other texts
-                    QString pname = strtoqstr(plugin->getProgram());
-                    QString identifier = strtoqstr(plugin->getIdentifier());
-                    if (identifier != "") {
-                        QString type, soName, label;
-                        PluginIdentifier::parseIdentifier(identifier, type, soName, label);
-                        if (pname == "") {
-                            pname = strtoqstr(plugin->getDistinctiveConfigurationText());
-                        }
-                        if (pname != "") {
-                            pname = QString("%1: %2").arg(label).arg(pname);
-                        } else {
-                            pname = label;
-                        }
-                    }
-
-                    m_trackLabels[i]->setProgramChangeName(pname);
-                }
-            } else {
-                m_trackLabels[i]->setProgramChangeName(QObject::tr(instrument->getProgramName().c_str()));
-            }
-
-            m_trackLabels[i]->updateLabel();
-
-        }
-    }
-}
-
-void
 TrackButtons::slotSynchroniseWithComposition()
 {
-    //RG_DEBUG << "TrackButtons::slotSynchroniseWithComposition()";
+    //RG_DEBUG << "slotSynchroniseWithComposition()";
 
     Composition &comp = m_doc->getComposition();
 
@@ -1004,7 +1089,7 @@ TrackButtons::trackHeight(TrackId trackId)
 QFrame*
 TrackButtons::makeButton(Track *track)
 {
-    if (track == 0) return 0;
+    if (track == nullptr) return nullptr;
 
     TrackId trackId = track->getId();
 
@@ -1020,10 +1105,11 @@ TrackButtons::makeButton(Track *track)
     trackHBox->setMinimumSize(labelWidth(), trackHeight(trackId));
     trackHBox->setFixedHeight(trackHeight(trackId));
 
-    // Try a style for the box
-    trackHBox->setFrameStyle(StyledPanel);
-    trackHBox->setFrameShape(StyledPanel);
-    trackHBox->setFrameShadow(Raised);
+    trackHBox->setFrameShape(QFrame::StyledPanel);
+    trackHBox->setFrameShadow(QFrame::Raised);
+
+    // We will be changing the background color, so turn on auto-fill.
+    trackHBox->setAutoFillBackground(true);
 
     // Insert a little gap
     hblayout->addSpacing(m_vuSpacing);
@@ -1079,6 +1165,22 @@ TrackButtons::makeButton(Track *track)
     record->setFixedSize(m_cellSize - m_buttonGap, m_cellSize - m_buttonGap);
 
 
+    // *** Solo LED ***
+
+    LedButton *solo = new LedButton(
+            GUIPalette::getColour(GUIPalette::SoloTrackLED), trackHBox);
+    solo->setToolTip(tr("Solo track"));
+    hblayout->addWidget(solo);
+
+    connect(solo, SIGNAL(stateChanged(bool)),
+            m_soloSigMapper, SLOT(map()));
+    m_soloSigMapper->setMapping(solo, track->getPosition());
+
+    m_soloLeds.push_back(solo);
+
+    solo->setFixedSize(m_cellSize - m_buttonGap, m_cellSize - m_buttonGap);
+
+
     // *** Track Label ***
 
     TrackLabel *trackLabel =
@@ -1093,8 +1195,8 @@ TrackButtons::makeButton(Track *track)
     trackLabel->setFixedHeight(m_cellSize - m_buttonGap);
     trackLabel->setIndent(7);
 
-    connect(trackLabel, SIGNAL(renameTrack(QString, QString, TrackId)),
-            SLOT(slotRenameTrack(QString, QString, TrackId)));
+    connect(trackLabel, &TrackLabel::renameTrack,
+            this, &TrackButtons::slotRenameTrack);
 
     m_trackLabels.push_back(trackLabel);
 
@@ -1125,7 +1227,8 @@ TrackButtons::getRecordLedColour(Instrument *ins)
 
     case Instrument::Midi:
         return GUIPalette::getColour(GUIPalette::RecordMIDITrackLED);
-            
+
+    case Instrument::InvalidInstrument:
     default:
         RG_DEBUG << "TrackButtons::slotUpdateTracks() - invalid instrument type, this is probably a BUG!";
         return Qt::green;
@@ -1148,7 +1251,7 @@ TrackButtons::tracksAdded(const Composition *, std::vector<TrackId> &/*trackIds*
 void
 TrackButtons::trackChanged(const Composition *, Track* track)
 {
-    //RG_DEBUG << "TrackButtons::trackChanged()";
+    //RG_DEBUG << "trackChanged()";
     //RG_DEBUG << "  Position:" << track->getPosition();
     //RG_DEBUG << "  Armed:" << track->isArmed();
 
@@ -1175,20 +1278,42 @@ TrackButtons::trackSelectionChanged(const Composition *, TrackId trackId)
 }
 
 void
+TrackButtons::segmentRemoved(const Composition *, Segment *)
+{
+    // If recording causes the track heights to change, this makes sure
+    // they go back if needed when recording stops.
+
+    slotUpdateTracks();
+}
+
+void
 TrackButtons::slotTrackSelected(int trackId)
 {
     // Select the track.
     m_doc->getComposition().setSelectedTrack(trackId);
 
-    // New notification mechanism
-    // ??? Wouldn't a track pointer be more convenient for all involved?
+    // Old notification mechanism
+    // ??? This should be replaced with emitDocumentModified() below.
     m_doc->getComposition().notifyTrackSelectionChanged(trackId);
 
-    // Old mechanism.  Keeping this until we can completely replace it
-    // with the new mechanism above.
+    // Older mechanism.  Keeping this until we can completely replace it
+    // with emitDocumentModified() below.
     emit trackSelected(trackId);
+
+    // New notification mechanism.
+    // This should replace all others.
+    m_doc->emitDocumentModified();
+}
+
+void
+TrackButtons::slotDocumentModified(bool)
+{
+    // Full and immediate update.
+    // ??? Note that updates probably happen elsewhere.  This will result
+    //     in duplicate updates.  All other updates should be removed and
+    //     this should be the only update.
+    slotUpdateTracks();
 }
 
 
 }
-#include "TrackButtons.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -41,7 +41,7 @@ namespace Rosegarden
 
 // Get the selection we have.
 EventSelection *
-ParameterPattern::Result::getSelection(void)
+ParameterPattern::Result::getSelection()
 {
     return m_situation->getEventSelection();
 }
@@ -49,7 +49,7 @@ ParameterPattern::Result::getSelection(void)
 // Modify the segment we have.  This is the guts of
 // SelectionPropertyCommand.
 void
-ParameterPattern::Result::modifySegment(void)
+ParameterPattern::Result::modifySegment()
 {
     typedef EventSelection::eventcontainer::iterator iterator;
     const EventSelection *selection = m_situation->getEventSelection();
@@ -140,7 +140,7 @@ ParameterPattern::getTimes (iterator begin, iterator end)
 
 /* ***** End-to-end functions ***** */
 
-// Set some property, with a dialog.  Safe to call with NULL
+// Set some property, with a dialog.  Safe to call with nullptr
 // selection.
 // @param situation This call will take ownership of situation.
 void
@@ -160,6 +160,11 @@ ParameterPattern::setProperties(QMainWindow *parent,
         CommandHistory::getInstance()->addCommand
             (new SelectionPropertyCommand(dialog.getResult()));
     } else { delete situation; }
+}
+
+ParameterPattern::~ParameterPattern()
+{
+
 }
     
 void

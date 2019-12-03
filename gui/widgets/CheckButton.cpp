@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,7 +38,7 @@ CheckButton::CheckButton(QString iconName, bool wantsMemory,  QWidget *parent) :
     setIcon(IconLoader().load(m_iconName));
 
     if (m_wantsMemory) { 
-        RG_DEBUG << "CheckButton: recall for: " << iconName << endl;
+        RG_DEBUG << "CheckButton: recall for: " << iconName;
         // memory recall
         QSettings settings;
         settings.beginGroup(CheckButtonConfigGroup);
@@ -77,7 +77,7 @@ CheckButton::toggle(bool state)
 {
     if (m_wantsMemory) {
         // Memory storage
-        RG_DEBUG << "CheckButton, storing value of " << m_iconName << " as: " << state << endl;
+        RG_DEBUG << "CheckButton, storing value of " << m_iconName << " as: " << state;
         QSettings settings;
         settings.beginGroup(CheckButtonConfigGroup);
         settings.setValue(m_iconName, state);
@@ -88,4 +88,3 @@ CheckButton::toggle(bool state)
 
 }
 
-#include "CheckButton.moc"

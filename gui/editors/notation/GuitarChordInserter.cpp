@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -29,13 +29,14 @@
 #include "NotationStaff.h"
 #include "NotationWidget.h"
 #include "NotePixmapFactory.h"
+#include "gui/widgets/Panned.h"
 
 namespace Rosegarden
 {
 
 GuitarChordInserter::GuitarChordInserter(NotationWidget *widget) :
     NotationTool("guitarchordinserter.rc", "GuitarChordInserter", widget),
-    m_guitarChordSelector(0)
+    m_guitarChordSelector(nullptr)
 {
     createAction("select", SLOT(slotSelectSelected()));
     createAction("erase", SLOT(slotEraseSelected()));
@@ -75,6 +76,9 @@ GuitarChordInserter::ready()
 {
     m_widget->setCanvasCursor(Qt::CrossCursor);
 //!!!    m_nParentView->setHeightTracking(false);
+
+    // The guitar chord tool doesn't use the wheel.
+    m_widget->getView()->setWheelZoomPan(true);
 }
 
 void
@@ -131,7 +135,7 @@ GuitarChordInserter::handleSelectedGuitarChord(const NotationMouseEvent *e)
 
             CommandHistory::getInstance()->addCommand(command);
         }
-    } catch (Exception e) {}
+    } catch (const Exception &e) {}
 }
 
 void GuitarChordInserter::createNewGuitarChord(const NotationMouseEvent *e)
@@ -140,8 +144,7 @@ void GuitarChordInserter::createNewGuitarChord(const NotationMouseEvent *e)
     processDialog(e->staff, insertionTime);
 }
 
-const QString GuitarChordInserter::ToolName = "guitarchordinserter";
+QString GuitarChordInserter::ToolName() { return "guitarchordinserter"; }
 
 }
 
-#include "GuitarChordInserter.moc"

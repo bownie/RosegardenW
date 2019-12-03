@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -20,8 +20,9 @@
 
 namespace Rosegarden
 {
-    // Time in internal units.
+    // Time in internal units (pulses).  Timebase is 960ppq.
     typedef long timeT;
+    constexpr timeT timebase = 960;
 
     // Time used in the rewriter to represent tupled notes exactly.
     // It doesn't have a fixed conversion to timeT, instead each bar

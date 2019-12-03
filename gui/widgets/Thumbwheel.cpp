@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file originally from Sonic Visualiser, copyright 2007 Queen
     Mary, University of London.
@@ -15,10 +15,14 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[Thumbwheel]"
+
 #include "Thumbwheel.h"
 
 #include "base/Profiler.h"
 #include "misc/ConfigGroups.h"
+#include "misc/Debug.h"
+#include "gui/general/ThornStyle.h"
 
 #include <QMouseEvent>
 #include <QPaintEvent>
@@ -26,7 +30,6 @@
 #include <QInputDialog>
 #include <QPainter>
 #include <QPainterPath>
-#include <QSettings>
 
 #include <cmath>
 #include <iostream>
@@ -54,19 +57,11 @@ Thumbwheel::Thumbwheel(Qt::Orientation orientation,
     m_bright(true),
     m_useRed(useRed)
 {
-    // this widget was not even remotely trying to pay attention to anything I
-    // attempted in the stylesheet, so what we'll do is use the old code for the
-    // no stylesheet case, and hard code the Thorn version beside it
-    //
     // NOTE: we should avoid using highlight() and mid() and so on, even though
     // they happen to produce nice results on my everyday setup, because these
     // will change according to external color preferences, and can produce
     // horrible results with the Thorn style.  (I need to fix this in the Rotary
     // and Fader code, and anywhere else it appears.)
-    QSettings settings;
-    settings.beginGroup(GeneralOptionsConfigGroup);
-    m_Thorn = settings.value("use_thorn_style", true).toBool();
-    settings.endGroup();
 }
 
 Thumbwheel::~Thumbwheel()
@@ -317,14 +312,16 @@ Thumbwheel::mouseReleaseEvent(QMouseEvent *e)
 void
 Thumbwheel::wheelEvent(QWheelEvent *e)
 {
+    // We'll handle this.  Don't pass to parent.
+    e->accept();
+
     int step = lrintf(m_speed);
     if (step == 0) step = 1;
 
-    if (e->delta() > 0) {
+    if (e->angleDelta().y() > 0)
         setValue(m_value + step);
-    } else {
+    else if (e->angleDelta().y() < 0)
         setValue(m_value - step);
-    }
     
     emit valueChanged(getValue());
 }
@@ -332,7 +329,7 @@ Thumbwheel::wheelEvent(QWheelEvent *e)
 void
 Thumbwheel::paintEvent(QPaintEvent *)
 {
-    Profiler profiler("Thumbwheel::paintEvent");
+    //Profiler profiler("Thumbwheel::paintEvent");
 
     if (!m_cache.isNull()) {
         QPainter paint(this);
@@ -340,7 +337,7 @@ Thumbwheel::paintEvent(QPaintEvent *)
         return;
     }
 
-    Profiler profiler2("Thumbwheel::paintEvent (no cache)");
+    //Profiler profiler2("Thumbwheel::paintEvent (no cache)");
 
     m_cache = QImage(size(), QImage::Format_ARGB32_Premultiplied);
     m_cache.fill(Qt::transparent);
@@ -356,7 +353,7 @@ Thumbwheel::paintEvent(QPaintEvent *)
 
     QPainter paint(&m_cache);
     paint.setClipRect(rect());
-    QColor bg = (m_Thorn ? QColor(0xED, 0xED, 0xFF) : palette().background().color());
+    QColor bg = (ThornStyle::isEnabled() ? QColor(0xED, 0xED, 0xFF) : palette().background().color());
     if (!m_bright) bg = bg.darker(125);
     paint.fillRect(subclip, bg);
 
@@ -433,7 +430,7 @@ Thumbwheel::paintEvent(QPaintEvent *)
         int grey = lrintf(120 * depth);
 
         QColor fc = QColor(grey, grey, grey);
-        QColor oc = (m_Thorn ? QColor(0xAA, 0xAA, 0xFF) : palette().highlight().color());
+        QColor oc = (ThornStyle::isEnabled() ? QColor(0xAA, 0xAA, 0xFF) : palette().highlight().color());
         if (m_useRed) oc = Qt::red;
         if (!m_bright) oc = oc.darker(125);
 
@@ -494,5 +491,4 @@ Thumbwheel::setBright(const bool v)
 
 }
 
-#include "Thumbwheel.moc"
 

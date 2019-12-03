@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -31,7 +31,6 @@
 #include "base/Studio.h"
 #include "base/Track.h"
 #include "gui/editors/notation/NotationStrings.h"
-#include "gui/general/ProgressReporter.h"
 #include <QFile>
 #include <QObject>
 #include <QString>
@@ -39,6 +38,7 @@
 #include <QTextStream>
 #include <string>
 #include <vector>
+#include <iostream>
 
 using std::vector;
 using std::string;
@@ -51,13 +51,12 @@ using namespace BaseProperties;
 using namespace Accidentals;
 using namespace Marks;
 
-RG21Loader::RG21Loader(Studio *studio,
-                       QObject *parent)
-        : ProgressReporter(parent),
-        m_stream(0),
+RG21Loader::RG21Loader(Studio *studio)
+        :
+        m_stream(nullptr),
         m_studio(studio),
-        m_composition(0),
-        m_currentSegment(0),
+        m_composition(nullptr),
+        m_currentSegment(nullptr),
         m_currentSegmentTime(0),
         m_currentSegmentNb(0),
         m_currentClef(Clef::Treble),
@@ -143,7 +142,7 @@ bool RG21Loader::parseChordItem()
     timeT duration = convertRG21Duration(i);
 
     // get chord mod flags and nb of notes.  chord mod is hex
-    int chordMods = (*i).toInt(0, 16);
+    int chordMods = (*i).toInt(nullptr, 16);
     ++i;
     /*int nbNotes   = (*i).toInt();*/
     ++i;
@@ -159,7 +158,7 @@ bool RG21Loader::parseChordItem()
         // The noteMods field is nominally a hex integer.  As it
         // happens its value can never exceed 7, but I guess we
         // should do the right thing anyway
-        int noteMods = (*i).toInt(0, 16);
+        int noteMods = (*i).toInt(nullptr, 16);
         pitch = convertRG21Pitch(pitch, noteMods);
 
         Event *noteEvent = new Event(Note::EventType,
@@ -338,7 +337,7 @@ bool RG21Loader::parseIndicationStart()
     unsigned int indicationId = m_tokens[2].toUInt();
     std::string indicationType = qstrtostr(m_tokens[3].toLower());
 
-    //    RG_DEBUG << "Indication start: type is \"" << indicationType << "\"" << endl;
+    //    RG_DEBUG << "Indication start: type is \"" << indicationType << "\"";
 
     if (indicationType == "tie") {
 
@@ -364,7 +363,7 @@ bool RG21Loader::parseIndicationStart()
         }
         m_tieStatus = 2;
 
-        RG_DEBUG << "rg21io: Indication start: it's a tie" << endl;
+        RG_DEBUG << "rg21io: Indication start: it's a tie";
 
     } else {
 
@@ -390,7 +389,7 @@ bool RG21Loader::parseIndicationStart()
 
         m_currentSegment->insert(e);
 
-        RG_DEBUG << "rg21io: Indication start: it's a real indication; id is " << indicationId << ", event is:" << endl;
+        RG_DEBUG << "rg21io: Indication start: it's a real indication; id is " << indicationId << ", event is:";
         e->dump(std::cerr);
 
     }
@@ -407,7 +406,7 @@ void RG21Loader::closeIndication()
     unsigned int indicationId = m_tokens[2].toUInt();
     EventIdMap::iterator i = m_indicationsExtant.find(indicationId);
 
-    RG_DEBUG << "rg21io: Indication close: indication id is " << indicationId << endl;
+    RG_DEBUG << "rg21io: Indication close: indication id is " << indicationId;
 
     // this is normal (for ties):
     if (i == m_indicationsExtant.end())
@@ -532,7 +531,7 @@ bool RG21Loader::parseBarType()
     }
 
     // barNo is a hex integer
-    int barNo = m_tokens[2].toInt(0, 16);
+    int barNo = m_tokens[2].toInt(nullptr, 16);
 
     int numerator = m_tokens[4].toInt();
     int denominator = m_tokens[5].toInt();
@@ -593,7 +592,7 @@ timeT RG21Loader::convertRG21Duration(QStringList::Iterator& i)
         Note n(NotationStrings::getNoteForName(durationString));
         return n.getDuration();
 
-    } catch (NotationStrings::MalformedNoteName m) {
+    } catch (const NotationStrings::MalformedNoteName &m) {
 
         RG_DEBUG << "RG21Loader::convertRG21Duration: Bad duration: "
         << durationString << endl;
@@ -622,7 +621,7 @@ void RG21Loader::closeSegment()
         m_composition->notifyTracksAdded(trackIds);
 
         m_composition->addSegment(m_currentSegment);
-        m_currentSegment = 0;
+        m_currentSegment = nullptr;
         m_currentSegmentTime = 0;
         m_currentClef = Clef(Clef::Treble);
 
@@ -686,6 +685,8 @@ bool RG21Loader::load(const QString &fileName, Composition &comp)
     m_studio->unassignAllInstruments();
 
     while (!m_stream->atEnd()) {
+
+        qApp->processEvents();
 
         if (!readNextLine())
             break;
@@ -766,12 +767,12 @@ bool RG21Loader::load(const QString &fileName, Composition &comp)
 
         } else {
 
-            RG_DEBUG << "RG21Loader::parse: Unsupported element type \"" << firstToken << "\", ignoring" << endl;
+            RG_DEBUG << "RG21Loader::parse: Unsupported element type \"" << firstToken << "\", ignoring";
         }
     }
 
     delete m_stream;
-    m_stream = 0;
+    m_stream = nullptr;
 
     return true;
 }

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -15,6 +15,9 @@
     COPYING included with this distribution for more information.
 */
 
+#define RG_MODULE_STRING "[ChordNameRuler]"
+
+#define RG_NO_DEBUG_PRINT 1
 
 #include "ChordNameRuler.h"
 
@@ -54,11 +57,9 @@ namespace Rosegarden
 
 ChordNameRuler::ChordNameRuler(RulerScale *rulerScale,
                                RosegardenDocument *doc,
-                               double xorigin,
                                int height,
                                QWidget *parent) :
         QWidget(parent),
-        m_xorigin(xorigin),
         m_height(height),
         m_currentXOffset(0),
         m_width( -1),
@@ -66,9 +67,9 @@ ChordNameRuler::ChordNameRuler(RulerScale *rulerScale,
         m_rulerScale(rulerScale),
         m_composition(&doc->getComposition()),
         m_regetSegmentsOnChange(true),
-        m_currentSegment(0),
-        m_studio(0),
-        m_chordSegment(0),
+        m_currentSegment(nullptr),
+        m_studio(nullptr),
+        m_chordSegment(nullptr),
         m_fontMetrics(m_boldFont),
         TEXT_FORMAL_X("TextFormalX"),
         TEXT_ACTUAL_X("TextActualX")
@@ -92,11 +93,9 @@ ChordNameRuler::ChordNameRuler(RulerScale *rulerScale,
 ChordNameRuler::ChordNameRuler(RulerScale *rulerScale,
                                RosegardenDocument *doc,
                                std::vector<Segment *> &segments,
-                               double xorigin,
                                int height,
                                QWidget *parent) :
         QWidget(parent),
-        m_xorigin(xorigin),
         m_height(height),
         m_currentXOffset(0),
         m_width( -1),
@@ -104,9 +103,9 @@ ChordNameRuler::ChordNameRuler(RulerScale *rulerScale,
         m_rulerScale(rulerScale),
         m_composition(&doc->getComposition()),
         m_regetSegmentsOnChange(false),
-        m_currentSegment(0),
-        m_studio(0),
-        m_chordSegment(0),
+        m_currentSegment(nullptr),
+        m_studio(nullptr),
+        m_chordSegment(nullptr),
         m_fontMetrics(m_boldFont),
         TEXT_FORMAL_X("TextFormalX"),
         TEXT_ACTUAL_X("TextActualX")
@@ -195,7 +194,7 @@ ChordNameRuler::sizeHint() const
         m_rulerScale->getBarPosition(m_rulerScale->getLastVisibleBar()) +
         m_rulerScale->getBarWidth(m_rulerScale->getLastVisibleBar());
 
-    NOTATION_DEBUG << "Returning chord-label ruler width as " << width << endl;
+    RG_DEBUG << "sizeHint(): Returning chord-label ruler width as " << width;
 
     QSize res(std::max(int(width), m_width), m_height);
 
@@ -217,7 +216,7 @@ ChordNameRuler::recalculate(timeT from, timeT to)
         return ;
 
     Profiler profiler("ChordNameRuler::recalculate");
-    NOTATION_DEBUG << "ChordNameRuler[" << this << "]::recalculate" << endl;
+    RG_DEBUG << "recalculate(" << this << ")";
 
     bool regetSegments = false;
 
@@ -270,7 +269,7 @@ ChordNameRuler::recalculate(timeT from, timeT to)
             if (ss.find(si->first) == ss.end()) {
                 eraseThese.push_back(si);
                 level = RecalcWhole;
-                NOTATION_DEBUG << "Segment deleted, updating (now have " << m_segments.size() << " segments)" << endl;
+                RG_DEBUG << "recalculate(): Segment deleted, updating (now have " << m_segments.size() << " segments)";
             }
         }
 
@@ -287,13 +286,13 @@ ChordNameRuler::recalculate(timeT from, timeT to)
                 m_segments.insert(SegmentRefreshMap::value_type
                                   (*si, (*si)->getNewRefreshStatusId()));
                 level = RecalcWhole;
-                NOTATION_DEBUG << "Segment created, adding (now have " << m_segments.size() << " segments)" << endl;
+                RG_DEBUG << "recalculate(): Segment created, adding (now have " << m_segments.size() << " segments)";
             }
         }
 
         if (m_currentSegment &&
                 ss.find(m_currentSegment) == ss.end()) {
-            m_currentSegment = 0;
+            m_currentSegment = nullptr;
             level = RecalcWhole;
         }
     }
@@ -323,19 +322,19 @@ ChordNameRuler::recalculate(timeT from, timeT to)
 
     if (level == RecalcNone) {
         if (from == to) {
-            NOTATION_DEBUG << "ChordNameRuler::recalculate: from==to, recalculating all" << endl;
+            RG_DEBUG << "recalculate(): from==to, recalculating all";
             level = RecalcWhole;
         } else if (overallStatus.from() == overallStatus.to()) {
-            NOTATION_DEBUG << "ChordNameRuler::recalculate: overallStatus.from==overallStatus.to, ignoring" << endl;
+            RG_DEBUG << "recalculate(): overallStatus.from==overallStatus.to, ignoring";
             level = RecalcNone;
         } else if (overallStatus.from() >= from && overallStatus.to() <= to) {
-            NOTATION_DEBUG << "ChordNameRuler::recalculate: change is " << overallStatus.from() << "->" << overallStatus.to() << ", I show " << from << "->" << to << ", recalculating visible area" << endl;
+            RG_DEBUG << "recalculate(): change is " << overallStatus.from() << "->" << overallStatus.to() << ", I show " << from << "->" << to << ", recalculating visible area";
             level = RecalcVisible;
         } else if (overallStatus.from() >= to || overallStatus.to() <= from) {
-            NOTATION_DEBUG << "ChordNameRuler::recalculate: change is " << overallStatus.from() << "->" << overallStatus.to() << ", I show " << from << "->" << to << ", ignoring" << endl;
+            RG_DEBUG << "recalculate(): change is " << overallStatus.from() << "->" << overallStatus.to() << ", I show " << from << "->" << to << ", ignoring";
             level = RecalcNone;
         } else {
-            NOTATION_DEBUG << "ChordNameRuler::recalculate: change is " << overallStatus.from() << "->" << overallStatus.to() << ", I show " << from << "->" << to << ", recalculating whole" << endl;
+            RG_DEBUG << "recalculate(): change is " << overallStatus.from() << "->" << overallStatus.to() << ", I show " << from << "->" << to << ", recalculating whole";
             level = RecalcWhole;
         }
     }
@@ -411,7 +410,7 @@ ChordNameRuler::paintEvent(QPaintEvent* e)
     if (!m_composition || !m_ready)
         return ;
 
-    NOTATION_DEBUG << "*** Chord Name Ruler: paintEvent" << endl;
+    RG_DEBUG << "paintEvent()";
 
     Profiler profiler1("ChordNameRuler::paintEvent (whole)");
 
@@ -431,9 +430,9 @@ ChordNameRuler::paintEvent(QPaintEvent* e)
     QRect clipRect = paint.clipRegion().boundingRect();
 
     timeT from = m_rulerScale->getTimeForX
-                 (clipRect.x() - m_currentXOffset - m_xorigin - 50);
+                 (clipRect.x() - m_currentXOffset - 50);
     timeT to = m_rulerScale->getTimeForX
-               (clipRect.x() + clipRect.width() - m_currentXOffset - m_xorigin + 50);
+               (clipRect.x() + clipRect.width() - m_currentXOffset + 50);
 
     recalculate(from, to);
 
@@ -450,13 +449,12 @@ ChordNameRuler::paintEvent(QPaintEvent* e)
     timeT keyAt = from - 1;
     std::string keyText;
 
-    NOTATION_DEBUG << "*** Chord Name Ruler: paint " << from << " -> " << to << endl;
+    RG_DEBUG << "paintEvent(): " << from << " -> " << to;
 
     for (Segment::iterator i = m_chordSegment->findTime(from);
             i != m_chordSegment->findTime(to); ++i) {
 
-        NOTATION_DEBUG << "type " << (*i)->getType() << " at " << (*i)->getAbsoluteTime()
-        << endl;
+        RG_DEBUG << "paintEvent(): type " << (*i)->getType() << " at " << (*i)->getAbsoluteTime();
 
         if (!(*i)->isa(Text::EventType) ||
                 !(*i)->has(Text::TextPropertyName) ||
@@ -510,8 +508,8 @@ ChordNameRuler::paintEvent(QPaintEvent* e)
         long actualX = (*i)->get
                        <Int>(TEXT_ACTUAL_X);
 
-        formalX += m_currentXOffset + long(m_xorigin);
-        actualX += m_currentXOffset + long(m_xorigin);
+        formalX += m_currentXOffset;
+        actualX += m_currentXOffset;
 
         paint.drawLine(formalX, height() - 4, formalX, height());
 
@@ -521,11 +519,10 @@ ChordNameRuler::paintEvent(QPaintEvent* e)
             paint.setFont(m_font);
         }
 
-        NOTATION_DEBUG << "ChordNameRuler drawing text " << text << endl;
+        RG_DEBUG << "paintEvent(): drawing text " << text;
 
         paint.drawText(actualX, textY, strtoqstr(text));
     }
 }
 
 }
-#include "ChordNameRuler.moc"

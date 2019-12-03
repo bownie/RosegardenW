@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -20,6 +20,7 @@
 
 namespace Rosegarden {
 
+/// The "Grid quantizer"
 class BasicQuantizer : public Quantizer
 {
 public:
@@ -31,7 +32,7 @@ public:
                    timeT unit = -1, bool doDurations = false,
                    int swingPercent = 0, int iteratePercent = 100);
     BasicQuantizer(const BasicQuantizer &);
-    virtual ~BasicQuantizer();
+    ~BasicQuantizer() override;
 
     void setUnit(timeT unit) { m_unit = unit; }
     timeT getUnit() const { return m_unit; }
@@ -68,8 +69,8 @@ public:
     static timeT getStandardQuantization(EventSelection *);
 
 protected:
-    virtual void quantizeSingle(Segment *,
-                                Segment::iterator) const;
+    void quantizeSingle(Segment *,
+                                Segment::iterator) const override;
 
 private:
     BasicQuantizer &operator=(const BasicQuantizer &); // not provided

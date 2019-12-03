@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -209,8 +209,8 @@ SelectAddEvenNotesCommand::findBeatEvents(Segment &s,
        // Break if there won't be more notes to find.
        if (startRangeIter == s.end()) { break; }
 
-       // Candidate variable.  NULL means nothing found.
-       Event *nextBeat = 0;
+       // Candidate variable.  nullptr means nothing found.
+       Event *nextBeat = nullptr;
        // Scoring variable, how much the best candidate note differs
        // from expectedNoteTime.  Smaller is better.
        timeT nearestMiss = std::numeric_limits<timeT>::max();
@@ -373,7 +373,7 @@ SelectAddEvenNotesCommand::modifySegment()
 EventSelection *
 SelectAddEvenNotesCommand::getSubsequentSelection()
 {
-    RG_DEBUG << "SelectAddEvenNotesCommand::getSubsequentSelection" << endl;
+    RG_DEBUG << "SelectAddEvenNotesCommand::getSubsequentSelection";
     EventSelection *selection = new EventSelection(getSegment());
 
     RG_DEBUG << (int)m_beatEventVector.size()

@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file is Copyright 2002
         Hans Kieserman      <hkieserman@mail.com>
@@ -28,8 +28,11 @@
 
 #include "MusicXmlExportHelper.h"
 
-#include "gui/general/ProgressReporter.h"
 #include "document/RosegardenDocument.h"
+
+#include <QPointer>
+
+class QProgressDialog;
 
 namespace Rosegarden
 {
@@ -105,7 +108,7 @@ class Instrument;
  *              However, this is not checked!
  */
 
-class MusicXmlExporter : public ProgressReporter
+class MusicXmlExporter
 {
 public:
 
@@ -121,7 +124,7 @@ public:
      */
     struct MidiInstrument
     {
-      MidiInstrument(void) {};
+      MidiInstrument() {};
       MidiInstrument(Instrument * instrument, int pitch);
       int         channel;
       int         program;
@@ -146,7 +149,11 @@ public:
      * @param filename name of the outfile MusicXML file.
      */
     ~MusicXmlExporter();
+
     bool write();
+
+    void setProgressDialog(QPointer<QProgressDialog> progressDialog)
+            { m_progressDialog = progressDialog; }
 
 protected:
     unsigned int m_exportSelection;
@@ -189,13 +196,16 @@ protected:
     std::string m_fileName;
     RosegardenMainViewWidget *m_view;
 
-    void readConfigVariables(void);
+    void readConfigVariables();
     bool isPercussionTrack(Track *track);
     bool exportTrack(Track *track);
     void writeHeader(std::ostream &str);
     MusicXmlExportHelper* initalisePart(timeT compositionEndTime, int curTrackPos,
                             bool &exporting, bool &inMultiStaffGroup);
     PartsVector writeScorePart(timeT compositionEndTime, std::ostream &str);
+
+private:
+    QPointer<QProgressDialog> m_progressDialog;
 };
 
 }

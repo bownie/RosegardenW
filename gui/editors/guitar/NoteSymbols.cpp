@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     This file contains code from 
     Other copyrights also apply to some parts of this work.  Please
@@ -60,7 +60,7 @@ NoteSymbols::drawMuteSymbol ( bool big,
                               QPainter* p,
                               unsigned int position ) const
 {
-    std::cerr << "NoteSymbols::drawMuteSymbol()" << std::endl;
+    RG_DEBUG << "NoteSymbols::drawMuteSymbol()";
 
     QRect v = p->viewport();
 
@@ -98,7 +98,7 @@ NoteSymbols::drawOpenSymbol ( bool big,
                               QPainter* p,
                               unsigned int position ) const
 {
-    std::cerr << "NoteSymbols::drawOpenSymbol()" << std::endl;
+    RG_DEBUG << "NoteSymbols::drawOpenSymbol()";
     
     QRect v = p->viewport();
     posPair x_pos = getX ( v.width(), position, m_nbOfStrings );
@@ -145,8 +145,8 @@ NoteSymbols::drawNoteSymbol ( bool /* big */,
                               int fretNb,
                               bool transient ) const
 {
-//    NOTATION_DEBUG << "NoteSymbols::drawNoteSymbol - string: " << stringNb << ", fret:" << fretNb << endl;
-    std::cerr << "NoteSymbols::drawNoteSymbol()" << std::endl;
+//    NOTATION_DEBUG << "NoteSymbols::drawNoteSymbol - string: " << stringNb << ", fret:" << fretNb;
+    RG_DEBUG << "NoteSymbols::drawNoteSymbol()";
 
     QRect v = p->viewport();
     posPair x_pos = getX ( v.width(), stringNb, m_nbOfStrings );
@@ -169,7 +169,7 @@ NoteSymbols::drawNoteSymbol ( bool /* big */,
 
 //        y = y_pos.first - (radius / 2) - y_pos.second + TOP_GUITAR_CHORD_MARGIN;
 
-//    RG_DEBUG << "NoteSymbols::drawNoteSymbol : rect = " << QRect(x,y, radius, radius) << endl;
+//    RG_DEBUG << "NoteSymbols::drawNoteSymbol : rect = " << QRect(x,y, radius, radius);
 
     p->drawEllipse( x,
                     y,
@@ -284,7 +284,7 @@ NoteSymbols::drawFrets ( QPainter* p ) const
     p->setPen(pen);
     unsigned int y_pos = (getY ( imgHeight, 0, m_nbOfFrets )).first + TOP_GUITAR_CHORD_MARGIN;
     
-//    NOTATION_DEBUG << "NoteSymbols::drawFrets : " << m_nbOfFrets << endl;
+//    NOTATION_DEBUG << "NoteSymbols::drawFrets : " << m_nbOfFrets;
     
     // Horizontal lines
     for ( unsigned int i = 0; i <= m_nbOfFrets; ++i ) {
@@ -473,8 +473,6 @@ NoteSymbols::getFretNumber ( int imgHeight,
         // User pressing above the guitar chord to mark line muted or opened
         valueOk = true;
     } else {
-        typedef std::pair<unsigned int, unsigned int> RangePair;
-
         posPair min_pos;
         posPair max_pos;
 

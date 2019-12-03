@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2014 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -135,8 +135,8 @@ class Tuning {
   int m_cPosition;
   double  m_refFreq;
   double m_cRefFreq;
-  int m_size;
   const IntervalList *m_intervals;
+  int m_size;
   SpellingList *m_spellings;
 
   typedef std::map<const int, const Accidental *> AccMap;

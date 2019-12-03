@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -33,7 +33,6 @@ namespace Rosegarden
 class Segment;
 class RulerScale;
 class Event;
-//class EditViewBase;
 class ControlParameter;
 class ControlItem;
 
@@ -46,33 +45,30 @@ class ControllerEventsRuler : public ControlRuler, public SegmentObserver
 public:
     ControllerEventsRuler(ViewSegment*,
                           RulerScale*,
-                          QWidget* parent=0,
-                          const ControlParameter *controller = 0,
-                          const char* name=0 );	//, WFlags f=0);
+                          QWidget* parent=nullptr,
+                          const ControlParameter *controller = nullptr,
+                          const char* name=nullptr );
 
-    virtual ~ControllerEventsRuler();
+    ~ControllerEventsRuler() override;
 
-    virtual void paintEvent(QPaintEvent *);
+    void paintEvent(QPaintEvent *) override;
 
-    virtual QString getName();
+    QString getName() override;
     int getDefaultItemWidth() { return m_defaultItemWidth; }
 
     // Allow something external to reset the selection of Events
     // that this ruler is displaying
     //
-    virtual void setViewSegment(ViewSegment *);
-    virtual void setSegment(Segment *);
+    void setViewSegment(ViewSegment *) override;
+    void setSegment(Segment *) override;
 
     // SegmentObserver interface
-//    virtual void elementAdded(const ViewSegment *, ViewElement*);
-    virtual void eventAdded(const Segment *, Event *);
-//    virtual void elementRemoved(const ViewSegment *, ViewElement*);
-    virtual void eventRemoved(const Segment *, Event *);
-//    virtual void viewSegmentDeleted(const ViewSegment *);
-    virtual void segmentDeleted(const Segment *);
+    void eventAdded(const Segment *, Event *) override;
+    void eventRemoved(const Segment *, Event *) override;
+    void segmentDeleted(const Segment *) override;
 
-    virtual ControlItem* addControlItem(float, float);
-    virtual ControlItem* addControlItem(Event *);
+    virtual ControlItem* addControlItem2(float, float);
+    virtual ControlItem* addControlItem2(Event *);
 
     /** Draw a line of controllers from (x1, y1) to (x2, y2).  If
      * eraseExistingControllers is true, any existing controllers falling within
@@ -96,13 +92,11 @@ public:
     virtual Event * insertEvent(float,float);
     virtual void eraseEvent(Event *event);
     virtual void eraseControllerEvent();
-//    virtual void clearControllerEvents();
-//    virtual void startControlLine();
 
     ControlParameter* getControlParameter() { return m_controller; }
 
 public slots:
-    virtual void slotSetTool(const QString&);
+    void slotSetTool(const QString&) override;
 
 protected:
     virtual void init();

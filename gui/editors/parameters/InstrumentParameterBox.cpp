@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -19,189 +19,105 @@
 
 #include "InstrumentParameterBox.h"
 
-#include "misc/Debug.h"
 #include "AudioInstrumentParameterPanel.h"
+#include "misc/Debug.h"
 #include "base/Instrument.h"
-#include "base/MidiProgram.h"
-#include "document/RosegardenDocument.h"
 #include "MIDIInstrumentParameterPanel.h"
-#include "RosegardenParameterArea.h"
-#include "RosegardenParameterBox.h"
+#include "document/RosegardenDocument.h"
+#include "gui/application/RosegardenMainWindow.h"
+#include "base/Studio.h"
 
 #include <QFrame>
-#include <QString>
 #include <QStackedWidget>
-#include <QLayout>
+#include <QVBoxLayout>
 
 
 namespace Rosegarden
 {
 
 
-InstrumentParameterBox::IPBVector InstrumentParameterBox::m_instrumentParamBoxes;
-
-InstrumentParameterBox::InstrumentParameterBox(RosegardenDocument *doc,
-                                               QWidget *parent)
-    : RosegardenParameterBox(tr("Instrument"),
-                             tr("Instrument Parameters"),
-                             parent),
-      m_widgetStack(new QStackedWidget(this)),
-      m_noInstrumentParameters(new QFrame(this)),
-      m_midiInstrumentParameters(new MIDIInstrumentParameterPanel(doc, this)),
-      m_audioInstrumentParameters(new AudioInstrumentParameterPanel(doc, this)),
-      m_selectedInstrument(-1),
-      m_doc(doc)
+InstrumentParameterBox::InstrumentParameterBox(QWidget *parent) :
+    RosegardenParameterBox(tr("Instrument Parameters"), parent),
+    m_stackedWidget(new QStackedWidget(this)),
+    m_emptyFrame(new QFrame),
+    m_mipp(new MIDIInstrumentParameterPanel(nullptr)),
+    m_aipp(new AudioInstrumentParameterPanel(nullptr))
 {
     setObjectName("Instrument Parameter Box");
 
-    m_widgetStack->setFont(m_font);
-    m_noInstrumentParameters->setFont(m_font);
-    m_midiInstrumentParameters->setFont(m_font);
-    m_audioInstrumentParameters->setFont(m_font);
+    m_stackedWidget->setFont(m_font);
+    m_emptyFrame->setFont(m_font);
+    m_mipp->setFont(m_font);
+    m_aipp->setFont(m_font);
 
-    bool contains = false;
+    // ??? Use QStackedLayout instead of QStackedWidget.
 
-    IPBVector::iterator it = m_instrumentParamBoxes.begin();
+    m_stackedWidget->addWidget(m_mipp);
+    m_stackedWidget->addWidget(m_aipp);
+    m_stackedWidget->addWidget(m_emptyFrame);
 
-    for (; it != m_instrumentParamBoxes.end(); ++it)
-        if ((*it) == this)
-            contains = true;
-
-    if (!contains)
-        m_instrumentParamBoxes.push_back(this);
-
-    m_widgetStack->addWidget(m_midiInstrumentParameters);
-    m_widgetStack->addWidget(m_audioInstrumentParameters);
-    m_widgetStack->addWidget(m_noInstrumentParameters);
-
-    connect(m_audioInstrumentParameters,
-            SIGNAL(selectPlugin(QWidget *, InstrumentId, int)),
-            this,
-            SIGNAL(selectPlugin(QWidget *, InstrumentId, int)));
-
-    connect(m_audioInstrumentParameters,
-            SIGNAL(showPluginGUI(InstrumentId, int)),
-            this,
-            SIGNAL(showPluginGUI(InstrumentId, int)));
-
-    // Layout the groups left to right.
-
-    QBoxLayout *layout = new QVBoxLayout(this);
-    setLayout(layout);
+    // Set up a layout manager to make sure the QFrame
+    // (RosegardenParameterBox) is always the right size for its contents.
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    layout->addWidget(m_stackedWidget);
+    // Prevent this layout from introducing even more margin space.
     layout->setMargin(0);
-    layout->addWidget(m_widgetStack);
+    setLayout(layout);
 
+    connect(RosegardenMainWindow::self(),
+                &RosegardenMainWindow::documentChanged,
+            this, &InstrumentParameterBox::slotNewDocument);
 }
 
 InstrumentParameterBox::~InstrumentParameterBox()
 {
-    // deregister this parameter box
-    IPBVector::iterator it = m_instrumentParamBoxes.begin();
-
-    for (; it != m_instrumentParamBoxes.end(); ++it) {
-        if ((*it) == this) {
-            m_instrumentParamBoxes.erase(it);
-            break;
-        }
-    }
-}
-
-
-MIDIInstrumentParameterPanel * 
-    InstrumentParameterBox::getMIDIInstrumentParameterPanel()
-{
-    if (!m_midiInstrumentParameters) return 0;
-    return m_midiInstrumentParameters;
-}
-
-
-Instrument *
-InstrumentParameterBox::getSelectedInstrument()
-{
-    if (m_selectedInstrument < 0) return 0;
-    if (!m_doc) return 0;
-    return m_doc->getStudio().getInstrumentById(m_selectedInstrument);
-}
-
-QString
-InstrumentParameterBox::getPreviousBox(RosegardenParameterArea::Arrangement /* arrangement */) const
-{
-    return tr("Track");
 }
 
 void
 InstrumentParameterBox::setAudioMeter(float ch1, float ch2, float ch1r, float ch2r)
 {
-    m_audioInstrumentParameters->setAudioMeter(ch1, ch2, ch1r, ch2r);
+    m_aipp->setAudioMeter(ch1, ch2, ch1r, ch2r);
 }
 
-void
-InstrumentParameterBox::setDocument(RosegardenDocument *doc)
+void InstrumentParameterBox::slotNewDocument(RosegardenDocument *doc)
 {
-    m_doc = doc;
-    m_midiInstrumentParameters->setDocument(m_doc);
-    m_audioInstrumentParameters->setDocument(m_doc);
+    connect(doc, &RosegardenDocument::documentModified,
+            this, &InstrumentParameterBox::slotDocumentModified);
 }
 
-void
-InstrumentParameterBox::slotPluginSelected(InstrumentId id, int index, int plugin)
+void InstrumentParameterBox::slotDocumentModified(bool)
 {
-    m_audioInstrumentParameters->slotPluginSelected(id, index, plugin);
-}
+    RosegardenDocument *doc = RosegardenMainWindow::self()->getDocument();
 
-void
-InstrumentParameterBox::slotPluginBypassed(InstrumentId id, int index, bool bypassState)
-{
-    m_audioInstrumentParameters->slotPluginBypassed(id, index, bypassState);
-}
+    // Get the selected Track's Instrument.
+    InstrumentId instrumentId =
+            doc->getComposition().getSelectedInstrumentId();
 
-void
-InstrumentParameterBox::useInstrument(Instrument *instrument)
-{
-    if (!instrument) {
-        // Go with a blank frame.
-        m_widgetStack->setCurrentWidget(m_noInstrumentParameters);
-
-        m_selectedInstrument = -1;
-
-        // Update the MatrixWidget's PitchRuler.
-        emit instrumentPercussionSetChanged(instrument);
-
+    if (instrumentId == NoInstrument) {
+        m_stackedWidget->setCurrentWidget(m_emptyFrame);
         return;
     }
 
-    m_selectedInstrument = instrument->getId();
+    Instrument *instrument = doc->getStudio().getInstrumentById(instrumentId);
 
-    // Hide or Show according to Instrument type
-    //
-    if (instrument->getType() == Instrument::Audio ||
-        instrument->getType() == Instrument::SoftSynth) {
-
-        // Update the audio panel and bring it to the top.
-        m_audioInstrumentParameters->setupForInstrument(instrument);
-        m_widgetStack->setCurrentWidget(m_audioInstrumentParameters);
-
-    } else { // Midi
-
-        // Update the MIDI panel and bring it to the top.
-        m_midiInstrumentParameters->displayInstrument(instrument);
-        m_widgetStack->setCurrentWidget(m_midiInstrumentParameters);
-
-        // Update the MatrixWidget's PitchRuler.
-        emit instrumentPercussionSetChanged(instrument);
-
+    if (!instrument) {
+        m_stackedWidget->setCurrentWidget(m_emptyFrame);
+        return;
     }
 
+    // MIPP for MIDI
+    if (instrument->getType() == Instrument::Midi) {
+        m_stackedWidget->setCurrentWidget(m_mipp);
+        return;
+    }
+
+    // AIPP for Audio or SoftSynth
+    if (instrument->getType() == Instrument::Audio ||
+        instrument->getType() == Instrument::SoftSynth) {
+        m_stackedWidget->setCurrentWidget(m_aipp);
+        return;
+    }
 }
 
-void
-InstrumentParameterBox::emitInstrumentPercussionSetChanged()
-{
-    // Update the MatrixWidget's PitchRuler.
-    emit instrumentPercussionSetChanged(getSelectedInstrument());
-}
-
 
 }
-
-#include "InstrumentParameterBox.moc"

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Parts of the configuration classes are taken from KMail.
     Copyright (C) 2000 The KMail Development Team.
@@ -39,13 +39,13 @@ class ConfigurationPage : public QWidget
     Q_OBJECT
 
 public:
-    ConfigurationPage(QWidget *parent = 0)
-        : QWidget(parent), m_doc(0), m_pageIndex(0) {}
+    ConfigurationPage(QWidget *parent = nullptr)
+        : QWidget(parent), m_doc(nullptr), m_pageIndex(0) {}
 
-    ConfigurationPage(RosegardenDocument *doc, QWidget *parent = 0)
+    ConfigurationPage(RosegardenDocument *doc, QWidget *parent = nullptr)
         : QWidget(parent), m_doc(doc), m_pageIndex(0) {}
 
-    virtual ~ConfigurationPage() {};
+    ~ConfigurationPage() override {};
 
     /**
      * Should set the page up (ie. read the setting from the @ref
@@ -72,6 +72,7 @@ public:
     int pageIndex() const { return m_pageIndex; }
 
 signals:
+    // ConfigureDialog and others use this to enable the Apply button.
     void modified();
 
 protected slots:

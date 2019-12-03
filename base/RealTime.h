@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -16,15 +16,16 @@
 #ifndef RG_REAL_TIME_H
 #define RG_REAL_TIME_H
 
-#include <iostream>
 #include <string>
+
+#include <rosegardenprivate_export.h>
 
 struct timeval;
 
 namespace Rosegarden 
 {
 
-struct RealTime
+struct ROSEGARDENPRIVATE_EXPORT RealTime
 {
     int sec;
     int nsec;
@@ -35,16 +36,9 @@ struct RealTime
     RealTime(): sec(0), nsec(0) {}
     RealTime(int s, int n);
 
-    RealTime(const RealTime &r) :
-        sec(r.sec), nsec(r.nsec) { }
-
     static RealTime fromSeconds(double sec);
     static RealTime fromMilliseconds(int msec);
     static RealTime fromTimeval(const struct timeval &);
-
-    RealTime &operator=(const RealTime &r) {
-        sec = r.sec; nsec = r.nsec; return *this;
-    }
 
     RealTime operator+(const RealTime &r) const {
         return RealTime(sec + r.sec, nsec + r.nsec);
@@ -108,7 +102,7 @@ struct RealTime
     static long realTime2Frame(const RealTime &r, unsigned int sampleRate);
     static RealTime frame2RealTime(long frame, unsigned int sampleRate);
     // Convert to frequency per minute.
-    double toPerMinute(void);
+    double toPerMinute();
 
     static const RealTime zeroTime;
     static const RealTime beforeMaxTime;

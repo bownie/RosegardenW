@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,7 +38,7 @@ namespace Rosegarden
 MatrixToolBox::MatrixToolBox(MatrixWidget *parent) :
     BaseToolBox(parent),
     m_widget(parent),
-    m_scene(0)
+    m_scene(nullptr)
 {
 }
 
@@ -50,46 +50,46 @@ MatrixToolBox::~MatrixToolBox()
 BaseTool *
 MatrixToolBox::createTool(QString toolName)
 {
-    MatrixTool *tool = 0;
+    MatrixTool *tool = nullptr;
 
     QString toolNamelc = toolName.toLower();
 
-    if (toolNamelc == MatrixPainter::ToolName)
+    if (toolNamelc == MatrixPainter::ToolName())
 
         tool = new MatrixPainter(m_widget);
 
-    else if (toolNamelc == MatrixEraser::ToolName)
+    else if (toolNamelc == MatrixEraser::ToolName())
 
         tool = new MatrixEraser(m_widget);
 
-    else if (toolNamelc == MatrixSelector::ToolName)
+    else if (toolNamelc == MatrixSelector::ToolName())
 
         tool = new MatrixSelector(m_widget);
 
-    else if (toolNamelc == MatrixMover::ToolName)
+    else if (toolNamelc == MatrixMover::ToolName())
 
         tool = new MatrixMover(m_widget);
 
-    else if (toolNamelc == MatrixResizer::ToolName)
+    else if (toolNamelc == MatrixResizer::ToolName())
 
         tool = new MatrixResizer(m_widget);
 
-    else if (toolNamelc == MatrixVelocity::ToolName)
+    else if (toolNamelc == MatrixVelocity::ToolName())
 
         tool = new MatrixVelocity(m_widget);
     
     else {
-        QMessageBox::critical(0, tr("Rosegarden"), QString("MatrixToolBox::createTool : unrecognised toolname %1 (%2)")
+        QMessageBox::critical(nullptr, tr("Rosegarden"), QString("MatrixToolBox::createTool : unrecognised toolname %1 (%2)")
                            .arg(toolName).arg(toolNamelc));
-        return 0;
+        return nullptr;
     }
 
     m_tools.insert(toolName, tool);
 
     if (m_scene) {
         tool->setScene(m_scene);
-        connect(m_scene, SIGNAL(eventRemoved(Event *)),
-                tool, SLOT(handleEventRemoved(Event *)));
+        connect(m_scene, &MatrixScene::eventRemoved,
+                tool, &MatrixTool::handleEventRemoved);
     }
 
     return tool;
@@ -105,11 +105,10 @@ MatrixToolBox::setScene(MatrixScene *scene)
         MatrixTool *nt = dynamic_cast<MatrixTool *>(*i);
         if (nt) {
             nt->setScene(scene);
-            connect(scene, SIGNAL(eventRemoved(Event *)),
-                    nt, SLOT(handleEventRemoved(Event *)));
+            connect(scene, &MatrixScene::eventRemoved,
+                    nt, &MatrixTool::handleEventRemoved);
         }
     }
 }
 
 }
-#include "MatrixToolBox.moc"

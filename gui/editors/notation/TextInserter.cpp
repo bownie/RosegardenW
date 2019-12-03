@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -28,7 +28,11 @@
 #include "NotationStaff.h"
 #include "NotationScene.h"
 #include "NotationMouseEvent.h"
+#include "gui/widgets/Panned.h"
 #include "document/CommandHistory.h"
+#include "misc/ConfigGroups.h"
+
+#include <QSettings>
 
 namespace Rosegarden
 {
@@ -40,6 +44,13 @@ TextInserter::TextInserter(NotationWidget *widget) :
     createAction("select", SLOT(slotSelectSelected()));
     createAction("erase", SLOT(slotEraseSelected()));
     createAction("notes", SLOT(slotNotesSelected()));
+
+    QSettings settings;
+    settings.beginGroup(TextEventDialogConfigGroup);
+    const QString lastText = settings.value("lastText").toString();
+    const QString lastTextType = settings.value("lastTextType", QString::fromStdString(Text::Dynamic)).toString();
+    m_text = Text(lastText.toStdString(), lastTextType.toStdString());
+    settings.endGroup();
 }
 
 void
@@ -65,6 +76,9 @@ TextInserter::ready()
 {
     m_widget->setCanvasCursor(Qt::CrossCursor);
 //!!!    m_nParentView->setHeightTracking(false);
+
+    // The text tool doesn't use the wheel.
+    m_widget->getView()->setWheelZoomPan(true);
 }
 
 void
@@ -74,7 +88,7 @@ TextInserter::handleLeftButtonPress(const NotationMouseEvent *e)
 
     Text defaultText(m_text);
     timeT insertionTime;
-    Event *eraseEvent = 0;
+    Event *eraseEvent = nullptr;
 
     insertionTime = e->element->event()->getAbsoluteTime(); // not getViewAbsoluteTime()
 
@@ -82,7 +96,7 @@ TextInserter::handleLeftButtonPress(const NotationMouseEvent *e)
         // edit an existing text, if that's what we clicked on
         try {
             defaultText = Text(*e->element->event());
-        } catch (Exception e) {
+        } catch (const Exception &) {
         }
         eraseEvent = e->element->event();
     }
@@ -93,6 +107,12 @@ TextInserter::handleLeftButtonPress(const NotationMouseEvent *e)
     if (dialog->exec() == QDialog::Accepted) {
 
         m_text = dialog->getText();
+
+        QSettings settings;
+        settings.beginGroup(TextEventDialogConfigGroup);
+        settings.setValue("lastText", QString::fromStdString(m_text.getText()));
+        settings.setValue("lastTextType", QString::fromStdString(m_text.getTextType()));
+        settings.endGroup();
 
         TextInsertionCommand *command =
             new TextInsertionCommand
@@ -118,10 +138,9 @@ TextInserter::handleLeftButtonPress(const NotationMouseEvent *e)
     delete dialog;
 }
 
-const QString TextInserter::ToolName = "textinserter";
+QString TextInserter::ToolName() { return "textinserter"; }
 
 }
 
-#include "TextInserter.moc"
 
 

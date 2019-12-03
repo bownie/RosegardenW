@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -23,6 +23,7 @@
 #include "NotationTool.h"
 #include "NotationElement.h"
 #include "NoteStyle.h"
+#include "NotationMouseEvent.h"
 #include <QString>
 
 namespace Rosegarden
@@ -45,15 +46,23 @@ class NoteRestInserter : public NotationTool
     friend class NotationToolBox;
 
 public:
-    ~NoteRestInserter();
+    ~NoteRestInserter() override;
 
-    virtual void handleLeftButtonPress(const NotationMouseEvent *);
+    void handleLeftButtonPress(const NotationMouseEvent *) override;
+    
+    void handleMidButtonPress(const NotationMouseEvent *) override;
 
-    virtual FollowMode handleMouseMove(const NotationMouseEvent *);
+    FollowMode handleMouseMove(const NotationMouseEvent *) override;
 
-    virtual void handleMouseRelease(const NotationMouseEvent *);
+    void handleMouseRelease(const NotationMouseEvent *) override;
+    
+    void handleWheelTurned(int , const NotationMouseEvent *) override;
+    
+    bool needsWheelEvents() override { return m_quickEdit; }
 
-    virtual void ready();
+    void ready() override;
+
+    void stow() override;
 
     Note getCurrentNote() {
         return Note(m_noteType, m_noteDots);
@@ -70,9 +79,9 @@ public:
     /**
      * Useful to get the tool name from a NotationTool object
      */ 
-    virtual const QString getToolName() { return ToolName; }
+    const QString getToolName() override { return ToolName(); }
 
-    static const QString ToolName;
+    static QString ToolName();
 
     /**
      * Returns the state of the tool.  true, if it in rest insertert mode.
@@ -89,11 +98,11 @@ public:
      * Show the menu if there is one.
      * This is an over ride of BaseTool::showMenu().
      */
-    virtual void showMenu();
+    void showMenu() override;
 
 public slots:
     /// Set the type of note (quaver, breve...) which will be inserted
-    void slotSetNote(Note::Type);
+    void slotSetNote(Note::Type nt);
 
     /// Set the number of dots the inserted note will have
     void slotSetDots(unsigned int dots);
@@ -119,9 +128,15 @@ protected:
                                 int pitch, Accidental,
                                 int velocity = 0);
 
-    virtual bool computeLocationAndPreview(const NotationMouseEvent *e);
-    virtual void showPreview();
+    virtual bool computeLocationAndPreview(const NotationMouseEvent *e,
+                                           bool play);
+    virtual void showPreview(bool play);
     virtual void clearPreview();
+    
+    void setCursorShape();
+    Accidental getAccidentalFromModifierKeys(Qt::KeyboardModifiers modifiers);
+    
+    void synchronizeWheel();
 
 protected slots:
     // RMB menu slots
@@ -142,13 +157,20 @@ protected:
     bool m_autoTieBarlines;
     bool m_matrixInsertType;
     NoteStyleName m_defaultStyle;
+    bool m_alwaysPreview;
+    bool m_quickEdit;         // Select durations with mouse wheel
 
+    AccidentalTable::OctaveType m_octaveType;     // Cautionary accidental mode
+    AccidentalTable::BarResetType m_barResetType; // Cautionary accidental mode
+
+    bool m_leftButtonDown;
     bool m_clickHappened;
     timeT m_clickTime;
     int m_clickSubordering;
     int m_clickPitch;
     int m_clickHeight;
     NotationStaff *m_clickStaff;
+    Accidental m_clickQuickAccidental;
     double m_clickInsertX;
     float m_targetSubordering;
 
@@ -156,6 +178,11 @@ protected:
     Accidental m_lastAccidental;
     bool m_followAccidental;
     bool m_isaRestInserter;
+    
+    int m_wheelIndex;              // Index of current duration
+    bool m_processingWheelTurned;  // Use by synchronizeWheel()
+
+    bool m_ready;                  // True when the tool is ready
 
 // Obsolete ?
 //    static const char* m_actionsAccidental[][4];

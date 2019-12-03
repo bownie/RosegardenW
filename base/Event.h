@@ -4,7 +4,7 @@
 /*
     Rosegarden
     A sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
     See the AUTHORS file for more details.
 
     This program is free software; you can redistribute it and/or
@@ -20,12 +20,12 @@
 #include "PropertyMap.h"
 #include "Exception.h"
 
+#include <rosegardenprivate_export.h>
+
 #include <string>
 #include <vector>
-#ifndef NDEBUG
-#include <iostream>
-#include <ctime>
-#endif
+#include <iostream> // TODO remove (after changing the dump() signature)
+#include "misc/Debug.h"
 
 
 namespace Rosegarden
@@ -51,7 +51,7 @@ typedef long timeT;
  * recomputed at will if necessary.
  */
 
-class Event
+class ROSEGARDENPRIVATE_EXPORT Event
 {
 public:
     /**
@@ -60,9 +60,9 @@ public:
      */
     class NoData : public Exception {
     public:
-        NoData(std::string property) :
+        NoData(const std::string &property) :
             Exception("No data found for property " + property) { }
-        NoData(std::string property, std::string file, int line) :
+        NoData(const std::string &property, const std::string &file, int line) :
             Exception("No data found for property " + property, file, line) { }
     };
 
@@ -72,11 +72,11 @@ public:
      */
     class BadType : public Exception {
     public:
-        BadType(std::string property, std::string expected, std::string actl) :
+        BadType(const std::string &property, const std::string &expected, const std::string &actl) :
             Exception("Bad type for " + property + " (expected " +
                       expected + ", found " + actl + ")") { }
-        BadType(std::string property, std::string expected, std::string actual,
-                std::string file, int line) :
+        BadType(const std::string &property, const std::string &expected, const std::string &actual,
+                const std::string &file, int line) :
             Exception("Bad type for " + property + " (expected " +
                       expected + ", found " + actual + ")", file, line) { }
     };
@@ -88,24 +88,24 @@ public:
     Event(const std::string &type,
           timeT absoluteTime, timeT duration = 0, short subOrdering = 0) :
         m_data(new EventData(type, absoluteTime, duration, subOrdering)),
-        m_nonPersistentProperties(0) { }
+        m_nonPersistentProperties(nullptr) { }
 
     Event(const std::string &type,
           timeT absoluteTime, timeT duration, short subOrdering,
           timeT notationAbsoluteTime, timeT notationDuration) :
         m_data(new EventData(type, absoluteTime, duration, subOrdering)),
-        m_nonPersistentProperties(0) {
+        m_nonPersistentProperties(nullptr) {
         setNotationAbsoluteTime(notationAbsoluteTime);
         setNotationDuration(notationDuration);
     }
 
     Event(const Event &e) :
-        m_nonPersistentProperties(0) { share(e); }
+        m_nonPersistentProperties(nullptr) { share(e); }
 
     // these ctors can't use default args: default has to be obtained from e
 
     Event(const Event &e, timeT absoluteTime) :
-        m_nonPersistentProperties(0) {
+        m_nonPersistentProperties(nullptr) {
         share(e);
         unshare();
         m_data->m_absoluteTime = absoluteTime;
@@ -114,7 +114,7 @@ public:
     }
 
     Event(const Event &e, timeT absoluteTime, timeT duration) :
-        m_nonPersistentProperties(0) {
+        m_nonPersistentProperties(nullptr) {
         share(e);
         unshare();
         m_data->m_absoluteTime = absoluteTime;
@@ -124,7 +124,7 @@ public:
     }
 
     Event(const Event &e, timeT absoluteTime, timeT duration, short subOrdering):
-        m_nonPersistentProperties(0) {
+        m_nonPersistentProperties(nullptr) {
         share(e);
         unshare();
         m_data->m_absoluteTime = absoluteTime;
@@ -136,7 +136,7 @@ public:
 
     Event(const Event &e, timeT absoluteTime, timeT duration, short subOrdering,
           timeT notationAbsoluteTime) :
-        m_nonPersistentProperties(0) {
+        m_nonPersistentProperties(nullptr) {
         share(e);
         unshare();
         m_data->m_absoluteTime = absoluteTime;
@@ -148,7 +148,7 @@ public:
 
     Event(const Event &e, timeT absoluteTime, timeT duration, short subOrdering,
           timeT notationAbsoluteTime, timeT notationDuration) :
-        m_nonPersistentProperties(0) {
+        m_nonPersistentProperties(nullptr) {
         share(e);
         unshare();
         m_data->m_absoluteTime = absoluteTime;
@@ -295,11 +295,19 @@ public:
     timeT getNotationDuration() const { return m_data->getNotationDuration(); }
 
     /**
+     * Return the greater of getDuration() or getNotationDuration() for note
+     * events.  Return getDuration() for all other event types.
+     *
+     * \author Tito Latini
+     */
+    timeT getGreaterDuration();
+
+    /**
      * Return whether this event's section of a triggered ornament
      * is masked, for use when the event is part of a multiple-tied-note
      * ornament trigger.
      **/
-    bool maskedInTrigger(void) const;
+    bool maskedInTrigger() const;
     
     typedef std::vector<PropertyName> PropertyNames;
     PropertyNames getPropertyNames() const;
@@ -369,7 +377,7 @@ public:
     /**
      * Get the XML string representing the object.
      */
-    std::string toXmlString();
+    std::string toXmlString() const;
 
     /**
      * Get the XML string representing the object.  If the absolute
@@ -377,7 +385,7 @@ public:
      * the difference between the two as a timeOffset attribute.
      * If expectedTime == 0, include an absoluteTime attribute instead.
      */
-    std::string toXmlString(timeT expectedTime);
+    std::string toXmlString(timeT expectedTime) const;
 
 #ifndef NDEBUG
     void dump(std::ostream&) const;
@@ -391,7 +399,7 @@ protected:
 
     Event() :
         m_data(new EventData("", 0, 0, 0)),
-        m_nonPersistentProperties(0) { }
+        m_nonPersistentProperties(nullptr) { }
 
     void setType(const std::string &t) { unshare(); m_data->m_type = t; }
     void setAbsoluteTime(timeT t)      { unshare(); m_data->m_absoluteTime = t; }
@@ -461,7 +469,7 @@ private:
     void lose() {
         if (--m_data->m_refCount == 0) delete m_data;
         delete m_nonPersistentProperties;
-        m_nonPersistentProperties = 0;
+        m_nonPersistentProperties = nullptr;
     }
 
     // returned iterator (in i) only valid if return map value is non-zero
@@ -513,9 +521,9 @@ Event::get(const PropertyName &name, typename PropertyDefn<P>::basic_type &val) 
         }
         else {
 #ifndef NDEBUG
-            std::cerr << "Event::get() Error: Attempt to get property \"" << name
-                 << "\" as " << PropertyDefn<P>::typeName() <<", actual type is "
-                 << sb->getTypeName() << std::endl;
+            RG_DEBUG << "get() Error: Attempt to get property \"" << name.getName()
+                 << "\" as" << PropertyDefn<P>::typeName() <<", actual type is"
+                 << sb->getTypeName();
 #endif
             return false;
         }
@@ -552,7 +560,7 @@ Event::get(const PropertyName &name) const
     } else {
 
 #ifndef NDEBUG
-        std::cerr << "Event::get(): Error dump follows:" << std::endl;
+        RG_DEBUG << "get(): Error dump follows:";
         dump(std::cerr);
 #endif
         throw NoData(name.getName(), __FILE__, __LINE__);

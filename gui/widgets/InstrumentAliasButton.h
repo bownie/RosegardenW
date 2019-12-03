@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -38,7 +38,7 @@ class InstrumentAliasButton : public QPushButton
 
 public:
     InstrumentAliasButton(QWidget *parent,
-                   Instrument *instrument = 0);
+                   Instrument *instrument = nullptr);
 
     void setInstrument(Instrument *instrument) { m_instrument = instrument; }
 
@@ -47,7 +47,7 @@ protected slots:
 
 private slots:
     /// Instrument is being destroyed
-    void slotInstrumentGone(void);
+    void slotInstrumentGone();
 
 signals:
     // The button writes changes directly to the instrument, but it

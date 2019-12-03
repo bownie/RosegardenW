@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
 
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -35,6 +35,7 @@
 #include "base/RulerScale.h"
 #include "base/Segment.h"
 #include "base/Selection.h"
+#include "base/ViewSegment.h"
 #include "commands/edit/EraseCommand.h"
 #include "commands/edit/EventInsertionCommand.h"
 #include "commands/notation/EraseEventCommand.h"
@@ -76,24 +77,20 @@ ControllerEventsRuler::ControllerEventsRuler(ViewSegment *segment,
         m_controller = new ControlParameter(*controller);
     }
     else {
-        m_controller = 0;
+        m_controller = nullptr;
     }
 
-    // This is necessary to run the overloaded method, the base method has already run
-    setViewSegment(segment);
-
     setMenuName("controller_events_ruler_menu");
-//    drawBackground(); Now in paintEvent
-//    init();
 
-    RG_DEBUG << "ControllerEventsRuler::ControllerEventsRuler - " << controller->getName();
-    RG_DEBUG << "Segment from " << segment->getSegment().getStartTime() << " to " << segment->getSegment().getEndTime();
-    RG_DEBUG << "Position x = " << rulerScale->getXForTime(segment->getSegment().getStartTime()) << " to " << rulerScale->getXForTime(segment->getSegment().getEndTime());
+    RG_DEBUG << "ctor:" << controller->getName();
+    RG_DEBUG << "  Segment from " << segment->getSegment().getStartTime() << " to " << segment->getSegment().getEndTime();
+    RG_DEBUG << "  Position x = " << rulerScale->getXForTime(segment->getSegment().getStartTime()) << " to " << rulerScale->getXForTime(segment->getSegment().getEndTime());
 }
 
 ControllerEventsRuler::~ControllerEventsRuler()
 {
-    RG_DEBUG << "ControllerEventsRuler::~ControllerEventsRuler()";
+    RG_DEBUG << "dtor";
+
     if (m_segment) m_segment->removeObserver(this);
 }
 
@@ -113,8 +110,8 @@ bool ControllerEventsRuler::isOnThisRuler(Event *event)
             result = true;
         }
     }
-    RG_DEBUG << "ControllerEventsRuler::isOnThisRuler - "
-        << "Event type: " << event->getType() << " Controller type: " << m_controller->getType();
+
+    //RG_DEBUG << "isOnThisRuler():" << "Event type: " << event->getType() << " Controller type: " << m_controller->getType();
 
     return result;
 }
@@ -132,7 +129,8 @@ ControllerEventsRuler::setSegment(Segment *segment)
 void
 ControllerEventsRuler::setViewSegment(ViewSegment *segment)
 {
-    RG_DEBUG << "ControllerEventsRuler::setSegment(" << segment << ")" << endl;
+    RG_DEBUG << "setViewSegment(" << segment << ")";
+
     setSegment(&segment->getSegment());
 }
 
@@ -151,7 +149,7 @@ ControllerEventsRuler::init()
     for (Segment::iterator it = m_segment->begin();
             it != m_segment->end(); ++it) {
         if (isOnThisRuler(*it)) {
-            addControlItem(*it);
+            addControlItem2(*it);
         }
     }
     
@@ -180,8 +178,6 @@ void ControllerEventsRuler::paintEvent(QPaintEvent *event)
 
     QBrush brush(GUIPalette::getColour(GUIPalette::ControlItem),Qt::SolidPattern);
 
-//    QPen highlightPen(GUIPalette::getColour(GUIPalette::SelectedElement),
-//            2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
     QPen pen(GUIPalette::getColour(GUIPalette::MatrixElementBorder),
             0.5, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
 
@@ -189,12 +185,10 @@ void ControllerEventsRuler::paintEvent(QPaintEvent *event)
     painter.setPen(pen);
 
     QString str;
-//    str = QString::fromStdString(m_controller->getName());
-//    painter.drawText(10,20,str.toUpper());
     
     ControlItemMap::iterator mapIt;
     float lastX, lastY;
-    lastX = m_rulerScale->getXForTime(m_segment->getStartTime());
+    lastX = m_rulerScale->getXForTime(m_segment->getStartTime())*m_xScale;
 
     if (m_nextItemLeft != m_controlItemMap.end()) {
         EventControlItem *item = static_cast<EventControlItem*> (m_nextItemLeft->second);
@@ -224,7 +218,7 @@ void ControllerEventsRuler::paintEvent(QPaintEvent *event)
             mapYToWidget(lastY));
     
     // Use a fast vector list to record selected items that are currently visible so that they
-    //  can be drawn last - can't use m_selectedItems as this covers all selected, visible or not
+    // can be drawn last - can't use m_selectedItems as this covers all selected, visible or not
     std::vector<ControlItem*> selectedvector;
 
     for (ControlItemList::iterator it = m_visibleItems.begin(); it != m_visibleItems.end(); ++it) {
@@ -235,7 +229,6 @@ void ControllerEventsRuler::paintEvent(QPaintEvent *event)
         }
     }
 
-//    painter.setBrush(brush);
     pen.setColor(GUIPalette::getColour(GUIPalette::SelectedElement));
     pen.setWidthF(2.0);
     painter.setPen(pen);
@@ -250,7 +243,13 @@ void ControllerEventsRuler::paintEvent(QPaintEvent *event)
 
         // For selected items, draw the value in text alongside the marker
         // By preference, this should sit on top of the new line that represents this value change
-        str = QString::number(yToValue((*it)->y())-m_controller->getDefault());
+        
+        // Any controller that has a default of 64 is presumed to be or behave
+        // like pan, and display a working range of -64 to 64, centered on 0,
+        // rather than the usual 0 to 127.  Note, the == 64 is hard coded
+        // elsewhere, so one more won't hurt.  Fixes #1451.
+        int offsetFactor = (m_controller->getDefault() == 64 ? 64 : 0);
+        str = QString::number(yToValue((*it)->y()) - offsetFactor);
         int x = mapXToWidget((*it)->xStart())+0.4*fontOffset;
         int y = std::max(mapYToWidget((*it)->y())-0.2f*fontHeight,float(fontHeight));
         
@@ -310,7 +309,7 @@ void ControllerEventsRuler::eventAdded(const Segment*, Event *event)
     //  add a ControlItem to display it
     // Note that ControlPainter will (01/08/09) add events directly
     //  these should not be replicated by this observer mechanism
-    if (isOnThisRuler(event) && !m_moddingSegment) addControlItem(event);
+    if (isOnThisRuler(event) && !m_moddingSegment) addControlItem2(event);
 }
 
 void ControllerEventsRuler::eventRemoved(const Segment*, Event *event)
@@ -329,10 +328,10 @@ void ControllerEventsRuler::eventRemoved(const Segment*, Event *event)
 
 void ControllerEventsRuler::segmentDeleted(const Segment *)
 {
-    m_segment = 0;
+    m_segment = nullptr;
 }
 
-ControlItem* ControllerEventsRuler::addControlItem(Event *event)
+ControlItem* ControllerEventsRuler::addControlItem2(Event *event)
 {
     EventControlItem *controlItem = new EventControlItem(this, new ControllerEventAdapter(event), QPolygonF());
     controlItem->updateFromEvent();
@@ -341,17 +340,13 @@ ControlItem* ControllerEventsRuler::addControlItem(Event *event)
     return controlItem;
 }
 
-ControlItem* ControllerEventsRuler::addControlItem(float x, float y)
+ControlItem* ControllerEventsRuler::addControlItem2(float x, float y)
 {
     // Adds a ControlItem in the absence of an event (used by ControlPainter)
     clearSelectedItems();
-    EventControlItem *item = new EventControlItem(this, new ControllerEventAdapter(0), QPolygonF());
+    EventControlItem *item = new EventControlItem(this, new ControllerEventAdapter(nullptr), QPolygonF());
     item->reconfigure(x,y);
     item->setSelected(true);
-//    m_selectedItems.push_back(item);
-//    if (isVisible(item)) {
-//        m_visibleItems.push_back(item);
-//    }
     ControlRuler::addControlItem(item);
     
     return item;
@@ -360,7 +355,8 @@ ControlItem* ControllerEventsRuler::addControlItem(float x, float y)
 void
 ControllerEventsRuler::addControlLine(float x1, float y1, float x2, float y2, bool eraseExistingControllers)
 {
-    std::cout << "ControllerEventsRuler::addControlLine()";
+    RG_DEBUG << "addControlLine()";
+
     clearSelectedItems();
 
     // get a timeT for one end point of our line
@@ -410,10 +406,9 @@ ControllerEventsRuler::addControlLine(float x1, float y1, float x2, float y2, bo
     long rise = destinationValue - originValue;
     timeT run = destinationTime - originTime;
 
-    std::cout << "Drawing a line from origin time: " << originTime << " to " << destinationTime
-              << " rising from: " << originValue << " to " << destinationValue 
-              << " with a rise of: " << rise << " and run of: " << run
-              << std::endl;
+    RG_DEBUG << "addControlLine(): Drawing a line from origin time: " << originTime << " to " << destinationTime
+             << " rising from: " << originValue << " to " << destinationValue
+             << " with a rise of: " << rise << " and run of: " << run;
 
     // avoid divide by 0 potential, rise is always at least 1
     if (rise == 0) rise = 1;
@@ -438,7 +433,7 @@ ControllerEventsRuler::addControlLine(float x1, float y1, float x2, float y2, bo
     if (m_controller) {
         controllerNumber = m_controller->getControllerValue();
     } else {
-        std::cout << "No controller number set.  Time to panic!  Line drawing aborted." << std::endl;
+        RG_WARNING << "addControlLine(): No controller number set.  Time to panic!  Line drawing aborted.";
         return;
     }
 
@@ -477,7 +472,7 @@ ControllerEventsRuler::addControlLine(float x1, float y1, float x2, float y2, bo
         if (rising && intermediateValue > destinationValue) failsafe = true;
         else if (!rising && intermediateValue < destinationValue) failsafe = true;
 
-//        std::cout << "creating event at time: " << i << " of value: " << intermediateValue << std::endl;
+//        RG_DEBUG << "addControlLine(): creating event at time: " << i << " of value: " << intermediateValue;
 //        continue;
 
         Event *controllerEvent = new Event(m_controller->getType(), (timeT) i);
@@ -498,7 +493,7 @@ ControllerEventsRuler::addControlLine(float x1, float y1, float x2, float y2, bo
                 i != originTime           &&
                 i != destinationTime) continue;
 
-            std::cout << "intermediate value: " << intermediateValue << std::endl;
+            RG_DEBUG << "addControlLine(): intermediate value: " << intermediateValue;
 
             // Convert to PitchBend MSB/LSB
             int lsb = intermediateValue & 0x7f;
@@ -507,7 +502,7 @@ ControllerEventsRuler::addControlLine(float x1, float y1, float x2, float y2, bo
             controllerEvent->set<Rosegarden::Int>(Rosegarden::PitchBend::LSB, lsb);
         }
 
-        if (failsafe) std::cout << "intermediate value: " << intermediateValue << " exceeded target: " << destinationValue << std::endl;
+        if (failsafe) RG_DEBUG << "addControlLine(): intermediate value: " << intermediateValue << " exceeded target: " << destinationValue;
 
         macro->addCommand(new EventInsertionCommand (*m_segment, controllerEvent));
     }
@@ -552,7 +547,6 @@ void ControllerEventsRuler::slotSetTool(const QString &matrixtoolname)
     if (m_currentTool) m_currentTool->stow();
     m_currentTool = tool;
     m_currentTool->ready();
-//    emit toolChanged(name);
 }
 
 Event *ControllerEventsRuler::insertEvent(float x, float y)
@@ -563,10 +557,7 @@ Event *ControllerEventsRuler::insertEvent(float x, float y)
 
     long initialValue = yToValue(y);
 
-    RG_DEBUG << "ControllerEventsRuler::insertControllerEvent() : inserting event at "
-    << insertTime
-    << " - initial value = " << initialValue
-    << endl;
+    RG_DEBUG << "insertEvent(): inserting event at" << insertTime << "- initial value =" << initialValue;
 
     // ask controller number to user
     long number = 0;
@@ -584,8 +575,6 @@ Event *ControllerEventsRuler::insertEvent(float x, float y)
 
         bool ok = false;
         QIntValidator intValidator(0, 128, this);
-//         QString res = KLineEditDlg::getText(tr("Controller Event Number"), "0",
-//                                             &ok, this, &intValidator);
         QString res = InputDialog::getText(this, "", tr("Controller Event Number"),
                                            LineEdit::Normal, "0", &ok);
 
@@ -593,6 +582,10 @@ Event *ControllerEventsRuler::insertEvent(float x, float y)
             number = res.toULong();
     }
 
+    //NOTE: while debugging #1451 I determined that the pan controller sets
+    // values 0 to 127 like anything else, and the difference in interpretation
+    // (improperly applied to volume and expression) is happening at a more
+    // superficial level; all of this code here is working logically
     if (m_controller->getType() == Rosegarden::Controller::EventType)
     {
         controllerEvent->set<Rosegarden::Int>(Rosegarden::Controller::VALUE, initialValue);
@@ -612,12 +605,6 @@ Event *ControllerEventsRuler::insertEvent(float x, float y)
     m_moddingSegment = false;
 
     return controllerEvent;
-//    ControlRulerEventInsertCommand* command =
-//        new ControlRulerEventInsertCommand(m_controller->getType(),
-//                                           insertTime, number,
-//                                           initialValue, *m_segment);
-//
-//    CommandHistory::getInstance()->addCommand(command);
 }
 
 void ControllerEventsRuler::eraseEvent(Event *event)
@@ -629,7 +616,7 @@ void ControllerEventsRuler::eraseEvent(Event *event)
 
 void ControllerEventsRuler::eraseControllerEvent()
 {
-    RG_DEBUG << "ControllerEventsRuler::eraseControllerEvent() : deleting selected events\n";
+    RG_DEBUG << "eraseControllerEvent(): deleting selected events";
 
     // This command uses the SegmentObserver mechanism to bring the control item list up to date
     ControlRulerEventEraseCommand* command =

@@ -3,7 +3,7 @@
 /*
     Rosegarden
     A MIDI and audio sequencer and musical notation editor.
-    Copyright 2000-2015 the Rosegarden development team.
+    Copyright 2000-2018 the Rosegarden development team.
  
     Other copyrights also apply to some parts of this work.  Please
     see the AUTHORS file and individual file headers for details.
@@ -26,6 +26,7 @@
 #include "gui/seqmanager/MappedEventBuffer.h"
 #include "gui/seqmanager/SegmentMapper.h"
 #include "sound/MappedEvent.h"
+#include "misc/Debug.h"
 #include <QString>
 
 
@@ -48,9 +49,8 @@ AudioSegmentMapper::fillBuffer()
 
     // Can't write out if no track
     if (!track) {
-        std::cerr << "AudioSegmentMapper::fillBuffer: ERROR: No track for segment!"
-                  << std::endl;
-        return ;
+        RG_WARNING << "AudioSegmentMapper::fillBuffer: ERROR: No track for segment!";
+        return;
     }
 
     timeT segmentStartTime = m_segment->getStartTime();
@@ -97,14 +97,13 @@ AudioSegmentMapper::fillBuffer()
             e.setAutoFade(true);
             e.setFadeInTime(m_segment->getFadeInTime());
             e.setFadeOutTime(m_segment->getFadeOutTime());
-            std::cout << "AudioSegmentMapper::fillBuffer - "
+            RG_DEBUG << "AudioSegmentMapper::fillBuffer - "
                       << "SETTING AUTOFADE "
                       << "in = " << m_segment->getFadeInTime()
-                      << ", out = " << m_segment->getFadeOutTime()
-                      << std::endl;
+                      << ", out = " << m_segment->getFadeOutTime();
         } else {
-            //            std::cout << "AudioSegmentMapper::fillBuffer - "
-            //                      << "NO AUTOFADE SET ON SEGMENT" << std::endl;
+            //            RG_DEBUG << "AudioSegmentMapper::fillBuffer - "
+            //                      << "NO AUTOFADE SET ON SEGMENT";
         }
 
         getBuffer()[index] = e;
