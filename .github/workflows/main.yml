@@ -27,12 +27,14 @@ jobs:
     - uses: actions/checkout@v1
 
     - name: List directory
-      run: ls -al
+      run: |
+        dir
+        pwd
 
     - name: List directory (working directory)
       working-directory: d:/a/RosegardenW/RosegardenW
       run: |
-        ls -al
+        dir
         pwd
         
     - name: Qmake and make
