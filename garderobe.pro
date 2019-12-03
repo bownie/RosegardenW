@@ -1,17 +1,12 @@
 include(update.pri)
 
-#INCLUDEPATH += "C:/Qt/5.3/mingw482_32/include/QtWidgets"
-
 TARGET = rosegarden
 
 # We need the widgets, printsupport for QT5
 #
 QT += core gui xml network widgets printsupport
 
-# Remove QT3 compatibility
-#
 CONFIG += qt embed_manifest_exe
-#qt3support
 
 OTHER_FILES += \
     data/rosegarden.qss \
@@ -80,28 +75,9 @@ TRANSLATIONS =      data/locale/ca.ts \
 
 
 INCLUDEPATH += "C:/devel/zlib/include"
- #              "C:/tools/pthreads/include"
- #              "C:/devel/mman" \
- #              "C:/devel/fftw" \
- #              "C:/devel/jack" \
- #              "C:/devel/ladspa" \
- #              "C:/devel/dlfcn/include"
- #              "C:/devel/lrdf/"
-
-# For Performance Counters
-#C:\devel\RG\zlib
-#INCLUDEPATH += "C:/Program Files/Microsoft SDKs/Windows/v7.0A/Include"
-#INCLUDEPATH += "C:/Program Files/Microsoft Visual Studio 8/VC/PlatformSDK/Include" \
-#               "C:/Program Files/Microsoft Visual Studio 8/VC/Include"
 
 QMAKE_LIBDIR += "C:/tools/pthreads/lib"
                 "C:/tools/zlib/lib"
-#                "C:/devel/mman" \
-#                "C:/devel/fftw" \
-#                "C:/devel/jack" \
-#                "C:/devel/ladspa" \
-#                "C:/devel/dlfcn/lib"
- #               "C:/devel/lrdf/"
 
 LIBS += -lpthread -lz -lwinmm
 
@@ -1504,27 +1480,4 @@ SOURCES += \
 
 FORMS += gui/dialogs/RosegardenTransportUi.ui \
     gui/studio/DeviceManagerDialogUi.ui
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
