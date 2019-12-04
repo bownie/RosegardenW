@@ -2,21 +2,13 @@ name: CI
 
 on: [push]
 
-inputs:
-  numOctocats:
-    description: 'Number of Octocats'
-    required: false
-    default: '1'
-  octocatEyeColor:
-    description: 'Eye color of the Octocats'
-    required: true
-
 jobs:
   build:
 
     runs-on: windows-latest
 
     steps:
+      ZLIB_PATH: ${ZLIB_PATH}
 
     - name: Install wget
       run: |
@@ -27,8 +19,8 @@ jobs:
 
     - name: Install zlib
       run: |
-        python -m wget https://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip -o zlib-1.2.3-bin.zip
-        unzip zlib-1.2.3-bin.zip
+        python -m wget https://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip -o zlib-1.2.3.zip
+        unzip zlib-1.2.3.zip
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v2.1.0
@@ -62,7 +54,7 @@ jobs:
     - name: Qmake and make
       working-directory: d:/a/RosegardenW/RosegardenW
       run: | 
-        qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler"
+        qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler" QMAKE_LIBDIR=${GITHUB_WORKSPACE}/zlib-1.2.3/lib
         mingw32-make.exe qmake_all
 
     - name: Make mingw32
