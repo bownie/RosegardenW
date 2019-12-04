@@ -8,6 +8,12 @@ jobs:
     runs-on: windows-latest
 
     steps:
+
+    - name: Install zlib
+      run: |
+        wget https://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip -Outfile zlib-1.2.3-bin.zip
+        unzip zlib-1.2.3-bin.zip
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v2.1.0
       with:
