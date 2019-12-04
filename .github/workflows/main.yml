@@ -2,6 +2,15 @@ name: CI
 
 on: [push]
 
+inputs:
+  numOctocats:
+    description: 'Number of Octocats'
+    required: false
+    default: '1'
+  octocatEyeColor:
+    description: 'Eye color of the Octocats'
+    required: true
+
 jobs:
   build:
 
@@ -13,9 +22,8 @@ jobs:
       run: |
         pip install wget
         pip show wget
-      with:
-        args:
-          ZLIB_PATH
+      env:
+        ZLIB_PATH: Default
 
     - name: Install zlib
       run: |
