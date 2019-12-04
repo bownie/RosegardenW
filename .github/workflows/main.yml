@@ -10,8 +10,10 @@ jobs:
     steps:
 
     - name: Install wget
-      run: pip install wget
-      
+      run: |
+        pip install wget
+        pip show wget
+
     - name: Install zlib
       run: |
         wget https://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip -Outfile zlib-1.2.3-bin.zip
