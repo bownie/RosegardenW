@@ -16,7 +16,7 @@ jobs:
 
     - name: Install zlib
       run: |
-        python -m wget https://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip -Outfile zlib-1.2.3-bin.zip
+        python -m wget https://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip -o zlib-1.2.3-bin.zip
         unzip zlib-1.2.3-bin.zip
 
     - name: Install Qt
