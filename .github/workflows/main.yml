@@ -7,9 +7,6 @@ jobs:
 
     runs-on: windows-latest
 
-    steps:
-      ZLIB_PATH: ${ZLIB_PATH}
-
     - name: Install wget
       run: |
         pip install wget
