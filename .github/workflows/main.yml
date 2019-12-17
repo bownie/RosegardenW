@@ -50,7 +50,7 @@ jobs:
     - name: Qmake and make
       working-directory: d:/a/RosegardenW/RosegardenW
       run: | 
-        qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler" QMAKE_LIBDIR=${GITHUB_WORKSPACE}/zlib-1.2.3/lib
+        qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler" "QMAKE_LIBDIR+=${GITHUB_WORKSPACE}/zlib-1.2.3/lib"
         mingw32-make.exe qmake_all
 
     - name: Make mingw32
