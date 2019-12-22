@@ -10,7 +10,7 @@ QT += core gui xml network widgets printsupport
 #
 QMAKE_CXXFLAGS = -fpermissive
 
-CONFIG += qt embed_manifest_exe shared@
+#CONFIG += qt embed_manifest_exe shared@
 
 OTHER_FILES += \
     data/rosegarden.qss \
@@ -78,12 +78,12 @@ TRANSLATIONS =      data/locale/ca.ts \
                     data/locale/pt_BR.ts
 
 
-INCLUDEPATH += "C:/devel/zlib/include"
+#INCLUDEPATH += "C:/devel/zlib/include"
 
-QMAKE_LIBDIR += "C:/tools/pthreads/lib"
-                "C:/tools/zlib/lib"
+#QMAKE_LIBDIR += "C:/tools/pthreads/lib"
+#                "C:/tools/zlib/lib"
 
-LIBS += -lpthread -lz -lwinmm
+#LIBS += -lpthread -lz -lwinmm
 
 HEADERS += \
     base/InstrumentStaticSignals.h \
