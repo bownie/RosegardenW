@@ -36,30 +36,27 @@ jobs:
 
     - uses: actions/checkout@v1
 
-    - name: List directory
-      run: |
-        dir
-        pwd
+#    - name: List directory
+#      run: |
+#        dir
+#       pwd
 
-    - name: List directory (working directory)
-      working-directory: d:/a/RosegardenW/RosegardenW
-      run: |
-        dir
-        pwd
+#    - name: List directory (working directory)
+#      working-directory: d:/a/RosegardenW/RosegardenW
+#      run: |
+#        dir
+#        pwd
         
     - name: Qmake and make
       working-directory: d:/a/RosegardenW/RosegardenW
       run: | 
-        qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler" "QMAKE_LIBDIR+=${GITHUB_WORKSPACE}/zlib-1.2.3/lib"
+        qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler"
         mingw32-make.exe qmake_all
+# libdirs still causing confusion?
+# "QMAKE_LIBDIR+=${GITHUB_WORKSPACE}/zlib-1.2.3/lib"
 
     - name: Make mingw32
       working-directory: d:/a/RosegardenW/RosegardenW
       run: mingw32-make.exe -j8
-
-#    - name: Run a multi-line script
-#      run: |
-#        echo Add other actions to build,
-#        echo test, and deploy your project.
 
 
