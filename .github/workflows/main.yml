@@ -25,14 +25,14 @@ jobs:
         # Version of Qt to install
         version: 5.12.6 # optional, default is 5.12.6
         # Host platform
-        #host: windows # optional
+        host: windows # optional
         # Target platform for build
         target: desktop # optional, default is desktop
         # Architecture for Windows/Android
         arch: win32_mingw73 # optional
         # Whether or not to install Qt dependencies on Linux
         #install-deps: true # optional, default is true
-        modules: core gui xml network widgets printsupport
+        #modules: core gui xml network widgets printsupport
 
     - uses: actions/checkout@v1
 
