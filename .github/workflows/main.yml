@@ -57,6 +57,6 @@ jobs:
 
     - name: Make mingw32
       working-directory: d:/a/RosegardenW/RosegardenW
-      run: mingw32-make.exe clean -j8
+      run: mingw32-make.exe -j8
 
 
