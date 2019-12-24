@@ -10,7 +10,7 @@ QT += core gui xml network widgets printsupport
 #
 QMAKE_CXXFLAGS = -fpermissive
 
-CONFIG += qt embed_manifest_exe shared@
+CONFIG += qt embed_manifest_exe shared
 
 OTHER_FILES += \
     data/rosegarden.qss \
