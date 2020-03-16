@@ -18,12 +18,12 @@ jobs:
         unzip zlib-1.2.3.zip
 
     - name: Install Qt
-      uses: jurplel/install-qt-action@v2.1.0
+      uses: jurplel/install-qt-action@v2
       with:
         # Directory to install Qt
         #dir: # optional
         # Version of Qt to install
-        version: 5.12.6 # optional, default is 5.12.6
+        #version: 5.12.7 # optional, default is 5.12.7
         # Host platform
         #host: windows # optional
         # Target platform for build
