@@ -80,10 +80,12 @@ TRANSLATIONS =      data/locale/ca.ts \
 
 INCLUDEPATH += "C:/devel/zlib/include"
 
-QMAKE_LIBDIR += "C:/tools/pthreads/lib"
-                "C:/tools/zlib/lib"
+#QMAKE_LIBDIR += "C:/tools/pthreads/lib"
+#                "C:/tools/zlib/lib"
 
-LIBS += -lpthread -lz -lwinmm
+LIBS += -lpthread -lz
+
+#-lwinmm
 
 HEADERS += \
     base/InstrumentStaticSignals.h \
@@ -760,10 +762,10 @@ HEADERS += \
     gui/studio/AudioMixerWindow2.h \
     gui/editors/tempo/TempoView.h \
     gui/editors/tempo/TempoListItem.h \
-    sound/rtmidi/RtMidi.h \
+#    sound/rtmidi/RtMidi.h \
     sound/rtmidi/RtError.h \
-    sound/PortableSoundDriver.h \
-    sound/MidiProcess.h \
+#    sound/PortableSoundDriver.h \
+#    sound/MidiProcess.h \
     document/io/LilyPondLanguage.h \
     gui/editors/pitchtracker/PitchTrackerView.h \
     gui/editors/pitchtracker/PitchHistory.h \
@@ -1444,9 +1446,9 @@ SOURCES += \
     gui/studio/AudioMixerWindow2.cpp \
     gui/editors/tempo/TempoView.cpp \
     gui/editors/tempo/TempoListItem.cpp \
-    sound/rtmidi/RtMidi.cpp \
-    sound/PortableSoundDriver.cpp \
-    sound/MidiProcess.cpp \
+#    sound/rtmidi/RtMidi.cpp \
+#    sound/PortableSoundDriver.cpp \
+#    sound/MidiProcess.cpp \
     gui/editors/pitchtracker/PitchTrackerView.cpp \
     gui/editors/pitchtracker/PitchHistory.cpp \
     gui/editors/pitchtracker/PitchGraphWidget.cpp \
