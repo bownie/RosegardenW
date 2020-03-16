@@ -5,17 +5,8 @@ on: [push]
 jobs:
   build:
 
-    runs-on: windows-latest
+    runs-on: macos-latest
     steps:
-    - name: Install wget
-      run: |
-        pip install wget
-        pip show wget
-
-    - name: Install zlib
-      run: |
-        python -m wget https://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip -o zlib-1.2.3.zip
-        unzip zlib-1.2.3.zip
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v2
@@ -23,13 +14,13 @@ jobs:
         # Directory to install Qt
         #dir: # optional
         # Version of Qt to install
-        #version: 5.12.7 # optional, default is 5.12.7
+        version: 5.12.7 # optional, default is 5.12.7
         # Host platform
-        #host: windows # optional
+        host: mac # optional
         # Target platform for build
-        #target: desktop # optional, default is desktop
+        target: desktop # optional, default is desktop
         # Architecture for Windows/Android
-        arch: win32_mingw73 # optional
+        #arch: win32_mingw73 # optional
         # Whether or not to install Qt dependencies on Linux
         #install-deps: true # optional, default is true
         #modules: core gui xml network widgets printsupport
