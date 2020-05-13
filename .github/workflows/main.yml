@@ -21,15 +21,15 @@ jobs:
       with:
         msystem: MINGW32        
         
-    - name: Install wget
-      run: |
-        pip install wget
-        pip show wget
+    #- name: Install wget
+#      run: |
+ #       pip install wget
+  #      pip show wget
 
-    - name: Install zlib
-      run: |
-        python -m wget https://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip -o zlib-1.2.3.zip
-        unzip zlib-1.2.3.zip
+#    - name: Install zlib
+#      run: |
+#        python -m wget https://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip -o zlib-1.2.3.zip
+#        unzip zlib-1.2.3.zip
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v2.5.3
