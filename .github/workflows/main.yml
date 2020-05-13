@@ -2,8 +2,8 @@ name: CI
 
 env:
   QT_VERSION:     "5.12.7"
-  MINGW_VERSION:  "win32_mingw73"
-  MINGW_PATH:     "mingw73_32"
+  MINGW_VERSION:  "win64_mingw73"
+  MINGW_PATH:     "mingw73_64"
   
 on: [push]
 
@@ -16,20 +16,11 @@ jobs:
       run: |
         choco uninstall mingw --force
         choco uninstall strawberryperl --force
+        choco install mingw --version=7.3.0
 
-    - uses: numworks/setup-msys2@v1
-      with:
-        msystem: MINGW32        
-        
-    #- name: Install wget
-#      run: |
- #       pip install wget
-  #      pip show wget
-
-#    - name: Install zlib
-#      run: |
-#        python -m wget https://downloads.sourceforge.net/project/gnuwin32/zlib/1.2.3/zlib-1.2.3-bin.zip -o zlib-1.2.3.zip
-#        unzip zlib-1.2.3.zip
+    #- uses: numworks/setup-msys2@v1
+#      with:
+ #       msystem: MINGW32        
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v2.5.3
