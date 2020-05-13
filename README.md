@@ -24,15 +24,13 @@ Richard Bown (@bownie29)
 Amstelveen, May 2020
 
 
-Websites
-========
+## Websites
 
 The main Rosegarden website with details of the latest functionality can be found here:
 
   http://www.rosegardenmusic.com
 
-Repository Notes
-================
+## Repository Notes
 
 The trunk repository for Rosegarden (Linux) can be found here:
 
