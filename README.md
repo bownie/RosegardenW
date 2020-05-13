@@ -1,11 +1,11 @@
-## Rosegarden 16.09 "Xerxes" Alpha Release for Windows
+## Rosegarden 19.06 "Xerxes" Alpha Release for Windows
 
 ![CI](https://github.com/bownie/RosegardenW/workflows/CI/badge.svg)
 
 Rosegarden for Windows is a partial port of the Linux application "Rosegarden" - a notation editor and MIDI and audio sequencer.
 This port has reduced functionality compared to the full Linux version.  There is no audio support, limited MIDI support but it should offer a working platform for composition, layout and printing and some MIDI usage.
 
-Please see the 16.09 release notes for list of total functionality but bear in mind limitations above and it is expected that this software is unstable.
+Please see the 19.06 release notes for list of total functionality but bear in mind limitations above and it is expected that this software is unstable.
 
 As of previous release the MIDI subsystem was as follows:
 

@@ -25,7 +25,7 @@ Caption "Rosegarden Windows32 Alpha Build 1906"
 !define SOFTWARE "Rosegarden"
 
 ; The file to write
-OutFile "rosegarden-win32-alpha-1906.exe"
+OutFile "rosegarden-win64-alpha-1906.exe"
 
 ; The default installation directory
 ;
@@ -38,7 +38,7 @@ InstallDirRegKey HKLM "Software\${COMPANY}\${SOFTWARE}" "Install_Dir"
 
 ; Application icon
 ;
-Icon "rg-rwb-rose3-128x128.ico"
+Icon "data/pixmaps/icons/rg-rwb-rose3-128x128.ico"
 
 ; MUI stuff
 ;
