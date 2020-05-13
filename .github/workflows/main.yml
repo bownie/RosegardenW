@@ -16,7 +16,7 @@ jobs:
       run: |
         choco uninstall mingw --force
         choco uninstall strawberryperl --force
-        
+
     - uses: numworks/setup-msys2@v1
       with:
         msystem: MINGW32        
@@ -32,7 +32,7 @@ jobs:
         unzip zlib-1.2.3.zip
 
     - name: Install Qt
-      uses: jurplel/install-qt-action@v2
+      uses: jurplel/install-qt-action@v2.5.3
       with:
         version: ${{ env.QT_VERSION }}
         arch:    ${{ env.MINGW_VERSION }}
