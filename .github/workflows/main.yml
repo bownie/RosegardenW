@@ -1,12 +1,26 @@
 name: CI
 
+env:
+  QT_VERSION:     "5.12.7"
+  MINGW_VERSION:  "win32_mingw73"
+  MINGW_PATH:     "mingw73_32"
+  
 on: [push]
 
 jobs:
   build:
-
     runs-on: windows-latest
+    
     steps:
+    - name: Uninstall choco versions of mingw
+      run: |
+        choco uninstall mingw --force
+        choco uninstall strawberryperl --force
+        
+    - uses: numworks/setup-msys2@v1
+      with:
+        msystem: MINGW32        
+        
     - name: Install wget
       run: |
         pip install wget
@@ -20,40 +34,17 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v2
       with:
-        # Directory to install Qt
-        #dir: # optional
-        # Version of Qt to install
-        #version: 5.12.7 # optional, default is 5.12.7
-        # Host platform
-        #host: windows # optional
-        # Target platform for build
-        #target: desktop # optional, default is desktop
-        # Architecture for Windows/Android
-        arch: win32_mingw73 # optional
-        # Whether or not to install Qt dependencies on Linux
-        #install-deps: true # optional, default is true
-        #modules: core gui xml network widgets printsupport
+        version: ${{ env.QT_VERSION }}
+        arch:    ${{ env.MINGW_VERSION }}
+        extra:   --external 7z
 
     - uses: actions/checkout@v1
-
-#    - name: List directory
-#      run: |
-#        dir
-#       pwd
-
-#    - name: List directory (working directory)
-#      working-directory: d:/a/RosegardenW/RosegardenW
-#      run: |
-#        dir
-#        pwd
         
     - name: Qmake and make
       working-directory: d:/a/RosegardenW/RosegardenW
       run: | 
         qmake.exe garderobe.pro -spec win32-g++ "CONFIG+=qtquickcompiler"
         mingw32-make.exe qmake_all
-# libdirs still causing confusion?
-# "QMAKE_LIBDIR+=${GITHUB_WORKSPACE}/zlib-1.2.3/lib"
 
     - name: Make mingw32
       working-directory: d:/a/RosegardenW/RosegardenW
