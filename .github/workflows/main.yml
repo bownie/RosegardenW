@@ -17,11 +17,7 @@ jobs:
         choco uninstall mingw --force
         choco uninstall strawberryperl --force
         choco install mingw --version=7.3.0
-
-    #- uses: numworks/setup-msys2@v1
-#      with:
- #       msystem: MINGW32        
-
+        
     - name: Install Qt
       uses: jurplel/install-qt-action@v2.5.3
       with:
@@ -41,4 +37,9 @@ jobs:
       working-directory: d:/a/RosegardenW/RosegardenW
       run: mingw32-make.exe -j8
 
+    - name: Run installer
+      uses: joncloud/makensis-action@v1
+      with:
+        arguments: "/V3"
+        script-file: "garderobe.nsi"
 
