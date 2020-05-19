@@ -36,8 +36,6 @@ jobs:
     - name: Make mingw32
       working-directory: d:/a/RosegardenW/RosegardenW
       run: mingw32-make.exe -j8
-      with:
-        path: release/
 
     - name: Run installer
       uses: joncloud/makensis-action@v1
