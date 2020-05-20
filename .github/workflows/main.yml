@@ -43,6 +43,12 @@ jobs:
            ls
            ls release
 
+    - name: Upload EXE artifact
+      uses: actions/upload-artifact@v1
+      with:
+        name: rosegarden.exe
+        path: release/rosegarden.exe
+
     - name: Run installer
       uses: joncloud/makensis-action@v1
       with:

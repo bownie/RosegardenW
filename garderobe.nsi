@@ -73,7 +73,7 @@ Section "Rosegarden"
 
     ; The files we are building into the package
     ;
-    File "release/rosegarden.exe"
+    File "release\rosegarden.exe"
     ;File "icudt52.dll"
     ;File "icuin52.dll"
     ;File "icuuc52.dll"
