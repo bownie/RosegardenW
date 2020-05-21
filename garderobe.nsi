@@ -8,7 +8,7 @@
 !include FontName.nsh
 !include WinMessages.nsh
 
-; Request application privileges for Windows Vista/7 etc
+; Request application privileges for Windows Vista\7 etc
 ;
 RequestExecutionLevel admin
 
@@ -38,7 +38,7 @@ InstallDirRegKey HKLM "Software\${COMPANY}\${SOFTWARE}" "Install_Dir"
 
 ; Application icon
 ;
-Icon "data/pixmaps/icons/rg-rwb-rose3-128x128.ico"
+Icon "data\pixmaps\icons\rg-rwb-rose3-128x128.ico"
 
 ; MUI stuff
 ;
@@ -87,40 +87,40 @@ Section "Rosegarden"
     ;File "Qt5Svg.dll"
     ;File "Qt5Widgets.dll"
     ;File "Qt5Xml.dll"
-    File "data/locale/ca.qm"
-    File "data/locale/cs.qm"
-    File "data/locale/cy.qm"
-    File "data/locale/de.qm"
-    File "data/locale/en.qm"
-    File "data/locale/en_GB.qm"
-    File "data/locale/en_US.qm"
-    File "data/locale/es.qm"
-    File "data/locale/et.qm"
-    File "data/locale/eu.qm"
-    File "data/locale/fi.qm"
-    File "data/locale/fr.qm"
-    File "data/locale/id.qm"
-    File "data/locale/it.qm"
-    File "data/locale/ja.qm"
-    File "data/locale/nl.qm"
-    File "data/locale/pl.qm"
-    File "data/locale/pt_BR.qm"
-    File "data/locale/ru.qm"
-    File "data/locale/sv.qm"
-    File "zdata/locale/h_CN.qm"
-    File "data/locale/rosegarden.qm"
+    File "data\locale\ca.qm"
+    File "data\locale\cs.qm"
+    File "data\locale\cy.qm"
+    File "data\locale\de.qm"
+    File "data\locale\en.qm"
+    File "data\locale\en_GB.qm"
+    File "data\locale\en_US.qm"
+    File "data\locale\es.qm"
+    File "data\locale\et.qm"
+    File "data\locale\eu.qm"
+    File "data\locale\fi.qm"
+    File "data\locale\fr.qm"
+    File "data\locale\id.qm"
+    File "data\locale\it.qm"
+    File "data\locale\ja.qm"
+    File "data\locale\nl.qm"
+    File "data\locale\pl.qm"
+    File "data\locale\pt_BR.qm"
+    File "data\locale\ru.qm"
+    File "data\locale\sv.qm"
+    File "data\locale\h_CN.qm"
+    File "data\locale\rosegarden.qm"
     ;File "zlib1.dll"
 
-    ;File /r "accessible"
-    ;File /r "bearer"
-    ;File /r "iconengines"
-    ;File /r "imageformats"
-    ;File /r "platforms"
-    ;File /r "printsupport"
+    ;File \r "accessible"
+    ;File \r "bearer"
+    ;File \r "iconengines"
+    ;File \r "imageformats"
+    ;File \r "platforms"
+    ;File \r "printsupport"
 
     ; More resources
     ;
-    File "data/pixmaps/icons/rg-rwb-rose3-128x128.ico"
+    File "data\pixmaps\icons\rg-rwb-rose3-128x128.ico"
 
     ; Write the installation path into the registry
     WriteRegStr HKLM "Software\${COMPANY}\${SOFTWARE}" "Install_Dir" "$INSTDIR"
@@ -157,7 +157,7 @@ Section "Fonts"
 
     ; Complete font registration without reboot
     ;
-    SendMessage ${HWND_BROADCAST} ${WM_FONTCHANGE} 0 0 /TIMEOUT=5000
+    SendMessage ${HWND_BROADCAST} ${WM_FONTCHANGE} 0 0 \TIMEOUT=5000
 
 SectionEnd
 
@@ -238,12 +238,12 @@ Section "Uninstall"
 
     ; Remove the data directory and subdirs
     ;
-    RMDir /r "$INSTDIR\accessible"
-    RMDir /r "$INSTDIR\bearer"
-    RMDir /r "$INSTDIR\iconengines"
-    RMDir /r "$INSTDIR\imageformats"
-    RMDir /r "$INSTDIR\platforms"
-    RMDir /r "$INSTDIR\printsupport"
+    RMDir \r "$INSTDIR\accessible"
+    RMDir \r "$INSTDIR\bearer"
+    RMDir \r "$INSTDIR\iconengines"
+    RMDir \r "$INSTDIR\imageformats"
+    RMDir \r "$INSTDIR\platforms"
+    RMDir \r "$INSTDIR\printsupport"
 
     Delete "$INSTDIR\accessible"
     Delete "$INSTDIR\bearer"
