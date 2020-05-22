@@ -49,9 +49,23 @@ jobs:
         name: rosegarden.exe
         path: release/rosegarden.exe
 
+    - name: Download FontName plugin for NSIS
+      uses: carlosperate/download-file-action@v1.0.3
+      with:
+        file-url: https://nsis.sourceforge.io/mediawiki/images/7/78/FontName-0.7.zip
+        file-name: FontName-0.7.zip
+        location: ${{ github.workspace }}
+
+    - name: Install FontName plugin for NSIS
+      run: |
+        7z x "${{ github.workspace }}/FontName-0.7.zip"
+        ${{ github.workspace }}/FontName-0.7.exe
+
     - name: Run installer
-      uses: joncloud/makensis-action@v1
+      uses: joncloud/makensis-action@v2
       with:
         arguments: "/V3"
         script-file: "garderobe.nsi"
+        additional-plugin-paths: ${{ github.workspace }}/NSIS_Plugins/Plugins/
+
 
