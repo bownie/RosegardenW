@@ -107,7 +107,7 @@ Section "Rosegarden"
     File "data\locale\pt_BR.qm"
     File "data\locale\ru.qm"
     File "data\locale\sv.qm"
-    File "data\locale\h_CN.qm"
+    File "data\locale\zh_CN.qm"
     File "data\locale\rosegarden.qm"
     ;File "zlib1.dll"
 
