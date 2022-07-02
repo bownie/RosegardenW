@@ -19,7 +19,7 @@ jobs:
         choco install mingw --version=7.3.0
         
     - name: Install Qt
-      uses: jurplel/install-qt-action@v2.5.3
+      uses: jurplel/install-qt-action@v2
       with:
         version: ${{ env.QT_VERSION }}
         arch:    ${{ env.MINGW_VERSION }}
