@@ -66,6 +66,6 @@ jobs:
       with:
         arguments: "/V3"
         script-file: "garderobe.nsi"
-        additional-plugin-paths: ${{ github.workspace }}/NSIS_Plugins/Plugins/
+       # additional-plugin-paths: ${{ github.workspace }}/NSIS_Plugins/Plugins/
 
 
