@@ -61,11 +61,11 @@ jobs:
         7z x "${{ github.workspace }}/FontName-0.7.zip"
         ${{ github.workspace }}/FontName-0.7.exe
 
-    - name: Run installer
-      uses: joncloud/makensis-action@v3.7
-      with:
-        arguments: "/V3"
-        script-file: "garderobe.nsi"
-       # additional-plugin-paths: ${{ github.workspace }}/NSIS_Plugins/Plugins/
+#    - name: Run installer
+#      uses: joncloud/makensis-action@v3.7
+#      with:
+#        arguments: "/V3"
+#        script-file: "garderobe.nsi"
+#         additional-plugin-paths: ${{ github.workspace }}/NSIS_Plugins/Plugins/
 
 
